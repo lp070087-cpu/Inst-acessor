@@ -1,0 +1,127 @@
+<!-- ============================================================
+     SEÇÃO 22 — HISTÓRICO
+     ============================================================ -->
+<section class="section" id="historico">
+  <div class="bg-decor" aria-hidden="true">
+    <div class="orb orb-3" style="bottom:-80px; right:-140px; opacity:.3"></div>
+  </div>
+  <div class="container">
+    <div class="section-head center reveal">
+      <span class="eyebrow">Histórico</span>
+      <h2 class="h2">Sua evolução, <span class="grad">registrada e comparável.</span></h2>
+      <p class="lead">Acompanhe a mudança dos números e do Score ao longo do tempo — de 7 dias a 1 ano.</p>
+      <span class="demo-badge" style="margin-top:20px">Dados de demonstração</span>
+    </div>
+
+    <div class="hist-tabs reveal" data-tabs="hist-">
+      <button class="hist-tab active" data-tab="hist-7d">7 dias</button>
+      <button class="hist-tab" data-tab="hist-30d">30 dias</button>
+      <button class="hist-tab" data-tab="hist-90d">90 dias</button>
+      <button class="hist-tab" data-tab="hist-6m">6 meses</button>
+      <button class="hist-tab" data-tab="hist-1a">1 ano</button>
+    </div>
+
+    <div class="hist-wrap">
+      <div id="hist-7d" class="hist-chart-card active-panel">
+        <h3>Evolução de seguidores e Score</h3>
+        <p>Últimos 7 dias</p>
+        <svg class="hist-svg" viewBox="0 0 640 260" role="img" aria-label="Gráfico de evolução em 7 dias">
+          <defs>
+            <linearGradient id="histLine" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#F43F8E"/><stop offset="50%" stop-color="#A855F7"/><stop offset="100%" stop-color="#6366F1"/></linearGradient>
+            <linearGradient id="histArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#A855F7" stop-opacity=".22"/><stop offset="100%" stop-color="#A855F7" stop-opacity="0"/></linearGradient>
+          </defs>
+          <line class="grid-line" x1="0" y1="40" x2="640" y2="40"/><line class="grid-line" x1="0" y1="95" x2="640" y2="95"/><line class="grid-line" x1="0" y1="150" x2="640" y2="150"/><line class="grid-line" x1="0" y1="205" x2="640" y2="205"/>
+          <text class="axis-txt" x="8" y="34">13k</text><text class="axis-txt" x="8" y="89">12,5k</text><text class="axis-txt" x="8" y="144">12k</text><text class="axis-txt" x="8" y="199">11,5k</text>
+          <path class="area" d="M0,180 C50,172 90,178 140,160 C190,142 240,150 290,128 C340,106 390,118 440,92 C490,66 550,74 640,40 L640,260 L0,260 Z"></path>
+          <path class="line" d="M0,180 C50,172 90,178 140,160 C190,142 240,150 290,128 C340,106 390,118 440,92 C490,66 550,74 640,40"></path>
+          <circle class="dot" cx="440" cy="92" r="5"></circle>
+        </svg>
+      </div>
+      <div id="hist-30d" class="hist-chart-card active-panel" style="display:none">
+        <h3>Evolução de seguidores e Score</h3>
+        <p>Últimos 30 dias</p>
+        <svg class="hist-svg" viewBox="0 0 640 260" role="img" aria-label="Gráfico de evolução em 30 dias">
+          <defs>
+            <linearGradient id="histLine30" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#F43F8E"/><stop offset="50%" stop-color="#A855F7"/><stop offset="100%" stop-color="#6366F1"/></linearGradient>
+            <linearGradient id="histArea30" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#6366F1" stop-opacity=".2"/><stop offset="100%" stop-color="#6366F1" stop-opacity="0"/></linearGradient>
+          </defs>
+          <line class="grid-line" x1="0" y1="40" x2="640" y2="40"/><line class="grid-line" x1="0" y1="95" x2="640" y2="95"/><line class="grid-line" x1="0" y1="150" x2="640" y2="150"/><line class="grid-line" x1="0" y1="205" x2="640" y2="205"/>
+          <text class="axis-txt" x="8" y="34">13k</text><text class="axis-txt" x="8" y="89">12k</text><text class="axis-txt" x="8" y="144">11k</text><text class="axis-txt" x="8" y="199">10k</text>
+          <path class="area" d="M0,200 C60,192 120,198 180,178 C240,158 300,166 360,140 C420,116 480,128 560,96 L640,70 L640,260 L0,260 Z"></path>
+          <path class="line" d="M0,200 C60,192 120,198 180,178 C240,158 300,166 360,140 C420,116 480,128 560,96 L640,70" stroke="url(#histLine30)"></path>
+          <circle class="dot" cx="560" cy="96" r="5"></circle>
+        </svg>
+      </div>
+      <div id="hist-90d" class="hist-chart-card active-panel" style="display:none">
+        <h3>Evolução de seguidores e Score</h3>
+        <p>Últimos 90 dias</p>
+        <svg class="hist-svg" viewBox="0 0 640 260" role="img" aria-label="Gráfico de evolução em 90 dias">
+          <defs>
+            <linearGradient id="histLine90" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#F43F8E"/><stop offset="50%" stop-color="#A855F7"/><stop offset="100%" stop-color="#6366F1"/></linearGradient>
+            <linearGradient id="histArea90" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#A855F7" stop-opacity=".22"/><stop offset="100%" stop-color="#A855F7" stop-opacity="0"/></linearGradient>
+          </defs>
+          <line class="grid-line" x1="0" y1="40" x2="640" y2="40"/><line class="grid-line" x1="0" y1="95" x2="640" y2="95"/><line class="grid-line" x1="0" y1="150" x2="640" y2="150"/><line class="grid-line" x1="0" y1="205" x2="640" y2="205"/>
+          <text class="axis-txt" x="8" y="34">13k</text><text class="axis-txt" x="8" y="89">12k</text><text class="axis-txt" x="8" y="144">11k</text><text class="axis-txt" x="8" y="199">10k</text>
+          <path class="area" d="M0,220 C80,210 140,214 220,186 C300,158 380,168 460,132 C540,100 600,90 640,76 L640,260 L0,260 Z" fill="url(#histArea90)"></path>
+          <path class="line" d="M0,220 C80,210 140,214 220,186 C300,158 380,168 460,132 C540,100 600,90 640,76" stroke="url(#histLine90)"></path>
+        </svg>
+      </div>
+      <div id="hist-6m" class="hist-chart-card active-panel" style="display:none">
+        <h3>Evolução de seguidores e Score</h3>
+        <p>Últimos 6 meses</p>
+        <svg class="hist-svg" viewBox="0 0 640 260" role="img" aria-label="Gráfico de evolução em 6 meses">
+          <defs>
+            <linearGradient id="histLine6m" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#F43F8E"/><stop offset="50%" stop-color="#A855F7"/><stop offset="100%" stop-color="#6366F1"/></linearGradient>
+            <linearGradient id="histArea6m" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#6366F1" stop-opacity=".2"/><stop offset="100%" stop-color="#6366F1" stop-opacity="0"/></linearGradient>
+          </defs>
+          <line class="grid-line" x1="0" y1="40" x2="640" y2="40"/><line class="grid-line" x1="0" y1="95" x2="640" y2="95"/><line class="grid-line" x1="0" y1="150" x2="640" y2="150"/><line class="grid-line" x1="0" y1="205" x2="640" y2="205"/>
+          <text class="axis-txt" x="8" y="34">13k</text><text class="axis-txt" x="8" y="89">12k</text><text class="axis-txt" x="8" y="144">11k</text><text class="axis-txt" x="8" y="199">10k</text>
+          <path class="area" d="M0,240 C100,228 160,230 240,204 C320,178 420,186 520,146 C580,122 620,108 640,96 L640,260 L0,260 Z" fill="url(#histArea6m)"></path>
+          <path class="line" d="M0,240 C100,228 160,230 240,204 C320,178 420,186 520,146 C580,122 620,108 640,96" stroke="url(#histLine6m)"></path>
+        </svg>
+      </div>
+      <div id="hist-1a" class="hist-chart-card active-panel" style="display:none">
+        <h3>Evolução de seguidores e Score</h3>
+        <p>Último ano</p>
+        <svg class="hist-svg" viewBox="0 0 640 260" role="img" aria-label="Gráfico de evolução em 1 ano">
+          <defs>
+            <linearGradient id="histLine1a" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#F43F8E"/><stop offset="50%" stop-color="#A855F7"/><stop offset="100%" stop-color="#6366F1"/></linearGradient>
+            <linearGradient id="histArea1a" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#A855F7" stop-opacity=".22"/><stop offset="100%" stop-color="#A855F7" stop-opacity="0"/></linearGradient>
+          </defs>
+          <line class="grid-line" x1="0" y1="40" x2="640" y2="40"/><line class="grid-line" x1="0" y1="95" x2="640" y2="95"/><line class="grid-line" x1="0" y1="150" x2="640" y2="150"/><line class="grid-line" x1="0" y1="205" x2="640" y2="205"/>
+          <text class="axis-txt" x="8" y="34">13k</text><text class="axis-txt" x="8" y="89">12k</text><text class="axis-txt" x="8" y="144">11k</text><text class="axis-txt" x="8" y="199">10k</text>
+          <path class="area" d="M0,250 C120,238 200,244 300,212 C400,180 520,192 640,140 L640,260 L0,260 Z" fill="url(#histArea1a)"></path>
+          <path class="line" d="M0,250 C120,238 200,244 300,212 C400,180 520,192 640,140" stroke="url(#histLine1a)"></path>
+        </svg>
+      </div>
+
+      <div class="hist-cards">
+        <div class="hist-mini reveal" data-delay="1">
+          <span>Seguidores (7d)</span>
+          <b><span data-count="12840">0</span></b>
+          <span class="hm-delta up">▲ +412 no mês</span>
+        </div>
+        <div class="hist-mini reveal" data-delay="2">
+          <span>Engajamento médio</span>
+          <b><span data-count="6.4" data-decimals="1">0</span>%</b>
+          <span class="hm-delta up">▲ +1,2 p.p.</span>
+        </div>
+        <div class="hist-mini reveal" data-delay="3">
+          <span>Alcance acumulado</span>
+          <b><span data-count="86400">0</span></b>
+          <span class="hm-delta up">▲ +32%</span>
+        </div>
+        <div class="hist-mini reveal" data-delay="4">
+          <span>Consistência</span>
+          <b><span data-count="83">0</span>%</b>
+          <span class="hm-delta up">▲ +6 p.p.</span>
+        </div>
+        <div class="hist-mini hm-score reveal" data-delay="5">
+          <span>Score do perfil</span>
+          <b><span data-count="84">0</span>/100</b>
+          <span class="hm-delta up">▲ +12 desde o início</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

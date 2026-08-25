@@ -1,0 +1,158 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   INST ACESSOR — Estilos globais
+   Tokens espelhados da apresentação aprovada (apresentacao/).
+   Tema claro, identidade rosa/roxo preservada.
+   ============================================================ */
+
+@layer base {
+  :root {
+    /* Cores base (tema claro) — idênticas à apresentação */
+    --bg: #f7f8fa;
+    --bg-ice: #ffffff;
+    --surface: #f1f3f5;
+    --card: #ffffff;
+    --ink: #111318;
+    --ink-2: #667085;
+    --ink-3: #98a2b3;
+    --border: #e5e7eb;
+    --border-soft: #edeff2;
+
+    /* Marca — gradiente controlado */
+    --magenta: #f43f8e;
+    --purple: #8b5cf6;
+    --indigo: #4f46e5;
+    --blue: #3b82f6;
+    --brand-grad: linear-gradient(115deg, #f43f8e 0%, #a855f7 45%, #6366f1 100%);
+    --brand-grad-soft: linear-gradient(
+      115deg,
+      rgba(244, 63, 142, 0.1),
+      rgba(168, 85, 247, 0.1),
+      rgba(99, 102, 241, 0.1)
+    );
+
+    /* Estados semânticos */
+    --success: #10b981;
+    --danger: #ef4444;
+    --warn: #f59e0b;
+    --info: #3b82f6;
+    --ai: #8b5cf6;
+    --success-soft: rgba(16, 185, 129, 0.1);
+    --danger-soft: rgba(239, 68, 68, 0.1);
+    --warn-soft: rgba(245, 158, 11, 0.12);
+    --info-soft: rgba(59, 130, 246, 0.1);
+    --ai-soft: rgba(139, 92, 246, 0.1);
+
+    /* Sombras suaves */
+    --shadow-xs: 0 1px 2px rgba(17, 19, 24, 0.04);
+    --shadow-sm: 0 1px 2px rgba(17, 19, 24, 0.05),
+      0 4px 12px rgba(17, 19, 24, 0.04);
+    --shadow-md: 0 2px 4px rgba(17, 19, 24, 0.05),
+      0 12px 32px rgba(17, 19, 24, 0.07);
+    --shadow-lg: 0 4px 8px rgba(17, 19, 24, 0.06),
+      0 24px 56px rgba(17, 19, 24, 0.1);
+    --shadow-brand: 0 8px 30px rgba(168, 85, 247, 0.25);
+    --shadow-brand-lg: 0 16px 48px rgba(168, 85, 247, 0.3);
+
+    /* Raios */
+    --r-xs: 8px;
+    --r-sm: 12px;
+    --r-md: 16px;
+    --r-lg: 22px;
+    --r-xl: 28px;
+    --r-pill: 999px;
+
+    /* Tipografia */
+    --font-display: "Sora", "Plus Jakarta Sans", system-ui, sans-serif;
+    --font-body: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+    --font-data: "Space Grotesk", ui-monospace, "SF Mono", monospace;
+
+    /* Layout */
+    --container: 1180px;
+    --gutter: clamp(20px, 4vw, 40px);
+    --nav-h: 72px;
+    --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.6;
+    font-size: 16px;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    line-height: 1.12;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+  }
+
+  ::selection {
+    background: rgba(168, 85, 247, 0.22);
+    color: var(--ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--purple);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+}
+
+@layer components {
+  /* Gradiente de texto reutilizável */
+  .text-grad {
+    background: var(--brand-grad);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* Botão primário — exatamente o gradiente oficial */
+  .btn-grad {
+    background: var(--brand-grad);
+    background-size: 160% 160%;
+    color: #fff;
+    box-shadow: var(--shadow-brand);
+    transition:
+      transform 0.3s var(--ease-spring),
+      box-shadow 0.3s ease,
+      background-position 0.3s ease;
+  }
+  .btn-grad:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-brand-lg);
+    background-position: 100% 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001s !important;
+  }
+}

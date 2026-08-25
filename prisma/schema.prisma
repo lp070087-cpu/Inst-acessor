@@ -1,0 +1,398 @@
+// ============================================================
+// INST ACESSOR — Schema Prisma (Fase 1: Fundação)
+// ------------------------------------------------------------
+// Banco: Neon PostgreSQL
+// Fase 1 NÃO integra Instagram/Meta. SocialConnection já está
+// preparado para receber a credencial de forma segura na fase
+// de integração (token encriptado, sem texto puro).
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ------------------------------------------------------------
+// Usuários
+// ------------------------------------------------------------
+model User {
+  id            String     @id @default(cuid())
+  name          String?
+  email         String     @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?
+  role          Role       @default(USER)
+  status        UserStatus @default(ACTIVE)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  accounts        Account[]
+  sessions        Session[]
+  profile         UserProfile?
+  preferences     UserPreferences?
+  connections     SocialConnection[]
+  oauthStates     OAuthState[]
+  igProfiles      InstagramProfile[]
+  igSnapshots     InstagramSnapshot[]
+  igMedias        InstagramMedia[]
+  igMediaMetrics  InstagramMediaMetric[]
+  tiktokProfiles  TikTokProfile[]
+  tiktokSnapshots TikTokSnapshot[]
+  tiktokVideos    TikTokVideo[]
+  syncLogs        SyncLog[]
+}
+
+// ------------------------------------------------------------
+// Autenticação externa (Auth.js) — quando aplicável
+// ------------------------------------------------------------
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+// ------------------------------------------------------------
+// Sessões (Auth.js)
+// ------------------------------------------------------------
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ------------------------------------------------------------
+// Perfil público / preferências do usuário
+// ------------------------------------------------------------
+model UserProfile {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  displayName         String?
+  username            String?
+  avatar              String?
+  niche               String?
+  subNiche            String?
+  objective           String?
+  onboardingCompleted Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ------------------------------------------------------------
+// Preferências do usuário
+// ------------------------------------------------------------
+model UserPreferences {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  locale    String   @default("pt-BR")
+  timezone  String   @default("America/Sao_Paulo")
+  dashboard Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ------------------------------------------------------------
+// Tokens de verificação (Auth.js) — recuperação de senha / e-mail
+// ------------------------------------------------------------
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ------------------------------------------------------------
+// Conexão com redes sociais — estrutura preparada.
+// Fase 1 NÃO integra. Token só será armazenado encriptado
+// (aes-256-gcm) na fase da Meta — nunca em texto puro.
+// ------------------------------------------------------------
+model SocialConnection {
+  id                String           @id @default(cuid())
+  userId            String
+  platform          String // "instagram" (única rede na Fase 2)
+  externalAccountId String?
+  username          String?
+  accountType       String           @default("BUSINESS")
+  status            ConnectionStatus @default(DISCONNECTED)
+  tokenEncrypted    String? // SEMPRE encriptado (aes-256-gcm) — nunca texto puro
+  tokenExpiresAt    DateTime?
+  scopes            String? // escopos concedidos, separados por espaço
+  lastSyncAt        DateTime?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  igProfiles     InstagramProfile[]
+  tiktokProfiles TikTokProfile[]
+
+  @@unique([userId, platform])
+  @@index([platform])
+}
+
+// ------------------------------------------------------------
+// State de autorização OAuth (Meta/Instagram) — CSRF protection.
+// Gerado no /connect, consumido no /callback. Expira em minutos.
+// ------------------------------------------------------------
+model OAuthState {
+  id           String   @id @default(cuid())
+  userId       String
+  provider     String   @default("instagram")
+  state        String   @unique
+  consumed     Boolean  @default(false)
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  // PKCE (TikTok) — code_verifier associado ao state, necessário no callback.
+  codeVerifier String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([state])
+}
+
+// ------------------------------------------------------------
+// Dados do Instagram (Fase 3) — histórico temporal para comparação.
+// NUNCA inventar métricas: valores ausentes ficam null/indisponível.
+// ------------------------------------------------------------
+
+// Perfil da conta conectada — estado atual + referência p/ snapshots.
+model InstagramProfile {
+  id                 String   @id @default(cuid())
+  userId             String
+  socialConnectionId String   @unique
+  igAccountId        String   @unique // Instagram Business Account ID
+  username           String?
+  name               String?
+  followersCount     Int?
+  followsCount       Int?
+  mediaCount         Int?
+  profilePictureUrl  String?
+  biography          String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  connection SocialConnection    @relation(fields: [socialConnectionId], references: [id], onDelete: Cascade)
+  snapshots  InstagramSnapshot[]
+  medias     InstagramMedia[]
+
+  @@index([userId])
+  @@index([igAccountId])
+}
+
+// Snapshot temporal — um por sincronização. Guarda o "estado naquele momento".
+model InstagramSnapshot {
+  id         String   @id @default(cuid())
+  profileId  String
+  userId     String
+  capturedAt DateTime @default(now())
+
+  followersCount Int?
+  followsCount   Int?
+  mediaCount     Int?
+
+  // Métricas de período (janela da API: 1 dia / 7 dias / etc.) quando disponíveis.
+  reach        Int?
+  impressions  Int?
+  profileViews Int?
+  // Engajamento agregado quando a API fornecer (não inventar).
+  engagement   Int?
+
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile InstagramProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([userId, capturedAt])
+  @@index([profileId, capturedAt])
+}
+
+// Mídia (post/reel/story) publicada — metadados + link p/ métricas.
+model InstagramMedia {
+  id            String    @id @default(cuid())
+  profileId     String
+  userId        String
+  igMediaId     String // Instagram Media ID
+  mediaType     String? // IMAGE / VIDEO / CAROUSEL_ALBUM / REEL / STORY
+  permalink     String?
+  caption       String?
+  timestamp     DateTime?
+  likeCount     Int?
+  commentsCount Int?
+  mediaUrl      String?
+  thumbnailUrl  String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user    User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile InstagramProfile       @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  metrics InstagramMediaMetric[]
+
+  @@unique([igMediaId])
+  @@index([userId, timestamp])
+}
+
+// Métricas por mídia — somente campos realmente retornados pela API.
+model InstagramMediaMetric {
+  id            String   @id @default(cuid())
+  mediaId       String
+  userId        String
+  igMediaId     String
+  reached       Int?
+  impressions   Int?
+  shares        Int?
+  saves         Int?
+  comments      Int?
+  likes         Int?
+  videoViews    Int?
+  videoViewTime Int? // segundos, quando a API fornecer
+  capturedAt    DateTime @default(now())
+
+  user  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  media InstagramMedia @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([mediaId, capturedAt])
+}
+
+// Log de sincronização — auditabilidade e diagnóstico.
+model SyncLog {
+  id          String   @id @default(cuid())
+  userId      String
+  platform    String // "instagram" | "tiktok"
+  status      String // "success" | "error"
+  message     String?
+  itemsSynced Int?
+  durationMs  Int?
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, platform, createdAt])
+}
+
+// ------------------------------------------------------------
+// Dados do TikTok (Fase 3.5) — multiplataforma.
+// Mesma filosofia do Instagram: NUNCA inventar métricas.
+// ------------------------------------------------------------
+
+// Perfil da conta TikTok conectada.
+model TikTokProfile {
+  id                 String   @id @default(cuid())
+  userId             String
+  socialConnectionId String   @unique
+  tiktokUserId       String   @unique // open_id do TikTok
+  username           String?
+  displayName        String?
+  avatarUrl          String?
+  followersCount     Int?
+  followingCount     Int?
+  videoCount         Int?
+  likesCount         Int?
+  bio                String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  connection SocialConnection @relation(fields: [socialConnectionId], references: [id], onDelete: Cascade)
+  snapshots  TikTokSnapshot[]
+  videos     TikTokVideo[]
+
+  @@index([userId])
+  @@index([tiktokUserId])
+}
+
+// Snapshot temporal — um por sincronização.
+model TikTokSnapshot {
+  id         String   @id @default(cuid())
+  profileId  String
+  userId     String
+  capturedAt DateTime @default(now())
+
+  followersCount Int?
+  followingCount Int?
+  videoCount     Int?
+  likesCount     Int?
+  // Métricas de período quando a API fornecer (nunca inventar).
+  viewsCount     Int?
+  profileViews   Int?
+
+  user    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile TikTokProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([userId, capturedAt])
+  @@index([profileId, capturedAt])
+}
+
+// Vídeo do TikTok — metadados + link para métricas.
+model TikTokVideo {
+  id            String    @id @default(cuid())
+  profileId     String
+  userId        String
+  tiktokVideoId String // video_id do TikTok
+  title         String?
+  coverUrl      String?
+  videoUrl      String?
+  embedUrl      String?
+  likeCount     Int?
+  commentCount  Int?
+  shareCount    Int?
+  playCount     Int?
+  timestamp     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile TikTokProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([tiktokVideoId])
+  @@index([userId, timestamp])
+}
+
+// ------------------------------------------------------------
+// Enums
+// ------------------------------------------------------------
+enum Role {
+  USER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum ConnectionStatus {
+  DISCONNECTED
+  CONNECTING
+  CONNECTED
+  ERROR
+}

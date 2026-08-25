@@ -1,0 +1,75 @@
+<!-- ============================================================
+     SEÇÃO 13 — GERADOR DE COPY
+     ============================================================ -->
+<section class="section" id="gerador">
+  <div class="container">
+    <div class="section-head center reveal">
+      <span class="eyebrow">Gerador de copy</span>
+      <h2 class="h2">Legendas e roteiros <span class="grad">prontos em segundos.</span></h2>
+      <p class="lead">Informe o objetivo, o formato e o tom. A IA gera a copy com a voz do seu perfil.</p>
+      <span class="demo-badge" style="margin-top:20px">Exemplo simulado</span>
+    </div>
+
+    <div class="copy-flow">
+      <div class="copy-steps reveal" data-dir="left">
+        <h3>Fluxo de geração</h3>
+        <div class="copy-step done">
+          <div class="cs-num">1</div>
+          <div><b>Objetivo</b><span>Aumentar alcance</span></div>
+        </div>
+        <div class="copy-step done">
+          <div class="cs-num">2</div>
+          <div><b>Formato</b><span>Reel</span></div>
+        </div>
+        <div class="copy-step done">
+          <div class="cs-num">3</div>
+          <div><b>Tom</b><span>Direto e próximo</span></div>
+        </div>
+        <div class="copy-step done">
+          <div class="cs-num">4</div>
+          <div><b>Público</b><span>Interessados em moda casual</span></div>
+        </div>
+        <div class="copy-step">
+          <div class="cs-num">5</div>
+          <div><b>Copy gerada</b><span>Pronta para revisar e publicar</span></div>
+        </div>
+      </div>
+
+      <div class="copy-output reveal" data-dir="right" data-delay="2">
+        <div class="copy-tabs">
+          <button class="copy-tab active" data-tab="copy-reel">Reel</button>
+          <button class="copy-tab" data-tab="copy-story">Story</button>
+          <button class="copy-tab" data-tab="copy-carrossel">Carrossel</button>
+          <button class="copy-tab" data-tab="copy-legenda">Legenda</button>
+        </div>
+
+        <div class="copy-box" id="copy-reel" data-copy-panel>
+          <div class="cb-lbl"><span>Reel — legenda gerada</span><span class="demo-badge">Simulada</span></div>
+          <div class="cb-text" id="copyText">Você posta. A inteligência estuda. Seu perfil cresce. Conheça o Inst Acessor e <span class="hl" id="copyHl">transforme suas métricas em estratégia</span>.</div>
+          <div style="margin-top:18px;display:flex;gap:10px">
+            <button class="copy-btn primary" id="genCopy">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0114.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0020.5 15"/></svg>
+              Gerar nova copy
+            </button>
+            <button class="copy-btn ghost">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+              Copiar
+            </button>
+          </div>
+        </div>
+        <div class="copy-box" id="copy-story" data-copy-panel style="display:none">
+          <div class="cb-lbl"><span>Story — texto gerado</span><span class="demo-badge">Simulada</span></div>
+          <div class="cb-text">🔎 "3 sinais de que seu conteúdo precisa de um novo direcionamento" — arraste pra cima e descubra o seu. <span class="hl">(Seu melhor horário de stories: 19h30)</span></div>
+        </div>
+        <div class="copy-box" id="copy-carrossel" data-copy-panel style="display:none">
+          <div class="cb-lbl"><span>Carrossel — roteiro</span><span class="demo-badge">Simulada</span></div>
+          <div class="cb-text"><b>Slide 1:</b> "Ninguém cresce postando no escuro."<br><b>Slide 2:</b> O problema: métricas sem contexto.<br><b>Slide 3:</b> A virada: transformar dados em decisão.<br><b>Slide 4:</b> CTA: salve este guia para consultar depois. <span class="hl">(Padrão com alta taxa de salvamento no seu nicho)</span></div>
+        </div>
+        <div class="copy-box" id="copy-legenda" data-copy-panel style="display:none">
+          <div class="cb-lbl"><span>Legenda completa</span><span class="demo-badge">Simulada</span></div>
+          <div class="cb-text">Crescer no Instagram não é postar mais. É postar com direção.<br><br>O Inst Acessor lê seu perfil, encontra padrões e monta um plano semana a semana.<br><br><span class="hl">Salva este post e começa hoje.</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

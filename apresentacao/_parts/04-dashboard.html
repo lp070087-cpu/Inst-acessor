@@ -1,0 +1,86 @@
+<!-- ============================================================
+     SEÇÃO 4 — DASHBOARD INTELIGENTE
+     ============================================================ -->
+<section class="section" id="dashboard">
+  <div class="bg-decor" aria-hidden="true">
+    <div class="orb orb-1" style="top:-80px; right:-160px; opacity:.35"></div>
+  </div>
+  <div class="container">
+    <div class="section-head center reveal">
+      <span class="eyebrow">Dashboard inteligente</span>
+      <h2 class="h2">Entenda, em segundos, <span class="grad">como seu perfil está evoluindo.</span></h2>
+      <p class="lead">Indicadores, tendências e comparações de período em uma única tela — sem planilhas, sem adivinhação.</p>
+      <span class="demo-badge" style="margin-top:20px">Dados de demonstração</span>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi-card reveal" data-delay="1">
+        <div class="k-top"><span class="k-lbl">Seguidores</span><span class="k-trend up">▲ 4,8%</span></div>
+        <div class="k-num"><span data-count="12840">0</span></div>
+        <div class="k-sub">+412 nos últimos 30 dias</div>
+      </div>
+      <div class="kpi-card reveal" data-delay="2">
+        <div class="k-top"><span class="k-lbl">Engajamento</span><span class="k-trend up">▲ 1,2%</span></div>
+        <div class="k-num"><span data-count="6.4" data-decimals="1">0</span><small>%</small></div>
+        <div class="k-sub">interações / alcance</div>
+      </div>
+      <div class="kpi-card reveal" data-delay="3">
+        <div class="k-top"><span class="k-lbl">Alcance</span><span class="k-trend up">▲ 32%</span></div>
+        <div class="k-num"><span data-count="86400">0</span></div>
+        <div class="k-sub">contas alcançadas em 30 dias</div>
+      </div>
+      <div class="kpi-card reveal" data-delay="4">
+        <div class="k-top"><span class="k-lbl">Visualizações</span><span class="k-trend up">▲ 18%</span></div>
+        <div class="k-num"><span data-count="129600">0</span></div>
+        <div class="k-sub">perfil + conteúdos</div>
+      </div>
+      <div class="kpi-card reveal" data-delay="5">
+        <div class="k-top"><span class="k-lbl">Reels</span><span class="k-trend up">▲ 2,1x</span></div>
+        <div class="k-num"><span data-count="2.1" data-decimals="1">0</span><small>x</small></div>
+        <div class="k-sub">alcance médio por Reel</div>
+      </div>
+      <div class="kpi-card reveal" data-delay="6">
+        <div class="k-top"><span class="k-lbl">Stories</span><span class="k-trend warn">◆ 0,4%</span></div>
+        <div class="k-num"><span data-count="3120">0</span></div>
+        <div class="k-sub">visualizações médias por story</div>
+      </div>
+
+      <div class="kpi-card chart-card reveal" data-delay="7">
+        <div class="k-top"><span class="k-lbl">Evolução de alcance</span><span class="k-trend up">▲ 32% no período</span></div>
+        <svg class="chart-svg" viewBox="0 0 600 220" role="img" aria-label="Gráfico de evolução de alcance em alta">
+          <defs>
+            <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#F43F8E"/><stop offset="50%" stop-color="#A855F7"/><stop offset="100%" stop-color="#6366F1"/>
+            </linearGradient>
+            <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#A855F7" stop-opacity=".25"/><stop offset="100%" stop-color="#A855F7" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <line class="grid-line" x1="0" y1="40" x2="600" y2="40"/><line class="grid-line" x1="0" y1="90" x2="600" y2="90"/><line class="grid-line" x1="0" y1="140" x2="600" y2="140"/><line class="grid-line" x1="0" y1="190" x2="600" y2="190"/>
+          <text class="axis-txt" x="6" y="35">48k</text><text class="axis-txt" x="6" y="85">96k</text><text class="axis-txt" x="6" y="135">144k</text><text class="axis-txt" x="6" y="185">192k</text>
+          <path class="area" d="M0,160 C40,150 60,158 90,140 C120,120 150,128 180,112 C210,96 240,104 270,88 C300,72 330,80 360,62 C390,46 420,54 450,40 C480,26 520,34 560,18 L600,8 L600,220 L0,220 Z"></path>
+          <path class="line" d="M0,160 C40,150 60,158 90,140 C120,120 150,128 180,112 C210,96 240,104 270,88 C300,72 330,80 360,62 C390,46 420,54 450,40 C480,26 520,34 560,18 L600,8"></path>
+          <circle class="dot" cx="450" cy="40" r="5"></circle>
+        </svg>
+      </div>
+
+      <div class="compare-card reveal" data-delay="8">
+        <h4>Crescimento semanal</h4>
+        <div class="compare-row"><span class="c-name">Semana atual</span><span class="c-val">+118</span><span class="c-delta up">▲ 12%</span></div>
+        <div class="compare-row"><span class="c-name">Semana anterior</span><span class="c-val">+96</span><span class="c-delta up">▲ 8%</span></div>
+        <div class="compare-row"><span class="c-name">Melhor dia</span><span class="c-val">Terça</span><span class="c-delta up">+34</span></div>
+        <div class="compare-row"><span class="c-name">Ganhos</span><span class="c-val">+1.284</span><span class="c-delta up">▲</span></div>
+        <div class="compare-row"><span class="c-name">Perdas</span><span class="c-val">-312</span><span class="c-delta down">▼</span></div>
+      </div>
+
+      <div class="compare-card reveal" data-delay="9">
+        <h4>Crescimento mensal</h4>
+        <div class="compare-row"><span class="c-name">Este mês</span><span class="c-val">+412</span><span class="c-delta up">▲ 18%</span></div>
+        <div class="compare-row"><span class="c-name">Mês anterior</span><span class="c-val">+348</span><span class="c-delta up">▲ 9%</span></div>
+        <div class="compare-row"><span class="c-name">Salvamentos</span><span class="c-val">+2.1k</span><span class="c-delta up">▲ 24%</span></div>
+        <div class="compare-row"><span class="c-name">Compartilhamentos</span><span class="c-val">+840</span><span class="c-delta up">▲ 16%</span></div>
+        <div class="compare-row"><span class="c-name">Comparação 90d</span><span class="c-val">+38%</span><span class="c-delta up">▲</span></div>
+      </div>
+    </div>
+  </div>
+</section>
