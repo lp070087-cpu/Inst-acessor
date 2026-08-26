@@ -24,14 +24,14 @@ export async function GET() {
     session = await requireSession();
   } catch {
     return NextResponse.redirect(
-      new URL("/login?callbackUrl=/app/redes-sociais", APP_BASE)
+      new URL("/login?callbackUrl=/redes-sociais", APP_BASE)
     );
   }
 
   const userId = session.user?.id;
   if (!userId) {
     return NextResponse.redirect(
-      new URL("/login?callbackUrl=/app/redes-sociais", APP_BASE)
+      new URL("/login?callbackUrl=/redes-sociais", APP_BASE)
     );
   }
 
@@ -67,9 +67,9 @@ export async function GET() {
   } catch (error) {
     if (error instanceof IntegrationConfigError) {
       console.error("connect error: configuração do TikTok ausente.", error.message);
-      return NextResponse.redirect(new URL("/app/redes-sociais?error=config", APP_BASE));
+      return NextResponse.redirect(new URL("/redes-sociais?error=config", APP_BASE));
     }
     console.error("connect error", error instanceof Error ? error.message : "desconhecido");
-    return NextResponse.redirect(new URL("/app/redes-sociais?error=unknown", APP_BASE));
+    return NextResponse.redirect(new URL("/redes-sociais?error=unknown", APP_BASE));
   }
 }

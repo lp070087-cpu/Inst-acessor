@@ -43,7 +43,7 @@ export function AppSidebar({ user }: { user: Session["user"] }) {
   }, [pathname]);
 
   const isActive = (href: string) =>
-    href === "/app/dashboard"
+    href === "/dashboard"
       ? pathname === href
       : pathname.startsWith(href);
 
@@ -51,7 +51,7 @@ export function AppSidebar({ user }: { user: Session["user"] }) {
     <>
       {/* Barra superior mobile/tablet */}
       <header className="sticky top-0 z-40 flex items-center justify-between h-16 px-4 bg-bg-ice/80 backdrop-blur-md border-b border-border-soft lg:hidden">
-        <Link href="/app/dashboard" aria-label="Inst Acessor — início">
+        <Link href="/dashboard" aria-label="Inst Acessor — início">
           <AppLogo />
         </Link>
         <IconButton label="Abrir menu" onClick={() => setMobileOpen(true)}>
@@ -67,7 +67,7 @@ export function AppSidebar({ user }: { user: Session["user"] }) {
         )}
       >
         <div className="flex items-center justify-between h-16 px-5 border-b border-border-soft flex-none">
-          {!collapsed && <Link href="/app/dashboard"><AppLogo /></Link>}
+          {!collapsed && <Link href="/dashboard"><AppLogo /></Link>}
           <button
             onClick={() => setCollapsed((v) => !v)}
             aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
@@ -115,7 +115,7 @@ export function AppSidebar({ user }: { user: Session["user"] }) {
             </div>
           ) : (
             <Link
-              href="/app/perfil"
+              href="/perfil"
               className="flex items-center gap-3 rounded-[12px] p-2 hover:bg-surface transition-colors"
             >
               <Avatar name={user?.name} src={user?.image} size="sm" />

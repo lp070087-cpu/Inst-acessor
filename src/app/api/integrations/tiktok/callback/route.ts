@@ -11,8 +11,8 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const REDIRECT_OK = "/app/redes-sociais?connected=true";
-const REDIRECT_ERROR = "/app/redes-sociais?error=";
+const REDIRECT_OK = "/redes-sociais?connected=true";
+const REDIRECT_ERROR = "/redes-sociais?error=";
 const APP_BASE = process.env.AUTH_URL || "http://localhost:3000";
 
 /**

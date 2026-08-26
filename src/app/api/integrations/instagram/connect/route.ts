@@ -25,14 +25,14 @@ export async function GET() {
     // requireSession redireciona para /login via redirect().
     // Em API routes, não lança exceção — retorna o fluxo normal.
     return NextResponse.redirect(
-      new URL("/login?callbackUrl=/app/redes-sociais", process.env.AUTH_URL || "http://localhost:3000")
+      new URL("/login?callbackUrl=/redes-sociais", process.env.AUTH_URL || "http://localhost:3000")
     );
   }
 
   const userId = session.user?.id;
   if (!userId) {
     return NextResponse.redirect(
-      new URL("/login?callbackUrl=/app/redes-sociais", process.env.AUTH_URL || "http://localhost:3000")
+      new URL("/login?callbackUrl=/redes-sociais", process.env.AUTH_URL || "http://localhost:3000")
     );
   }
 
@@ -71,12 +71,12 @@ export async function GET() {
       // Erro de configuração do servidor — nunca expor secrets.
       console.error("connect error: configuração do Instagram ausente.", error.message);
       return NextResponse.redirect(
-        new URL("/app/redes-sociais?error=config", process.env.AUTH_URL || "http://localhost:3000")
+        new URL("/redes-sociais?error=config", process.env.AUTH_URL || "http://localhost:3000")
       );
     }
     console.error("connect error", error instanceof Error ? error.message : "desconhecido");
     return NextResponse.redirect(
-      new URL("/app/redes-sociais?error=unknown", process.env.AUTH_URL || "http://localhost:3000")
+      new URL("/redes-sociais?error=unknown", process.env.AUTH_URL || "http://localhost:3000")
     );
   }
 }

@@ -144,6 +144,22 @@
   }
 }
 
+/* Animação discreta de transição entre etapas do onboarding
+   (fade + leve slide, 260ms, paleta existente — nenhuma cor nova). */
+@keyframes onboarding-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.onboarding-step-enter {
+  animation: onboarding-step-in 260ms var(--ease-out) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

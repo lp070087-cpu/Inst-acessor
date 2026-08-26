@@ -23,7 +23,7 @@ export default async function OnboardingPage() {
 
   // Se o onboarding já foi concluído, vai direto para o dashboard
   if (profile?.onboardingCompleted) {
-    redirect("/app/dashboard");
+    redirect("/dashboard");
   }
 
   return (

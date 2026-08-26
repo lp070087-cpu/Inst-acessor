@@ -50,7 +50,7 @@ function LoginFormInner() {
     }
 
     // redireciona direto para o app; o guard decide entre onboarding e dashboard
-    const callbackUrl = searchParams.get("callbackUrl") ?? "/app/dashboard";
+    const callbackUrl = searchParams.get("callbackUrl") ?? "/dashboard";
     router.push(callbackUrl);
     router.refresh();
   }
