@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { Metadata } from "next";
 import { Sora, Plus_Jakarta_Sans, Space_Grotesk } from "next/font/google";
 
+import { ToastProvider } from "@/components/ui/toast";
 import "./globals.css";
 
 const sora = Sora({
@@ -44,7 +45,7 @@ export default function RootLayout({
       <body
         className={`${sora.variable} ${plusJakarta.variable} ${spaceGrotesk.variable}`}
       >
-        {children}
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );
