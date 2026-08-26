@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
@@ -16,6 +16,8 @@ export function RegisterForm() {
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [confirmPassword, setConfirmPassword] = React.useState("");
+  const [showPassword, setShowPassword] = React.useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = React.useState(false);
   const [objective, setObjective] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
@@ -68,7 +70,7 @@ export function RegisterForm() {
   }
 
   const field =
-    "h-12 rounded-[12px] border border-border bg-bg-ice px-4 text-[14.5px] text-ink placeholder:text-ink-muted focus:border-purple/50 focus:ring-2 focus:ring-purple/20 focus:outline-none transition-shadow";
+    "h-12 w-full rounded-[12px] border border-border bg-bg-ice pr-12 pl-4 text-[14.5px] text-ink placeholder:text-ink-muted focus:border-purple/50 focus:ring-2 focus:ring-purple/20 focus:outline-none transition-shadow";
   const errText = "text-[12px] text-danger mt-1";
 
   return (
@@ -118,16 +120,31 @@ export function RegisterForm() {
           <label htmlFor="password" className="text-[13px] font-semibold text-ink">
             Senha
           </label>
-          <input
-            id="password"
-            type="password"
-            autoComplete="new-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Mín. 8 caracteres"
-            className={field}
-            required
-          />
+          <div className="relative">
+            <input
+              id="password"
+              type={showPassword ? "text" : "password"}
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Mín. 8 caracteres"
+              className={field}
+              required
+            />
+            <button
+              type="button"
+              aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+              title={showPassword ? "Ocultar senha" : "Mostrar senha"}
+              onClick={() => setShowPassword((v) => !v)}
+              className="absolute right-0 top-0 grid h-12 w-12 place-items-center text-ink-soft hover:text-purple transition-colors cursor-pointer"
+            >
+              {showPassword ? (
+                <EyeOff size={19} strokeWidth={1.8} />
+              ) : (
+                <Eye size={19} strokeWidth={1.8} />
+              )}
+            </button>
+          </div>
           {errors.password && <p className={errText}>{errors.password}</p>}
         </div>
         <div className="flex flex-col gap-1.5">
@@ -137,16 +154,35 @@ export function RegisterForm() {
           >
             Confirmar senha
           </label>
-          <input
-            id="confirmPassword"
-            type="password"
-            autoComplete="new-password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            placeholder="Repita a senha"
-            className={field}
-            required
-          />
+          <div className="relative">
+            <input
+              id="confirmPassword"
+              type={showConfirmPassword ? "text" : "password"}
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Repita a senha"
+              className={field}
+              required
+            />
+            <button
+              type="button"
+              aria-label={
+                showConfirmPassword ? "Ocultar senha" : "Mostrar senha"
+              }
+              title={
+                showConfirmPassword ? "Ocultar senha" : "Mostrar senha"
+              }
+              onClick={() => setShowConfirmPassword((v) => !v)}
+              className="absolute right-0 top-0 grid h-12 w-12 place-items-center text-ink-soft hover:text-purple transition-colors cursor-pointer"
+            >
+              {showConfirmPassword ? (
+                <EyeOff size={19} strokeWidth={1.8} />
+              ) : (
+                <Eye size={19} strokeWidth={1.8} />
+              )}
+            </button>
+          </div>
           {errors.confirmPassword && (
             <p className={errText}>{errors.confirmPassword}</p>
           )}
