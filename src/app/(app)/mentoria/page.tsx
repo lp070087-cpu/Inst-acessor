@@ -1,18 +1,49 @@
 import type { Metadata } from "next";
 import { GraduationCap } from "lucide-react";
-import { PagePlaceholder } from "@/components/layout/page-placeholder";
+
+import { requireOnboardedSession } from "@/lib/auth/guard";
+import { listRecommendations } from "@/lib/ai/services";
+import { MentoriaClient } from "@/components/ai/mentoria-client";
 
 export const metadata: Metadata = {
   title: "Mentoria",
-  description: "Acompanhamento personalizado para o seu crescimento.",
+  description: "Recomendações personalizadas a partir do diagnóstico real do seu perfil.",
 };
 
-export default function MentoriaPage() {
+export const dynamic = "force-dynamic";
+
+export default async function MentoriaPage() {
+  const { session } = await requireOnboardedSession();
+  const userId = session.user.id;
+
+  const cards = await listRecommendations(userId);
+
   return (
-    <PagePlaceholder
-      title="Mentoria"
-      icon={GraduationCap}
-      description="Sua mentoria personalizada com planos de ação semanais será liberada em breve, com base nos dados do seu perfil."
-    />
+    <div className="flex flex-col gap-6">
+      <div>
+        <h1 className="font-display text-[26px] font-bold text-ink flex items-center gap-2.5">
+          <GraduationCap size={26} className="text-purple" />
+          Mentoria
+        </h1>
+        <p className="text-[13.5px] text-ink-soft mt-1">
+          Recomendações com base no seu diagnóstico real — métricas e estrutura.
+          Sem conhecimento proprietário inventado.
+        </p>
+      </div>
+
+      <MentoriaClient
+        initialCards={cards.map((c) => ({
+          id: c.id,
+          category: c.category,
+          label: c.label,
+          priority: c.priority,
+          problem: c.problem,
+          explanation: c.explanation,
+          action: c.action,
+          status: c.status,
+          createdAt: c.createdAt.toISOString(),
+        }))}
+      />
+    </div>
   );
 }

@@ -6,6 +6,7 @@ import {
   Eye,
   Trophy,
   GraduationCap,
+  BrainCircuit,
   Share2,
   Megaphone,
   BarChart3,
@@ -70,6 +71,18 @@ export const mainNav: NavItem[] = [
     href: "/mentoria",
     icon: GraduationCap,
     description: "Acompanhamento personalizado",
+  },
+  {
+    label: "Score Inteligente",
+    href: "/score",
+    icon: BrainCircuit,
+    description: "Seu score 0–100 com diagnóstico",
+  },
+  {
+    label: "Perfil de Inteligência",
+    href: "/perfil-de-inteligencia",
+    icon: BrainCircuit,
+    description: "O que a IA aprendeu sobre você",
   },
   {
     label: "Redes Sociais",

@@ -32,20 +32,31 @@ model User {
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
-  accounts        Account[]
-  sessions        Session[]
-  profile         UserProfile?
-  preferences     UserPreferences?
-  connections     SocialConnection[]
-  oauthStates     OAuthState[]
-  igProfiles      InstagramProfile[]
-  igSnapshots     InstagramSnapshot[]
-  igMedias        InstagramMedia[]
-  igMediaMetrics  InstagramMediaMetric[]
-  tiktokProfiles  TikTokProfile[]
-  tiktokSnapshots TikTokSnapshot[]
-  tiktokVideos    TikTokVideo[]
-  syncLogs        SyncLog[]
+  accounts              Account[]
+  sessions              Session[]
+  profile               UserProfile?
+  preferences           UserPreferences?
+  connections           SocialConnection[]
+  oauthStates           OAuthState[]
+  igProfiles            InstagramProfile[]
+  igSnapshots           InstagramSnapshot[]
+  igMedias              InstagramMedia[]
+  igMediaMetrics        InstagramMediaMetric[]
+  tiktokProfiles        TikTokProfile[]
+  tiktokSnapshots       TikTokSnapshot[]
+  tiktokVideos          TikTokVideo[]
+  syncLogs              SyncLog[]
+  aiConversations       AIConversation[]
+  aiMessages            AIMessage[]
+  aiProfile             AIProfile?
+  generatedCopies       GeneratedCopy[]
+  contentIdeas          ContentIdea[]
+  socialDrafts          SocialDraft[]
+  mentorshipRecs        MentorshipRecommendation[]
+  profileScores         ProfileScore[]
+  profileScoreSnapshots ProfileScoreSnapshot[]
+  growthExperiments     GrowthExperiment[]
+  profileInsights       ProfileInsight[]
 }
 
 // ------------------------------------------------------------
@@ -375,6 +386,344 @@ model TikTokVideo {
 
   @@unique([tiktokVideoId])
   @@index([userId, timestamp])
+}
+
+// ------------------------------------------------------------
+// FASE 4 — IA E INTELIGÊNCIA
+// ------------------------------------------------------------
+// Princípios (docs/ESCOPO-OFICIAL.md):
+// - NUNCA inventar dados: campos ausentes → null/indisponível.
+// - Nada de conhecimento proprietário de crescimento ainda.
+// - Conteúdo IA só existe se gerado com API key real configurada.
+
+// Conversa persistida do chat IA Acessor. Uma por usuário/título.
+model AIConversation {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String // título curto, gerado a partir da 1ª pergunta ou padrão
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages AIMessage[]
+
+  @@index([userId, updatedAt])
+}
+
+// Mensagem de uma conversa (user/assistant). Persistida no Neon.
+model AIMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  userId         String
+  role           String // "user" | "assistant"
+  content        String
+  createdAt      DateTime @default(now())
+
+  conversation AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@index([userId])
+}
+
+// "O que a IA aprendeu sobre você". NUNCA preenchido com conhecimento
+// inventado — apenas com sinais observáveis (perfil + interações reais).
+model AIProfile {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  summary            String?
+  niche              String?
+  subNiche           String?
+  objectives         String? // texto curto; lista separada por " | "
+  communicationStyle String?
+  observedPatterns   String?
+  preferredFormats   String?
+  ctaPatterns        String?
+  hookPatterns       String?
+  postingFrequency   String?
+  voiceTone          String?
+  writingStyle       String?
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Copy gerado (legenda/Reel/Story/carrossel/TikTok/CTA/headline/bio/anúncio).
+model GeneratedCopy {
+  id         String   @id @default(cuid())
+  userId     String
+  platform   String // "instagram" | "tiktok"
+  format     String // "legenda" | "reel" | "story" | "carrossel" | "tiktok" | "cta" | "headline" | "bio" | "anuncio"
+  objective  String?
+  tone       String?
+  audience   String?
+  context    String?
+  content    String // texto gerado
+  hookType   String? // tipo de gancho aplicado (regra oficial, quando usada)
+  structure  String? // estrutura de copy sugerida
+  isFavorite Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+// Ideia de conteúdo. Status: NOVA | FAVORITA | DESCARTADA | PRODUZIDA.
+model ContentIdea {
+  id        String   @id @default(cuid())
+  userId    String
+  category  String // "reels" | "stories" | "carrossel" | "tiktok" | "educativo" | "autoridade" | "venda" | "engajamento"
+  title     String
+  format    String?
+  objective String?
+  context   String?
+  rationale String? // "Por que esta ideia foi sugerida?" (integração Fase 4.5)
+  status    String   @default("NOVA") // NOVA | FAVORITA | DESCARTADA | PRODUZIDA
+  platform  String? // "instagram" | "tiktok" | null
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([userId, createdAt])
+}
+
+// Rascunho de publicação (Preview Social) — prepara futura Central de
+// Publicações. NUNCA publica: armazena apenas o que o usuário montar.
+model SocialDraft {
+  id        String   @id @default(cuid())
+  userId    String
+  platform  String // "instagram" | "tiktok"
+  mediaType String   @default("image") // "image" | "video"
+  mediaUrl  String? // data URL (upload local apenas na memória do browser)
+  caption   String?
+  hashtags  String?
+  format    String? // "post" | "reel" | "story" | "carrossel"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+// Recomendação de mentoria — derivada de métricas reais + regras oficiais
+// da base de conhecimento. Nunca conhecimento externo.
+model MentorshipRecommendation {
+  id          String   @id @default(cuid())
+  userId      String
+  category    String // "crescimento" | "engajamento" | "frequencia" | "consistencia" | "conteudo" | "alcance" | "perfil"
+  priority    String   @default("MEDIA") // ALTA | MEDIA | BAIXA
+  problem     String
+  explanation String?
+  action      String?
+  evidence    String? // qual dado real sustenta a recomendação
+  ruleSlug    String? // regra oficial aplicada (conhecimento)
+  test        String? // como validar a recomendação
+  result      String? // resultado posterior observado
+  status      String   @default("NOVA") // NOVA | APLICADA | IGNORADA | CONCLUIDA
+  source      String? // identificador do dado que gerou (ex.: "instagram-snapshots")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([userId, createdAt])
+}
+
+// Score inteligente (0-100) — determinístico, explicável, versionado.
+// Um por avaliação. Snapshot preserva o histórico.
+model ProfileScore {
+  id          String   @id @default(cuid())
+  userId      String
+  platform    String // "instagram" | "tiktok"
+  overall     Int // 0-100
+  growth      Int?
+  engagement  Int?
+  reach       Int?
+  consistency Int?
+  frequency   Int?
+  content     Int?
+  // JSON com fatores: { positive: [...], attention: [...], unavailable: [...] }
+  factors     Json?
+  version     String   @default("growth-score-v1") // fórmula versionável
+  coverage    Int? // cobertura dos dados (%): quanto do score foi calculável
+  weighting   Json? // pesos aplicados { engagement, growth, reach, consistency }
+  createdAt   DateTime @default(now())
+
+  user                 User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ProfileScoreSnapshot ProfileScoreSnapshot[]
+
+  @@index([userId, platform, createdAt])
+}
+
+// Snapshot temporal do score — histórico de evolução.
+model ProfileScoreSnapshot {
+  id        String   @id @default(cuid())
+  userId    String
+  platform  String
+  scoreId   String
+  overall   Int
+  createdAt DateTime @default(now())
+
+  user  User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  score ProfileScore @relation(fields: [scoreId], references: [id], onDelete: Cascade)
+
+  @@index([userId, platform, createdAt])
+}
+
+// ------------------------------------------------------------
+// FASE 4.5 — CÉREBRO ESTRATÉGICO (Base de Conhecimento + Experimentos)
+// ------------------------------------------------------------
+// Princípios (Fase 4.5, conteúdo oficial da DONA):
+// - Conhecimento oficial é GLOBAL (compartilhado entre usuários).
+// - Aprendizado individual (AIProfile, ProfileInsight, experimentos) é
+//   PRIVADO por userId — nunca misturar entre usuários.
+// - Nunca inventar métricas; categorias: DADO REAL, CONHECIMENTO,
+//   INFERÊNCIA, HIPÓTESE, RECOMENDAÇÃO.
+
+// Versão da base de conhecimento. Registra o histórico de atualizações.
+model KnowledgeVersion {
+  id        String   @id @default(cuid())
+  version   Int      @default(1)
+  label     String? // ex.: "v1 — conteúdo oficial da DONA"
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  rules KnowledgeRule[]
+
+  @@unique([version])
+  @@index([active])
+}
+
+// Módulo de conhecimento (01–30), global.
+model KnowledgeModule {
+  id          String   @id @default(cuid())
+  number      Int // 1..30
+  slug        String   @unique
+  title       String
+  description String?
+  version     Int      @default(1)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  rules KnowledgeRule[]
+
+  @@unique([number, version])
+  @@index([active])
+}
+
+// Regra de conhecimento oficial (global), versionável por slug+version.
+model KnowledgeRule {
+  id        String   @id @default(cuid())
+  slug      String
+  moduleId  String?
+  module    Int
+  title     String
+  category  String
+  content   String
+  type      String // PRINCIPLE | DIAGNOSTIC_RULE | STRATEGY_RULE | CONTENT_RULE | METRIC_RULE | EXPERIMENT_RULE | AI_GUARDRAIL
+  priority  String   @default("MEDIA") // ALTA | MEDIA | BAIXA
+  tags      String[] // string array nativo (Neon/Postgres)
+  version   Int      @default(1)
+  versionId String? // FK para KnowledgeVersion.id
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  moduleRef  KnowledgeModule?  @relation(fields: [moduleId], references: [id])
+  versionRef KnowledgeVersion? @relation(fields: [versionId], references: [id])
+
+  @@unique([slug, version])
+  @@index([category])
+  @@index([module])
+  @@index([active])
+}
+
+// Experimento de crescimento (por usuário). NUNCA estatística fictícia:
+// sem amostra suficiente → INCONCLUSIVE.
+model GrowthExperiment {
+  id         String    @id @default(cuid())
+  userId     String
+  platform   String // "instagram" | "tiktok"
+  hypothesis String
+  variable   String // o que está sendo variado (ex.: gancho, formato, tema)
+  baseline   String? // baseline individual de referência
+  status     String    @default("DRAFT") // DRAFT | RUNNING | ENOUGH_DATA | CONFIRMED | REJECTED | INCONCLUSIVE | ARCHIVED
+  startedAt  DateTime?
+  endedAt    DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  user         User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  variants     ExperimentVariant[]
+  observations ExperimentObservation[]
+
+  @@index([userId, status])
+  @@index([userId, createdAt])
+}
+
+// Variação de um experimento — um conteúdo testado com um conjunto de
+// elementos (gancho, formato, tema, estrutura).
+model ExperimentVariant {
+  id           String   @id @default(cuid())
+  experimentId String
+  contentId    String? // vínculo futuro com conteúdo publicado
+  variation    String? // descrição da variação
+  hookType     String?
+  format       String?
+  theme        String?
+  structure    String?
+  createdAt    DateTime @default(now())
+
+  experiment GrowthExperiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+
+  @@index([experimentId])
+}
+
+// Observação coletada de um experimento (antes/depois).
+model ExperimentObservation {
+  id           String   @id @default(cuid())
+  experimentId String
+  metric       String // ex.: "alcance", "engajamento", "seguidores"
+  before       Float?
+  after        Float?
+  delta        Float?
+  conclusion   String?
+  confidence   String? // "BAIXA" | "MEDIA" | "ALTA" — nunca falsa precisão
+  createdAt    DateTime @default(now())
+
+  experiment GrowthExperiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+
+  @@index([experimentId])
+}
+
+// Aprendizado individual do perfil (padrões observados). NUNCA promover
+// inferência a confirmado automaticamente.
+model ProfileInsight {
+  id           String   @id @default(cuid())
+  userId       String
+  platform     String // "instagram" | "tiktok"
+  type         String // OBSERVED | INFERRED | CONFIRMED_BY_EXPERIMENT
+  summary      String
+  detail       String?
+  ruleSlug     String? // regra oficial aplicada (conhecimento), quando houver
+  experimentId String? // vínculo opcional com experimento que confirmou
+  confidence   String? // BAIXA | MEDIA | ALTA
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type])
+  @@index([userId, createdAt])
 }
 
 // ------------------------------------------------------------
