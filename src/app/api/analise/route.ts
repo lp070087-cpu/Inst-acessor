@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
 import { runAnalysis } from "@/lib/ai/services";
+import { grantXp, stableRefId } from "@/lib/gamification";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,11 @@ export async function GET(request: Request) {
     }
 
     const result = await runAnalysis(userId, platform, period);
+
+    // XP por analisar desempenho (idempotente por refId = plataforma+período).
+    const refId = stableRefId(`analise:${platform}:${period}:${new Date().toDateString()}`);
+    await grantXp(userId, "analisar-desempenho", refId);
+
     return NextResponse.json(result);
   } catch (err) {
     console.error("[analise] erro", err);

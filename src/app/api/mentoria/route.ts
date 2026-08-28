@@ -8,6 +8,7 @@ import {
   updateRecommendationStatus,
   type MentorshipCard,
 } from "@/lib/ai/services";
+import { grantXp, checkAndUnlockAchievements } from "@/lib/gamification";
 
 export const dynamic = "force-dynamic";
 
@@ -71,6 +72,13 @@ export async function PATCH(request: Request) {
     if (!updated) {
       return NextResponse.json({ error: "Recomendação não encontrada" }, { status: 404 });
     }
+
+    // XP por executar recomendação (idempotente por source+refId = rec id).
+    if (parsed.data.status === "APLICADA" || parsed.data.status === "CONCLUIDA") {
+      await grantXp(userId, "executar-recomendacao", id);
+      await checkAndUnlockAchievements(userId);
+    }
+
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[mentoria] erro ao atualizar", err);

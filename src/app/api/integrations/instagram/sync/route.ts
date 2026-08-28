@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
 import { syncInstagram } from "@/lib/integrations/instagram";
+import { syncRateLimiter } from "@/lib/publishing/rate-limit";
+import { grantXp, checkAndUnlockAchievements } from "@/lib/gamification";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +38,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
   }
 
+  if (!syncRateLimiter.check(userId)) {
+    return NextResponse.json(
+      { error: "Muitas sincronizações. Aguarde um instante e tente novamente." },
+      { status: 429 }
+    );
+  }
+
   const result = await syncInstagram(userId);
 
   if (!result.ok) {
@@ -50,6 +59,13 @@ export async function POST(request: Request) {
           ? 401
           : 502;
     return NextResponse.json({ error: result.error, code: result.code }, { status });
+  }
+
+  // XP por sincronizar Instagram (idempotente por refId = snapshot id).
+  const snapshotId = result.summary?.snapshotId;
+  if (snapshotId) {
+    await grantXp(userId, "sincronizar-instagram", snapshotId);
+    await checkAndUnlockAchievements(userId);
   }
 
   return NextResponse.json({ ok: true, summary: result.summary });

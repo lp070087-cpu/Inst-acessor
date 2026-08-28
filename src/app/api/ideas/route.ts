@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth/guard";
 import { saveIdeaSchema } from "@/lib/validators/ai";
 import { listIdeas, saveIdea, updateIdeaStatus, deleteIdea } from "@/lib/ai/services";
+import { grantXp, checkAndUnlockAchievements } from "@/lib/gamification";
 
 export const dynamic = "force-dynamic";
 
@@ -68,6 +69,10 @@ export async function POST(request: Request) {
       platform: string | null;
       createdAt: Date;
     };
+
+    // XP por ação real (idempotente por source+refId = idea id).
+    await grantXp(userId, "salvar-ideia", row.id);
+    await checkAndUnlockAchievements(userId);
 
     return NextResponse.json({
       ok: true,

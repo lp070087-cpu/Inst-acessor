@@ -5,9 +5,11 @@ import { Instagram, Music2 } from "lucide-react";
 import { requireOnboardedSession } from "@/lib/auth/guard";
 import { getDashboardInstagramData } from "@/lib/dashboard/instagram-data";
 import { getTikTokDashboardData } from "@/lib/dashboard/tiktok-data";
+import { runGrowthPipeline } from "@/lib/growth-engine";
 import { Badge } from "@/components/ui/badge";
 import { SyncMetricsButton } from "@/components/dashboard/sync-metrics-button";
 import { DashboardClient } from "@/components/dashboard/dashboard-client";
+import { DashboardGrowthOverview } from "@/components/growth/dashboard-growth-overview";
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -19,9 +21,10 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage() {
   const { session } = await requireOnboardedSession();
 
-  const [instagramData, tiktokData] = await Promise.all([
+  const [instagramData, tiktokData, growthOutput] = await Promise.all([
     getDashboardInstagramData(session.user.id),
     getTikTokDashboardData(session.user.id),
+    runGrowthPipeline(session.user.id),
   ]);
 
   const firstName = session.user.name?.trim().split(/\s+/)[0] ?? "";
@@ -89,6 +92,9 @@ export default async function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Automações Inteligentes — Motor de crescimento (Parte 13) */}
+      <DashboardGrowthOverview output={growthOutput} />
 
       {/* Visão geral */}
       <div>

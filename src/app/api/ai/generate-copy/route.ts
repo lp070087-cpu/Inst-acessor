@@ -3,17 +3,27 @@ import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth/guard";
 import { generateCopySchema } from "@/lib/validators/ai";
 import { generateCopy, AIConfiguredErrorCopy } from "@/lib/ai/services";
+import { aiRateLimiter } from "@/lib/publishing/rate-limit";
+import { grantXp, stableRefId } from "@/lib/gamification";
 
 export const dynamic = "force-dynamic";
 
 /**
  * POST /api/ai/generate-copy
  * Gera uma copy via IA (sem salvar). Salvar → /api/copy.
+ * Rate limit por usuário (evita abuso de custo de IA).
  */
 export async function POST(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
+
+    if (!aiRateLimiter.check(userId)) {
+      return NextResponse.json(
+        { error: "Muitas solicitações. Aguarde um instante e tente novamente." },
+        { status: 429 }
+      );
+    }
 
     const body = await request.json();
     const parsed = generateCopySchema.safeParse(body);
@@ -34,6 +44,10 @@ export async function POST(request: Request) {
       context: context || undefined,
       size,
     });
+
+    // XP por gerar copy (idempotente por refId = fingerprint do conteúdo).
+    const refId = stableRefId(`${platform}:${format}:${objective}:${content}`);
+    await grantXp(userId, "gerar-copy", refId);
 
     return NextResponse.json({ ok: true, content });
   } catch (err) {

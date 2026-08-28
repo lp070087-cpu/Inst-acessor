@@ -98,6 +98,7 @@ declare module "@prisma/client" {
     caption?: string | null;
     hashtags?: string | null;
     format?: string | null;
+    items?: unknown;
     createdAt: Date;
     updatedAt: Date;
   }
@@ -236,6 +237,270 @@ declare module "@prisma/client" {
     ruleSlug?: string | null;
     experimentId?: string | null;
     confidence?: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }
+
+  // ------------------------------------------------------------
+  // FASE 5 — RANK, XP, METAS, CONQUISTAS E PROGRESSÃO
+  // ------------------------------------------------------------
+  interface UserLevel {
+    id: string;
+    userId: string;
+    xp: number;
+    level: number;
+    totalXpEarned: number;
+    lastLevelUpAt?: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }
+
+  interface XpLog {
+    id: string;
+    userId: string;
+    source: string;
+    refId: string;
+    amount: number;
+    createdAt: Date;
+  }
+
+  interface UserGoal {
+    id: string;
+    userId: string;
+    category: string;
+    title: string;
+    description?: string | null;
+    targetValue?: number | null;
+    currentValue?: number | null;
+    unit?: string | null;
+    platform?: string | null;
+    status: string;
+    deadline?: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }
+
+  interface Achievement {
+    id: string;
+    slug: string;
+    title: string;
+    description: string;
+    category: string;
+    xpReward: number;
+    threshold: number;
+    unit?: string | null;
+    tier: string;
+    hidden: boolean;
+    version: number;
+    active: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+  }
+
+  interface UserAchievement {
+    id: string;
+    userId: string;
+    achievementId: string;
+    progress: number;
+    unlocked: boolean;
+    unlockedAt?: Date | null;
+    xpGranted: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+  }
+
+  // ------------------------------------------------------------
+  // FASE 6 — PLANEJAMENTO, CALENDÁRIO E PIPELINE DE CONTEÚDO
+  // ------------------------------------------------------------
+  interface PlannedContent {
+    id: string;
+    userId: string;
+    platform: string;
+    format: string;
+    title: string;
+    theme?: string | null;
+    objective?: string | null;
+    status: string;
+    scheduledAt?: Date | null;
+    publishedAt?: Date | null;
+    externalId?: string | null;
+    notes?: string | null;
+    hypothesis?: string | null;
+    ideaId?: string | null;
+    copyId?: string | null;
+    draftId?: string | null;
+    goalId?: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }
+
+  interface PlannedContentExperiment {
+    id: string;
+    contentId: string;
+    experimentId: string;
+    createdAt: Date;
+  }
+
+  interface ContentCopyVersion {
+    id: string;
+    userId: string;
+    contentId: string;
+    version: number;
+    content: string;
+    note?: string | null;
+    createdAt: Date;
+  }
+
+  // ------------------------------------------------------------
+  // FASE 6.5 — PLANOS OFICIAIS E ASSINATURA
+  // ------------------------------------------------------------
+  interface Plan {
+    id: string;
+    slug: string;
+    name: string;
+    priceCents: number;
+    currency: string;
+    type: string;
+    billingInterval?: string | null;
+    durationDays?: number | null;
+    description?: string | null;
+    features: string[];
+    badge?: string | null;
+    active: boolean;
+    sortOrder: number;
+    createdAt: Date;
+    updatedAt: Date;
+  }
+
+  interface Subscription {
+    id: string;
+    userId: string;
+    planId: string;
+    status: string;
+    billingType: string;
+    billingInterval?: string | null;
+    startAt?: Date | null;
+    expiresAt?: Date | null;
+    autoRenew: boolean;
+    nextBillingAt?: Date | null;
+    canceledAt?: Date | null;
+    provider?: string | null;
+    externalCustomerId?: string | null;
+    externalSubscriptionId?: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }
+
+  interface Payment {
+    id: string;
+    userId: string;
+    planId?: string | null;
+    subscriptionId?: string | null;
+    amountCents: number;
+    currency: string;
+    status: string;
+    provider?: string | null;
+    externalPaymentId?: string | null;
+    paidAt?: Date | null;
+    createdAt: Date;
+  }
+
+  // ------------------------------------------------------------
+  // FASE 7 — PUBLICAÇÃO REAL, FILA E CENTRAL DE PUBLICAÇÃO
+  // ------------------------------------------------------------
+  interface PublishQueue {
+    id: string;
+    userId: string;
+    contentId: string;
+    platform: string;
+    format: string;
+    status: string; // AGENDADO | PROCESSANDO | PUBLICADO | FALHOU | CANCELADO
+    scheduledAt?: Date | null;
+    attempts: number;
+    lastAttemptAt?: Date | null;
+    nextAttemptAt?: Date | null;
+    errorCode?: string | null;
+    errorMessage?: string | null;
+    externalId?: string | null;
+    provider?: string | null;
+    idempotencyKey?: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }
+
+  interface PublishLog {
+    id: string;
+    userId: string;
+    queueId?: string | null;
+    contentId?: string | null;
+    platform: string;
+    operation: string;
+    status: string;
+    attempts: number;
+    errorCode?: string | null;
+    errorMessage?: string | null;
+    externalId?: string | null;
+    provider?: string | null;
+    createdAt: Date;
+  }
+
+  interface AutomationRule {
+    id: string;
+    userId: string;
+    name: string;
+    trigger: string;
+    platform: string;
+    keywords: string[];
+    action: string;
+    enabled: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+  }
+
+  interface AutomationEvent {
+    id: string;
+    userId: string;
+    eventId: string;
+    platform: string;
+    type: string;
+    payload?: unknown;
+    processed: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+  }
+
+  interface AutomationExecution {
+    id: string;
+    userId: string;
+    ruleId?: string | null;
+    eventId?: string | null;
+    status: string;
+    detail?: string | null;
+    createdAt: Date;
+  }
+
+  // ------------------------------------------------------------
+  // FASE 8 — AUTOMAÇÕES INTELIGENTES + MOTOR OPERACIONAL DE CRESCIMENTO
+  // ------------------------------------------------------------
+  interface GrowthAction {
+    id: string;
+    userId: string;
+    platform: string; // "instagram" | "tiktok"
+    title: string;
+    description?: string | null;
+    reason?: string | null;
+    priority: string; // PRIORIDADE 1 | 2 | 3
+    status: string; // PENDING | IN_PROGRESS | COMPLETED | DISMISSED | EXPIRED
+    dueAt?: Date | null;
+    completedAt?: Date | null;
+    dismissedAt?: Date | null;
+    sourceSignal?: string | null;
+    sourceRecommendation?: string | null;
+    metricToWatch?: string | null;
+    baselineValue?: number | null;
+    resultValue?: number | null;
+    resultNote?: string | null;
+    xpGranted: boolean;
     createdAt: Date;
     updatedAt: Date;
   }

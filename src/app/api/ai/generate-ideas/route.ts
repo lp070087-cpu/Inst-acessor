@@ -3,17 +3,27 @@ import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth/guard";
 import { generateIdeaSchema } from "@/lib/validators/ai";
 import { generateIdeas, AIConfiguredErrorIdeas } from "@/lib/ai/services";
+import { aiRateLimiter } from "@/lib/publishing/rate-limit";
+import { grantXp, stableRefId } from "@/lib/gamification";
 
 export const dynamic = "force-dynamic";
 
 /**
  * POST /api/ai/generate-ideas
  * Gera ideias via IA (sem salvar). Salvar → /api/ideas.
+ * Rate limit por usuário (evita abuso de custo de IA).
  */
 export async function POST(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
+
+    if (!aiRateLimiter.check(userId)) {
+      return NextResponse.json(
+        { error: "Muitas solicitações. Aguarde um instante e tente novamente." },
+        { status: 429 }
+      );
+    }
 
     const body = await request.json();
     const parsed = generateIdeaSchema.safeParse(body);
@@ -28,6 +38,12 @@ export async function POST(request: Request) {
       category: parsed.data.category,
       count: parsed.data.count,
     });
+
+    // XP por gerar ideias (idempotente por refId = fingerprint da requisição).
+    const refId = stableRefId(
+      `ideias:${parsed.data.category}:${ideas.map((i) => i.title).join("|")}`
+    );
+    await grantXp(userId, "gerar-ideia", refId);
 
     return NextResponse.json({ ok: true, ideas });
   } catch (err) {

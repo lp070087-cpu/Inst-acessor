@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth/guard";
 import { scorePlatformSchema } from "@/lib/validators/ai";
 import { computeScore, persistScore, getScoreHistory } from "@/lib/ai/services";
+import { grantXp, checkAndUnlockAchievements } from "@/lib/gamification";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +57,13 @@ export async function POST(request: Request) {
 
     const score = await computeScore(userId, platform);
     const persisted = score.overall != null ? await persistScore(userId, score) : null;
+
+    if (persisted) {
+      // XP por calcular/persistir Score (idempotente por refId = snapshot do score).
+      const persistedRow = persisted as unknown as { id: string };
+      await grantXp(userId, "calcular-score", persistedRow.id);
+      await checkAndUnlockAchievements(userId);
+    }
 
     return NextResponse.json({
       ok: true,

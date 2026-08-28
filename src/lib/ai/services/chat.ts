@@ -2,6 +2,7 @@ import { ai } from "@/lib/ai/db";
 import type { AIConversationWithMessages } from "@/lib/ai/db";
 import { getAIProvider } from "@/lib/ai";
 import { buildKnowledgeContext, knowledgeContextToPrompt } from "@/lib/knowledge/context-builder";
+import { buildGrowthContext, growthContextToPrompt } from "@/lib/growth-engine";
 
 /**
  * Serviço do chat IA Acessor.
@@ -40,6 +41,8 @@ export async function getConversation(userId: string, conversationId: string) {
   const messages = await ai.message.findMany({
     where: { conversationId },
     orderBy: { createdAt: "asc" },
+    // Limite de segurança: uma conversa nunca deve carregar centenas de mensagens.
+    take: 100,
   });
   return { ...conv, messages } as AIConversationWithMessages;
 }
@@ -96,15 +99,20 @@ export async function sendChatMessage(
   });
 
   // 3) Contexto real do usuário + conhecimento oficial relevante
-  const kctx = await buildKnowledgeContext(userId, {
-    query: opts.message,
-  });
+  const [kctx, gctx] = await Promise.all([
+    buildKnowledgeContext(userId, {
+      query: opts.message,
+    }),
+    buildGrowthContext(userId),
+  ]);
   const system = [
     "Você é a IA Acessor, assistente do Inst Acessor para creators e pequenos negócios no Instagram e TikTok.",
     "Use apenas os dados fornecidos no contexto e o CONHECIMENTO OFICIAL indicado. Se um dado não estiver listado, ele está indisponível — NÃO invente métricas, seguidores, alcance ou conhecimento proprietário.",
     "NUNCA invente métricas. Separe explicitamente: DADO REAL, CONHECIMENTO, INFERÊNCIA, HIPÓTESE e RECOMENDAÇÃO.",
+    "Quando os dados operacionais do usuário estiverem ausentes (SEM_REDE, SEM_SYNC ou POUCOS_DADOS), diga claramente 'DADO INSUFICIENTE' e recomende conectar/sincronizar antes de sugerir números.",
     "Responda de forma prática, em português, direta e acionável.",
     knowledgeContextToPrompt(kctx),
+    growthContextToPrompt(gctx),
   ].join("\n");
 
   // 4) Histórico recente (para continuidade)

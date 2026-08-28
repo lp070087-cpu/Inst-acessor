@@ -8,6 +8,7 @@ import {
   toggleCopyFavorite,
   deleteCopy,
 } from "@/lib/ai/services";
+import { grantXp, checkAndUnlockAchievements } from "@/lib/gamification";
 
 export const dynamic = "force-dynamic";
 
@@ -61,6 +62,11 @@ export async function POST(request: Request) {
       isFavorite: boolean;
       createdAt: Date;
     };
+
+    // XP por ação real (idempotente por source+refId = copy id).
+    await grantXp(userId, "salvar-copy", row.id);
+    await checkAndUnlockAchievements(userId);
+
     return NextResponse.json({
       ok: true,
       copy: {

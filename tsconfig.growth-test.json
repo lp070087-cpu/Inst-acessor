@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "lib": ["ES2020"],
+    "outDir": ".growth-test-build",
+    "rootDir": ".",
+    "strict": true,
+    "noEmitOnError": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": false,
+    "baseUrl": ".",
+    "paths": { "@/*": ["src/*"] },
+    "types": ["node"]
+  },
+  "include": [
+    "src/lib/growth-engine/signals.ts",
+    "src/lib/growth-engine/priorities.ts",
+    "src/lib/growth-engine/recommendations.ts",
+    "src/lib/growth-engine/insights.ts",
+    "src/lib/growth-engine/progress.ts",
+    "src/lib/growth-engine/automations.ts",
+    "src/lib/growth-engine/prompt.ts",
+    "src/lib/growth-engine/types.ts",
+    "src/types/prisma-shim.d.ts",
+    "scripts/growth-engine-tests.ts"
+  ]
+}

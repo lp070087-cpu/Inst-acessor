@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   Loader2,
   X,
+  CalendarDays,
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
@@ -337,6 +338,16 @@ export function IdeasClient({ aiConfigured, initialIdeas }: IdeasClientProps) {
                       )}
                     </div>
                     <div className="flex items-center gap-1 flex-none">
+                      <button
+                        onClick={() =>
+                          (window.location.href = `/calendario?planejar=${encodeURIComponent(idea.id)}`)
+                        }
+                        className="p-1.5 rounded-[8px] text-ink-muted hover:text-purple cursor-pointer"
+                        aria-label="Planejar no calendário"
+                        title="Planejar no calendário"
+                      >
+                        <CalendarDays size={16} />
+                      </button>
                       <button
                         onClick={() => setStatus(idea.id, "FAVORITA")}
                         className={cn(

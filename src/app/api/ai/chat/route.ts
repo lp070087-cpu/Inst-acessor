@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
 import { chatCreateSchema } from "@/lib/validators/ai";
+import { aiRateLimiter } from "@/lib/publishing/rate-limit";
 import {
   sendChatMessage,
   AIConfiguredErrorChat,
@@ -13,11 +14,19 @@ export const dynamic = "force-dynamic";
  * POST /api/ai/chat
  * Envia uma mensagem ao chat IA Acessor. Cria a conversa se necessário.
  * Requer sessão + input Zod. Sem provider configurado → estado controlado.
+ * Rate limit por usuário (evita abuso de custo de IA).
  */
 export async function POST(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
+
+    if (!aiRateLimiter.check(userId)) {
+      return NextResponse.json(
+        { error: "Muitas solicitações. Aguarde um instante e tente novamente." },
+        { status: 429 }
+      );
+    }
 
     const body = await request.json();
     const parsed = chatCreateSchema.safeParse(body);

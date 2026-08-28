@@ -13,6 +13,8 @@ export interface DraftData {
   caption?: string;
   hashtags?: string;
   format?: string;
+  /** Itens do carrossel (até 7) — persistidos como Json no SocialDraft. */
+  items?: unknown;
 }
 
 /** Lista rascunhos do usuário. */
@@ -30,6 +32,7 @@ export async function listDrafts(userId: string) {
     caption?: string | null;
     hashtags?: string | null;
     format?: string | null;
+    items?: unknown;
     createdAt: Date;
     updatedAt: Date;
   }[];

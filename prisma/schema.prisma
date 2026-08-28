@@ -57,6 +57,20 @@ model User {
   profileScoreSnapshots ProfileScoreSnapshot[]
   growthExperiments     GrowthExperiment[]
   profileInsights       ProfileInsight[]
+  userLevel             UserLevel?
+  xpLogs                XpLog[]
+  userGoals             UserGoal[]
+  userAchievements      UserAchievement[]
+  plannedContents       PlannedContent[]
+  contentCopyVersions   ContentCopyVersion[]
+  subscriptions         Subscription[]
+  payments              Payment[]
+  publishQueue          PublishQueue[]
+  publishLogs           PublishLog[]
+  automationRules       AutomationRule[]
+  automationEvents      AutomationEvent[]
+  automationExecutions  AutomationExecution[]
+  GrowthAction          GrowthAction[]
 }
 
 // ------------------------------------------------------------
@@ -467,7 +481,8 @@ model GeneratedCopy {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plannedContents PlannedContent[]
 
   @@index([userId, createdAt])
 }
@@ -487,7 +502,8 @@ model ContentIdea {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plannedContents PlannedContent[]
 
   @@index([userId, status])
   @@index([userId, createdAt])
@@ -499,17 +515,97 @@ model SocialDraft {
   id        String   @id @default(cuid())
   userId    String
   platform  String // "instagram" | "tiktok"
-  mediaType String   @default("image") // "image" | "video"
+  mediaType String   @default("image") // "image" | "video" — da capa (1º item)
   mediaUrl  String? // data URL (upload local apenas na memória do browser)
   caption   String?
   hashtags  String?
-  format    String? // "post" | "reel" | "story" | "carrossel"
+  format    String? // "post" | "reel" | "story" | "carrossel" | "video"
+  // Fase 6.5: itens do carrossel (até 7) + edições visuais.
+  // Cada item: { uid, order, mediaType, mediaUrl, edits }
+  // edits (client-side, leve): { ratio, rotate, zoom, offsetX, offsetY, brightness, contrast }
+  // NENHUM id de mídia externo é inventado — uids são locais gerados no client.
+  items     Json?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plannedContents PlannedContent[]
 
   @@index([userId, createdAt])
+}
+
+// ------------------------------------------------------------
+// FASE 6.5 — PLANOS OFICIAIS E ASSINATURA
+// ------------------------------------------------------------
+
+model Plan {
+  id              String   @id @default(cuid())
+  slug            String   @unique // "semanal" | "mensal" | "anual"
+  name            String // "Semanal" | "Mensal" | "Anual"
+  priceCents      Int // SEMPRE centavos inteiros (2700 | 7700 | 49700). NUNCA Float.
+  currency        String   @default("BRL")
+  type            String   @default("ONE_TIME") // "ONE_TIME" | "RECURRING"
+  billingInterval String? // null (avulso) | "MONTH" | "YEAR"
+  durationDays    Int? // 7 (semanal) — duração do acesso
+  description     String?
+  features        String[] // recursos liberados
+  badge           String? // "MAIS_ESCOLHIDO" | "MELHOR_CUSTO_BENEFICIO"
+  active          Boolean  @default(true)
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  subscriptions Subscription[]
+
+  @@index([active])
+}
+
+model Subscription {
+  id                     String    @id @default(cuid())
+  userId                 String
+  planId                 String
+  status                 String    @default("PENDING") // PENDING | ACTIVE | EXPIRED | CANCELED | PAST_DUE
+  billingType            String    @default("ONE_TIME") // ONE_TIME | RECURRING
+  billingInterval        String? // null | MONTH | YEAR
+  startAt                DateTime? // data de confirmação do pagamento
+  expiresAt              DateTime? // startAt + duração (ex.: +7 dias)
+  autoRenew              Boolean   @default(false) // Semanal: false
+  nextBillingAt          DateTime? // próxima cobrança (recorrentes)
+  canceledAt             DateTime? // cancelamento da renovação futura
+  provider               String? // "asaas" — preenchido SOMENTE quando o gateway estiver ativo
+  externalCustomerId     String? // NUNCA inventado — preenchido pelo gateway real
+  externalSubscriptionId String? // NUNCA inventado — preenchido pelo gateway real
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan Plan @relation(fields: [planId], references: [id])
+
+  payments Payment[]
+
+  @@index([userId, status])
+  @@index([planId])
+  @@index([userId, expiresAt])
+}
+
+model Payment {
+  id                String    @id @default(cuid())
+  userId            String
+  planId            String?
+  subscriptionId    String?
+  amountCents       Int // centavos inteiros — NUNCA Float
+  currency          String    @default("BRL")
+  status            String    @default("PENDING") // PENDING | PAID | FAILED | REFUNDED | EXPIRED
+  provider          String? // "asaas" — preenchido SOMENTE quando gateway ativo
+  externalPaymentId String? // NUNCA inventado — preenchido pelo gateway real
+  paidAt            DateTime?
+  createdAt         DateTime  @default(now())
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([subscriptionId])
 }
 
 // Recomendação de mentoria — derivada de métricas reais + regras oficiais
@@ -662,9 +758,10 @@ model GrowthExperiment {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  user         User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  variants     ExperimentVariant[]
-  observations ExperimentObservation[]
+  user            User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  variants        ExperimentVariant[]
+  observations    ExperimentObservation[]
+  plannedContents PlannedContentExperiment[]
 
   @@index([userId, status])
   @@index([userId, createdAt])
@@ -724,6 +821,376 @@ model ProfileInsight {
 
   @@index([userId, type])
   @@index([userId, createdAt])
+}
+
+// ------------------------------------------------------------
+// FASE 5 — RANK, XP, METAS, CONQUISTAS E PROGRESSÃO
+// ------------------------------------------------------------
+// Princípios (Fase 5, integrada ao Knowledge Engine — Módulo 28):
+// - XP ~5–100 conforme dificuldade; valores versionáveis/configuráveis.
+// - Idempotência: a MESMA ação real NUNCA concede XP duas vezes
+//   (chave única source + refId em XpLog).
+// - Conquistas ligadas a ações reais; progresso individual por usuário.
+// - Ao atingir ~70% de um conjunto, novos desafios mais difíceis entram.
+// - Nada de gamificação vazia: XP/metas/conquistas refletem comportamentos
+//   que contribuem para crescimento (consistência, executar recomendações,
+//   testar, acompanhar resultados, completar experimentos, planejar, etc.).
+
+// Estado de progressão do usuário (1:1). XP total + nível atual + histórico.
+model UserLevel {
+  id            String    @id @default(cuid())
+  userId        String    @unique
+  xp            Int       @default(0) // XP total acumulado
+  level         Int       @default(1)
+  totalXpEarned Int       @default(0) // soma de todos os XP concedidos (auditoria agregada)
+  lastLevelUpAt DateTime? // quando subiu de nível pela última vez
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([level])
+  @@index([xp])
+}
+
+// Auditoria de concessão de XP. Idempotente: @@unique([source, refId]).
+// "source" identifica a ação (ex.: "salvar-copy", "completar-experimento").
+// "refId" identifica o recurso exato (ex.: id do copy / do experimento).
+// A MESMA combinação só pode ser registrada UMA vez.
+model XpLog {
+  id        String   @id @default(cuid())
+  userId    String
+  source    String // tipo de ação que concedeu XP
+  refId     String // id do recurso/ação que gerou o XP
+  amount    Int // XP concedido (5–100)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, source, refId])
+  @@index([userId, createdAt])
+  @@index([source, refId])
+}
+
+// Meta estratégica do usuário. Categorias: crescimento/engajamento/consistência.
+// "currentValue"/"targetValue" são preenchidos por dados reais ou ação do usuário.
+model UserGoal {
+  id           String    @id @default(cuid())
+  userId       String
+  category     String // "crescimento" | "engajamento" | "consistencia"
+  title        String
+  description  String?
+  targetValue  Float? // valor a atingir (ex.: +50 seguidores, 4 posts/semana)
+  currentValue Float? // progresso atual (atualizado com dados reais)
+  unit         String? // "seguidores" | "posts" | "%" | null
+  platform     String? // "instagram" | "tiktok" | null
+  status       String    @default("ATIVA") // ATIVA | CONCLUIDA | CANCELADA
+  deadline     DateTime? // prazo opcional
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plannedContents PlannedContent[]
+
+  @@index([userId, status])
+  @@index([userId, category])
+}
+
+// Catálogo GLOBAL de conquistas (badges). Definidas em código (seed oficial),
+// ligadas a comportamentos reais. Nenhuma conquista inventada.
+model Achievement {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  title       String
+  description String
+  category    String // "consistencia" | "engajamento" | "crescimento" | "uso" | "estrategia"
+  xpReward    Int // XP concedido ao desbloquear (5–100)
+  threshold   Int // progresso necessário (ex.: 1, 3, 7 posts; 1 experimento)
+  unit        String? // unidade do threshold ("posts" | "experimentos" | "dias" | "vezes")
+  tier        String   @default("BRONZE") // BRONZE | PRATA | OURO | DESAFIO
+  hidden      Boolean  @default(false) // desafios difíceis (após ~70%)
+  version     Int      @default(1)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users UserAchievement[]
+
+  @@index([category])
+  @@index([active])
+}
+
+// Conquista por usuário — progresso individual, bloqueio/desbloqueio, histórico.
+model UserAchievement {
+  id            String    @id @default(cuid())
+  userId        String
+  achievementId String
+  progress      Int       @default(0) // progresso atual (0..threshold)
+  unlocked      Boolean   @default(false)
+  unlockedAt    DateTime? // quando desbloqueou (histórico)
+  xpGranted     Boolean   @default(false) // se o XP da conquista já foi concedido
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievementId])
+  @@index([userId, unlocked])
+  @@index([achievementId])
+}
+
+// ------------------------------------------------------------
+// FASE 6 — PLANEJAMENTO, CALENDÁRIO E PIPELINE DE CONTEÚDO
+// ------------------------------------------------------------
+// Princípios (Fase 6, integrada ao Knowledge Engine — Módulo 25):
+// - Calendário transforma recomendação em execução: O QUE → QUANDO → COMO → O QUE MEDIR.
+// - Pipeline de conteúdo com estados claros. NUNCA marcar PUBLICADO sem
+//   confirmação real futura da integração (diferencia "agendado internamente"
+//   de "publicado pela plataforma").
+// - Relações com Ideias, Copy (versionada), Preview, Experimentos e Metas.
+// - Nada de integração externa ainda; preparação arquitetural para adapters
+//   em src/lib/publishing/.
+
+// Conteúdo planejado no calendário (pipeline de conteúdo).
+// Estados (consistentes com ESCOPO-OFICIAL): RASCUNHO | IDEIA | EM_PRODUCAO |
+// PRONTO | AGENDADO | PUBLICADO | CANCELADO | FALHOU.
+// "PUBLICADO" só deve ser marcado com confirmação real futura do adapter.
+model PlannedContent {
+  id          String    @id @default(cuid())
+  userId      String
+  platform    String    @default("instagram") // "instagram" | "tiktok"
+  format      String    @default("reel") // "reel" | "story" | "carrossel" | "post" | "video"
+  title       String // título interno do conteúdo
+  theme       String? // tema do conteúdo
+  objective   String? // objetivo (alcance, engajamento, autoridade, venda...)
+  status      String    @default("RASCUNHO") // pipeline de conteúdo
+  scheduledAt DateTime? // data/horário planejado (agendamento INTERNO)
+  publishedAt DateTime? // preenchido apenas com confirmação real futura
+  externalId  String? // id externo da plataforma (NUNCA inventado)
+  notes       String? // observações
+  hypothesis  String? // hipótese estratégica (quando ligado a experimento)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relações com o conteúdo já existente (Fase 4)
+  ideaId  String?
+  copyId  String?
+  draftId String? // Preview Social (SocialDraft)
+  goalId  String? // meta estratégica da Fase 5 (UserGoal)
+
+  user  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  idea  ContentIdea?   @relation(fields: [ideaId], references: [id], onDelete: SetNull)
+  copy  GeneratedCopy? @relation(fields: [copyId], references: [id], onDelete: SetNull)
+  draft SocialDraft?   @relation(fields: [draftId], references: [id], onDelete: SetNull)
+  goal  UserGoal?      @relation(fields: [goalId], references: [id], onDelete: SetNull)
+
+  experiments  PlannedContentExperiment[]
+  copyVersions ContentCopyVersion[]
+  publishQueue PublishQueue[]
+
+  @@index([userId, status])
+  @@index([userId, scheduledAt])
+  @@index([userId, platform])
+  @@index([ideaId])
+  @@index([copyId])
+  @@index([goalId])
+}
+
+// Associação N:N entre conteúdo planejado e experimentos (Fase 4.5).
+// Um conteúdo pode testar várias hipóteses; um experimento pode ter vários conteúdos.
+model PlannedContentExperiment {
+  id           String   @id @default(cuid())
+  contentId    String
+  experimentId String
+  createdAt    DateTime @default(now())
+
+  content    PlannedContent   @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  experiment GrowthExperiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+
+  @@unique([contentId, experimentId])
+  @@index([experimentId])
+}
+
+// Versionamento simples da copy vinculada a um conteúdo.
+// Nunca sobrescreve silenciosamente uma versão anterior importante.
+model ContentCopyVersion {
+  id        String   @id @default(cuid())
+  userId    String
+  contentId String
+  version   Int // 1, 2, 3...
+  content   String // texto da copy nesta versão
+  note      String? // observação da versão (ex.: "revisada pós-feedback")
+  createdAt DateTime @default(now())
+
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plannedContent PlannedContent @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  @@unique([contentId, version])
+  @@index([userId, contentId])
+}
+
+// ------------------------------------------------------------
+// FASE 7 — PUBLICAÇÃO REAL, FILA E CENTRAL DE PUBLICAÇÃO
+// ------------------------------------------------------------
+// Princípios (Fase 7, ESCOPO-OFICIAL + Knowledge Engine Módulo 26):
+// - PUBLICADO SÓ com confirmação real do provider. NUNCA por tempo.
+// - PROCESSANDO = tentativa real em andamento.
+// - FALHOU guarda motivo; retry controlado (máx. 3), sem loop infinito.
+// - Filas em banco (Vercel-compatível, sem Redis/BullMQ).
+// - Logs NUNCA guardam tokens/secrets/payloads sensíveis.
+// - Automações são FUNDAÇÃO apenas (sem DM real, sem disparo real).
+
+// Fila de publicação — um registro por conteúdo/platform a publicar.
+// Vercel-compatível (banco): o processamento é disparado por API/cron
+// (processQueue) e lê os itens AGENDADO/PROCESSANDO.
+model PublishQueue {
+  id             String    @id @default(cuid())
+  userId         String
+  contentId      String // PlannedContent.id
+  platform       String // "instagram" | "tiktok"
+  format         String // "post" | "carrossel" | "reel" | "story" | "video"
+  status         String    @default("AGENDADO")
+  // AGENDADO | PROCESSANDO | PUBLICADO | FALHOU | CANCELADO
+  scheduledAt    DateTime? // quando deve ser publicado
+  attempts       Int       @default(0)
+  lastAttemptAt  DateTime?
+  nextAttemptAt  DateTime? // backoff
+  errorCode      String? // classificação segura (RETRYABLE | PERMANENT | AUTH | ...)
+  errorMessage   String? // mensagem amigável/sanitizada — nunca segredos
+  externalId     String? // id externo REAL da plataforma (nunca inventado)
+  provider       String? // qual adapter tentou (ex.: "instagram")
+  idempotencyKey String? // chave de idempotência por tentativa
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content PlannedContent @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  @@unique([contentId, platform])
+  @@index([userId, status])
+  @@index([status, scheduledAt])
+  @@index([status, nextAttemptAt])
+}
+
+// Log de operações de publicação — auditoria segura.
+// NUNCA armazena access token, refresh token, client secret ou payload sensível.
+model PublishLog {
+  id           String   @id @default(cuid())
+  userId       String
+  queueId      String?
+  contentId    String?
+  platform     String // "instagram" | "tiktok"
+  operation    String // "publish" | "retry" | "cancel" | "schedule" | "status"
+  status       String // "success" | "error" | "skipped"
+  attempts     Int      @default(0)
+  errorCode    String? // classificação segura
+  errorMessage String? // mensagem amigável/sanitizada
+  externalId   String? // id externo REAL (nunca inventado)
+  provider     String? // adapter usado
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([queueId])
+  @@index([platform, status])
+}
+
+// Fundação de automações (Comentário→DM futuro). NENHUMA chamada real.
+// Regras definidas pela DONA; execução só quando a integração real existir.
+model AutomationRule {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String // nome interno (ex.: "Responder menção de preço")
+  trigger   String // ex.: "comment.keyword" — somente estrutura preparada
+  platform  String   @default("instagram") // instagram | tiktok
+  keywords  String[] // palavras-chave (ex.: ["preço", "quanto custa"])
+  action    String   @default("dm") // ação futura (dm) — não executada
+  enabled   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, enabled])
+}
+
+// Evento de automação recebido (webhook futuro) — preparado estruturalmente.
+// Nunca contém tokens. eventId garante idempotência.
+model AutomationEvent {
+  id        String   @id @default(cuid())
+  userId    String
+  eventId   String // id externo do evento (idempotência)
+  platform  String // instagram | tiktok
+  type      String // ex.: "comment" | "dm" — conforme evento real futuro
+  payload   Json? // payload sanitizado (sem tokens/secrets)
+  processed Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId])
+  @@index([userId, createdAt])
+}
+
+// Execução de automação — registro de quando uma regra foi avaliada.
+// Nesta fase apenas registra avaliação; nunca executa ação externa real.
+model AutomationExecution {
+  id        String   @id @default(cuid())
+  userId    String
+  ruleId    String?
+  eventId   String?
+  status    String   @default("EVALUATED") // EVALUATED | READY | BLOCKED | SKIPPED
+  detail    String? // motivo (ex.: integração não configurada)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+// ------------------------------------------------------------
+// FASE 8 — AUTOMAÇÕES INTELIGENTES + MOTOR OPERACIONAL DE CRESCIMENTO
+// ------------------------------------------------------------
+// Princípios (Fase 8, ESCOPO-OFICIAL + Knowledge Engine Módulo 27):
+// - GrowthAction é a ÚNICA persistência nova da Fase 8 (plano de ação real).
+// - NÃO duplica UserGoal nem PlannedContent: uma ação é uma recomendação
+//   priorizada executável; metas e conteúdos continuam sendo os de Fase 5/6.
+// - DADO REAL obrigatório: baseline/resultado sempre opcionais; nunca inventar.
+// - Idempotência: missão do dia / recomendações deduplicam por signal+slug.
+// - XP é concedido somente quando a ação é concluída de verdade (Parte 17).
+
+// Ação de crescimento recomendada e rastreada (plano de ação operacional).
+model GrowthAction {
+  id                   String    @id @default(cuid())
+  userId               String
+  platform             String // "instagram" | "tiktok"
+  title                String // título curto e acionável (ex.: "Publicar 3 Reels por semana")
+  description          String? // contexto + O QUE/POR QUÊ
+  reason               String? // por que foi recomendada (sinal + evidência)
+  priority             String    @default("MEDIA") // PRIORIDADE 1 | 2 | 3
+  status               String    @default("PENDING") // PENDING | IN_PROGRESS | COMPLETED | DISMISSED | EXPIRED
+  dueAt                DateTime? // quando deve ser feita (plano 7/30 dias)
+  completedAt          DateTime? // quando concluída de verdade
+  dismissedAt          DateTime?
+  sourceSignal         String? // signal type (ex.: LOW_POSTING_FREQUENCY)
+  sourceRecommendation String? // slug da recomendação (ex.: low-posting-frequency-1)
+  metricToWatch        String? // métrica que a ação deve melhorar
+  baselineValue        Float? // valor real medido antes (nunca inventado)
+  resultValue          Float? // valor real medido depois (preenchido na conclusão)
+  resultNote           String? // nota opcional sobre o resultado
+  xpGranted            Boolean   @default(false) // XP real pós-conclusão
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([userId, priority])
+  @@index([userId, dueAt])
+  @@index([sourceSignal, userId])
 }
 
 // ------------------------------------------------------------

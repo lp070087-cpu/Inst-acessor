@@ -106,7 +106,36 @@ export type SaveIdeaInput = z.infer<typeof saveIdeaSchema>;
 // Preview Social (rascunho)
 // ------------------------------------------------------------
 export const draftPlatformSchema = z.enum(["instagram", "tiktok"]);
-export const draftFormatSchema = z.enum(["post", "reel", "story", "carrossel"]);
+export const draftFormatSchema = z.enum([
+  "post",
+  "reel",
+  "story",
+  "carrossel",
+  "video",
+]);
+
+/**
+ * Edições visuais LEVES de uma imagem (client-side, sem serviço externo).
+ * Aplicadas via CSS (transform + filter) no editor e no preview.
+ */
+export const imageEditsSchema = z.object({
+  ratio: z.enum(["1:1", "4:5", "9:16"]).default("1:1"),
+  rotate: z.number().default(0),
+  zoom: z.number().min(1).max(3).default(1),
+  offsetX: z.number().min(-100).max(100).default(0),
+  offsetY: z.number().min(-100).max(100).default(0),
+  brightness: z.number().min(0).max(200).default(100),
+  contrast: z.number().min(0).max(200).default(100),
+});
+export type ImageEditsInput = z.infer<typeof imageEditsSchema>;
+
+export const draftItemSchema = z.object({
+  uid: z.string().min(1),
+  mediaType: z.enum(["image", "video"]).default("image"),
+  mediaUrl: z.string().max(2_000_000),
+  edits: imageEditsSchema.default({}),
+});
+export type DraftItemInput = z.infer<typeof draftItemSchema>;
 
 export const saveDraftSchema = z.object({
   platform: draftPlatformSchema,
@@ -115,6 +144,8 @@ export const saveDraftSchema = z.object({
   caption: z.string().max(2200).optional().default(""),
   hashtags: z.string().max(500).optional().default(""),
   format: draftFormatSchema.default("post"),
+  /** Itens do carrossel (até 7). Cada item: { uid, mediaType, mediaUrl, edits }. */
+  items: z.array(draftItemSchema).max(7).optional().default([]),
 });
 
 export type SaveDraftInput = z.infer<typeof saveDraftSchema>;

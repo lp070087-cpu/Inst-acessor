@@ -5,6 +5,7 @@
 
 # Testes
 /coverage
+/.growth-test-build
 
 # Next.js
 /.next/

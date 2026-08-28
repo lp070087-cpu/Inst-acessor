@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth/guard";
 import { saveDraftSchema } from "@/lib/validators/ai";
 import { listDrafts, saveDraft, updateDraft, deleteDraft } from "@/lib/ai/services";
+import { grantXp, checkAndUnlockAchievements } from "@/lib/gamification";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,7 @@ export async function GET() {
         caption: r.caption ?? "",
         hashtags: r.hashtags ?? "",
         format: r.format ?? "",
+        items: r.items ?? [],
         updatedAt: r.updatedAt.toISOString(),
       }))
     );
@@ -59,8 +61,13 @@ export async function POST(request: Request) {
       caption: string | null;
       hashtags: string | null;
       format: string | null;
+      items?: unknown;
       updatedAt: Date;
     };
+
+    // XP por ação real (idempotente por source+refId = draft id).
+    await grantXp(userId, "criar-rascunho", row.id);
+    await checkAndUnlockAchievements(userId);
 
     return NextResponse.json({
       ok: true,
@@ -72,6 +79,7 @@ export async function POST(request: Request) {
         caption: row.caption ?? "",
         hashtags: row.hashtags ?? "",
         format: row.format ?? "",
+        items: row.items ?? [],
         updatedAt: row.updatedAt.toISOString(),
       },
     });

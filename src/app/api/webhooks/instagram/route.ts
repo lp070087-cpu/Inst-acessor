@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { webhookRateLimiter, clientIp } from "@/lib/publishing/rate-limit";
+
 /**
  * Webhook do Instagram (Meta) — preparado estruturalmente.
  *
@@ -39,6 +41,11 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  // Proteção básica contra flood de eventos.
+  if (!webhookRateLimiter.check(clientIp(request))) {
+    return new NextResponse("Muitas requisições", { status: 429 });
+  }
+
   // TODO(Fase 3): assinatura X-Hub-Signature-256 com App Secret.
   // Por enquanto validamos apenas a forma do payload.
 

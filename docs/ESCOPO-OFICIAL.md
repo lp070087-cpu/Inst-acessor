@@ -19,6 +19,8 @@
 9. [IMPORTANTE — Meta/TikTok](#9-importante--metatiktok)
 10. [Identidade visual](#10-identidade-visual)
 11. [Ordem do projeto](#11-ordem-do-projeto)
+12. [Gateway de pagamento — Asaas](#12-gateway-de-pagamento--asaas)
+13. [Planos e assinaturas](#13-planos-e-assinaturas)
 
 ---
 
@@ -314,6 +316,82 @@ DEPOIS (nesta ordem):
 ```
 
 > ⚠️ **NÃO pular para automações agora** se a fase atual ainda tiver pendências.
+
+---
+
+## 12. GATEWAY DE PAGAMENTO — ASAAS
+
+Registrado em **2026-08-27** (Fase 6.5).
+
+**Gateway oficial de pagamento do Inst Acessor: Asaas.**
+
+Dados de referência (somente arquitetura/documentação — NENHUMA integração real nesta fase):
+
+| Item | Valor |
+| --- | --- |
+| Sandbox base URL | `https://api-sandbox.asaas.com/v3` |
+| Produção base URL | `https://api.asaas.com/v3` |
+| Autenticação | header `access_token` |
+| Headers obrigatórios | `Content-Type: application/json` + `User-Agent` identificando o Inst Acessor |
+
+**Regras da chave Asaas (`ASAAS_API_KEY`):**
+
+- NUNCA no frontend;
+- NUNCA no GitHub;
+- NUNCA em logs;
+- NUNCA em código-fonte;
+- SOMENTE environment variable server-side;
+- NÃO criar chave fictícia;
+- NÃO pedir chave nesta fase.
+
+**Fluxo futuro (quando integração for liberada):**
+
+```
+Inst Acessor
+→ Billing Service (src/lib/billing)
+→ Asaas Adapter (src/lib/billing/adapters/asaas.ts)
+→ Cliente Asaas
+→ Cobrança/Assinatura
+→ Pagamento
+→ Webhook Asaas
+→ Neon
+→ Subscription
+→ liberação / renovação / expiração
+```
+
+- Semanal R$ 27 → **cobrança avulsa** (ONE_TIME, 7 dias);
+- Mensal R$ 77 → **assinatura mensal** (RECURRING, MONTH);
+- Anual R$ 497 → **assinatura anual** (RECURRING, YEAR).
+
+Nesta fase o `AsaasBillingAdapter` é **conceitual**: todos os métodos retornam `INTEGRATION_NOT_CONFIGURED`. Nenhuma chamada HTTP é feita. Nenhum checkout/URL fake é gerado.
+
+---
+
+## 13. PLANOS E ASSINATURAS
+
+Registrado em **2026-08-27** (Fase 6.5).
+
+Estrutura oficial de planos — **NÃO existe plano Combo**. Todos os planos liberam o mesmo produto completo (Instagram, TikTok, Dashboard, IA Acessor, Cérebro Estratégico, Diagnóstico, Score, Ideias, Copy, Preview Social, Calendário, Planejamento, Mentoria, Rank, XP, Metas, Conquistas).
+
+| Plano | Preço | Cobrança | Intervalo | Destaque |
+| --- | --- | --- | --- | --- |
+| Semanal | R$ 27,00 (2700) | ONE_TIME | — (7 dias) | — |
+| Mensal | R$ 77,00 (7700) | RECURRING | MONTH | MAIS ESCOLHIDO |
+| Anual | R$ 497,00 (49700) | RECURRING | YEAR | MELHOR CUSTO-BENEFÍCIO |
+
+Anual (matemática oficial):
+
+- equivalente aproximado: R$ 41,42/mês;
+- 12 mensalidades: R$ 924;
+- plano anual: R$ 497;
+- economia: R$ 427.
+
+Regras:
+
+- valores SEMPRE em centavos inteiros (`Int`), nunca `Float`;
+- estados de assinatura: `PENDING | ACTIVE | EXPIRED | CANCELED | PAST_DUE` (somente os necessários);
+- IDs externos (provider, externalCustomerId, externalSubscriptionId, externalPaymentId) **nullable** — NUNCA inventados;
+- acesso pago controlado por `canAccessPaidFeatures(userId)` — em desenvolvimento libera SEMPRE (não quebrar usuários atuais).
 
 ---
 

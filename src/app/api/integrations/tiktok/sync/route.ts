@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
 import { syncTikTok } from "@/lib/integrations/tiktok";
+import { syncRateLimiter } from "@/lib/publishing/rate-limit";
+import { grantXp, checkAndUnlockAchievements } from "@/lib/gamification";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +24,13 @@ export async function POST() {
     return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
   }
 
+  if (!syncRateLimiter.check(userId)) {
+    return NextResponse.json(
+      { error: "Muitas sincronizações. Aguarde um instante e tente novamente." },
+      { status: 429 }
+    );
+  }
+
   const result = await syncTikTok(userId);
 
   if (!result.ok) {
@@ -35,6 +44,13 @@ export async function POST() {
           ? 401
           : 502;
     return NextResponse.json({ error: result.error, code: result.code }, { status });
+  }
+
+  // XP por sincronizar TikTok (idempotente por refId = snapshot id).
+  const snapshotId = result.summary?.snapshotId;
+  if (snapshotId) {
+    await grantXp(userId, "sincronizar-tiktok", snapshotId);
+    await checkAndUnlockAchievements(userId);
   }
 
   return NextResponse.json({ ok: true, summary: result.summary });

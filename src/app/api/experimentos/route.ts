@@ -11,6 +11,7 @@ import {
   deleteExperiment,
 } from "@/lib/knowledge/experiments";
 import { scorePlatformSchema } from "@/lib/validators/ai";
+import { grantXp, checkAndUnlockAchievements } from "@/lib/gamification";
 
 export const dynamic = "force-dynamic";
 
@@ -127,6 +128,13 @@ export async function PATCH(request: Request) {
 
     const experiment = await updateExperimentStatus(userId, id, status);
     if (!experiment) return NextResponse.json({ error: "experimento não encontrado" }, { status: 404 });
+
+    // XP por completar experimento (confirmado/rejeitado). Idempotente por refId.
+    if (status === "CONFIRMED" || status === "REJECTED") {
+      await grantXp(userId, "completar-experimento", id);
+      await checkAndUnlockAchievements(userId);
+    }
+
     return NextResponse.json({ experiment });
   } catch (err) {
     console.error("[experimentos] erro ao atualizar", err);

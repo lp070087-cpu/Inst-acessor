@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
 import { onboardingSchema } from "@/lib/validators/auth";
+import { grantXp, checkAndUnlockAchievements } from "@/lib/gamification";
 
 export async function PUT(request: Request) {
   try {
@@ -35,6 +36,10 @@ export async function PUT(request: Request) {
         onboardingCompleted: true,
       },
     });
+
+    // XP por concluir onboarding (idempotente por refId = userId).
+    await grantXp(userId, "concluir-onboarding", userId);
+    await checkAndUnlockAchievements(userId);
 
     return NextResponse.json({ ok: true });
   } catch (error) {

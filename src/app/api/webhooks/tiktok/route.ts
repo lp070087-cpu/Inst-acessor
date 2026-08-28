@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { webhookRateLimiter, clientIp } from "@/lib/publishing/rate-limit";
+
 /**
  * Webhook do TikTok — preparado estruturalmente.
  *
@@ -35,6 +37,11 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  // Proteção básica contra flood de eventos.
+  if (!webhookRateLimiter.check(clientIp(request))) {
+    return new NextResponse("Muitas requisições", { status: 429 });
+  }
+
   let payload: unknown;
   try {
     payload = await request.json();
