@@ -21,26 +21,26 @@ datasource db {
 // Usuários
 // ------------------------------------------------------------
 model User {
-  id            String     @id @default(cuid())
-  name          String?
-  email         String     @unique
-  emailVerified DateTime?
-  image         String?
-  passwordHash  String?
-  role          Role       @default(USER)
-  status        UserStatus @default(ACTIVE)
+  id                     String     @id @default(cuid())
+  name                   String?
+  email                  String     @unique
+  emailVerified          DateTime?
+  image                  String?
+  passwordHash           String?
+  role                   Role       @default(USER)
+  status                 UserStatus @default(ACTIVE)
   // Fase 6.5 (Asaas) — id do cliente no Asaas (NUNCA inventado; preenchido
   // pelo gateway real). Usado para NÃO duplicar customer por usuário.
-  asaasCustomerId String?   @unique
+  asaasCustomerId        String?    @unique
   // Fase "Primeiro Acesso" — o cliente ativa o acesso pelo e-mail da compra,
   // cria a própria senha e conclui o tour. Campos de estado (não duplicam
   // UserProfile.onboardingCompleted, que é o perfil de nicho/objetivo).
-  firstAccessCompleted    Boolean   @default(false)
-  firstAccessCompletedAt  DateTime?
-  tourCompleted           Boolean   @default(false)
-  tourCompletedAt         DateTime?
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  firstAccessCompleted   Boolean    @default(false)
+  firstAccessCompletedAt DateTime?
+  tourCompleted          Boolean    @default(false)
+  tourCompletedAt        DateTime?
+  createdAt              DateTime   @default(now())
+  updatedAt              DateTime   @updatedAt
 
   accounts              Account[]
   sessions              Session[]
@@ -608,14 +608,14 @@ model Subscription {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   plan Plan @relation(fields: [planId], references: [id])
 
-  payments Payment[]
+  payments      Payment[]
   billingEvents BillingEvent[]
 
+  @@unique([idempotencyKey])
   @@index([userId, status])
   @@index([planId])
   @@index([userId, expiresAt])
   @@index([externalSubscriptionId])
-  @@unique([idempotencyKey])
 }
 
 model Payment {
@@ -638,9 +638,9 @@ model Payment {
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
 
+  @@unique([eventId])
   @@index([userId, createdAt])
   @@index([subscriptionId])
-  @@unique([eventId])
   @@index([externalPaymentId])
 }
 
@@ -649,17 +649,19 @@ model Payment {
 // (eventId @@unique). NUNCA contém secrets. userId só é preenchido quando o
 // sistema localizou o dono pela referência externa — nunca confia no payload.
 model BillingEvent {
-  id          String   @id @default(cuid())
-  eventId     String   @unique // id externo do evento (ex.: asaas event id) — idempotência
-  provider    String   @default("asaas")
-  type        String // nome oficial do evento (ex.: PAYMENT_CONFIRMED)
-  userId      String? // dono identificado localmente (nullable — não confiável do payload)
+  id             String        @id @default(cuid())
+  eventId        String        @unique // id externo do evento (ex.: asaas event id) — idempotência
+  provider       String        @default("asaas")
+  type           String // nome oficial do evento (ex.: PAYMENT_CONFIRMED)
+  userId         String? // dono identificado localmente (nullable — não confiável do payload)
   subscriptionId String?
-  payload     Json? // payload sanitizado (sem tokens/secrets)
-  processed   Boolean  @default(false)
-  processedAt DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  payload        Json? // payload sanitizado (sem tokens/secrets)
+  processed      Boolean       @default(false)
+  processedAt    DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  User           User?         @relation(fields: [userId], references: [id])
+  Subscription   Subscription? @relation(fields: [subscriptionId], references: [id])
 
   @@index([userId])
   @@index([subscriptionId])
@@ -681,33 +683,33 @@ model BillingEvent {
 //   já existe; AccessGrant complementa para e-mails sem conta.
 
 model AccessGrant {
-  id            String    @id @default(cuid())
+  id                     String    @id @default(cuid())
   // E-mail da compra/concessão (normalizado). É a identidade inicial do acesso.
-  email         String
-  userId        String? // associado quando o cliente cria/vincula a conta
-  planId        String? // plano de referência (opcional; não é compra)
-  planName      String? // snapshot do nome do plano (sem join obrigatório)
-  origin        String // "ASAAS" | "ADMIN_MANUAL"
-  status        String    @default("PENDING_FIRST_ACCESS")
+  email                  String
+  userId                 String? // associado quando o cliente cria/vincula a conta
+  planId                 String? // plano de referência (opcional; não é compra)
+  planName               String? // snapshot do nome do plano (sem join obrigatório)
+  origin                 String // "ASAAS" | "ADMIN_MANUAL"
+  status                 String    @default("PENDING_FIRST_ACCESS")
   // PENDING_FIRST_ACCESS | ACTIVE | EXPIRED | CANCELED
-  startAt       DateTime
-  expiresAt     DateTime?
+  startAt                DateTime
+  expiresAt              DateTime?
   // Rastreio da liberação manual (somente ADMIN_MANUAL).
-  grantedByAdminId String?
+  grantedByAdminId       String?
   // Rastreio da compra (somente ASAAS) — referência externa real, nunca inventada.
   externalPaymentId      String?
   externalSubscriptionId String?
   // Primeiro acesso concluído (senha criada e acesso confirmado).
-  firstAccessCompleted   Boolean  @default(false)
+  firstAccessCompleted   Boolean   @default(false)
   firstAccessCompletedAt DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
+  @@unique([email, origin, externalPaymentId])
   @@index([email, status])
   @@index([userId, status])
-  @@unique([email, origin, externalPaymentId])
 }
 
 // Token de USO ÚNICO para prova de posse do e-mail no primeiro acesso.
@@ -715,15 +717,15 @@ model AccessGrant {
 // - NUNCA aparece em logs; apenas o hash é comparável.
 // - Não usa JWT eterno — é um token opaco de banco, sem assinatura própria.
 model FirstAccessToken {
-  id         String   @id @default(cuid())
-  email      String // normalizado
-  tokenHash  String   @unique // hash SHA-256 do token (nunca o token cru)
-  expiresAt  DateTime
-  usedAt     DateTime?
-  consumed   Boolean  @default(false)
-  createdAt  DateTime @default(now())
+  id        String    @id @default(cuid())
+  email     String // normalizado
+  tokenHash String    @unique // hash SHA-256 do token (nunca o token cru)
+  expiresAt DateTime
+  usedAt    DateTime?
+  consumed  Boolean   @default(false)
+  createdAt DateTime  @default(now())
 
-  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
   userId String?
 
   @@index([email])
@@ -736,15 +738,15 @@ model FirstAccessToken {
 // sensível). Até que o fluxo completo (registration + authentication + UI)
 // seja validado, este model permanece PREPARADO, não ativo.
 model PasskeyCredential {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   userId       String
   // Credencial WebAuthn — credencialId + publicKey são gerados pelo
   // dispositivo/browser e NÃO são dados biométricos.
-  credentialId String   @unique
+  credentialId String    @unique
   publicKey    String
   transports   String? // "internal" (Face ID/Touch ID/Windows Hello) | "usb" | ...
   deviceName   String?
-  createdAt    DateTime @default(now())
+  createdAt    DateTime  @default(now())
   lastUsedAt   DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
