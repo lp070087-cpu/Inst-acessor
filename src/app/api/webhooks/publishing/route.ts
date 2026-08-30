@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { pub } from "@/lib/publishing/db";
 import { webhookRateLimiter, clientIp } from "@/lib/publishing/rate-limit";
+import { verifyWebhookSignature } from "@/lib/webhooks/signature";
 
 export const dynamic = "force-dynamic";
 
@@ -21,10 +22,11 @@ export const dynamic = "force-dynamic";
  * nenhuma ação real é executada — registramos a avaliação.
  */
 
-// Verificação de origem: quando configurado, exigimos o token de verificação.
-// Isto é uma proteção de origem PREPARADA — o padrão real (X-Hub-Signature-256)
-// será ativado com o App Secret quando a integração for liberada.
+// Verificação de origem: challenge GET usa o verify token; o POST assinado
+// usa o App Secret (X-Hub-Signature-256) quando configurado.
 const VERIFY_TOKEN = process.env.INSTAGRAM_WEBHOOK_VERIFY_TOKEN ?? "";
+const APP_SECRET = process.env.META_APP_SECRET ?? "";
+const CONFIGURED = Boolean(VERIFY_TOKEN);
 
 interface WebhookEvent {
   eventId?: string;
@@ -56,14 +58,31 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  // Não configurado → não recebe eventos reais.
+  if (!CONFIGURED) {
+    return new NextResponse("Webhook não configurado", { status: 503 });
+  }
+
   // Proteção básica contra flood (a assinatura real será ativada na integração).
   if (!webhookRateLimiter.check(clientIp(request))) {
     return new NextResponse("Muitas requisições", { status: 429 });
   }
 
+  // Verificação de origem: quando o App Secret está configurado, exigimos a
+  // assinatura X-Hub-Signature-256 (padrão Meta). Sem App Secret, aceitamos
+  // apenas payloads com challenge previamente validado — protegido por rate limit.
+  const rawBody = await request.text();
+  if (APP_SECRET) {
+    const signature = request.headers.get("x-hub-signature-256");
+    if (!verifyWebhookSignature(rawBody, signature, APP_SECRET)) {
+      console.warn("[publishing-webhook] assinatura inválida — evento ignorado");
+      return new NextResponse("Assinatura inválida", { status: 403 });
+    }
+  }
+
   let body: unknown;
   try {
-    body = await request.json();
+    body = JSON.parse(rawBody);
   } catch {
     return new NextResponse("Payload inválido", { status: 400 });
   }

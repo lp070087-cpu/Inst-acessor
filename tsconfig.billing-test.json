@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "lib": ["ES2020", "DOM"],
+    "outDir": ".billing-test-build",
+    "rootDir": ".",
+    "strict": true,
+    "noEmitOnError": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": false,
+    "baseUrl": ".",
+    "paths": { "@/*": ["src/*"] },
+    "types": ["node"]
+  },
+  "include": [
+    "src/lib/billing/plans/catalog.ts",
+    "src/lib/billing/asaas/config.ts",
+    "src/lib/billing/asaas/client.ts",
+    "src/lib/billing/asaas/types.ts",
+    "src/lib/billing/asaas/webhook.ts",
+    "src/lib/billing/manual-access-core.ts",
+    "src/types/prisma-shim.d.ts",
+    "scripts/billing-tests.ts"
+  ]
+}

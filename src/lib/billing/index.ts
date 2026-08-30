@@ -49,3 +49,25 @@ export type {
   CreateCheckoutResult,
   BillingRecordResult,
 } from "./provider/types";
+
+// Asaas (integração real, server-only)
+export * from "./asaas";
+
+// Liberação manual de acesso pelo ADMIN (sem cobrança, sem Asaas)
+export {
+  grantManualAccess,
+  type GrantManualAccessResult,
+} from "./manual-access";
+export {
+  MANUAL_PROVIDER,
+  MANUAL_SOURCE,
+  ASAAS_PROVIDER,
+  ASAAS_SOURCE,
+  MANUAL_MIN_DAYS,
+  MANUAL_MAX_DAYS,
+  normalizeEmail,
+  validateGrantDays,
+  computeGrantDates,
+  computeExtendedExpiry,
+  resolveAnchorPlanSlug,
+} from "./manual-access-core";

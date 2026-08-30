@@ -23,7 +23,9 @@ export default withAuth(
         if (
           pathname.startsWith("/login") ||
           pathname.startsWith("/cadastro") ||
-          pathname.startsWith("/onboarding")
+          pathname.startsWith("/onboarding") ||
+          pathname.startsWith("/primeiro-acesso") ||
+          pathname.startsWith("/expirado")
         ) {
           return true;
         }
@@ -48,6 +50,7 @@ export const config = {
     "/mentoria/:path*",
     "/redes-sociais/:path*",
     "/analise-de-desempenho/:path*",
+    "/score/:path*",
     "/calendario/:path*",
     "/publishing/:path*",
     "/growth/:path*",
@@ -57,8 +60,12 @@ export const config = {
     "/perfil/:path*",
     "/configuracoes/:path*",
     "/sobre/:path*",
+    "/admin/:path*",
+    "/api/admin/:path*",
     "/login",
     "/cadastro",
     "/onboarding",
+    "/primeiro-acesso",
+    "/expirado",
   ],
 };

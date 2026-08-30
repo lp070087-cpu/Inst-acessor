@@ -69,7 +69,7 @@ export async function sendChatMessage(
   userId: string,
   opts: { conversationId?: string; message: string }
 ): Promise<ChatResult> {
-  const provider = getAIProvider();
+  const provider = await getAIProvider();
   if (!provider) throw new AIConfiguredError();
 
   // 1) Conversa (existente ou nova)

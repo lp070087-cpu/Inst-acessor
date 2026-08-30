@@ -1,29 +1,40 @@
 import { NextResponse } from "next/server";
 
 import { webhookRateLimiter, clientIp } from "@/lib/publishing/rate-limit";
+import { pub } from "@/lib/publishing/db";
+import { verifyWebhookSignature } from "@/lib/webhooks/signature";
 
 /**
- * Webhook do Instagram (Meta) — preparado estruturalmente.
+ * Webhook do Instagram (Meta) — arquitetura segura.
  *
  * GET  → valida o challenge de verificação da Meta (hub.mode/hub.verify_token/hub.challenge).
- * POST → recebe eventos do Instagram e prepara o processamento.
+ * POST → recebe eventos do Instagram com:
+ *        - Verificação de origem via `X-Hub-Signature-256` (HMAC-SHA256 com o App Secret).
+ *        - Idempotência por evento (AutomationEvent.eventId @@unique).
+ *        - Sanitização de payload (nunca persiste tokens/secrets).
+ *        - Rate limit por IP (proteção contra flood).
  *
- * ATENÇÃO:
- * - Não configurar URL falsa no painel da Meta ainda — só ativar quando
- *   o webhook estiver pronto para receber eventos reais.
- * - Não logar tokens/credenciais.
+ * Quando o webhook NÃO está configurado (app secret ou verify token ausentes),
+ * NÃO finge receber eventos: retorna 503/404 e a Meta não envia.
+ * Nada é executado automaticamente — apenas registrado.
  */
 
 const VERIFY_TOKEN = process.env.INSTAGRAM_WEBHOOK_VERIFY_TOKEN || "";
+const APP_SECRET = process.env.META_APP_SECRET || process.env.INSTAGRAM_APP_SECRET || "";
+
+const CONFIGURED = Boolean(VERIFY_TOKEN && APP_SECRET);
 
 export async function GET(request: Request) {
-  const url = new URL(request.url);
+  // Não configurado → não aceita challenges (nada a validar).
+  if (!CONFIGURED) {
+    return new NextResponse("Webhook não configurado", { status: 503 });
+  }
 
+  const url = new URL(request.url);
   const mode = url.searchParams.get("hub.mode");
   const token = url.searchParams.get("hub.verify_token");
   const challenge = url.searchParams.get("hub.challenge");
 
-  // Valida o challenge da Meta.
   if (mode === "subscribe" && token === VERIFY_TOKEN && challenge) {
     console.info("[instagram-webhook] challenge verificado pela Meta");
     return new NextResponse(challenge, {
@@ -41,47 +52,102 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  // Proteção básica contra flood de eventos.
+  // Não configurado → não recebe eventos reais.
+  if (!CONFIGURED) {
+    return new NextResponse("Webhook não configurado", { status: 503 });
+  }
+
+  // 1) Proteção básica contra flood de eventos.
   if (!webhookRateLimiter.check(clientIp(request))) {
     return new NextResponse("Muitas requisições", { status: 429 });
   }
 
-  // TODO(Fase 3): assinatura X-Hub-Signature-256 com App Secret.
-  // Por enquanto validamos apenas a forma do payload.
+  // 2) Verificação de origem: assinatura X-Hub-Signature-256.
+  const rawBody = await request.text();
+  const signature = request.headers.get("x-hub-signature-256");
+  if (!verifyWebhookSignature(rawBody, signature, APP_SECRET)) {
+    console.warn("[instagram-webhook] assinatura inválida — evento ignorado");
+    return new NextResponse("Assinatura inválida", { status: 403 });
+  }
 
+  // 3) Parse do payload (após validar assinatura).
   let payload: unknown;
   try {
-    payload = await request.json();
+    payload = JSON.parse(rawBody);
   } catch {
     return new NextResponse("Payload inválido", { status: 400 });
   }
 
-  // Estrutura esperada da Meta:
-  // { object: "instagram", entry: [{ id, time, changes: [...] }] }
-  if (!isInstagramPayload(payload)) {
+  // 4) Formato esperado da Meta: { object: "instagram", entry: [...] }.
+  const event = extractInstagramEvent(payload);
+  if (!event.eventId) {
     console.warn("[instagram-webhook] payload fora do formato esperado");
     return new NextResponse("Payload inválido", { status: 400 });
   }
 
-  const object = (payload as { object: string }).object;
-  const entries = (payload as { entry: unknown[] }).entry;
+  // 5) Idempotência: evento já processado não é re-processado.
+  const existing = await pub.automationEvent.findUnique({
+    where: { eventId: event.eventId },
+  });
+  if (existing) {
+    return NextResponse.json({ received: true, duplicate: true }, { status: 200 });
+  }
 
-  console.info(
-    `[instagram-webhook] evento recebido object=${object} entries=${entries.length}`
-  );
+  // 6) Persiste o evento (payload sanitizado — sem tokens/secrets).
+  await pub.automationEvent.create({
+    data: {
+      userId: event.userId ?? "unknown",
+      eventId: event.eventId,
+      platform: "instagram",
+      type: event.type ?? "instagram",
+      payload: sanitizePayload(event.payload),
+      processed: false,
+    },
+  });
 
-  // TODO(Fase 3): enfileirar o processamento dos eventos
-  // (ex.: atualizar métricas da conta afetada).
-  // Por ora, apenas reconhece e responde 200 para a Meta não reenviar.
+  // 7) Nenhuma ação automática é executada nesta fase — apenas registro.
+  //    (Futuramente: avaliar regras de automação e disparar com confirmação.)
 
   return NextResponse.json({ received: true }, { status: 200 });
 }
 
-function isInstagramPayload(value: unknown): value is {
-  object: string;
-  entry: unknown[];
+/** Extrai um evento do payload do Instagram (Meta). */
+function extractInstagramEvent(value: unknown): {
+  eventId?: string;
+  userId?: string;
+  type?: string;
+  payload?: unknown;
 } {
-  if (typeof value !== "object" || value === null) return false;
+  if (typeof value !== "object" || value === null) return {};
   const obj = value as Record<string, unknown>;
-  return obj.object === "instagram" && Array.isArray(obj.entry);
+  if (obj.object !== "instagram" || !Array.isArray(obj.entry)) return {};
+
+  const entry = obj.entry[0] as Record<string, unknown> | undefined;
+  const id = typeof entry?.id === "string" ? entry.id : undefined;
+
+  // userId quando o payload identifica a conta afetada (campo comum: id da página/IG).
+  const changes = Array.isArray(entry?.changes) ? entry.changes : undefined;
+  const firstChange = (Array.isArray(changes) ? changes[0] : undefined) as
+    | Record<string, unknown>
+    | undefined;
+
+  return {
+    eventId: id ? `instagram:${id}` : undefined,
+    userId: typeof entry?.id === "string" ? entry.id : undefined,
+    type: typeof firstChange?.field === "string" ? firstChange.field : "instagram",
+    payload: obj,
+  };
+}
+
+/** Remove chaves sensíveis conhecidas do payload antes de persistir. */
+function sanitizePayload(payload: unknown): unknown {
+  if (typeof payload !== "object" || payload === null) return payload;
+  if (Array.isArray(payload)) return payload.map(sanitizePayload);
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(payload as Record<string, unknown>)) {
+    if (/token|secret|password|access_|signature/i.test(k)) continue;
+    if (k === "payload") continue; // evitar aninhamento não confiável
+    out[k] = typeof v === "object" && v !== null ? sanitizePayload(v) : v;
+  }
+  return out;
 }

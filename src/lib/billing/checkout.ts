@@ -2,15 +2,19 @@ import { getBillingAdapter } from "@/lib/billing/provider";
 import { getPlanById } from "@/lib/billing/plans";
 
 /**
- * CHECKOUT — Fase 6.5 (6.5.24)
- * ============================
- * Fluxo "Escolher plano". Como o gateway real ainda NÃO está configurado,
- * ao tentar pagamento o sistema retorna um estado CONTROLADO:
- *   "Pagamento online em configuração."
- * NENHUMA URL falsa é criada; NENHUM checkout fake é gerado.
+ * CHECKOUT — Fase atual (Asaas real)
+ * ===================================
+ * Fluxo "Escolher plano".
  *
- * Quando o Asaas for integrado (fase futura), este ponto passará a chamar
- * o adapter real e retornará a URL de checkout oficial.
+ * - O preço/duração/ciclo são SEMPRE resolvidos no servidor (`getPlanById`).
+ * - O client envia apenas `planId`; nunca valor vindo do browser.
+ * - Com gateway configurado, cria a cobrança/assinatura no Asaas e devolve
+ *   o estado real (URL de checkout/PIX, status PENDING).
+ * - Sem gateway, retorna estado controlado "Pagamento online em configuração."
+ *   (nenhuma URL fake).
+ *
+ * IMPORTANTE: criar checkout ≠ pagamento aprovado. O acesso só é liberado
+ * quando o webhook confirma o pagamento.
  */
 
 export interface StartCheckoutResult {
@@ -21,29 +25,40 @@ export interface StartCheckoutResult {
   planName: string | null;
   priceCents: number | null;
   checkoutUrl: string | null;
+  subscriptionId: string | null;
+  subscriptionStatus: string | null;
 }
 
 /**
- * Inicia o checkout de um plano (owner = sessão). Sempre retorna o estado
- * controlado de "pagamento em configuração" nesta fase — nunca uma URL fake.
+ * Inicia o checkout de um plano (owner = sessão).
+ * `userEmail`/`userName` vêm da sessão autenticada (nunca do body).
  */
-export async function startCheckout(userId: string, planId: string): Promise<StartCheckoutResult> {
-  const plan = await getPlanById(planId);
-  if (!plan) {
+export async function startCheckout(input: {
+  userId: string;
+  userEmail: string;
+  userName: string | null;
+  planId: string;
+}): Promise<StartCheckoutResult> {
+  const plan = await getPlanById(input.planId);
+  if (!plan || !plan.active) {
     return {
       ok: false,
       status: "INTEGRATION_NOT_CONFIGURED",
       message: "Plano não encontrado.",
-      planId,
+      planId: input.planId,
       planName: null,
       priceCents: null,
       checkoutUrl: null,
+      subscriptionId: null,
+      subscriptionStatus: null,
     };
   }
 
   const adapter = getBillingAdapter();
   const result = await adapter.createCheckout({
-    userId,
+    userId: input.userId,
+    userEmail: input.userEmail,
+    userName: input.userName,
     planId: plan.id,
     planSlug: plan.slug,
     planName: plan.name,
@@ -53,13 +68,31 @@ export async function startCheckout(userId: string, planId: string): Promise<Sta
     billingInterval: (plan.billingInterval as "MONTH" | "YEAR" | null) ?? null,
   });
 
+  if (!result.ok) {
+    return {
+      ok: false,
+      status: result.status,
+      message: result.status === "INTEGRATION_NOT_CONFIGURED"
+        ? "Pagamento online em configuração."
+        : result.error ?? "Não foi possível iniciar o checkout.",
+      planId: plan.id,
+      planName: plan.name,
+      priceCents: plan.priceCents,
+      checkoutUrl: null,
+      subscriptionId: null,
+      subscriptionStatus: null,
+    };
+  }
+
   return {
-    ok: result.ok,
+    ok: true,
     status: result.status,
-    message: result.ok ? "Checkout iniciado." : "Pagamento online em configuração.",
+    message: "Checkout iniciado. O acesso é liberado somente após a confirmação do pagamento.",
     planId: plan.id,
     planName: plan.name,
     priceCents: plan.priceCents,
     checkoutUrl: result.checkoutUrl,
+    subscriptionId: result.externalId ?? null,
+    subscriptionStatus: "PENDING",
   };
 }

@@ -241,7 +241,7 @@ export async function generateWeeklyPlanWithAI(
   userId: string
 ): Promise<{ plan: WeeklyPlanSuggestion; aiUsed: boolean }> {
   const plan = await buildWeeklyPlan(userId);
-  const provider = getAIProvider();
+  const provider = await getAIProvider();
 
   if (!provider) {
     return { plan, aiUsed: false };

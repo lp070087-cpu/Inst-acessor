@@ -31,3 +31,31 @@ export async function requireOnboardedSession() {
 
   return { session, profile };
 }
+
+/**
+ * Retorna a sessão autenticada e garante que o usuário é ADMIN ativo.
+ *
+ * A autorização é SEMPRE feita no servidor, consultando o banco (fonte da
+ * verdade) — nunca apenas escondendo botões na UI. Usuários não-admin (ou
+ * suspensos) são redirecionados para /dashboard.
+ *
+ * Uso em páginas/rotas da área administrativa (`/admin` e `/api/admin/*`).
+ */
+export async function requireAdminSession(): Promise<{
+  session: Session;
+  user: { id: string; role: "ADMIN" };
+}> {
+  const session = await requireSession();
+  const userId = session.user.id;
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true, status: true },
+  });
+
+  if (!user || user.role !== "ADMIN" || user.status !== "ACTIVE") {
+    redirect("/dashboard");
+  }
+
+  return { session, user: { id: userId, role: "ADMIN" } };
+}

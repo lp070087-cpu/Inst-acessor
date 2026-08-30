@@ -1,8 +1,15 @@
 import { prisma } from "@/lib/db";
-import type { Plan, Subscription, Payment } from "@prisma/client";
+import type {
+  Plan,
+  Subscription,
+  Payment,
+  BillingEvent,
+  User,
+} from "@prisma/client";
 
 /**
- * REPOSITORY — acesso tipado aos models da Fase 6.5 (Planos/Assinatura).
+ * REPOSITORY — acesso tipado aos models da Fase 6.5 (Planos/Assinatura)
+ * + Fase atual (Asaas real): BillingEvent e User.asaasCustomerId.
  *
  * Mesma estratégia das Fases 4/4.5/5/6 (`src/lib/ai/db.ts`,
  * `src/lib/gamification/db.ts`, `src/lib/planning/db.ts`):
@@ -31,9 +38,32 @@ interface Delegate<T> {
 }
 
 export const bll = {
-  plan: p.plan as Delegate<Plan>,
-  subscription: p.subscription as Delegate<Subscription>,
-  payment: p.payment as Delegate<Payment>,
+  plan: p.plan as unknown as Delegate<Plan>,
+  subscription: p.subscription as unknown as Delegate<Subscription>,
+  payment: p.payment as unknown as Delegate<Payment>,
+  billingEvent: p.billingEvent as unknown as Delegate<BillingEvent>,
+  user: p.user as unknown as Delegate<User>,
+  // Fase "Primeiro Acesso" — AccessGrant (origem ASAAS/ADMIN_MANUAL).
+  accessGrant: p.accessGrant as unknown as Delegate<AccessGrant>,
 };
+
+export interface AccessGrant {
+  id: string;
+  email: string;
+  userId?: string | null;
+  planId?: string | null;
+  planName?: string | null;
+  origin: string;
+  status: string;
+  startAt: Date;
+  expiresAt?: Date | null;
+  grantedByAdminId?: string | null;
+  externalPaymentId?: string | null;
+  externalSubscriptionId?: string | null;
+  firstAccessCompleted: boolean;
+  firstAccessCompletedAt?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 export { prisma };

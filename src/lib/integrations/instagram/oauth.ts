@@ -13,7 +13,8 @@ import type { InstagramTokenPayload } from "./types";
 const GRAPH_VERSION = process.env.INSTAGRAM_GRAPH_VERSION || "v21.0";
 const DIALOG_BASE = "https://www.facebook.com";
 const GRAPH_BASE = "https://graph.facebook.com";
-const DEFAULT_SCOPES = "instagram_business_basic,business_management";
+const DEFAULT_SCOPES =
+  "instagram_business_basic,instagram_business_manage_comments,instagram_business_manage_messages";
 
 /** Monta a URL oficial de autorização da Meta. */
 export function buildAuthUrl(state: string): string {

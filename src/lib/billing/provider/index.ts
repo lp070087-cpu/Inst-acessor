@@ -1,11 +1,13 @@
 import type { BillingAdapter } from "./types";
+import { isAsaasConfigured } from "@/lib/billing/asaas/config";
+import { asaasBillingAdapter } from "@/lib/billing/adapters/asaas";
 
 /**
  * PROVIDER SELECTOR — retorna o adapter de pagamento ativo.
  * ==========================================================
- * Nesta fase o gateway oficial (Asaas) AINDA NÃO está integrado:
- * o selector retorna um adapter "none" que sempre responde
- * INTEGRATION_NOT_CONFIGURED. NENHUMA chamada HTTP é feita.
+ * - Se `ASAAS_API_KEY` estiver configurada no servidor → AsaasBillingAdapter.
+ * - Caso contrário → adapter "none" (INTEGRATION_NOT_CONFIGURED).
+ * NENHUMA chamada HTTP é feita na seleção.
  */
 
 const notConfiguredAdapter: BillingAdapter = {
@@ -43,12 +45,11 @@ const notConfiguredAdapter: BillingAdapter = {
 };
 
 /**
- * Retorna o adapter ativo. Como o Asaas ainda não está integrado,
- * sempre retorna o adapter "none" (desconfigurado). Quando o gateway for
- * liberado, este ponto trocará para `AsaasBillingAdapter`.
+ * Retorna o adapter ativo. Com `ASAAS_API_KEY` presente, retorna o adapter
+ * Asaas real; sem chave, retorna o adapter "none" (desconfigurado).
  */
 export function getBillingAdapter(): BillingAdapter {
-  return notConfiguredAdapter;
+  return isAsaasConfigured() ? asaasBillingAdapter : notConfiguredAdapter;
 }
 
 /** Indica se algum gateway real está configurado. */

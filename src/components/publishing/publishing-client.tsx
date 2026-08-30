@@ -15,7 +15,6 @@ import {
   AlertCircle,
   Instagram,
   Music2,
-  Layers,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -128,14 +127,6 @@ function PlatformIcon({ platform }: { platform: string }) {
     <Instagram size={15} className="text-purple" />
   ) : (
     <Music2 size={15} className="text-purple" />
-  );
-}
-
-function FormatIcon({ format }: { format: string }) {
-  return format === "carrossel" ? (
-    <Layers size={14} className="text-ink-muted" />
-  ) : (
-    <Send size={14} className="text-ink-muted" />
   );
 }
 

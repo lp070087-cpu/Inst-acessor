@@ -13,23 +13,39 @@ import {
   Crown,
   Wallet,
   Info,
+  ExternalLink,
+  AlertTriangle,
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
+import { Mail } from "lucide-react";
 
 /**
- * MINHA ASSINATURA — Fase 6.5 (6.5.15 a 6.5.20, 6.5.24 a 6.5.26)
- * ==============================================================
- * Página funcional de planos e assinatura.
+ * AVISO DE CHECKOUT — Fase "Primeiro Acesso".
+ * O e-mail informado na compra é a identidade inicial do acesso. Este aviso
+ * é exibido na página de assinatura para que o cliente use um e-mail ao qual
+ * tenha acesso — será com ele que o primeiro acesso será liberado.
+ */
+const CHECKOUT_EMAIL_WARNING =
+  "Use um e-mail que você tenha acesso. Este mesmo e-mail será utilizado para liberar seu acesso ao Inst Acessor.";
+
+/**
+ * MINHA ASSINATURA — Fase atual (Asaas real)
+ * ============================================
+ * Página funcional de planos e assinatura com os estados REAIS:
  *
- * - Cards dos 3 planos oficiais (Semanal/Mensal/Anual), sem plano Combo.
- * - "Escolher plano" → checkout CONTROLADO: "Pagamento online em configuração."
- *   (NENHUMA URL fake, NENHUM gateway real nesta fase).
- * - "Minha Assinatura": plano, preço, status, cobrança, início, expiração,
- *   próxima renovação, renovação automática, dias restantes.
+ * - Sem assinatura → convite para escolher um plano.
+ * - Aguardando pagamento (PENDING) → cobrança criada no Asaas, aguardando
+ *   confirmação. NUNCA mostra "pagamento aprovado" sem confirmação real.
+ * - Ativa (ACTIVE) → acesso liberado (webhook confirmou o pagamento).
+ * - Vencida/Expirada (EXPIRED), Cancelada (CANCELED), Pagamento atrasado
+ *   (PAST_DUE) — cada uma com mensagem própria.
+ *
+ * Sem `ASAAS_API_KEY` → estado controlado "Pagamento online em configuração."
+ * (nenhuma URL fake). Com gateway → URL real de checkout/PIX quando existir.
  * - Cancelar renovação futura (owner-check, sem cancelamento externo falso).
  * - Responsivo (desktop/notebook/tablet/mobile).
  */
@@ -65,6 +81,7 @@ interface SubscriptionView {
   expiresAt: string | null;
   nextBillingAt: string | null;
   canceledAt: string | null;
+  paidAt: string | null;
   active: boolean;
   daysRemaining: number;
   provider: string | null;
@@ -85,15 +102,14 @@ interface AssinaturaClientProps {
   initialCurrent: SubscriptionView | null;
   initialHistory: SubscriptionView[];
   initialAccess: AccessStatus;
+  /** Integração Asaas configurada no servidor (sem revelar chave). */
+  billingConfigured?: boolean;
+  /** Rótulo do ambiente ("Sandbox"/"Produção") quando configurado. */
+  billingLabel?: string | null;
 }
 
-const BADGE_LABEL: Record<string, string> = {
-  MAIS_ESCOLHIDO: "Mais escolhido",
-  MELHOR_CUSTO_BENEFICIO: "Melhor custo-benefício",
-};
-
 const STATUS_LABEL: Record<string, string> = {
-  PENDING: "Pendente",
+  PENDING: "Aguardando pagamento",
   ACTIVE: "Ativa",
   EXPIRED: "Expirada",
   CANCELED: "Cancelada",
@@ -107,6 +123,32 @@ const STATUS_TONE: Record<string, "success" | "warning" | "danger" | "info" | "n
   CANCELED: "neutral",
   PAST_DUE: "danger",
 };
+
+/** Mensagem amigável por estado real da assinatura (nunca inventa confirmação). */
+function statusMessage(
+  s: SubscriptionView | null,
+  billingConfigured: boolean
+): string | null {
+  if (!s) return null;
+  switch (s.status) {
+    case "PENDING":
+      return billingConfigured
+        ? "Pagamento iniciado. Seu acesso é liberado assim que o pagamento for confirmado."
+        : "Checkout criado. Nenhuma cobrança foi feita — o pagamento online está em configuração.";
+    case "ACTIVE":
+      return "Pagamento confirmado. Seu acesso está ativo.";
+    case "PAST_DUE":
+      return "Cobrança recorrente atrasada. Renove o pagamento para manter o acesso ativo.";
+    case "EXPIRED":
+      return "Seu período de acesso terminou. Escolha um plano para continuar.";
+    case "CANCELED":
+      return s.billingType === "RECURRING"
+        ? "Renovação futura cancelada. Você mantém o acesso até o fim do período pago."
+        : "Assinatura cancelada.";
+    default:
+      return null;
+  }
+}
 
 function formatBRL(cents: number): string {
   return (cents / 100).toLocaleString("pt-BR", {
@@ -140,6 +182,8 @@ export function AssinaturaClient({
   initialCurrent,
   initialHistory,
   initialAccess,
+  billingConfigured = false,
+  billingLabel = null,
 }: AssinaturaClientProps) {
   const { toast } = useToast();
 
@@ -149,11 +193,13 @@ export function AssinaturaClient({
   const [access, setAccess] = React.useState<AccessStatus>(initialAccess);
   const [checkingPlan, setCheckingPlan] = React.useState<string | null>(null);
   const [canceling, setCanceling] = React.useState(false);
-  const [notice, setNotice] = React.useState<string | null>(null);
+  const [notice, setNotice] = React.useState<{ kind: "info" | "warn" | "success"; text: string } | null>(null);
+  const [checkoutUrl, setCheckoutUrl] = React.useState<string | null>(null);
 
   async function choosePlan(plan: PlanView) {
     setCheckingPlan(plan.id);
     setNotice(null);
+    setCheckoutUrl(null);
     try {
       const res = await fetch("/api/billing/checkout", {
         method: "POST",
@@ -165,11 +211,53 @@ export function AssinaturaClient({
         toast(data.error ?? "Erro ao iniciar o checkout.", "error");
         return;
       }
-      // Estado controlado esperado nesta fase — pagamento online em configuração.
-      setNotice(
-        `${plan.name} — ${formatBRL(plan.priceCents)}. Pagamento online em configuração.`
-      );
-      toast("Pagamento online em configuração.");
+
+      if (data.status === "INTEGRATION_NOT_CONFIGURED") {
+        // Estado controlado — nenhuma cobrança real foi feita.
+        setNotice({
+          kind: "warn",
+          text: `${plan.name} — ${formatBRL(plan.priceCents)}. Pagamento online em configuração. Nenhuma cobrança foi feita.`,
+        });
+        toast("Pagamento online em configuração.");
+        return;
+      }
+
+      // Checkout REAL criado: estado PENDING — o acesso só é liberado após
+      // confirmação do pagamento (webhook). NUNCA marca como ativo aqui.
+      const url = typeof data?.checkout?.checkoutUrl === "string" ? data.checkout.checkoutUrl : null;
+      setCheckoutUrl(url);
+      setNotice({
+        kind: "info",
+        text: `${plan.name} — ${formatBRL(plan.priceCents)}. Checkout iniciado. Seu acesso é liberado assim que o pagamento for confirmado.`,
+      });
+      toast(url ? "Checkout criado. Finalize o pagamento." : "Checkout criado. Aguardando pagamento.");
+
+      // Atualiza o estado local para refletir o PENDING (a página recarrega
+      // quando o usuário voltar; aqui apenas evita mostrar "sem assinatura").
+      setCurrent((prev) => {
+        if (prev) return prev;
+        return {
+          id: data?.checkout?.subscriptionId ?? "",
+          planId: plan.id,
+          planName: plan.name,
+          planSlug: plan.slug,
+          priceCents: plan.priceCents,
+          currency: plan.currency,
+          status: "PENDING",
+          billingType: plan.type,
+          billingInterval: plan.billingInterval ?? null,
+          autoRenew: plan.type === "RECURRING",
+          startAt: null,
+          expiresAt: null,
+          nextBillingAt: null,
+          canceledAt: null,
+          paidAt: null,
+          active: false,
+          daysRemaining: 0,
+          provider: "asaas",
+          createdAt: new Date().toISOString(),
+        };
+      });
     } catch {
       toast("Não foi possível iniciar o checkout.", "error");
     } finally {
@@ -206,6 +294,15 @@ export function AssinaturaClient({
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Aviso de e-mail do checkout (primeiro acesso) */}
+      <div className="rounded-[12px] border border-warn/30 bg-warn-soft px-4 py-3 flex items-start gap-2.5 text-[13px] text-warn">
+        <Mail size={16} className="flex-none mt-0.5" />
+        <span>
+          <strong className="font-semibold">Importante:</strong>{" "}
+          {CHECKOUT_EMAIL_WARNING}
+        </span>
+      </div>
+
       {/* Cards de planos */}
       <section className="flex flex-col gap-3">
         <div className="flex items-center gap-2">
@@ -301,9 +398,30 @@ export function AssinaturaClient({
           })}
         </div>
         {notice && (
-          <div className="rounded-[12px] border border-warn/30 bg-warn-soft px-4 py-3 text-[13px] text-warn flex items-center gap-2">
-            <Info size={15} className="flex-none" />
-            {notice}
+          <div
+            className={cn(
+              "rounded-[12px] border px-4 py-3 text-[13px] flex items-center gap-2",
+              notice.kind === "warn" && "border-warn/30 bg-warn-soft text-warn",
+              notice.kind === "info" && "border-info/30 bg-info-soft text-info",
+              notice.kind === "success" && "border-success/30 bg-success-soft text-success"
+            )}
+          >
+            {notice.kind === "warn" ? (
+              <AlertTriangle size={15} className="flex-none" />
+            ) : (
+              <Info size={15} className="flex-none" />
+            )}
+            <span>{notice.text}</span>
+            {checkoutUrl && (
+              <a
+                href={checkoutUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 ml-auto shrink-0 font-semibold underline underline-offset-2"
+              >
+                Pagar agora <ExternalLink size={13} />
+              </a>
+            )}
           </div>
         )}
       </section>
@@ -319,7 +437,7 @@ export function AssinaturaClient({
           <EmptyState
             icon={CreditCard}
             title="Você ainda não tem uma assinatura"
-            description="Escolha um dos planos acima para começar. Nesta fase o pagamento está em configuração."
+            description="Escolha um dos planos acima para começar."
           />
         ) : (
           <div className="flex flex-col gap-4">
@@ -348,6 +466,7 @@ export function AssinaturaClient({
               />
               <InfoCell label="Início" value={formatFullDate(current.startAt)} />
               <InfoCell label="Expiração" value={formatFullDate(current.expiresAt)} />
+              <InfoCell label="Pagamento confirmado em" value={formatFullDate(current.paidAt)} />
               <InfoCell
                 label="Próxima renovação"
                 value={
@@ -365,6 +484,13 @@ export function AssinaturaClient({
                 }
               />
             </div>
+
+            {statusMessage(current, billingConfigured) && (
+              <div className="rounded-[10px] bg-surface px-4 py-3 flex items-center gap-2 text-[13px] text-ink">
+                <Info size={15} className="text-purple flex-none" />
+                {statusMessage(current, billingConfigured)}
+              </div>
+            )}
 
             {current.daysRemaining > 0 && (
               <div className="rounded-[10px] bg-surface px-4 py-3 flex items-center gap-2 text-[13px] text-ink">
@@ -388,14 +514,23 @@ export function AssinaturaClient({
                     : "Plano de pagamento único — sem renovação automática."}
                 </span>
               )}
-              <Button variant="outline" size="sm" className="gap-1.5">
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
                 <Zap size={14} /> Ver planos / trocar plano
               </Button>
             </div>
 
-            <p className="text-[11.5px] text-ink-muted">
-              Pagamento e cobrança online chegam com a integração Asaas (fase futura).
-              Esta página reflete apenas o estado interno — nada é cobrado.
+            <p className="text-[11.5px] text-ink-muted flex flex-wrap items-center gap-x-1.5">
+              <span>
+                Pagamento online via Asaas{" "}
+                {billingConfigured
+                  ? `(ambiente ${billingLabel ?? "sandbox"})`
+                  : "em configuração — nenhuma cobrança é feita até a integração ser ativada."}
+              </span>
+              {billingConfigured && (
+                <span>
+                  · O acesso é liberado somente após a confirmação do pagamento.
+                </span>
+              )}
             </p>
           </div>
         )}

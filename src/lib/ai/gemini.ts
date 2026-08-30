@@ -6,18 +6,20 @@ import type { AIProvider, AICompletionOptions } from "./provider";
  * Suporta GEMINI_API_KEY ou GOOGLE_API_KEY (alias).
  */
 
-const GEMINI_URL = (key: string) =>
-  `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(
+const GEMINI_URL = (key: string, model: string) =>
+  `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(
     key
   )}`;
 
 export class GeminiProvider implements AIProvider {
   readonly name = "gemini";
   private apiKey: string;
+  private model: string;
 
-  constructor() {
+  constructor(apiKey?: string, model?: string) {
     this.apiKey =
-      process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "";
+      apiKey || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "";
+    this.model = model || "gemini-1.5-flash";
   }
 
   async complete(opts: AICompletionOptions): Promise<string> {
@@ -30,7 +32,7 @@ export class GeminiProvider implements AIProvider {
       parts: [{ text: m.content }],
     }));
 
-    const res = await fetch(GEMINI_URL(this.apiKey), {
+    const res = await fetch(GEMINI_URL(this.apiKey, this.model), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

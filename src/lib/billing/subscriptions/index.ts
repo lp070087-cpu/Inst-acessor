@@ -32,6 +32,7 @@ export interface SubscriptionView {
   planId: string;
   planName: string;
   planSlug: string;
+  /** Valor efetivamente cobrado (travado na criação) — NUNCA lido do client. */
   priceCents: number;
   currency: string;
   status: string;
@@ -42,6 +43,10 @@ export interface SubscriptionView {
   expiresAt: string | null;
   nextBillingAt: string | null;
   canceledAt: string | null;
+  /** Confirmação REAL de pagamento (webhook). NUNCA preenchido pelo checkout. */
+  paidAt: string | null;
+  /** Origem do acesso: "ASAAS" | "ADMIN_MANUAL" | null. */
+  accessSource: string | null;
   /** true se o acesso está ativo neste momento. */
   active: boolean;
   /** dias restantes de acesso (0 se expirado/não ativo). */
@@ -62,6 +67,13 @@ interface SubscriptionRow {
   autoRenew: boolean;
   nextBillingAt: Date | null;
   canceledAt: Date | null;
+  /** Valor travado na criação (Asaas) — preço cobrado de verdade. */
+  amountCents: number | null;
+  currency: string;
+  /** Confirmação REAL de pagamento (webhook). */
+  paidAt: Date | null;
+  /** Origem do acesso: "ASAAS" | "ADMIN_MANUAL" | null. */
+  accessSource: string | null;
   provider: string | null;
   createdAt: Date;
 }
@@ -84,8 +96,11 @@ async function toSubscriptionView(
     planId: row.planId,
     planName: plan?.name ?? "Plano",
     planSlug: plan?.slug ?? "",
-    priceCents: plan?.priceCents ?? 0,
-    currency: plan?.currency ?? "BRL",
+    // Valor efetivamente cobrado (travado na criação pelo servidor). Quando
+    // o gateway estiver ativo, `amountCents` reflete o valor real; senão usa
+    // o preço do catálogo (fonte única server-side).
+    priceCents: row.amountCents ?? plan?.priceCents ?? 0,
+    currency: row.currency ?? plan?.currency ?? "BRL",
     status: row.status,
     billingType: row.billingType,
     billingInterval: row.billingInterval,
@@ -94,6 +109,8 @@ async function toSubscriptionView(
     expiresAt: row.expiresAt ? row.expiresAt.toISOString() : null,
     nextBillingAt: row.nextBillingAt ? row.nextBillingAt.toISOString() : null,
     canceledAt: row.canceledAt ? row.canceledAt.toISOString() : null,
+    paidAt: row.paidAt ? row.paidAt.toISOString() : null,
+    accessSource: row.accessSource ?? null,
     active: computed.active,
     daysRemaining: computed.daysRemaining,
     provider: row.provider,

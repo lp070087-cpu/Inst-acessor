@@ -4,10 +4,10 @@
  *
  * O sandbox de desenvolvimento não tem rede para baixar o engine Prisma
  * (`prisma generate` falha com 403). O client gerado em `node_modules`
- * ainda NÃO conhece os models da Fase 4.
+ * ainda NÃO conhece os models da Fase 4+.
  *
  * Este arquivo estende o namespace global do @prisma/client para que o
- * TypeScript reconheça os models Fase 4 durante o type-check local.
+ * TypeScript reconheça os models Fase 4+ durante o type-check local.
  *
  * ⚠️ NÃO é o schema real — é um ESPELHO para tipagem apenas.
  * A DONA DEVE rodar localmente:
@@ -20,6 +20,14 @@
 import "@prisma/client";
 
 declare module "@prisma/client" {
+  interface User {
+    asaasCustomerId?: string | null;
+    firstAccessCompleted?: boolean;
+    firstAccessCompletedAt?: Date | null;
+    tourCompleted?: boolean;
+    tourCompletedAt?: Date | null;
+  }
+
   interface AIConversation {
     id: string;
     userId: string;
@@ -387,6 +395,13 @@ declare module "@prisma/client" {
     provider?: string | null;
     externalCustomerId?: string | null;
     externalSubscriptionId?: string | null;
+    externalPaymentId?: string | null;
+    amountCents?: number | null;
+    currency: string;
+    paidAt?: Date | null;
+    idempotencyKey?: string | null;
+    accessSource?: string | null;
+    grantedByAdminId?: string | null;
     createdAt: Date;
     updatedAt: Date;
   }
@@ -402,7 +417,23 @@ declare module "@prisma/client" {
     provider?: string | null;
     externalPaymentId?: string | null;
     paidAt?: Date | null;
+    eventType?: string | null;
+    eventId?: string | null;
     createdAt: Date;
+  }
+
+  interface BillingEvent {
+    id: string;
+    eventId: string;
+    provider: string;
+    type: string;
+    userId?: string | null;
+    subscriptionId?: string | null;
+    payload?: unknown;
+    processed: boolean;
+    processedAt?: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
   }
 
   // ------------------------------------------------------------
@@ -503,5 +534,60 @@ declare module "@prisma/client" {
     xpGranted: boolean;
     createdAt: Date;
     updatedAt: Date;
+  }
+
+  // ------------------------------------------------------------
+  // FASE 10 — CONFIGURAÇÕES ADMINISTRATIVAS (SystemSetting)
+  // ------------------------------------------------------------
+  interface SystemSetting {
+    id: string;
+    key: string;
+    value: string;
+    createdAt: Date;
+    updatedAt: Date;
+  }
+
+  // ------------------------------------------------------------
+  // FASE "PRIMEIRO ACESSO" — ATIVAÇÃO PÓS-COMPRA
+  // ------------------------------------------------------------
+  interface AccessGrant {
+    id: string;
+    email: string;
+    userId?: string | null;
+    planId?: string | null;
+    planName?: string | null;
+    origin: string; // "ASAAS" | "ADMIN_MANUAL"
+    status: string; // PENDING_FIRST_ACCESS | ACTIVE | EXPIRED | CANCELED
+    startAt: Date;
+    expiresAt?: Date | null;
+    grantedByAdminId?: string | null;
+    externalPaymentId?: string | null;
+    externalSubscriptionId?: string | null;
+    firstAccessCompleted: boolean;
+    firstAccessCompletedAt?: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }
+
+  interface FirstAccessToken {
+    id: string;
+    email: string;
+    tokenHash: string;
+    expiresAt: Date;
+    usedAt?: Date | null;
+    consumed: boolean;
+    createdAt: Date;
+    userId?: string | null;
+  }
+
+  interface PasskeyCredential {
+    id: string;
+    userId: string;
+    credentialId: string;
+    publicKey: string;
+    transports?: string | null;
+    deviceName?: string | null;
+    createdAt: Date;
+    lastUsedAt?: Date | null;
   }
 }

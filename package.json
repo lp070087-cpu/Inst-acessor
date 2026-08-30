@@ -14,7 +14,10 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:push": "prisma db push",
     "prisma:studio": "prisma studio",
-    "growth:test": "tsc -p tsconfig.growth-test.json && node .growth-test-build/scripts/growth-engine-tests.js"
+    "growth:test": "tsc -p tsconfig.growth-test.json && node .growth-test-build/scripts/growth-engine-tests.js",
+    "billing:test": "tsc -p tsconfig.billing-test.json && node .billing-test-build/scripts/billing-tests.js",
+    "publishing:test": "tsc -p tsconfig.publishing-test.json && node .publishing-test-build/scripts/publishing-tests.js",
+    "first-access:test": "tsc -p tsconfig.first-access-test.json && node .first-access-test-build/scripts/first-access-tests.js"
   },
   "dependencies": {
     "@next-auth/prisma-adapter": "^1.0.7",

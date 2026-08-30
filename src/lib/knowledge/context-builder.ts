@@ -1,7 +1,7 @@
 import { buildUserContext, contextToPrompt } from "@/lib/ai/context";
 import type { UserContext } from "@/lib/ai/context";
 import { kb } from "./repository";
-import { getRulesByCategory, getRulesByTags, getRuleBySlug } from "./rules/registry";
+import { getRulesByTags, getRuleBySlug } from "./rules/registry";
 import type { KnowledgeRule } from "./types";
 import { KNOWLEDGE_MODULES } from "./rules/registry";
 

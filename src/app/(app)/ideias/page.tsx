@@ -17,7 +17,7 @@ export default async function IdeiasPage() {
   const { session } = await requireOnboardedSession();
   const userId = session.user.id;
 
-  const configured = aiConfigured();
+  const configured = await aiConfigured();
   const ideas = configured ? await listIdeas(userId) : [];
 
   return (

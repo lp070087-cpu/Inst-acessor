@@ -137,14 +137,6 @@ const SOURCE_LABEL: Record<string, string> = {
   "conquista-desbloqueada": "Conquista desbloqueada",
 };
 
-const CATEGORY_LABEL: Record<string, string> = {
-  uso: "Uso",
-  consistencia: "Consistência",
-  estrategia: "Estratégia",
-  engajamento: "Engajamento",
-  crescimento: "Crescimento",
-};
-
 const GOAL_CATEGORY_LABEL: Record<string, string> = {
   crescimento: "Crescimento",
   engajamento: "Engajamento",

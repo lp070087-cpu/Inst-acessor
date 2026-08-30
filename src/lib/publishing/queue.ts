@@ -240,7 +240,8 @@ export async function markFailed(
   errorCode: string,
   errorMessage: string,
   attempts: number,
-  retryable: boolean
+  retryable: boolean,
+  externalId?: string | null
 ): Promise<void> {
   const data: Record<string, unknown> = {
     status: "FALHOU",
@@ -248,6 +249,9 @@ export async function markFailed(
     errorMessage,
     attempts,
   };
+  // Persiste um id externo de processo (ex.: publish_id do TikTok) mesmo em
+  // falha retryável, para a próxima tentativa não duplicar a publicação.
+  if (externalId) data.externalId = externalId;
   if (retryable && attempts < MAX_AUTO_ATTEMPTS) {
     // Backoff: 5min, 15min, 45min (exponencial simples).
     const delayMs = 5 * 60 * 1000 * Math.pow(3, attempts - 1);

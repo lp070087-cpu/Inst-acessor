@@ -103,7 +103,7 @@ export function friendlyMessage(code: PublishErrorCode, fallback?: string): stri
     case "VALIDATION":
       return fallback ?? "Este conteúdo não pode ser publicado no formato escolhido.";
     case "INTEGRATION_NOT_CONFIGURED":
-      return "A publicação real ainda não está configurada. Em breve você poderá conectar e publicar.";
+      return "A publicação real não está disponível: conecte sua conta de rede social em Redes Sociais.";
     default:
       return fallback ?? "Erro ao publicar.";
   }

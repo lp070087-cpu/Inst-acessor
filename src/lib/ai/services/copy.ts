@@ -46,7 +46,7 @@ export async function generateCopy(
   userId: string,
   params: GenerateCopyParams
 ): Promise<string> {
-  const provider = getAIProvider();
+  const provider = await getAIProvider();
   if (!provider) throw new AIConfiguredError();
 
   const ctx = await buildUserContext(userId);

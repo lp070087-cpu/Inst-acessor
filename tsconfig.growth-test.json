@@ -26,6 +26,7 @@
     "src/lib/growth-engine/automations.ts",
     "src/lib/growth-engine/prompt.ts",
     "src/lib/growth-engine/types.ts",
+    "src/lib/webhooks/signature.ts",
     "src/types/prisma-shim.d.ts",
     "scripts/growth-engine-tests.ts"
   ]

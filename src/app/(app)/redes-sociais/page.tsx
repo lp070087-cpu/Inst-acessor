@@ -36,22 +36,45 @@ function formatLastSync(date: Date | null): string {
 export default async function RedesSociaisPage() {
   const { session } = await requireOnboardedSession();
 
-  const [instagram, tiktok] = await Promise.all([
+  const [instagram, tiktok, oauthStates] = await Promise.all([
     prisma.socialConnection.findFirst({
       where: { userId: session.user.id, platform: "instagram" },
     }),
     prisma.socialConnection.findFirst({
       where: { userId: session.user.id, platform: "tiktok" },
     }),
+    prisma.oAuthState.findMany({
+      where: {
+        userId: session.user.id,
+        consumed: false,
+        expiresAt: { gt: new Date() },
+      },
+      select: { provider: true, state: true },
+    }),
   ]);
 
-  const instagramConnected = instagram?.status === "CONNECTED";
-  const tiktokConnected = tiktok?.status === "CONNECTED";
+  // Proteção anti-travamento (bug crítico):
+  // Se o status está CONNECTING mas NÃO existe um fluxo OAuth ativo e válido
+  // (state não consumido, não expirado), é um CONNECTING órfão de um fluxo
+  // interrompido — trata como DISCONNECTED para nunca prender o botão.
+  const hasActiveInstagramFlow = oauthStates.some((s) => s.provider === "instagram");
+  const hasActiveTikTokFlow = oauthStates.some((s) => s.provider === "tiktok");
+
+  const effectiveStatus = (status: string | null | undefined, hasActiveFlow: boolean) => {
+    if (status === "CONNECTING" && !hasActiveFlow) return "DISCONNECTED";
+    return (status ?? "DISCONNECTED") as "CONNECTED" | "CONNECTING" | "DISCONNECTED" | "ERROR";
+  };
+
+  const instagramStatus = effectiveStatus(instagram?.status, hasActiveInstagramFlow);
+  const tiktokStatus = effectiveStatus(tiktok?.status, hasActiveTikTokFlow);
+
+  const instagramConnected = instagramStatus === "CONNECTED";
+  const tiktokConnected = tiktokStatus === "CONNECTED";
 
   const cards: PlatformConnection[] = [
     {
       platform: "instagram",
-      status: instagram?.status ?? "DISCONNECTED",
+      status: instagramStatus,
       username: instagram?.username ?? null,
       accountType: instagram?.accountType ?? null,
       lastSyncAt: instagram?.lastSyncAt ?? null,
@@ -59,7 +82,7 @@ export default async function RedesSociaisPage() {
     },
     {
       platform: "tiktok",
-      status: tiktok?.status ?? "DISCONNECTED",
+      status: tiktokStatus,
       username: tiktok?.username ?? null,
       accountType: tiktok?.accountType ?? null,
       lastSyncAt: tiktok?.lastSyncAt ?? null,
@@ -170,12 +193,12 @@ export default async function RedesSociaisPage() {
               {card.platform === "instagram" ? (
                 <InstagramActions
                   connected={instagramConnected}
-                  status={(card.status ?? "DISCONNECTED") as "CONNECTED" | "CONNECTING" | "DISCONNECTED" | "ERROR"}
+                  status={instagramStatus}
                 />
               ) : (
                 <TikTokActions
                   connected={tiktokConnected}
-                  status={(card.status ?? "DISCONNECTED") as "CONNECTED" | "CONNECTING" | "DISCONNECTED" | "ERROR"}
+                  status={tiktokStatus}
                 />
               )}
             </div>

@@ -4,28 +4,23 @@ import type {
   CreateCheckoutInput,
   CreateCheckoutResult,
 } from "@/lib/billing/provider/types";
+import { getAsaasConfig, isAsaasConfigured } from "@/lib/billing/asaas/config";
+import { startAsaasCheckout, cancelAsaasSubscription } from "@/lib/billing/asaas/service";
 
 /**
- * ASAAS BILLING ADAPTER — conceitual (Fase 6.5)
- * ==============================================
+ * ASAAS BILLING ADAPTER — integração real (Fase atual)
+ * =====================================================
  * Adapter do gateway oficial de pagamento do Inst Acessor.
  *
- * DECISÃO OFICIAL (registrada em docs/ESCOPO-OFICIAL.md):
- * - Gateway futuro oficial: **Asaas**.
+ * DECISÃO OFICIAL (docs/ESCOPO-OFICIAL.md §12):
  * - Sandbox: https://api-sandbox.asaas.com/v3
  * - Produção: https://api.asaas.com/v3
- * - Autenticação: header `access_token`.
- * - Também obrigatório: `Content-Type: application/json` e
- *   `User-Agent` identificando o Inst Acessor.
- * - A chave Asaas: NUNCA no frontend, NUNCA no GitHub, NUNCA em logs,
- *   NUNCA em código-fonte — SOMENTE environment variable server-side.
+ * - Autenticação: header `access_token` (apenas server-side).
+ * - A chave Asaas NUNCA no frontend/Git/logs/código-fonte.
  *
- * NESTA FASE: NENHUMA chamada HTTP é feita. Todos os métodos retornam
- * `INTEGRATION_NOT_CONFIGURED`. A chave NÃO é solicitada nem criada.
- *
- * Quando a DONA liberar a integração real (fase futura), este arquivo será
- * preenchido com o cliente Asaas real (fetch server-side), lendo a chave de
- * `process.env.ASAAS_API_KEY` (nunca exposta ao client).
+ * Quando `ASAAS_API_KEY` está ausente, todos os métodos retornam
+ * `INTEGRATION_NOT_CONFIGURED` (fail-closed) — nenhuma chamada HTTP é feita
+ * e nenhuma URL fake é gerada.
  */
 
 const NOT_CONFIGURED = {
@@ -40,27 +35,88 @@ export class AsaasBillingAdapter implements BillingAdapter {
   info() {
     return {
       name: "asaas" as const,
-      // Somente será `true` quando ASAAS_API_KEY estiver presente no server.
-      configured: false,
+      configured: isAsaasConfigured(),
     };
   }
 
-  async createCheckout(_input: CreateCheckoutInput): Promise<CreateCheckoutResult> {
-    return { ...NOT_CONFIGURED, checkoutUrl: null };
+  async createCheckout(input: CreateCheckoutInput): Promise<CreateCheckoutResult> {
+    if (!isAsaasConfigured()) {
+      return { ...NOT_CONFIGURED, checkoutUrl: null };
+    }
+
+    const result = await startAsaasCheckout({
+      userId: input.userId,
+      userEmail: input.userEmail ?? "",
+      userName: input.userName ?? null,
+      planId: input.planId,
+    });
+
+    if (!result.ok) {
+      return { ...NOT_CONFIGURED, checkoutUrl: null };
+    }
+
+    return {
+      ok: true,
+      status: "CONFIGURED",
+      checkoutUrl: result.checkoutUrl,
+      externalId: result.subscriptionId ?? undefined,
+    };
   }
 
-  async createOneTimeCharge(_input: CreateCheckoutInput): Promise<BillingRecordResult> {
-    return NOT_CONFIGURED;
+  async createOneTimeCharge(input: CreateCheckoutInput): Promise<BillingRecordResult> {
+    if (!isAsaasConfigured()) return NOT_CONFIGURED;
+
+    const result = await startAsaasCheckout({
+      userId: input.userId,
+      userEmail: input.userEmail ?? "",
+      userName: input.userName ?? null,
+      planId: input.planId,
+    });
+
+    return {
+      ok: result.ok,
+      status: result.status,
+      externalCustomerId: null,
+      externalSubscriptionId: null,
+      externalPaymentId: null,
+      error: result.ok ? undefined : result.message,
+    };
   }
 
-  async createSubscription(_input: CreateCheckoutInput): Promise<BillingRecordResult> {
-    return NOT_CONFIGURED;
+  async createSubscription(input: CreateCheckoutInput): Promise<BillingRecordResult> {
+    if (!isAsaasConfigured()) return NOT_CONFIGURED;
+
+    const result = await startAsaasCheckout({
+      userId: input.userId,
+      userEmail: input.userEmail ?? "",
+      userName: input.userName ?? null,
+      planId: input.planId,
+    });
+
+    return {
+      ok: result.ok,
+      status: result.status,
+      externalCustomerId: null,
+      externalSubscriptionId: null,
+      externalPaymentId: null,
+      error: result.ok ? undefined : result.message,
+    };
   }
 
-  async cancelSubscription(_externalSubscriptionId: string): Promise<BillingRecordResult> {
-    return NOT_CONFIGURED;
+  async cancelSubscription(externalSubscriptionId: string): Promise<BillingRecordResult> {
+    if (!isAsaasConfigured()) return NOT_CONFIGURED;
+
+    const cfg = getAsaasConfig();
+    // O adapter não conhece o userId do dono — o cancelamento owner-checked
+    // acontece na camada de serviço (cancelAsaasSubscription recebe userId+id).
+    void cfg;
+    return {
+      ok: false,
+      status: "CONFIGURED",
+      error: "Use cancelAsaasSubscription (owner-check) para cancelar.",
+    };
   }
 }
 
-/** Instância singleton do adapter Asaas (conceitual). */
+/** Instância singleton do adapter Asaas. */
 export const asaasBillingAdapter = new AsaasBillingAdapter();

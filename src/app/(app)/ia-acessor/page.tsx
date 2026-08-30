@@ -17,7 +17,7 @@ export default async function IaAcessorPage() {
   const { session } = await requireOnboardedSession();
   const userId = session.user.id;
 
-  const configured = aiConfigured();
+  const configured = await aiConfigured();
 
   // Conversas reais do usuário
   const convs = configured ? await listConversations(userId) : [];

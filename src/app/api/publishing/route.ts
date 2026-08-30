@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { requireSession } from "@/lib/auth/guard";
+import { requireAdminSession, requireSession } from "@/lib/auth/guard";
 import {
   listQueue,
   cancelQueueItem,
@@ -21,7 +21,7 @@ export const dynamic = "force-dynamic";
  * POST   /api/publishing?action=publish — publica agora (enfileira + processa)
  * POST   /api/publishing?action=cancel&id=... — cancela item agendado
  * POST   /api/publishing?action=retry&id=... — re-tenta publicação falhada
- * POST   /api/publishing?action=process — processa itens vencidos (worker manual/cron)
+ * POST   /api/publishing?action=process — processa itens vencidos (SOMENTE ADMIN)
  *
  * Todas session-required + owner-checked. NUNCA publica por tempo —
  * sempre via adapter com confirmação real.
@@ -94,6 +94,9 @@ export async function POST(request: Request) {
     }
 
     if (action === "process") {
+      // Operação de infraestrutura: processa a fila GLOBAL (não por usuário).
+      // Restrita a ADMIN para que um usuário comum não possa disparar o worker.
+      await requireAdminSession();
       const result = await processQueueSafe();
       return NextResponse.json(result);
     }

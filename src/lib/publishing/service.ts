@@ -423,8 +423,9 @@ export async function processQueueItem(
       userId, queueId, contentId: item.contentId, platform: item.platform,
       operation: "publish", status: "error", attempts,
       errorCode: code, errorMessage: sanitizeMessage(msg), provider: adapter.name,
+      externalId: result.externalId ?? null,
     });
-    await markFailed(queueId, code, sanitizeMessage(msg), attempts, decision.shouldRetry);
+    await markFailed(queueId, code, sanitizeMessage(msg), attempts, decision.shouldRetry, result.externalId);
 
     return { ok: false, status: "FALHOU", queueId, errorCode: code, errorMessage: msg };
   } catch (err) {

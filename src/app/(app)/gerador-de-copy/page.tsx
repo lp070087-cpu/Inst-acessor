@@ -18,7 +18,7 @@ export default async function GeradorCopyPage() {
   const { session } = await requireOnboardedSession();
   const userId = session.user.id;
 
-  const configured = aiConfigured();
+  const configured = await aiConfigured();
 
   const saved = configured
     ? await listCopies(userId)

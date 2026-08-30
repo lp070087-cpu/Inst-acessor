@@ -22,6 +22,10 @@ export interface CreateCheckoutInput {
   currency: string;
   billingType: "ONE_TIME" | "RECURRING";
   billingInterval?: "MONTH" | "YEAR" | null;
+  /** Email do usuário (para criar o customer no gateway). */
+  userEmail?: string;
+  /** Nome do usuário (para criar o customer no gateway). */
+  userName?: string | null;
   successUrl?: string;
   cancelUrl?: string;
 }

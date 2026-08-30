@@ -1,8 +1,12 @@
 /**
  * Camada genérica de provider de IA — desacoplada.
- * Suporta OpenAI e Gemini via env. Sem mock:
- * se nenhuma API key estiver configurada, `aiConfigured()` retorna false
- * e a UI mostra "IA ainda não configurada".
+ * Suporta OpenAI e Gemini. Sem mock: se nenhuma API key estiver configurada,
+ * `aiConfigured()` retorna false e a UI mostra "IA ainda não configurada".
+ *
+ * A configuração é CENTRAL (área admin, Fase 10): o DONO grava a chave via
+ * `/api/admin/ia`, ela é persistida encriptada no banco (SystemSetting) e
+ * passa a valer para o runtime. Se não houver chave no banco, cai para as
+ * variáveis de ambiente (OPENAI_API_KEY / GEMINI_API_KEY / GOOGLE_API_KEY).
  *
  * ⚠️ Estas funções rodam APENAS no servidor (route handlers / lib).
  * NUNCA importar este módulo em componentes client com API keys.
@@ -29,8 +33,14 @@ export interface AIProvider {
   complete(opts: AICompletionOptions): Promise<string>;
 }
 
-/** Estado global "IA configurada?" — derivado apenas das env vars. */
-export function aiConfigured(): boolean {
+/**
+ * Estado global "IA configurada?" — consulta a configuração admin (DB) e,
+ * como fallback, as env vars. Server-only.
+ */
+export async function aiConfigured(): Promise<boolean> {
+  const { resolveRuntimeAI } = await import("@/lib/admin/ai-config");
+  const resolved = await resolveRuntimeAI();
+  if (resolved) return true;
   return Boolean(
     process.env.OPENAI_API_KEY ||
       process.env.GEMINI_API_KEY ||

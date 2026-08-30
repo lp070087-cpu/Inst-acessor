@@ -6,6 +6,9 @@
 # Testes
 /coverage
 /.growth-test-build
+/.billing-test-build
+/.publishing-test-build
+/.first-access-test-build
 
 # Next.js
 /.next/

@@ -15,12 +15,14 @@
  */
 
 import * as assert from "node:assert";
+import { createHmac } from "node:crypto";
 import { detectSignals } from "../src/lib/growth-engine/signals";
 import { prioritizeSignals } from "../src/lib/growth-engine/priorities";
 import { buildRecommendations } from "../src/lib/growth-engine/recommendations";
 import { buildProactiveInsights } from "../src/lib/growth-engine/insights";
 import { buildPlan7Days, buildPlan30Days, pickDailyMission } from "../src/lib/growth-engine/progress";
 import { buildInternalAutomations } from "../src/lib/growth-engine/automations";
+import { verifyWebhookSignature } from "../src/lib/webhooks/signature";
 import type { GrowthContext, PlatformContext } from "../src/lib/growth-engine/types";
 
 // ------------------------------------------------------------
@@ -371,6 +373,39 @@ async function main() {
       assert.strictEqual(first.granted, true);
       assert.strictEqual(second.granted, false);
       assert.strictEqual(second.alreadyGranted, true);
+    });
+  }
+
+  // 18) Verificação de assinatura de webhook (X-Hub-Signature-256)
+  {
+    const secret = "app_secret_de_teste";
+    const body = JSON.stringify({ object: "instagram", entry: [] });
+    const signature = `sha256=${createHmac("sha256", secret).update(body, "utf8").digest("hex")}`;
+
+    test("assinatura X-Hub-Signature-256 válida é aceita", () => {
+      assert.strictEqual(verifyWebhookSignature(body, signature, secret), true);
+    });
+
+    test("assinatura com segredo errado é rejeitada", () => {
+      assert.strictEqual(
+        verifyWebhookSignature(body, signature, "outro_segredo"),
+        false
+      );
+    });
+
+    test("payload adulterado é rejeitado", () => {
+      const tampered = JSON.stringify({ object: "instagram", entry: [1] });
+      assert.strictEqual(verifyWebhookSignature(tampered, signature, secret), false);
+    });
+
+    test("ausência de assinatura é rejeitada", () => {
+      assert.strictEqual(verifyWebhookSignature(body, null, secret), false);
+    });
+
+    test("formato sha256= é aceito e sem prefixo também", () => {
+      const raw = createHmac("sha256", secret).update(body, "utf8").digest("hex");
+      assert.strictEqual(verifyWebhookSignature(body, `sha256=${raw}`, secret), true);
+      assert.strictEqual(verifyWebhookSignature(body, raw, secret), true);
     });
   }
 

@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "lib": ["ES2020", "DOM"],
+    "outDir": ".first-access-test-build",
+    "rootDir": ".",
+    "strict": true,
+    "noEmitOnError": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": false,
+    "baseUrl": ".",
+    "paths": { "@/*": ["src/*"] },
+    "types": ["node"]
+  },
+  "include": [
+    "src/lib/first-access/core.ts",
+    "src/lib/first-access/index.ts",
+    "src/lib/email/index.ts",
+    "src/lib/validators/first-access.ts",
+    "src/lib/webauthn/index.ts",
+    "src/lib/auth/password.ts",
+    "src/types/prisma-shim.d.ts",
+    "scripts/first-access-tests.ts"
+  ]
+}

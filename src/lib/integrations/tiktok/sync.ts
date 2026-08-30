@@ -1,7 +1,6 @@
 import { decryptToken } from "@/lib/crypto";
 import { prisma } from "@/lib/db";
 import { collectTikTokData } from "./metrics";
-import { TikTokApiError } from "./client";
 import { classifyTikTokError } from "./errors";
 import type { TikTokSyncSummary } from "./types";
 

@@ -5,7 +5,6 @@ import type { OAuthState } from "@prisma/client";
 import {
   exchangeCodeForToken,
   encryptAccessToken,
-  TikTokApiError,
   IntegrationConfigError,
 } from "@/lib/integrations/tiktok";
 
@@ -23,6 +22,12 @@ const APP_BASE = process.env.AUTH_URL || "http://localhost:3000";
  * - persiste token ENCRIPTADO + open_id + expiração + scopes;
  * - redireciona para /redes-sociais?connected=true.
  *
+ * REGRA ANTI-TRAVAMENTO (bug crítico):
+ * - Todo caminho de erro SAI do status `CONNECTING`. Falhas precoces
+ *   (negado, sem code, state inválido/expirado) restauram `CONNECTED` se já
+ *   existia token (ex.: "Trocar conta" negado) ou voltam para `DISCONNECTED`.
+ * - Assim o botão "Conectar TikTok" nunca fica preso em "Conectando...".
+ *
  * Erros redirecionam com código controlado — NUNCA token ou secret.
  */
 export async function GET(request: Request) {
@@ -36,11 +41,19 @@ export async function GET(request: Request) {
   // ---- Usuário negou permissão / erro do TikTok ----
   if (error) {
     console.warn(`[tiktok-callback] autorização negada pelo TikTok: ${error}`);
+    if (state) {
+      const userId = await resolveStateUser(state);
+      if (userId) await resetOrRestore(userId);
+    }
     return NextResponse.redirect(`${base}${REDIRECT_ERROR}denied`);
   }
 
   // ---- Sem code ou sem state ----
   if (!code) {
+    if (state) {
+      const userId = await resolveStateUser(state);
+      if (userId) await resetOrRestore(userId);
+    }
     return NextResponse.redirect(`${base}${REDIRECT_ERROR}missing_code`);
   }
   if (!state) {
@@ -60,9 +73,13 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${base}${REDIRECT_ERROR}invalid_state`);
   }
   if (oauthState.consumed) {
+    const userId = oauthState.userId;
+    await resetOrRestore(userId);
     return NextResponse.redirect(`${base}${REDIRECT_ERROR}invalid_state`);
   }
   if (oauthState.expiresAt.getTime() < Date.now()) {
+    const userId = oauthState.userId;
+    await resetOrRestore(userId);
     return NextResponse.redirect(`${base}${REDIRECT_ERROR}state_expired`);
   }
 
@@ -77,13 +94,14 @@ export async function GET(request: Request) {
     });
   } catch (err) {
     console.error("[tiktok-callback] falha ao consumir state", err);
+    await resetOrRestore(userId);
     return NextResponse.redirect(`${base}${REDIRECT_ERROR}server`);
   }
 
   // ---- Troca do code por token (no servidor) ----
   if (!codeVerifier) {
     console.error("[tiktok-callback] code_verifier ausente (PKCE)");
-    await markError(userId);
+    await resetOrRestore(userId);
     return NextResponse.redirect(`${base}${REDIRECT_ERROR}server`);
   }
 
@@ -93,7 +111,7 @@ export async function GET(request: Request) {
   } catch (err) {
     if (err instanceof IntegrationConfigError) {
       console.error("[tiktok-callback] configuração ausente", err.message);
-      await markError(userId);
+      await resetOrRestore(userId);
       return NextResponse.redirect(`${base}${REDIRECT_ERROR}config`);
     }
     console.error("[tiktok-callback] falha na troca do code por token", err);
@@ -144,10 +162,44 @@ export async function GET(request: Request) {
     );
   } catch (err) {
     console.error("[tiktok-callback] falha ao persistir conexão", err);
+    await resetOrRestore(userId);
     return NextResponse.redirect(`${base}${REDIRECT_ERROR}server`);
   }
 
   return NextResponse.redirect(`${base}${REDIRECT_OK}`);
+}
+
+/** Resolve o userId a partir do state (para reset em falhas precoces). */
+async function resolveStateUser(state: string): Promise<string | null> {
+  try {
+    const record = await prisma.oAuthState.findUnique({
+      where: { state },
+      select: { userId: true },
+    });
+    return record?.userId ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Sai do status CONNECTING em falhas precoces (sem token novo).
+ * - Se já existia conexão com token (ex.: "Trocar conta"), restaura CONNECTED.
+ * - Caso contrário, volta para DISCONNECTED (botão habilitado novamente).
+ */
+async function resetOrRestore(userId: string) {
+  try {
+    const existing = await prisma.socialConnection.findFirst({
+      where: { userId, platform: "tiktok" },
+      select: { tokenEncrypted: true },
+    });
+    await prisma.socialConnection.updateMany({
+      where: { userId, platform: "tiktok" },
+      data: { status: existing?.tokenEncrypted ? "CONNECTED" : "DISCONNECTED" },
+    });
+  } catch {
+    /* reset é best-effort — não bloqueia o redirecionamento */
+  }
 }
 
 /** Marca a conexão como erro (preservando histórico). */

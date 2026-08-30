@@ -1,7 +1,6 @@
 import { decryptToken } from "@/lib/crypto";
 import { prisma } from "@/lib/db";
 import { collectInstagramData } from "./metrics";
-import { InstagramApiError } from "./client";
 import { classifyIntegrationError } from "./errors";
 import type { InstagramSyncSummary } from "./types";
 

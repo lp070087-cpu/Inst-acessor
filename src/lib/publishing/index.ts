@@ -111,8 +111,28 @@ export {
 } from "./errors";
 
 // Backward-compat (Fase 6 — preparação).
-export { prepareInstagramPublish, instagramAdapter } from "./instagram";
+export { prepareInstagramPublish, instagramAdapter, buildInstagramPayload } from "./instagram";
 export { prepareTikTokPublish, tiktokAdapter } from "./tiktok";
+
+// Publicação real — módulos puros e infra.
+export { PublishHttpError, publishHttp } from "./http";
+export {
+  isPublicMediaUrl,
+  isDataUrl,
+  extractMediaRefs,
+  trimToLimit,
+  buildCaption,
+  instagramContainerKind,
+  buildInstagramContainers,
+  buildTikTokPostBody,
+  mapTikTokStatus,
+  mapInstagramStatus,
+  isVideoMime,
+  INSTAGRAM_CAPTION_LIMIT,
+  TIKTOK_DESC_LIMIT,
+} from "./media";
+export { resolvePublishConnection } from "./connection";
+export type { PublishConnection, ConnectionResolution } from "./connection";
 
 export type { PublishPayload as LegacyPublishPayload, PublishResult as LegacyPublishResult } from "./types";
 

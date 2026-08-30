@@ -47,7 +47,18 @@ function InstagramActionsInner({ connected, status }: InstagramActionsProps) {
   const error = searchParams?.get("error");
   const connectedOk = searchParams?.get("connected") === "true";
 
-  const connecting = status === "CONNECTING";
+  // Timeout de segurança (bug crítico): se `busy` ficou true mas a navegação
+  // OAuth não completou em X segundos (ex.: a rota /connect não redirecionou),
+  // libera o botão para nunca travar em "Conectando...".
+  React.useEffect(() => {
+    if (!busy) return;
+    const t = setTimeout(() => setBusy(false), 10_000);
+    return () => clearTimeout(t);
+  }, [busy]);
+
+  // Nunca mostra "Conectando..." quando a própria URL já carregou um erro.
+  // (a conexão não está em andamento de verdade — só a mensagem de erro).
+  const connecting = status === "CONNECTING" && !error;
 
   React.useEffect(() => {
     // Feedback de sucesso/erro vindo do callback (query params controlados).
@@ -64,7 +75,11 @@ function InstagramActionsInner({ connected, status }: InstagramActionsProps) {
 
   function handleConnect() {
     setBusy(true);
-    window.location.assign("/api/integrations/instagram/connect");
+    // Feedback imediato "Redirecionando..." antes da navegação OAuth
+    // (a navegação pode levar alguns instantes no primeiro clique).
+    setTimeout(() => {
+      window.location.assign("/api/integrations/instagram/connect");
+    }, 150);
   }
 
   async function handleDisconnect() {
@@ -88,7 +103,9 @@ function InstagramActionsInner({ connected, status }: InstagramActionsProps) {
 
   function handleReconnect() {
     setBusy(true);
-    window.location.assign("/api/integrations/instagram/connect");
+    setTimeout(() => {
+      window.location.assign("/api/integrations/instagram/connect");
+    }, 150);
   }
 
   async function handleRefreshMetrics() {
@@ -155,6 +172,11 @@ function InstagramActionsInner({ connected, status }: InstagramActionsProps) {
               <>
                 <RefreshCw size={16} className="animate-spin" />
                 Conectando...
+              </>
+            ) : busy ? (
+              <>
+                <RefreshCw size={16} className="animate-spin" />
+                Redirecionando...
               </>
             ) : (
               <>

@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
 import {
-  listGoals,
   createGoal,
   updateGoal,
   deleteGoal,

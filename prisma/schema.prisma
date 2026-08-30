@@ -29,6 +29,16 @@ model User {
   passwordHash  String?
   role          Role       @default(USER)
   status        UserStatus @default(ACTIVE)
+  // Fase 6.5 (Asaas) — id do cliente no Asaas (NUNCA inventado; preenchido
+  // pelo gateway real). Usado para NÃO duplicar customer por usuário.
+  asaasCustomerId String?   @unique
+  // Fase "Primeiro Acesso" — o cliente ativa o acesso pelo e-mail da compra,
+  // cria a própria senha e conclui o tour. Campos de estado (não duplicam
+  // UserProfile.onboardingCompleted, que é o perfil de nicho/objetivo).
+  firstAccessCompleted    Boolean   @default(false)
+  firstAccessCompletedAt  DateTime?
+  tourCompleted           Boolean   @default(false)
+  tourCompletedAt         DateTime?
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
@@ -65,12 +75,16 @@ model User {
   contentCopyVersions   ContentCopyVersion[]
   subscriptions         Subscription[]
   payments              Payment[]
+  billingEvents         BillingEvent[]
   publishQueue          PublishQueue[]
   publishLogs           PublishLog[]
   automationRules       AutomationRule[]
   automationEvents      AutomationEvent[]
   automationExecutions  AutomationExecution[]
   GrowthAction          GrowthAction[]
+  accessGrants          AccessGrant[]
+  firstAccessTokens     FirstAccessToken[]
+  passkeyCredentials    PasskeyCredential[]
 }
 
 // ------------------------------------------------------------
@@ -575,6 +589,19 @@ model Subscription {
   provider               String? // "asaas" — preenchido SOMENTE quando o gateway estiver ativo
   externalCustomerId     String? // NUNCA inventado — preenchido pelo gateway real
   externalSubscriptionId String? // NUNCA inventado — preenchido pelo gateway real
+  externalPaymentId      String? // NUNCA inventado — pagamento que originou a assinatura (gateway real)
+  // Preço travado na criação (NUNCA lido do client) — preserva valor cobrado
+  // mesmo que o catálogo mude depois.
+  amountCents            Int?
+  currency               String    @default("BRL")
+  paidAt                 DateTime? // confirmação REAL de pagamento (webhook)
+  idempotencyKey         String? // chave de idempotência da criação (evita duplicar checkout/cobrança)
+  // Origem do acesso: "ASAAS" (pagamento confirmado) | "ADMIN_MANUAL" (liberação
+  // manual pelo admin). Permite distinguir acesso pago de acesso concedido e
+  // prepara a fase futura de "primeiro acesso".
+  accessSource           String?
+  // ID do admin que executou uma liberação manual (somente ADMIN_MANUAL).
+  grantedByAdminId       String?
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
@@ -582,10 +609,13 @@ model Subscription {
   plan Plan @relation(fields: [planId], references: [id])
 
   payments Payment[]
+  billingEvents BillingEvent[]
 
   @@index([userId, status])
   @@index([planId])
   @@index([userId, expiresAt])
+  @@index([externalSubscriptionId])
+  @@unique([idempotencyKey])
 }
 
 model Payment {
@@ -599,6 +629,10 @@ model Payment {
   provider          String? // "asaas" — preenchido SOMENTE quando gateway ativo
   externalPaymentId String? // NUNCA inventado — preenchido pelo gateway real
   paidAt            DateTime?
+  // Fase 6.5 (Asaas) — rastreio do evento que criou/atualizou este registro:
+  // idempotência + rastreabilidade. NUNCA contém secrets.
+  eventType         String? // ex.: PAYMENT_CONFIRMED (nome oficial do gateway)
+  eventId           String? // id externo do evento (idempotência)
   createdAt         DateTime  @default(now())
 
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -606,6 +640,116 @@ model Payment {
 
   @@index([userId, createdAt])
   @@index([subscriptionId])
+  @@unique([eventId])
+  @@index([externalPaymentId])
+}
+
+// Rastreamento de eventos de billing (webhook) — idempotência e auditoria.
+// Cada evento oficial processado do Asaas é registrado UMA única vez
+// (eventId @@unique). NUNCA contém secrets. userId só é preenchido quando o
+// sistema localizou o dono pela referência externa — nunca confia no payload.
+model BillingEvent {
+  id          String   @id @default(cuid())
+  eventId     String   @unique // id externo do evento (ex.: asaas event id) — idempotência
+  provider    String   @default("asaas")
+  type        String // nome oficial do evento (ex.: PAYMENT_CONFIRMED)
+  userId      String? // dono identificado localmente (nullable — não confiável do payload)
+  subscriptionId String?
+  payload     Json? // payload sanitizado (sem tokens/secrets)
+  processed   Boolean  @default(false)
+  processedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([subscriptionId])
+  @@index([processed])
+}
+
+// ------------------------------------------------------------
+// FASE "PRIMEIRO ACESSO" — ATIVAÇÃO DO ACESSO PÓS-COMPRA
+// ------------------------------------------------------------
+// Princípios:
+// - O direito de acesso é vinculado ao E-MAIL da compra (origem ASAAS ou
+//   ADMIN_MANUAL). `AccessGrant` existe independente do User para permitir
+//   liberar o acesso ANTES de o cliente criar conta/senha (cenários B/D).
+// - "PRIMEIRO ACESSO" = o cliente prova a posse do e-mail, cria a própria
+//   senha e entra. NUNCA é gerada senha temporária/fixa.
+// - `AccessGrant.userId` é preenchido quando uma conta é associada.
+// - Estados: PENDING_FIRST_ACCESS | ACTIVE | EXPIRED | CANCELED.
+// - Reusa `Subscription.accessSource` para ASAAS/ADMIN_MANUAL quando o User
+//   já existe; AccessGrant complementa para e-mails sem conta.
+
+model AccessGrant {
+  id            String    @id @default(cuid())
+  // E-mail da compra/concessão (normalizado). É a identidade inicial do acesso.
+  email         String
+  userId        String? // associado quando o cliente cria/vincula a conta
+  planId        String? // plano de referência (opcional; não é compra)
+  planName      String? // snapshot do nome do plano (sem join obrigatório)
+  origin        String // "ASAAS" | "ADMIN_MANUAL"
+  status        String    @default("PENDING_FIRST_ACCESS")
+  // PENDING_FIRST_ACCESS | ACTIVE | EXPIRED | CANCELED
+  startAt       DateTime
+  expiresAt     DateTime?
+  // Rastreio da liberação manual (somente ADMIN_MANUAL).
+  grantedByAdminId String?
+  // Rastreio da compra (somente ASAAS) — referência externa real, nunca inventada.
+  externalPaymentId      String?
+  externalSubscriptionId String?
+  // Primeiro acesso concluído (senha criada e acesso confirmado).
+  firstAccessCompleted   Boolean  @default(false)
+  firstAccessCompletedAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([email, status])
+  @@index([userId, status])
+  @@unique([email, origin, externalPaymentId])
+}
+
+// Token de USO ÚNICO para prova de posse do e-mail no primeiro acesso.
+// - Aleatório (crypto.randomBytes), expira em minutos/horas, inválido após uso.
+// - NUNCA aparece em logs; apenas o hash é comparável.
+// - Não usa JWT eterno — é um token opaco de banco, sem assinatura própria.
+model FirstAccessToken {
+  id         String   @id @default(cuid())
+  email      String // normalizado
+  tokenHash  String   @unique // hash SHA-256 do token (nunca o token cru)
+  expiresAt  DateTime
+  usedAt     DateTime?
+  consumed   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId String?
+
+  @@index([email])
+}
+
+// ARQUITETURA PREPARADA para Passkey/WebAuthn (OPCIONAL).
+// ⚠️ A implementação WebAuthn é PENDÊNCIA TÉCNICA CONTROLADA nesta fase:
+// NENHUM dado biométrico é armazenado — na Web o dispositivo guarda a
+// credencial e o servidor guarda apenas o credentialId + publicKey (não
+// sensível). Até que o fluxo completo (registration + authentication + UI)
+// seja validado, este model permanece PREPARADO, não ativo.
+model PasskeyCredential {
+  id           String   @id @default(cuid())
+  userId       String
+  // Credencial WebAuthn — credencialId + publicKey são gerados pelo
+  // dispositivo/browser e NÃO são dados biométricos.
+  credentialId String   @unique
+  publicKey    String
+  transports   String? // "internal" (Face ID/Touch ID/Windows Hello) | "usb" | ...
+  deviceName   String?
+  createdAt    DateTime @default(now())
+  lastUsedAt   DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // Recomendação de mentoria — derivada de métricas reais + regras oficiais
@@ -1191,6 +1335,26 @@ model GrowthAction {
   @@index([userId, priority])
   @@index([userId, dueAt])
   @@index([sourceSignal, userId])
+}
+
+// ------------------------------------------------------------
+// Configurações administrativas do sistema (Fase 10)
+// ------------------------------------------------------------
+// Guarda preferências GLOBAIS gerenciadas apenas pela área admin.
+// Chaves oficiais (namespace "ai.*"): ai.provider, ai.openai.key,
+// ai.openai.model, ai.gemini.key, ai.gemini.model.
+//
+// ⚠️ Valores sensíveis (chaves de API) são SEMPRE encriptados
+// (AES-256-GCM via src/lib/crypto.ts) ANTES de gravar. NUNCA em texto puro.
+// Chaves NUNCA são devolvidas para o frontend — apenas o sufixo mascarado.
+model SystemSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique // ex.: "ai.provider" | "ai.openai.key"
+  value     String // valor encriptado (quando sensível) ou texto plano (preferências)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([key])
 }
 
 // ------------------------------------------------------------

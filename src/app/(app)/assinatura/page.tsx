@@ -3,6 +3,7 @@ import { CreditCard } from "lucide-react";
 
 import { requireOnboardedSession } from "@/lib/auth/guard";
 import { listPlans, getMySubscription, listMySubscriptions, getAccessStatus } from "@/lib/billing";
+import { isAsaasConfigured, asaasEnvironmentLabel } from "@/lib/billing/asaas/config";
 import { AssinaturaClient } from "@/components/billing/assinatura-client";
 
 export const metadata: Metadata = {
@@ -23,6 +24,11 @@ export default async function AssinaturaPage() {
     getAccessStatus(userId),
   ]);
 
+  // Estado REAL da integração (sem revelar valores/chaves) — apenas para a UI
+  // escolher a mensagem correta ("em configuração" vs "aguardando pagamento").
+  const billingConfigured = isAsaasConfigured();
+  const billingLabel = billingConfigured ? asaasEnvironmentLabel() : null;
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -40,6 +46,8 @@ export default async function AssinaturaPage() {
         initialCurrent={current}
         initialHistory={history}
         initialAccess={access}
+        billingConfigured={billingConfigured}
+        billingLabel={billingLabel}
       />
     </div>
   );
