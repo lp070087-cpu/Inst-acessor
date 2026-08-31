@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/config";
+import { prisma } from "@/lib/db";
 import { FirstAccessForm } from "./first-access-form";
 
 export const metadata: Metadata = {
@@ -14,15 +15,26 @@ export const metadata: Metadata = {
  * O cliente informa o e-mail da compra, prova a posse (link de uso único)
  * e cria a própria senha. NUNCA é gerada senha automática.
  *
- * - Já autenticado e com onboarding completo → /dashboard.
- * - Já autenticado mas sem onboarding → /onboarding.
+ * - Já autenticado e JÁ TEM SENHA (conta pronta) → /dashboard.
+ *   (IMPORTANTE: não redireciona usuário autenticado SEM senha — grant
+ *   pendente com sessão órfã — para /dashboard, senão o layout do app o
+ *   mandaria de volta para cá, criando loop.)
  * - Senão → fluxo de ativação.
  */
 export default async function FirstAccessPage() {
   const session = await getSession();
 
   if (session?.user) {
-    redirect("/dashboard");
+    // Consulta o banco: usuário com senha já tem conta ativada → vai pro app.
+    const user = (await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { passwordHash: true },
+    } as unknown as never)) as unknown as { passwordHash: string | null } | null;
+
+    if (user?.passwordHash) {
+      redirect("/dashboard");
+    }
+    // Sem senha → permanece nesta página para concluir a ativação.
   }
 
   return (

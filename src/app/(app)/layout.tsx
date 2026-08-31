@@ -13,17 +13,27 @@ export default async function AppLayout({
 }) {
   const session = await requireSession();
 
-  // Garante que o primeiro acesso foi concluído antes de entrar no app.
-  // (Campos novos via shim → args com cast, mesmo padrão do repository bll/fa.)
+  // Estado do usuário no banco (fase "Primeiro Acesso").
   const user = (await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { id: true, firstAccessCompleted: true },
+    select: { id: true, firstAccessCompleted: true, passwordHash: true },
   } as unknown as never)) as unknown as {
     id: string;
     firstAccessCompleted: boolean;
+    passwordHash: string | null;
   } | null;
 
-  if (user && !user.firstAccessCompleted) {
+  // Expiração/estado do acesso (PENDING_FIRST_ACCESS / ACTIVE / EXPIRED / CANCELED).
+  const access = await getActiveAccessForUser(session.user.id);
+
+  // PRIMEIRO ACESSO — o fluxo de ativação (criar a própria senha) só se aplica
+  // a usuários com um grant pendente (PENDING_FIRST_ACCESS) que AINDA NÃO
+  // possuem senha. Usuários com senha (conta criada via /cadastro ou já
+  // ativada) passam direto — isso elimina o ciclo /primeiro-acesso ↔ /dashboard
+  // que deixava a página piscando para contas legadas.
+  const needsActivation =
+    access.status === "PENDING_FIRST_ACCESS" && !user?.passwordHash;
+  if (needsActivation) {
     redirect("/primeiro-acesso");
   }
 
@@ -37,10 +47,11 @@ export default async function AppLayout({
     redirect("/onboarding");
   }
 
-  // Expiração: se o acesso terminou/cancelou, mostra tela de renovação.
-  // NUNCA deleta o User — apenas bloqueia recursos pagos.
-  const access = await getActiveAccessForUser(session.user.id);
-  if (!access.active) {
+  // Expiração real: apenas EXPIRED/CANCELED bloqueiam os recursos pagos.
+  // PENDING_FIRST_ACCESS é estado de ativação, NÃO de expiração — por isso não
+  // usamos `!access.active` aqui (equivaleria a mandar quem ainda vai ativar
+  // para a tela de renovação).
+  if (access.status === "EXPIRED" || access.status === "CANCELED") {
     redirect("/expirado");
   }
 
