@@ -90,20 +90,23 @@ function HeroMockup() {
   return (
     <div className="lnd-hero-visual lnd-reveal" data-dir="right" data-delay="2">
       <div className="lnd-hero-visual-inner" data-parallax="0.12">
-        <div className="lnd-dash-mock">
-          <div className="lnd-dash-topbar">
-            <div className="lnd-dots" aria-hidden="true">
-              <i />
-              <i />
-              <i />
-            </div>
-            <div className="lnd-url">
-              <span>app.instacessor.com.br</span>
-            </div>
-            <div className="lnd-dots" aria-hidden="true" style={{ visibility: "hidden" }}>
-              <i />
-            </div>
-          </div>
+        <div className="lnd-notebook">
+          <div className="lnd-notebook-screen">
+            <span className="lnd-notebook-cam" aria-hidden="true" />
+            <div className="lnd-dash-mock">
+              <div className="lnd-dash-topbar">
+                <div className="lnd-dots" aria-hidden="true">
+                  <i />
+                  <i />
+                  <i />
+                </div>
+                <div className="lnd-url">
+                  <span>app.instacessor.com.br</span>
+                </div>
+                <div className="lnd-dots" aria-hidden="true" style={{ visibility: "hidden" }}>
+                  <i />
+                </div>
+              </div>
           <div className="lnd-dash-body">
             <div className="lnd-dash-left">
               <div className="lnd-dash-card lnd-dash-stats">
@@ -194,6 +197,12 @@ function HeroMockup() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+          </div>
+          <div className="lnd-notebook-base" aria-hidden="true">
+            <span className="lnd-notebook-base-track" />
+            <span className="lnd-notebook-base-hinge" />
           </div>
         </div>
 

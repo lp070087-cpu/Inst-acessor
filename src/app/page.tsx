@@ -81,19 +81,53 @@ export default function HomePage() {
 
       <Marquee />
 
+      {/* ============================================================
+          Ordem da página de venda (fonte de verdade: pasta da ordem)
+          Prints 01–10 → seções logo abaixo do Hero + letreiro.
+          Demais seções preservadas, em sequência comercial coerente.
+          ============================================================ */}
+
+      {/* Print 01 — Dashboard */}
+      <Dashboard />
+
+      {/* Print 02 — Diagnóstico */}
+      <Diagnostico />
+
+      {/* Print 03 — Gerador de Copy */}
+      <GeradorCopy />
+
+      {/* Print 04 — Mentoria */}
+      <Mentoria />
+
+      {/* Print 05 — XP */}
+      <Xp />
+
+      {/* Print 06 — Rank */}
+      <Rank />
+
+      {/* Print 07 — Badges */}
+      <Badges />
+
+      {/* Print 08 — Análise de Conteúdo */}
+      <AnaliseConteudos />
+
+      {/* Print 09 — Preview Social */}
+      <PreviewSocial />
+
+      {/* Print 10 — Redes Sociais */}
+      <RedesSociais />
+
+      {/* ————— Restante das seções (preservadas, ordem comercial) ————— */}
+
       <Problema />
 
       <Solucao />
 
       <ComoFunciona />
 
-      <Dashboard />
-
       <Score />
 
       <IaAcessor />
-
-      <Diagnostico />
 
       <Alertas />
 
@@ -105,23 +139,11 @@ export default function HomePage() {
 
       <Ideias />
 
-      <GeradorCopy />
-
-      <Mentoria />
-
       <Metas />
-
-      <Xp />
-
-      <Rank />
 
       <Conquistas />
 
-      <Badges />
-
       <Timeline />
-
-      <AnaliseConteudos />
 
       <Perfil />
 
@@ -129,13 +151,9 @@ export default function HomePage() {
 
       <Diferencial />
 
-      <PreviewSocial />
-
       <CentralPublicacao />
 
       <Automacoes />
-
-      <RedesSociais />
 
       <Seguranca />
 
