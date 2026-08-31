@@ -42,6 +42,13 @@ export default async function AdminUsersPage() {
   const { session } = await requireAdminSession();
   const adminId = session.user.id;
 
+  // E-mail do administrador oficial (fonte da verdade server-side).
+  const adminUser = await prisma.user.findUnique({
+    where: { id: adminId },
+    select: { email: true },
+  });
+  const adminEmail = adminUser?.email ?? "";
+
   const users = await prisma.user.findMany({
     orderBy: { createdAt: "desc" },
     take: 50,
@@ -109,6 +116,7 @@ export default async function AdminUsersPage() {
         ) : (
           <AdminUsersClient
             adminId={adminId}
+            adminEmail={adminEmail}
             users={users.map((u) => ({
               id: u.id,
               name: u.name,

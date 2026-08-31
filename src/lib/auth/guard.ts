@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import type { Session } from "next-auth";
 import { getSession } from "@/lib/auth/config";
 import { prisma } from "@/lib/db";
+import { isOfficialAdminEmail } from "@/lib/auth/admin-access";
 
 /**
  * Retorna a sessão autenticada ou redireciona para /login.
@@ -33,11 +34,16 @@ export async function requireOnboardedSession() {
 }
 
 /**
- * Retorna a sessão autenticada e garante que o usuário é ADMIN ativo.
+ * Retorna a sessão autenticada e garante que o usuário é o ADMIN exclusivo.
  *
  * A autorização é SEMPRE feita no servidor, consultando o banco (fonte da
- * verdade) — nunca apenas escondendo botões na UI. Usuários não-admin (ou
- * suspensos) são redirecionados para /dashboard.
+ * verdade) — nunca apenas escondendo botões na UI. A regra final valida o
+ * e-mail normalizado contra `isOfficialAdminEmail` (canônico `lp070087@gmail.com`
+ * ou `ADMIN_EMAIL` do ambiente). Usuários não autorizados (ou suspensos) são
+ * redirecionados para /dashboard.
+ *
+ * Um usuário com `role === "ADMIN"` no banco, mas e-mail diferente do oficial,
+ * NÃO recebe privilégios administrativos (caso de teste E).
  *
  * Uso em páginas/rotas da área administrativa (`/admin` e `/api/admin/*`).
  */
@@ -50,10 +56,10 @@ export async function requireAdminSession(): Promise<{
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { role: true, status: true },
+    select: { email: true, status: true },
   });
 
-  if (!user || user.role !== "ADMIN" || user.status !== "ACTIVE") {
+  if (!user || user.status !== "ACTIVE" || !isOfficialAdminEmail(user.email)) {
     redirect("/dashboard");
   }
 

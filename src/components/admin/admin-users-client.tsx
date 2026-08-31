@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Ban, CheckCircle2, ShieldCheck, ShieldX, Search } from "lucide-react";
+import { Ban, CheckCircle2, Search, ShieldCheck } from "lucide-react";
 
 import { StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,12 +21,13 @@ export interface AdminUserRow {
 
 interface AdminUsersClientProps {
   adminId: string;
+  adminEmail: string;
   users: AdminUserRow[];
 }
 
-type Action = "suspend" | "activate" | "make-admin" | "remove-admin";
+type Action = "suspend" | "activate" | "remove-admin";
 
-export function AdminUsersClient({ adminId, users: initial }: AdminUsersClientProps) {
+export function AdminUsersClient({ adminId, adminEmail, users: initial }: AdminUsersClientProps) {
   const router = useRouter();
   const { toast } = useToast();
   const [query, setQuery] = React.useState("");
@@ -62,10 +63,6 @@ export function AdminUsersClient({ adminId, users: initial }: AdminUsersClientPr
           const next = { ...u };
           if (action === "suspend") next.status = "SUSPENDED";
           if (action === "activate") next.status = "ACTIVE";
-          if (action === "make-admin") {
-            next.role = "ADMIN";
-            next.status = "ACTIVE";
-          }
           if (action === "remove-admin") next.role = "USER";
           return next;
         })
@@ -106,7 +103,7 @@ export function AdminUsersClient({ adminId, users: initial }: AdminUsersClientPr
           <tbody>
             {filtered.map((u) => {
               const isSelf = u.id === adminId;
-              const isAdmin = u.role === "ADMIN";
+              const isOfficialAdmin = u.email.toLowerCase() === adminEmail.toLowerCase();
               const suspended = u.status === "SUSPENDED";
               return (
                 <tr key={u.id} className="border-b border-border-soft/60 last:border-0">
@@ -114,7 +111,15 @@ export function AdminUsersClient({ adminId, users: initial }: AdminUsersClientPr
                     <p className="font-medium text-ink">{u.name ?? "—"}</p>
                     <p className="text-[12px] text-ink-muted">{u.email}</p>
                   </td>
-                  <td className="py-3 pr-4"><StatusBadge status={u.role} /></td>
+                  <td className="py-3 pr-4">
+                    {isOfficialAdmin ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-purple/10 px-2 py-0.5 text-[11.5px] font-medium text-purple">
+                        <ShieldCheck size={12} /> Administrador
+                      </span>
+                    ) : (
+                      <StatusBadge status={u.role} />
+                    )}
+                  </td>
                   <td className="py-3 pr-4"><StatusBadge status={u.status} /></td>
                   <td className="py-3 pr-4 text-ink-soft">{u.subscriptions}</td>
                   <td className="py-3 pr-4 text-ink-soft">{u.connections}</td>
@@ -123,6 +128,8 @@ export function AdminUsersClient({ adminId, users: initial }: AdminUsersClientPr
                     <div className="flex items-center justify-end gap-1.5 flex-wrap">
                       {isSelf ? (
                         <span className="text-[11.5px] text-ink-muted">Você</span>
+                      ) : isOfficialAdmin ? (
+                        <span className="text-[11.5px] text-ink-muted">Exclusivo</span>
                       ) : (
                         <>
                           {suspended ? (
@@ -132,20 +139,6 @@ export function AdminUsersClient({ adminId, users: initial }: AdminUsersClientPr
                           ) : (
                             <Button variant="danger" size="xs" disabled={busyId === u.id} onClick={() => runAction(u, "suspend")}>
                               <Ban size={14} /> Suspender
-                            </Button>
-                          )}
-                          {!isAdmin ? (
-                            <Button variant="ghost" size="xs" disabled={busyId === u.id} onClick={() => runAction(u, "make-admin")}>
-                              <ShieldCheck size={14} /> Admin
-                            </Button>
-                          ) : (
-                            <Button
-                              variant="ghost"
-                              size="xs"
-                              disabled
-                              title="Não é possível remover o papel de outro administrador."
-                            >
-                              <ShieldX size={14} /> Admin
                             </Button>
                           )}
                         </>

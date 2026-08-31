@@ -10,13 +10,18 @@ import {
   Music2,
   MessageSquare,
   Send,
-  AlertTriangle,
-  Zap,
   ListChecks,
+  Hourglass,
+  KeyRound,
+  ShieldCheck,
+  CircleDollarSign,
+  ArrowRight,
 } from "lucide-react";
 
 import { requireAdminSession } from "@/lib/auth/guard";
 import { getAdminOverview } from "@/lib/admin/stats";
+import { authorizedAdminEmails } from "@/lib/auth/admin-access";
+import { getAIAdminStatus } from "@/lib/admin/ai-config";
 import { MetricCard } from "@/components/ui/metric-card";
 import { SectionCard } from "@/components/ui/section-card";
 import { StatusBadge } from "@/components/ui/badge";
@@ -47,6 +52,8 @@ export default async function AdminHomePage() {
   await requireAdminSession();
   const overview = await getAdminOverview();
   const t = overview.totals;
+  const adminEmails = authorizedAdminEmails();
+  const aiStatus = await getAIAdminStatus();
 
   return (
     <div className="flex flex-col gap-6">
@@ -68,19 +75,126 @@ export default async function AdminHomePage() {
       </div>
 
       {/* Assinaturas e conexões */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <MetricCard label="Assinaturas" value={t.subscriptions} icon={CreditCard} hint={`${t.activeSubscriptions} ativas`} />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <MetricCard label="Assinaturas" value={t.subscriptions} icon={CreditCard} hint={`${t.activeSubscriptions} ativas · ${t.expiredSubscriptions} expiradas`} />
+        <MetricCard label="Aguardando pago" value={t.pendingPayments} icon={Hourglass} hint="Pagamentos PENDING" />
+        <MetricCard label="1º acesso pendente" value={t.pendingFirstAccess} icon={KeyRound} hint="Grants aguardando ativação" />
         <MetricCard label="Instagram" value={t.igConnections} icon={Share2} hint="Contas conectadas" />
-        <MetricCard label="TikTok" value={t.tiktokConnections} icon={Music2} hint="Contas conectadas" />
       </div>
 
-      {/* Operações e saúde */}
+      {/* Acessos e operações */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <MetricCard label="TikTok" value={t.tiktokConnections} icon={Music2} hint="Contas conectadas" />
+        <MetricCard label="Liberações manuais" value={t.manualGrants} icon={ShieldCheck} hint="Origem ADMIN_MANUAL" />
+        <MetricCard label="Fila de publicação" value={t.publishQueue} icon={Send} hint={`${t.publishFailures} falhas`} />
         <MetricCard label="Mensagens de IA" value={t.aiMessages} icon={MessageSquare} hint="Total no banco" />
-        <MetricCard label="Fila de publicação" value={t.publishQueue} icon={Send} hint="Itens agendados/em processo" />
-        <MetricCard label="Falhas de publicação" value={t.publishFailures} icon={AlertTriangle} hint="Status FALHOU" />
-        <MetricCard label="Automações" value={t.automations} icon={Zap} hint={`${t.growthActions} ações de crescimento`} />
       </div>
+
+      {/* Atalhos rápidos */}
+      <SectionCard
+        title="Atalhos rápidos"
+        description="Ações administrativas frequentes."
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <Link href="/admin/usuarios" className="group">
+            <div className="flex items-center justify-between rounded-[11px] border border-border-soft bg-surface/50 px-4 py-3 transition-colors hover:border-purple/40 hover:bg-ai-soft">
+              <div className="flex items-center gap-2.5">
+                <KeyRound size={16} className="text-purple" />
+                <span className="text-[13.5px] font-semibold text-ink">Liberar acesso manual</span>
+              </div>
+              <ArrowRight size={15} className="text-ink-muted transition-transform group-hover:translate-x-0.5" />
+            </div>
+          </Link>
+          <Link href="/admin/assinaturas" className="group">
+            <div className="flex items-center justify-between rounded-[11px] border border-border-soft bg-surface/50 px-4 py-3 transition-colors hover:border-purple/40 hover:bg-ai-soft">
+              <div className="flex items-center gap-2.5">
+                <CircleDollarSign size={16} className="text-purple" />
+                <span className="text-[13.5px] font-semibold text-ink">Assinaturas</span>
+              </div>
+              <ArrowRight size={15} className="text-ink-muted transition-transform group-hover:translate-x-0.5" />
+            </div>
+          </Link>
+          <Link href="/admin/ia" className="group">
+            <div className="flex items-center justify-between rounded-[11px] border border-border-soft bg-surface/50 px-4 py-3 transition-colors hover:border-purple/40 hover:bg-ai-soft">
+              <div className="flex items-center gap-2.5">
+                <MessageSquare size={16} className="text-purple" />
+                <span className="text-[13.5px] font-semibold text-ink">Configurar IA</span>
+              </div>
+              <ArrowRight size={15} className="text-ink-muted transition-transform group-hover:translate-x-0.5" />
+            </div>
+          </Link>
+          <Link href="/admin/integracoes" className="group">
+            <div className="flex items-center justify-between rounded-[11px] border border-border-soft bg-surface/50 px-4 py-3 transition-colors hover:border-purple/40 hover:bg-ai-soft">
+              <div className="flex items-center gap-2.5">
+                <Share2 size={16} className="text-purple" />
+                <span className="text-[13.5px] font-semibold text-ink">Integrações</span>
+              </div>
+              <ArrowRight size={15} className="text-ink-muted transition-transform group-hover:translate-x-0.5" />
+            </div>
+          </Link>
+        </div>
+      </SectionCard>
+
+      {/* Status da IA */}
+      <SectionCard
+        title="Status da IA"
+        description="Configuração atual dos provedores de IA (apenas status — a chave nunca é exibida)."
+        action={
+          <Link href="/admin/ia">
+            <Button variant="ghost" size="xs">Configurar</Button>
+          </Link>
+        }
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {["openai", "gemini"].map((p) => {
+            const st = p === "openai" ? aiStatus.openai : aiStatus.gemini;
+            const active = aiStatus.activeProvider === p;
+            return (
+              <div
+                key={p}
+                className="flex items-center justify-between rounded-[11px] border border-border-soft bg-surface/50 px-4 py-3"
+              >
+                <div className="flex items-center gap-2.5">
+                  <span
+                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11.5px] font-medium ${
+                      st.configured
+                        ? "bg-success/10 text-success"
+                        : "bg-ink-muted/10 text-ink-muted"
+                    }`}
+                  >
+                    {st.configured ? "Configurada" : "Não configurada"}
+                  </span>
+                  <span className="text-[13px] font-semibold text-ink capitalize">{p}</span>
+                  {active && (
+                    <span className="inline-flex items-center rounded-full bg-purple/10 px-2 py-0.5 text-[11.5px] font-medium text-purple">
+                      Ativa
+                    </span>
+                  )}
+                </div>
+                <span className="text-[12px] text-ink-muted font-data">
+                  {st.configured ? st.keyMask : "—"}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </SectionCard>
+
+      {/* Segurança do admin */}
+      <SectionCard
+        title="Administrador exclusivo"
+        description="Acesso administrativo restrito ao e-mail oficial. A role no banco não concede privilégios."
+      >
+        <div className="flex flex-col gap-2">
+          {adminEmails.map((email) => (
+            <div key={email} className="flex items-center gap-2.5 rounded-[11px] border border-border-soft bg-surface/50 px-4 py-3">
+              <ShieldCheck size={16} className="text-purple flex-none" />
+              <span className="font-data text-[13.5px] text-ink">{email}</span>
+              <span className="ml-auto text-[12px] text-success font-medium">Autorizado</span>
+            </div>
+          ))}
+        </div>
+      </SectionCard>
 
       {/* Distribuição de planos */}
       <SectionCard

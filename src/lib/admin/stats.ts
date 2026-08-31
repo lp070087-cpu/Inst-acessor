@@ -15,6 +15,10 @@ export interface AdminOverview {
     newUsersLast30d: number;
     subscriptions: number;
     activeSubscriptions: number;
+    /** Assinaturas com status EXPIRED (acesso vencido). */
+    expiredSubscriptions: number;
+    /** Pagamentos com status PENDING (aguardando confirmação). */
+    pendingPayments: number;
     paidPayments: number;
     revenueCents: number;
     igConnections: number;
@@ -24,6 +28,10 @@ export interface AdminOverview {
     publishFailures: number;
     automations: number;
     growthActions: number;
+    /** Liberações de acesso aguardando ativação (primeiro acesso). */
+    pendingFirstAccess: number;
+    /** Liberações de acesso manuais (ADMIN_MANUAL), totais. */
+    manualGrants: number;
   };
   recentUsers: Array<{
     id: string;
@@ -57,6 +65,8 @@ export async function getAdminOverview(): Promise<AdminOverview> {
     newUsersLast30d,
     subscriptions,
     activeSubscriptions,
+    expiredSubscriptions,
+    pendingPayments,
     paidPayments,
     publishQueue,
     publishFailures,
@@ -65,12 +75,16 @@ export async function getAdminOverview(): Promise<AdminOverview> {
     igConnections,
     tiktokConnections,
     aiMessages,
+    pendingFirstAccess,
+    manualGrants,
   ] = await Promise.all([
     prisma.user.count(),
     prisma.user.count({ where: { status: "ACTIVE" } }),
     prisma.user.count({ where: { createdAt: { gte: since30d } } }),
     prisma.subscription.count(),
     prisma.subscription.count({ where: { status: "ACTIVE" } }),
+    prisma.subscription.count({ where: { status: "EXPIRED" } }),
+    prisma.payment.count({ where: { status: "PENDING" } }),
     prisma.payment.count({ where: { status: "PAID" } }),
     prisma.publishQueue.count(),
     prisma.publishQueue.count({ where: { status: "FALHOU" } }),
@@ -79,6 +93,8 @@ export async function getAdminOverview(): Promise<AdminOverview> {
     prisma.socialConnection.count({ where: { platform: "instagram", status: "CONNECTED" } }),
     prisma.socialConnection.count({ where: { platform: "tiktok", status: "CONNECTED" } }),
     prisma.aIMessage.count(),
+    (prisma as unknown as { accessGrant: { count(args?: unknown): Promise<number> } }).accessGrant.count({ where: { status: "PENDING_FIRST_ACCESS" } }),
+    (prisma as unknown as { accessGrant: { count(args?: unknown): Promise<number> } }).accessGrant.count({ where: { origin: "ADMIN_MANUAL" } }),
   ]);
 
   const revenueAgg = await prisma.payment.aggregate({
@@ -136,6 +152,8 @@ export async function getAdminOverview(): Promise<AdminOverview> {
       newUsersLast30d,
       subscriptions,
       activeSubscriptions,
+      expiredSubscriptions,
+      pendingPayments,
       paidPayments,
       revenueCents: revenueAgg._sum.amountCents ?? 0,
       igConnections,
@@ -145,6 +163,8 @@ export async function getAdminOverview(): Promise<AdminOverview> {
       publishFailures,
       automations,
       growthActions,
+      pendingFirstAccess,
+      manualGrants,
     },
     recentUsers,
     recentPayments,

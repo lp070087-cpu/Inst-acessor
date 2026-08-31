@@ -4,6 +4,7 @@ import { requireAdminSession } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
 import { createRateLimiter } from "@/lib/publishing/rate-limit";
 import { adminUserStatusSchema } from "@/lib/validators/admin";
+import { isOfficialAdminEmail } from "@/lib/auth/admin-access";
 
 export const dynamic = "force-dynamic";
 
@@ -103,14 +104,33 @@ export async function POST(request: Request) {
   try {
     const target = await prisma.user.findUnique({
       where: { id: userId },
-      select: { role: true, status: true },
+      select: { role: true, status: true, email: true },
     });
     if (!target) {
       return NextResponse.json({ error: "Usuário não encontrado." }, { status: 404 });
     }
 
+    // ⚠️ ADMIN ÚNICO E EXCLUSIVO — nunca é possível criar outro administrador.
+    // A autorização administrativa é definida por e-mail (isOfficialAdminEmail),
+    // não pela role no banco. `make-admin` é bloqueado para TODOS.
+    if (action === "make-admin") {
+      return NextResponse.json(
+        { error: "Não é possível criar outro administrador. O acesso administrativo é exclusivo." },
+        { status: 400 }
+      );
+    }
+
+    const targetIsOfficialAdmin = isOfficialAdminEmail(target.email);
+
     switch (action) {
       case "suspend":
+        // Nunca suspender o administrador oficial.
+        if (targetIsOfficialAdmin) {
+          return NextResponse.json(
+            { error: "Não é possível suspender o administrador." },
+            { status: 400 }
+          );
+        }
         await prisma.user.update({
           where: { id: userId },
           data: { status: "SUSPENDED" },
@@ -122,17 +142,13 @@ export async function POST(request: Request) {
           data: { status: "ACTIVE" },
         });
         break;
-      case "make-admin":
-        await prisma.user.update({
-          where: { id: userId },
-          data: { role: "ADMIN", status: "ACTIVE" },
-        });
-        break;
       case "remove-admin":
-        // Não é possível rebaixar outro admin.
-        if (target.role === "ADMIN") {
+        // Remove o papel ADMIN de usuários com e-mail NÃO oficial (admins
+        // legados com role no banco, mas sem privilégio real). O administrador
+        // oficial nunca é rebaixado.
+        if (targetIsOfficialAdmin) {
           return NextResponse.json(
-            { error: "Não é possível remover o papel de outro administrador." },
+            { error: "Não é possível remover o papel do administrador." },
             { status: 400 }
           );
         }

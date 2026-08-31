@@ -15,13 +15,13 @@ import {
   Info,
   ExternalLink,
   AlertTriangle,
+  Mail,
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
-import { Mail } from "lucide-react";
 
 /**
  * AVISO DE CHECKOUT — Fase "Primeiro Acesso".
@@ -37,7 +37,14 @@ const CHECKOUT_EMAIL_WARNING =
  * ============================================
  * Página funcional de planos e assinatura com os estados REAIS:
  *
- * - Sem assinatura → convite para escolher um plano.
+ * Duas áreas na ordem oficial:
+ * 1) MINHA ASSINATURA ATUAL — estado real da assinatura do usuário.
+ *    Sem assinatura → "Você ainda não tem uma assinatura" (EmptyState).
+ * 2) PLANOS DISPONÍVEIS — cards gerados a partir dos planos REAIS vindos do
+ *    servidor (`listPlans`/`/api/billing/plans`). Nunca inventa preço no
+ *    frontend. CTA chama o fluxo real `/api/billing/checkout`.
+ *
+ * Estados reais:
  * - Aguardando pagamento (PENDING) → cobrança criada no Asaas, aguardando
  *   confirmação. NUNCA mostra "pagamento aprovado" sem confirmação real.
  * - Ativa (ACTIVE) → acesso liberado (webhook confirmou o pagamento).
@@ -177,6 +184,13 @@ function formatFullDate(iso: string | null): string {
   });
 }
 
+function billingLabelText(s: SubscriptionView): string {
+  if (s.billingType !== "RECURRING") return "Pagamento único";
+  if (s.billingInterval === "MONTH") return "Mensal (recorrente)";
+  if (s.billingInterval === "YEAR") return "Anual (recorrente)";
+  return "Recorrente";
+}
+
 export function AssinaturaClient({
   initialPlans,
   initialCurrent,
@@ -288,9 +302,11 @@ export function AssinaturaClient({
     }
   }
 
-  // Destaque visual (nunca destaca plano Combo — ele não existe).
-  const featured = plans.find((p) => p.badge === "MAIS_ESCOLHIDO") ?? plans[1] ?? null;
-  const bestValue = plans.find((p) => p.badge === "MELHOR_CUSTO_BENEFICIO") ?? null;
+  const scrollToPlans = () => {
+    document
+      .getElementById("planos-disponiveis")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -303,11 +319,120 @@ export function AssinaturaClient({
         </span>
       </div>
 
-      {/* Cards de planos */}
-      <section className="flex flex-col gap-3">
+      {/* ÁREA 1 — MINHA ASSINATURA ATUAL */}
+      <section className="rounded-lg bg-card border border-border-soft shadow-xs p-6 flex flex-col gap-4">
+        <div className="flex items-center gap-2">
+          <CreditCard size={16} className="text-purple" />
+          <h2 className="font-display text-[17px] font-semibold text-ink">Minha assinatura atual</h2>
+          {current && (
+            <Badge tone={STATUS_TONE[current.status] ?? "neutral"} size="xs" dot>
+              {STATUS_LABEL[current.status] ?? current.status}
+            </Badge>
+          )}
+        </div>
+
+        {!current ? (
+          <EmptyState
+            icon={CreditCard}
+            title="Você ainda não tem uma assinatura"
+            description="Escolha um dos planos abaixo para começar."
+            action={
+              <Button variant="primary" size="sm" onClick={scrollToPlans}>
+                <Sparkles size={15} /> Ver planos disponíveis
+              </Button>
+            }
+          />
+        ) : (
+          <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              <InfoCell label="Plano" value={current.planName} />
+              <InfoCell label="Preço" value={formatBRL(current.priceCents)} />
+              <InfoCell
+                label="Status"
+                value={
+                  <Badge tone={STATUS_TONE[current.status] ?? "neutral"} dot>
+                    {STATUS_LABEL[current.status] ?? current.status}
+                  </Badge>
+                }
+              />
+              <InfoCell label="Cobrança" value={billingLabelText(current)} />
+              <InfoCell label="Início" value={formatFullDate(current.startAt)} />
+              <InfoCell label="Expiração" value={formatFullDate(current.expiresAt)} />
+              <InfoCell label="Pagamento confirmado em" value={formatFullDate(current.paidAt)} />
+              <InfoCell
+                label="Próxima renovação"
+                value={
+                  current.autoRenew
+                    ? formatFullDate(current.nextBillingAt ?? current.expiresAt)
+                    : "—"
+                }
+              />
+              <InfoCell
+                label="Renovação automática"
+                value={
+                  <span className={cn("font-semibold", current.autoRenew ? "text-success" : "text-ink-muted")}>
+                    {current.autoRenew ? "Ativa" : "Desativada"}
+                  </span>
+                }
+              />
+            </div>
+
+            {statusMessage(current, billingConfigured) && (
+              <div className="rounded-[10px] bg-surface px-4 py-3 flex items-center gap-2 text-[13px] text-ink">
+                <Info size={15} className="text-purple flex-none" />
+                {statusMessage(current, billingConfigured)}
+              </div>
+            )}
+
+            {current.daysRemaining > 0 && (
+              <div className="rounded-[10px] bg-surface px-4 py-3 flex items-center gap-2 text-[13px] text-ink">
+                <CalendarDays size={15} className="text-purple flex-none" />
+                {current.active ? "Acesso ativo" : "Acesso"} · {current.daysRemaining} dia
+                {current.daysRemaining === 1 ? "" : "s"} restante{current.daysRemaining === 1 ? "" : "s"}.
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-2 pt-1">
+              {current.autoRenew && current.billingType === "RECURRING" ? (
+                <Button variant="ghost" size="sm" onClick={cancelRenewal} disabled={canceling} className="gap-1.5 text-danger">
+                  {canceling ? <Loader2 size={14} className="animate-spin" /> : <Ban size={14} />}
+                  Cancelar renovação futura
+                </Button>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-[12px] text-ink-muted px-1">
+                  <RefreshCcw size={13} />
+                  {current.billingType === "RECURRING"
+                    ? "Renovação futura já desativada."
+                    : "Plano de pagamento único — sem renovação automática."}
+                </span>
+              )}
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={scrollToPlans}>
+                <Zap size={14} /> Ver planos / trocar plano
+              </Button>
+            </div>
+
+            <p className="text-[11.5px] text-ink-muted flex flex-wrap items-center gap-x-1.5">
+              <span>
+                Pagamento online via Asaas{" "}
+                {billingConfigured
+                  ? `(ambiente ${billingLabel ?? "sandbox"})`
+                  : "em configuração — nenhuma cobrança é feita até a integração ser ativada."}
+              </span>
+              {billingConfigured && (
+                <span>
+                  · O acesso é liberado somente após a confirmação do pagamento.
+                </span>
+              )}
+            </p>
+          </div>
+        )}
+      </section>
+
+      {/* ÁREA 2 — PLANOS DISPONÍVEIS */}
+      <section id="planos-disponiveis" className="flex flex-col gap-3 scroll-mt-24">
         <div className="flex items-center gap-2">
           <Sparkles size={16} className="text-purple" />
-          <h2 className="font-display text-[17px] font-semibold text-ink">Planos</h2>
+          <h2 className="font-display text-[17px] font-semibold text-ink">Planos disponíveis</h2>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {plans.map((plan) => {
@@ -422,116 +547,6 @@ export function AssinaturaClient({
                 Pagar agora <ExternalLink size={13} />
               </a>
             )}
-          </div>
-        )}
-      </section>
-
-      {/* Minha assinatura */}
-      <section className="rounded-lg bg-card border border-border-soft shadow-xs p-6 flex flex-col gap-4">
-        <div className="flex items-center gap-2">
-          <CreditCard size={16} className="text-purple" />
-          <h2 className="font-display text-[17px] font-semibold text-ink">Minha assinatura</h2>
-        </div>
-
-        {!current ? (
-          <EmptyState
-            icon={CreditCard}
-            title="Você ainda não tem uma assinatura"
-            description="Escolha um dos planos acima para começar."
-          />
-        ) : (
-          <div className="flex flex-col gap-4">
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-              <InfoCell label="Plano" value={current.planName} />
-              <InfoCell label="Preço" value={formatBRL(current.priceCents)} />
-              <InfoCell
-                label="Status"
-                value={
-                  <Badge tone={STATUS_TONE[current.status] ?? "neutral"} dot>
-                    {STATUS_LABEL[current.status] ?? current.status}
-                  </Badge>
-                }
-              />
-              <InfoCell
-                label="Cobrança"
-                value={
-                  current.billingType === "RECURRING"
-                    ? current.billingInterval === "MONTH"
-                      ? "Mensal (recorrente)"
-                      : current.billingInterval === "YEAR"
-                      ? "Anual (recorrente)"
-                      : "Recorrente"
-                    : "Pagamento único"
-                }
-              />
-              <InfoCell label="Início" value={formatFullDate(current.startAt)} />
-              <InfoCell label="Expiração" value={formatFullDate(current.expiresAt)} />
-              <InfoCell label="Pagamento confirmado em" value={formatFullDate(current.paidAt)} />
-              <InfoCell
-                label="Próxima renovação"
-                value={
-                  current.autoRenew
-                    ? formatFullDate(current.nextBillingAt ?? current.expiresAt)
-                    : "—"
-                }
-              />
-              <InfoCell
-                label="Renovação automática"
-                value={
-                  <span className={cn("font-semibold", current.autoRenew ? "text-success" : "text-ink-muted")}>
-                    {current.autoRenew ? "Ativa" : "Desativada"}
-                  </span>
-                }
-              />
-            </div>
-
-            {statusMessage(current, billingConfigured) && (
-              <div className="rounded-[10px] bg-surface px-4 py-3 flex items-center gap-2 text-[13px] text-ink">
-                <Info size={15} className="text-purple flex-none" />
-                {statusMessage(current, billingConfigured)}
-              </div>
-            )}
-
-            {current.daysRemaining > 0 && (
-              <div className="rounded-[10px] bg-surface px-4 py-3 flex items-center gap-2 text-[13px] text-ink">
-                <CalendarDays size={15} className="text-purple flex-none" />
-                {current.active ? "Acesso ativo" : "Acesso"} · {current.daysRemaining} dia
-                {current.daysRemaining === 1 ? "" : "s"} restante{current.daysRemaining === 1 ? "" : "s"}.
-              </div>
-            )}
-
-            <div className="flex flex-wrap gap-2 pt-1">
-              {current.autoRenew && current.billingType === "RECURRING" ? (
-                <Button variant="ghost" size="sm" onClick={cancelRenewal} disabled={canceling} className="gap-1.5 text-danger">
-                  {canceling ? <Loader2 size={14} className="animate-spin" /> : <Ban size={14} />}
-                  Cancelar renovação futura
-                </Button>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 text-[12px] text-ink-muted px-1">
-                  <RefreshCcw size={13} />
-                  {current.billingType === "RECURRING"
-                    ? "Renovação futura já desativada."
-                    : "Plano de pagamento único — sem renovação automática."}
-                </span>
-              )}
-              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
-                <Zap size={14} /> Ver planos / trocar plano
-              </Button>
-            </div>
-
-            <p className="text-[11.5px] text-ink-muted flex flex-wrap items-center gap-x-1.5">
-              <span>
-                Pagamento online via Asaas{" "}
-                {billingConfigured
-                  ? `(ambiente ${billingLabel ?? "sandbox"})`
-                  : "em configuração — nenhuma cobrança é feita até a integração ser ativada."}
-              </span>
-              {billingConfigured && (
-                <span>
-                  · O acesso é liberado somente após a confirmação do pagamento.
-                </span>
-              )}
-            </p>
           </div>
         )}
       </section>
