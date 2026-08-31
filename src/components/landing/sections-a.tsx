@@ -150,7 +150,7 @@ function HeroMockup() {
             <div className="lnd-dash-right">
               <div className="lnd-dash-card lnd-score-ring-wrap">
                 <span className="lnd-ring-cap">Score do perfil</span>
-                <svg viewBox="0 0 80 80" width="96" height="96" aria-hidden="true">
+                <svg viewBox="0 0 80 80" width="96" height="96" className="lnd-ring-svg" aria-hidden="true">
                   <circle cx="40" cy="40" r="34" fill="none" stroke="var(--lnd-surface)" strokeWidth="9" />
                   <circle
                     className="lnd-ring-progress"
@@ -174,9 +174,9 @@ function HeroMockup() {
                     </linearGradient>
                   </defs>
                 </svg>
-                <b className="lnd-ring-num" style={{ fontSize: 22, fontFamily: "var(--lnd-font-data)" }}>
-                  <span data-count="84">0</span>
-                  <span style={{ color: "var(--lnd-ink-3)", fontSize: 13 }}>/100</span>
+                <b className="lnd-ring-num">
+                  <span className="lnd-ring-num-val" data-count="84">0</span>
+                  <span className="lnd-ring-num-slash">/100</span>
                 </b>
               </div>
               <div className="lnd-dash-card lnd-score-pill-list">
@@ -351,18 +351,34 @@ export function Problema() {
         </div>
 
         <div className="lnd-problem-pivot lnd-reveal" data-dir="scale">
-          <div>
+          <div className="lnd-pivot-side lnd-pivot-before">
             <span className="lnd-pivot-label">Antes</span>
             <h3 style={{ color: "var(--lnd-ink-3)" }}>Números soltos, sem direção</h3>
+            <div className="lnd-pivot-stats lnd-pivot-stats-messy" aria-hidden="true">
+              <span className="lnd-ps-num">4,8%</span>
+              <span className="lnd-ps-dot" />
+              <span className="lnd-ps-num">2,1x</span>
+              <span className="lnd-ps-num">84k</span>
+              <span className="lnd-ps-dot" />
+              <span className="lnd-ps-num">+312</span>
+              <span className="lnd-ps-num">6,4%</span>
+            </div>
+            <span className="lnd-pivot-hint">Sem diagnóstico, sem plano</span>
           </div>
           <span className="lnd-pivot-arrow" aria-hidden="true">
             <ArrowRight />
           </span>
-          <div>
+          <div className="lnd-pivot-side lnd-pivot-after">
             <span className="lnd-pivot-label">Depois</span>
             <h3>
               O Inst Acessor transforma métricas em <span className="lnd-grad">ações</span>
             </h3>
+            <div className="lnd-pivot-stats lnd-pivot-stats-clear" aria-hidden="true">
+              <span className="lnd-ps-chip lnd-ps-chip-good">Diagnóstico 84/100</span>
+              <span className="lnd-ps-chip lnd-ps-chip-mid">Estratégia clara</span>
+              <span className="lnd-ps-chip lnd-ps-chip-good">Plano de ação</span>
+            </div>
+            <span className="lnd-pivot-hint lnd-pivot-hint-good">Dados lidos com inteligência</span>
           </div>
         </div>
       </div>
@@ -391,9 +407,9 @@ export function Solucao() {
             próximos passos e te acompanha até a execução.
           </p>
         </div>
-        <div className="lnd-problem-list">
+        <div className="lnd-solucao-grid">
           {SOLUCAO_ITEMS.map((s, i) => (
-            <div className="lnd-problem-card lnd-reveal" data-delay={String((i % 3) + 1)} key={s.t}>
+            <div className="lnd-problem-card lnd-reveal" data-delay={String((i % 2) + 1)} key={s.t}>
               <span className="lnd-ic" style={{ color: "var(--lnd-purple)", background: "var(--lnd-ai-soft)" }}>
                 <s.ic />
               </span>
@@ -462,11 +478,12 @@ function ChartSvg() {
         <line key={i} x1="0" y1={30 + i * 40} x2="560" y2={30 + i * 40} className="lnd-grid-line" />
       ))}
       <path
-        d="M0,150 C50,138 90,120 130,118 C170,116 200,96 245,94 C290,92 320,66 365,62 C410,58 440,44 485,36 C520,30 545,26 560,22 L560,180 L0,180 Z"
+        d="M0,150 C50,138 90,120 130,118 C170,116 200,96 245,94 C290,92 320,66 365,62 C410,58 440,44 485,36 C520,30 545,26 560,22 L560,170 L0,170 Z"
         className="lnd-area"
       />
       <path
         d="M0,150 C50,138 90,120 130,118 C170,116 200,96 245,94 C290,92 320,66 365,62 C410,58 440,44 485,36 C520,30 545,26 560,22"
+        pathLength={1}
         className="lnd-line"
       />
       {[
@@ -475,11 +492,17 @@ function ChartSvg() {
         [365, 62],
         [485, 36],
       ].map(([x, y], i) => (
-        <circle key={i} cx={x} cy={y} r="4.5" className="lnd-dot" />
+        <circle key={i} cx={x} cy={y} r="4.5" className="lnd-dot" data-dot={i} />
       ))}
-      {[0, 140, 280, 420, 560].map((x) => (
-        <text key={x} x={x} y="175" className="lnd-axis-txt" textAnchor="middle">
-          {["48k", "84k", "120k", "156k", "192k"][x / 140]}
+      {[
+        { x: 8, lbl: "48k" },
+        { x: 140, lbl: "84k" },
+        { x: 280, lbl: "120k" },
+        { x: 420, lbl: "156k" },
+        { x: 552, lbl: "192k" },
+      ].map(({ x, lbl }) => (
+        <text key={x} x={x} y="168" className="lnd-axis-txt" textAnchor="middle">
+          {lbl}
         </text>
       ))}
     </svg>

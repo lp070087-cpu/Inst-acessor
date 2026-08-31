@@ -231,63 +231,197 @@ export function LandingClient() {
     // ------------------------------------------------------------
     // Gerador de Copy — demonstração animada
     // ------------------------------------------------------------
-    const copyTexts: Record<string, string[]> = {
+    // 5 variações por formato — demonstração funcional SEM API.
+    const copyTexts: Record<string, string[][]> = {
       "tab-copy-reel": [
-        "TODA SEGUNDA TEM REEL NOVO NO AR 🔥",
-        "Eu testei 3 estratégias de conteúdo… e só UMA dobrou o alcance.",
-        "O segredo não é postar mais. É postar com intenção.",
-        "Salva este Reel pra aplicar no seu perfil!",
+        [
+          "TODA SEGUNDA TEM REEL NOVO NO AR 🔥",
+          "Eu testei 3 estratégias de conteúdo… e só UMA dobrou o alcance.",
+          "O segredo não é postar mais. É postar com intenção.",
+          "Salva este Reel pra aplicar no seu perfil!",
+        ],
+        [
+          "O REEL QUE NINGUÉM CONTA PRA VOCÊ 😱",
+          "Crescer no Instagram não é sobre sorte.",
+          "É sobre dados, horário certo e consistência.",
+          "Salva este Reel pra aplicar no seu perfil!",
+        ],
+        [
+          "3 SINAIS de que seu perfil está perdendo alcance",
+          "1️⃣ Você posta em horários aleatórios",
+          "2️⃣ Não olha os insights dos seus posts",
+          "3️⃣ Seguidores não comentam",
+          "O Inst Acessor lê tudo isso por você.",
+        ],
+        [
+          "PARE DE POSTAR TODO DIA (se for sem estratégia) 🛑",
+          "Postar mais não é postar melhor.",
+          "O que engaja é constância + relevância.",
+          "Testa essa dica por 7 dias e me conta.",
+        ],
+        [
+          "COMO EU DOBREI MEU ALCANCE EM 30 DIAS 📈",
+          "Não foi postando mais. Foi postando melhor.",
+          "Melhor horário, melhor formato, melhor gancho.",
+          "Comentou que quer o passo a passo?",
+        ],
       ],
       "tab-copy-story": [
-        "Bora de bastidor? 👀",
-        "Mostrei pro meu time o novo calendário de conteúdo…",
-        "O Inst Acessor sugere o melhor horário pra cada formato.",
-        "Qual vocês querem ver primeiro? Vota nos stories!",
+        [
+          "Bora de bastidor? 👀",
+          "Mostrei pro meu time o novo calendário de conteúdo…",
+          "O Inst Acessor sugere o melhor horário pra cada formato.",
+          "Qual vocês querem ver primeiro? Vota nos stories!",
+        ],
+        [
+          "Responde aqui 👇",
+          "Qual conteúdo você quer ver essa semana?",
+          "Enquete nos stories decide o próximo post.",
+        ],
+        [
+          "O que o algoritmo quer de você: constância",
+          "Todo dia um story novo mantém você no topo.",
+          "O Inst Acessor monta seu calendário automático.",
+        ],
+        [
+          "Bastidor: eu quase apaguei esse post 😅",
+          "Aí vi no dashboard que ele ia bombar.",
+          "Confia nos dados. Eles não mentem.",
+        ],
+        [
+          "Ideia de story: os 3 horários que mais engajam",
+          "Salva esse story pra aplicar depois!",
+        ],
       ],
       "tab-copy-carrossel": [
-        "5 ERROS que matam o alcance no Instagram (e como evitar)",
-        "1️⃣ Postar sem estratégia de hashtags",
-        "2️⃣ Ignorar os insights do próprio perfil",
-        "3️⃣ Não ter frequência — o algoritmo prefere quem é previsível",
-        "Salva este carrossel e compartilha com quem precisa!",
+        [
+          "5 ERROS que matam o alcance no Instagram (e como evitar)",
+          "1️⃣ Postar sem estratégia de hashtags",
+          "2️⃣ Ignorar os insights do próprio perfil",
+          "3️⃣ Não ter frequência — o algoritmo prefere quem é previsível",
+          "Salva este carrossel e compartilha com quem precisa!",
+        ],
+        [
+          "5 HÁBITOS de quem cresce de verdade no Instagram",
+          "1️⃣ Publica com frequência previsível",
+          "2️⃣ Analisa os próprios insights",
+          "3️⃣ Testa formatos novos todo mês",
+          "4️⃣ Responde comentários rápido",
+          "5️⃣ Ajusta o que não funciona",
+          "Salva pra não esquecer!",
+        ],
+        [
+          "ANTES × DEPOIS: como organizei meu calendário",
+          "Antes: postava quando dava vontade",
+          "Depois: plano semanal definido com IA",
+          "Resultado: +2,1x de alcance em Reels",
+          "O Inst Acessor faz o plano pra você.",
+        ],
+        [
+          "O ERRO #1 de quem não cresce no Instagram",
+          "Não é falta de conteúdo. É falta de estratégia.",
+          "Postar sem saber o que o algoritmo quer.",
+          "Cada formato tem o seu melhor horário.",
+          "Descubra o seu no Score inteligente.",
+        ],
+        [
+          "Mitos e verdades sobre o algoritmo",
+          "MITO: o Instagram esconde seu perfil",
+          "VERDADE: ele prioriza constância e retenção",
+          "MITO: hashtag é o segredo",
+          "VERDADE: dados do seu perfil valem mais",
+          "Compartilha com quem precisa ler isso!",
+        ],
       ],
       "tab-copy-legenda": [
-        "O Instagram não premia quem posta mais. Premia quem entende os dados. 📊",
-        "Com o Inst Acessor, você transforma métricas em decisões: melhores horários, formatos que engajam e o que sua audiência quer ver.",
-        "Comece hoje e acompanhe seu Score de crescimento.",
-        "#instagram #estrategia #crescimento #marketingdigital",
+        [
+          "O Instagram não premia quem posta mais. Premia quem entende os dados. 📊",
+          "Com o Inst Acessor, você transforma métricas em decisões: melhores horários, formatos que engajam e o que sua audiência quer ver.",
+          "Comece hoje e acompanhe seu Score de crescimento.",
+          "#instagram #estrategia #crescimento #marketingdigital",
+        ],
+        [
+          "Crescer no Instagram virou ciência, não sorte. 📊",
+          "Com o Inst Acessor você acompanha Score, melhores horários e o que sua audiência quer ver.",
+          "Comece hoje e veja seu perfil com outros olhos.",
+          "#crescimento #moda #instagram",
+        ],
+        [
+          "Você não precisa postar mais. Precisa postar melhor. ✨",
+          "Dados no lugar de achismo: o Inst Acessor traduz métricas em decisões.",
+          "Seu próximo Reel pode ser o divisor de águas.",
+          "#estrategia #conteudo #marketingdigital",
+        ],
+        [
+          "A diferença entre quem cresce e quem trava é a consistência.",
+          "O Inst Acessor monta seu calendário ideal e alerta antes das quedas.",
+          "Planeje a semana em minutos, não em horas.",
+          "#planejamento #crescimento #socialmedia",
+        ],
+        [
+          "Seu perfil fala. Você só precisa aprender a ouvir. 🎧",
+          "Insights, alertas e um plano de ação priorizado por impacto.",
+          "O Inst Acessor lê os dados pra você agir.",
+          "#instagram #crescimento #instacessor",
+        ],
       ],
     };
-    let copyTimer: ReturnType<typeof setInterval> | null = null;
+    const lastCopyIdx: Record<string, number> = {};
+    let copyTimer: ReturnType<typeof setTimeout> | null = null;
     let charTimers: ReturnType<typeof setInterval>[] = [];
     function animateCopy(panelId: string) {
       const box = document.getElementById("lnd-copy-text");
       if (!box) return;
-      if (copyTimer) clearInterval(copyTimer);
+      if (copyTimer) clearTimeout(copyTimer);
       charTimers.forEach((t) => clearInterval(t));
       charTimers = [];
-      const lines = copyTexts[panelId] ?? copyTexts["tab-copy-reel"];
+      const variants = copyTexts[panelId] ?? copyTexts["tab-copy-reel"];
+      // Não repete a mesma copy em seguida.
+      let next = Math.floor(Math.random() * variants.length);
+      if (variants.length > 1 && next === (lastCopyIdx[panelId] ?? -1)) {
+        next = (next + 1) % variants.length;
+      }
+      lastCopyIdx[panelId] = next;
+      const lines = variants[next];
       box.innerHTML = "";
-      let i = 0;
-      const typeLine = () => {
-        if (i >= lines.length) return;
-        const p = document.createElement("p");
-        p.style.marginBottom = "10px";
-        p.style.lineHeight = "1.5";
-        box.appendChild(p);
-        let j = 0;
-        const ct = setInterval(() => {
-          j++;
-          p.textContent = lines[i].slice(0, j);
-          if (j >= lines[i].length) {
-            clearInterval(ct);
-            i++;
-            copyTimer = setTimeout(typeLine, 160);
-          }
-        }, 12);
-        charTimers.push(ct);
+      // Estado de carregamento (demo — sem API).
+      box.classList.add("lnd-copy-loading");
+      box.setAttribute("aria-busy", "true");
+      const finishLoading = () => {
+        box.classList.remove("lnd-copy-loading");
+        box.setAttribute("aria-busy", "false");
+        if (reduced) {
+          lines.forEach((line) => {
+            const p = document.createElement("p");
+            p.style.marginBottom = "10px";
+            p.style.lineHeight = "1.5";
+            p.textContent = line;
+            box.appendChild(p);
+          });
+          return;
+        }
+        let i = 0;
+        const typeLine = () => {
+          if (i >= lines.length) return;
+          const p = document.createElement("p");
+          p.style.marginBottom = "10px";
+          p.style.lineHeight = "1.5";
+          box.appendChild(p);
+          let j = 0;
+          const ct = setInterval(() => {
+            j++;
+            p.textContent = lines[i].slice(0, j);
+            if (j >= lines[i].length) {
+              clearInterval(ct);
+              i++;
+              copyTimer = setTimeout(typeLine, 160);
+            }
+          }, 12);
+          charTimers.push(ct);
+        };
+        typeLine();
       };
-      copyTimer = setTimeout(typeLine, 180);
+      copyTimer = setTimeout(finishLoading, 550);
     }
     if (!reduced) {
       animateCopy("tab-copy-reel");
@@ -295,7 +429,7 @@ export function LandingClient() {
       const box = document.getElementById("lnd-copy-text");
       if (box) {
         box.innerHTML = "";
-        copyTexts["tab-copy-reel"].forEach((line) => {
+        (copyTexts["tab-copy-reel"][0] ?? []).forEach((line) => {
           const p = document.createElement("p");
           p.style.marginBottom = "10px";
           p.style.lineHeight = "1.5";
