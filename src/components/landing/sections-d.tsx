@@ -544,7 +544,7 @@ export function CtaFinal() {
 const FOOTER_LINKS = [
   { t: "Produto", links: [["Funcionalidades", "#funcionalidades"], ["Planos", "#planos"], ["FAQ", "#faq"]] },
   { t: "Plataforma", links: [["Entrar", "/login"], ["Criar conta", "/cadastro"]] },
-  { t: "Legal", links: [["Segurança", "#seguranca"], ["Termos de uso", "#"], ["Privacidade", "#"]] },
+  { t: "Legal", links: [["Segurança", "#seguranca"], ["Termos de uso", "/termos"], ["Privacidade", "/privacidade"], ["Exclusão de dados", "/data-deletion"]] },
 ];
 
 export function Footer() {
