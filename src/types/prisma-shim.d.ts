@@ -556,7 +556,7 @@ declare module "@prisma/client" {
     userId?: string | null;
     planId?: string | null;
     planName?: string | null;
-    origin: string; // "ASAAS" | "ADMIN_MANUAL"
+    origin: string; // "INFINITEPAY" | "ASAAS" | "ADMIN_MANUAL"
     status: string; // PENDING_FIRST_ACCESS | ACTIVE | EXPIRED | CANCELED
     startAt: Date;
     expiresAt?: Date | null;

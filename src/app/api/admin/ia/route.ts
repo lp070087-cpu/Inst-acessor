@@ -18,6 +18,20 @@ export const dynamic = "force-dynamic";
 const adminAiRateLimiter = createRateLimiter({ windowMs: 60_000, max: 20 });
 
 /**
+ * Verifica se a criptografia de credenciais está pronta para SALVAR.
+ * `encryptToken()` exige `TOKEN_ENCRYPTION_KEY` (mín. 32 chars). Sem ela,
+ * qualquer SAVE falha com 500 genérico — o que explica o "Não foi possível
+ * processar a solicitação." visto no /admin/ia quando o TESTE funciona (o
+ * teste não criptografa nada).
+ *
+ * Retorna apenas um booleano — nunca revela a chave.
+ */
+function encryptionReady(): boolean {
+  const key = process.env.TOKEN_ENCRYPTION_KEY ?? "";
+  return key.trim().length >= 32;
+}
+
+/**
  * POST /api/admin/ia
  * Gerencia a configuração central da IA (somente ADMIN).
  *
@@ -53,6 +67,17 @@ export async function POST(request: Request) {
 
   try {
     if (action === "save") {
+      // Pre-flight: SAVE criptografa a chave. Sem TOKEN_ENCRYPTION_KEY a gravação
+      // é impossível — falha cedo com mensagem acionável em vez de 500 genérico.
+      if (!encryptionReady()) {
+        return NextResponse.json(
+          {
+            error:
+              "Não foi possível salvar: a variável TOKEN_ENCRYPTION_KEY não está configurada no servidor (mín. 32 caracteres). O teste funciona porque ele não grava nada.",
+          },
+          { status: 400 }
+        );
+      }
       const parsed = saveAIProviderSchema.safeParse(body);
       if (!parsed.success) {
         return NextResponse.json(

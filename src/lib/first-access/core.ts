@@ -16,7 +16,7 @@
 
 import { createHash, randomBytes } from "node:crypto";
 
-export type AccessOrigin = "ASAAS" | "ADMIN_MANUAL";
+export type AccessOrigin = "INFINITEPAY" | "ASAAS" | "ADMIN_MANUAL";
 
 export type AccessGrantStatus =
   | "PENDING_FIRST_ACCESS"
@@ -104,5 +104,9 @@ export const EMAIL_NOT_ELIGIBLE_MESSAGE =
  * Valida se o origin informado é permitido.
  */
 export function isValidOrigin(origin: string): origin is AccessOrigin {
-  return origin === "ASAAS" || origin === "ADMIN_MANUAL";
+  return (
+    origin === "INFINITEPAY" ||
+    origin === "ASAAS" ||
+    origin === "ADMIN_MANUAL"
+  );
 }

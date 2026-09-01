@@ -3,7 +3,8 @@ import { CreditCard, ShieldCheck } from "lucide-react";
 
 import { requireAdminSession } from "@/lib/auth/guard";
 import { bll } from "@/lib/billing/db";
-import { asaasStatus } from "@/lib/billing/asaas/config";
+import { infinitepayStatus } from "@/lib/billing/infinitepay/config";
+import { INFINITEPAY_SOURCE } from "@/lib/billing/infinitepay/events";
 import { SectionCard } from "@/components/ui/section-card";
 import { StatusBadge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -72,7 +73,7 @@ function maskId(id: string | null | undefined): string {
 export default async function AdminSubscriptionsPage() {
   await requireAdminSession();
 
-  const billing = asaasStatus();
+  const billing = infinitepayStatus();
 
   const subscriptions = (await (
     bll.subscription.findMany as unknown as (args: unknown) => Promise<AdminSubscriptionRow[]>
@@ -124,18 +125,12 @@ export default async function AdminSubscriptionsPage() {
               <ShieldCheck size={20} />
             </div>
             <div className="flex flex-col gap-0.5">
-              <p className="text-[14px] font-semibold text-ink">
-                {billing.configured ? `Asaas · ${billing.label}` : "Asaas · Não configurado"}
-              </p>
-              <p className="text-[12px] text-ink-muted">
-                {billing.configured
-                  ? "Integração ativa no servidor. Cobranças reais são possíveis."
-                  : "Sem ASAAS_API_KEY — nenhuma cobrança é feita; o checkout fica em estado controlado."}
-              </p>
+              <p className="text-[14px] font-semibold text-ink">InfinitePay</p>
+              <p className="text-[12px] text-ink-muted">{billing.label}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 sm:ml-auto">
-            <StatusBadge status={billing.configured ? "ACTIVE" : "DISCONNECTED"} />
+            <StatusBadge status={billing.checkoutsReady ? "ACTIVE" : "DISCONNECTED"} />
             <StatusBadge
               status={
                 billing.webhookConfigured ? "CONNECTED" : "PENDING"
@@ -144,8 +139,9 @@ export default async function AdminSubscriptionsPage() {
           </div>
         </div>
         <p className="text-[11.5px] text-ink-muted mt-3 border-t border-border-soft pt-3">
-          Webhook {billing.webhookConfigured ? "configurado" : "não configurado"} · Nenhum valor de
-          chave é exibido neste painel.
+          Checkout oficial: links públicos do InfinitePay nos cards de planos. A liberação
+          de acesso só ocorre após confirmação real do pagamento (webhook + payment_check).
+          Nenhum valor de chave é exibido neste painel.
         </p>
       </SectionCard>
 
@@ -207,9 +203,13 @@ export default async function AdminSubscriptionsPage() {
                         <span className="inline-flex items-center gap-1 rounded-full bg-purple/10 px-2 py-0.5 text-[11.5px] font-medium text-purple">
                           Manual
                         </span>
-                      ) : s.accessSource === "ASAAS" ? (
+                      ) : s.accessSource === INFINITEPAY_SOURCE ? (
                         <span className="inline-flex items-center gap-1 rounded-full bg-success-soft px-2 py-0.5 text-[11.5px] font-medium text-success">
-                          Asaas
+                          InfinitePay
+                        </span>
+                      ) : s.accessSource === "ASAAS" ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-ink-muted/10 px-2 py-0.5 text-[11.5px] font-medium text-ink-soft">
+                          Asaas (legado)
                         </span>
                       ) : (
                         <span className="text-[12px] text-ink-muted">—</span>

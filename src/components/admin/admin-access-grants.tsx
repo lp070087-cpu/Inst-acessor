@@ -19,7 +19,8 @@ export interface AccessGrantRow {
 }
 
 const ORIGIN_LABEL: Record<string, string> = {
-  ASAAS: "Compra",
+  INFINITEPAY: "InfinitePay",
+  ASAAS: "Compra (Asaas legado)",
   ADMIN_MANUAL: "Liberação manual",
 };
 

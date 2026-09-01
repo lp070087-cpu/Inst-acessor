@@ -491,36 +491,50 @@ function ChartSvg() {
           <stop offset="1" stopColor="#6366F1" />
         </linearGradient>
       </defs>
-      {[0, 1, 2, 3].map((i) => (
-        <line key={i} x1="0" y1={30 + i * 40} x2="560" y2={30 + i * 40} className="lnd-grid-line" />
+      {/* Eixo Y à esquerda: valores de alcance alinhados às linhas de grade */}
+      {[
+        { y: 26, lbl: "192k" },
+        { y: 62, lbl: "156k" },
+        { y: 98, lbl: "120k" },
+        { y: 134, lbl: "84k" },
+        { y: 170, lbl: "48k" },
+      ].map(({ y, lbl }) => (
+        <g key={y}>
+          <line x1="42" y1={y} x2="552" y2={y} className="lnd-grid-line" />
+          <text x="8" y={y + 4} className="lnd-axis-txt" textAnchor="start">
+            {lbl}
+          </text>
+        </g>
+      ))}
+      {/* Eixo X discreto: período (dias da semana) */}
+      {[
+        { x: 127, lbl: "Seg" },
+        { x: 212, lbl: "Ter" },
+        { x: 297, lbl: "Qua" },
+        { x: 382, lbl: "Qui" },
+        { x: 467, lbl: "Sex" },
+        { x: 552, lbl: "Sáb" },
+      ].map(({ x, lbl }) => (
+        <text key={x} x={x} y="176" className="lnd-axis-txt" textAnchor="middle">
+          {lbl}
+        </text>
       ))}
       <path
-        d="M0,150 C50,138 90,120 130,118 C170,116 200,96 245,94 C290,92 320,66 365,62 C410,58 440,44 485,36 C520,30 545,26 560,22 L560,170 L0,170 Z"
+        d="M42,158 C82,152 128,145 172,134 C216,122 252,110 297,98 C342,86 384,72 427,62 C472,52 512,38 552,26 L552,172 L42,172 Z"
         className="lnd-area"
       />
       <path
-        d="M0,150 C50,138 90,120 130,118 C170,116 200,96 245,94 C290,92 320,66 365,62 C410,58 440,44 485,36 C520,30 545,26 560,22"
+        d="M42,158 C82,152 128,145 172,134 C216,122 252,110 297,98 C342,86 384,72 427,62 C472,52 512,38 552,26"
         pathLength={1}
         className="lnd-line"
       />
       {[
-        [130, 118],
-        [245, 94],
-        [365, 62],
-        [485, 36],
+        [172, 134],
+        [297, 98],
+        [427, 62],
+        [552, 26],
       ].map(([x, y], i) => (
         <circle key={i} cx={x} cy={y} r="4.5" className="lnd-dot" data-dot={i} />
-      ))}
-      {[
-        { x: 8, lbl: "48k" },
-        { x: 140, lbl: "84k" },
-        { x: 280, lbl: "120k" },
-        { x: 420, lbl: "156k" },
-        { x: 552, lbl: "192k" },
-      ].map(({ x, lbl }) => (
-        <text key={x} x={x} y="168" className="lnd-axis-txt" textAnchor="middle">
-          {lbl}
-        </text>
       ))}
     </svg>
   );
@@ -633,6 +647,25 @@ export function Dashboard() {
               ))}
             </div>
           ))}
+        </div>
+
+        <div className="lnd-bench-strip lnd-reveal" style={{ marginTop: 18 }}>
+          <span className="lnd-bench-label">Benchmark do nicho</span>
+          <span className="lnd-bench-item">
+            <b>6,4%</b>
+            <span>seu engajamento</span>
+          </span>
+          <span className="lnd-bench-item">
+            <b>4,1%</b>
+            <span>média do nicho</span>
+          </span>
+          <span className="lnd-bench-item lnd-up">
+            <b>▲ 2,3 p.p.</b>
+            <span>acima da média</span>
+          </span>
+          <span className="lnd-bench-note">
+            Análise comparativa contextual — dados de demonstração.
+          </span>
         </div>
       </div>
     </section>

@@ -3,6 +3,7 @@ import { Plug } from "lucide-react";
 
 import { requireAdminSession } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
+import { infinitepayStatus } from "@/lib/billing/infinitepay/config";
 import { SectionCard } from "@/components/ui/section-card";
 import { StatusBadge } from "@/components/ui/badge";
 
@@ -24,7 +25,7 @@ function integrationEnvStatus(envKeys: string[]): "configurado" | "nao_configura
 export default async function AdminIntegrationsPage() {
   await requireAdminSession();
 
-  const [igConnections, tiktokConnections] = await Promise.all([
+  const [igConnections, tiktokConnections, oauthStates] = await Promise.all([
     prisma.socialConnection.findMany({
       where: { platform: "instagram" },
       select: { status: true, username: true, updatedAt: true },
@@ -33,20 +34,40 @@ export default async function AdminIntegrationsPage() {
       where: { platform: "tiktok" },
       select: { status: true, username: true, updatedAt: true },
     }),
+    prisma.oAuthState.findMany({
+      where: { consumed: false, expiresAt: { gt: new Date() } },
+      select: { provider: true },
+    }),
   ]);
+
+  // Anti-travamento: CONNECTING sem fluxo OAuth ativo e válido é ORFÃO de um
+  // fluxo interrompido → trata como DISCONNECTED (nunca prende o badge).
+  const activeProviders = new Set(oauthStates.map((s) => s.provider));
+  const effectiveStatus = (status: string | null | undefined, provider: string) => {
+    if (status === "CONNECTING" && !activeProviders.has(provider)) return "DISCONNECTED";
+    return status ?? "DISCONNECTED";
+  };
+  const igNormalized = igConnections.map((c) => ({
+    ...c,
+    status: effectiveStatus(c.status, "instagram"),
+  }));
+  const tiktokNormalized = tiktokConnections.map((c) => ({
+    ...c,
+    status: effectiveStatus(c.status, "tiktok"),
+  }));
 
   const integracoes = [
     {
       name: "Instagram (Meta)",
       description: "Conexão de contas Business/Creator e sincronização de métricas.",
       env: integrationEnvStatus(["META_APP_ID", "META_APP_SECRET", "INSTAGRAM_APP_ID"]),
-      connections: igConnections,
+      connections: igNormalized,
     },
     {
       name: "TikTok",
       description: "Conexão de contas e sincronização de vídeos.",
       env: integrationEnvStatus(["TIKTOK_CLIENT_KEY", "TIKTOK_CLIENT_SECRET"]),
-      connections: tiktokConnections,
+      connections: tiktokNormalized,
     },
     {
       name: "IA (OpenAI/Gemini)",
@@ -54,13 +75,17 @@ export default async function AdminIntegrationsPage() {
       env: integrationEnvStatus(["OPENAI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY"]),
       connections: [],
     },
-    {
-      name: "Asaas (Billing)",
-      description: "Gateway de pagamento. Cobranças reais acontecem quando ASAAS_API_KEY está definida.",
-      env: integrationEnvStatus(["ASAAS_API_KEY"]),
-      connections: [],
-    },
   ];
+
+  // Status real do InfinitePay (nunca "conectado" sem prova).
+  const ipStatus = infinitepayStatus();
+  const infinitePayCard = {
+    name: "InfinitePay (Billing)",
+    description:
+      "Gateway oficial de pagamento. Checkout por links públicos por plano; confirmação via webhook + payment_check quando a chave estiver configurada.",
+    configured: ipStatus.configured,
+    webhookConfigured: ipStatus.webhookConfigured,
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -97,6 +122,28 @@ export default async function AdminIntegrationsPage() {
             )}
           </SectionCard>
         ))}
+
+        {/* InfinitePay (Billing) — gateway oficial */}
+        <SectionCard
+          title={infinitePayCard.name}
+          description={infinitePayCard.description}
+        >
+          <div className="flex items-center justify-between">
+            <StatusBadge status={infinitePayCard.configured ? "CONNECTED" : "DISCONNECTED"} />
+            <span className="text-[12.5px] text-ink-muted">
+              {infinitePayCard.configured ? "Checkouts + confirmação" : "Checkouts prontos · webhook pendente"}
+            </span>
+          </div>
+          <div className="mt-3 flex flex-col gap-1.5 text-[12.5px] text-ink-soft">
+            <p>
+              Checkout: links públicos do InfinitePay nos cards de planos (sem chave).
+            </p>
+            <p>
+              Webhook: {infinitePayCard.webhookConfigured ? "configurado" : "aguardando configuração"} ·
+              confirmação server-side via payment_check.
+            </p>
+          </div>
+        </SectionCard>
       </div>
 
       <SectionCard title="Observações">

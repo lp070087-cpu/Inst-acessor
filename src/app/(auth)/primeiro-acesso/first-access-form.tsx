@@ -339,7 +339,7 @@ function FirstAccessFormInner() {
               <div>
                 <p className="text-ink-muted">Origem</p>
                 <p className="font-semibold text-ink mt-0.5">
-                  {grant.origin === "ASAAS" ? "Compra" : "Liberação manual"}
+                  {grant.origin === "ASAAS" || grant.origin === "INFINITEPAY" ? "Compra" : "Liberação manual"}
                 </p>
               </div>
               <div>

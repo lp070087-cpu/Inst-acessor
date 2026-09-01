@@ -266,7 +266,8 @@ function tokenCryptoSection() {
 // ------------------------------------------------------------
 
 function constantsSection() {
-  test("origens permitidas: ASAAS e ADMIN_MANUAL", () => {
+  test("origens permitidas: INFINITEPAY, ASAAS e ADMIN_MANUAL", () => {
+    assert.strictEqual(isValidOrigin("INFINITEPAY"), true);
     assert.strictEqual(isValidOrigin("ASAAS"), true);
     assert.strictEqual(isValidOrigin("ADMIN_MANUAL"), true);
   });

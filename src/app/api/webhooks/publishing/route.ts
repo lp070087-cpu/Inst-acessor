@@ -24,8 +24,10 @@ export const dynamic = "force-dynamic";
 
 // Verificação de origem: challenge GET usa o verify token; o POST assinado
 // usa o App Secret (X-Hub-Signature-256) quando configurado.
-const VERIFY_TOKEN = process.env.INSTAGRAM_WEBHOOK_VERIFY_TOKEN ?? "";
-const APP_SECRET = process.env.META_APP_SECRET ?? "";
+// `.trim()` nos envs: espaços/CRLF acidentais quebrariam a comparação exata
+// do token no GET (causa real de 403 "Verificação falhou" com token válido).
+const VERIFY_TOKEN = (process.env.INSTAGRAM_WEBHOOK_VERIFY_TOKEN ?? "").trim();
+const APP_SECRET = (process.env.META_APP_SECRET ?? "").trim();
 const CONFIGURED = Boolean(VERIFY_TOKEN);
 
 interface WebhookEvent {

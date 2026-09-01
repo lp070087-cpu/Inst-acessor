@@ -16,7 +16,10 @@ export async function GET() {
 
   try {
     const status = await getAIAdminStatus();
-    return NextResponse.json({ status });
+    // Indicador seguro: a criptografia de credenciais está pronta para SALVAR?
+    // Booleano — nunca revela a chave. Sem isso, o SAVE falharia com 500 genérico.
+    const encryptionReady = (process.env.TOKEN_ENCRYPTION_KEY ?? "").trim().length >= 32;
+    return NextResponse.json({ status, encryptionReady });
   } catch (err) {
     console.error("[admin/ia/status] erro", err);
     return NextResponse.json(

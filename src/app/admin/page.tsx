@@ -251,7 +251,17 @@ export default async function AdminHomePage() {
                   <tr key={u.id} className="border-b border-border-soft/60 last:border-0">
                     <td className="py-3 pr-4 font-medium text-ink">{u.name ?? "—"}</td>
                     <td className="py-3 pr-4 text-ink-soft">{u.email}</td>
-                    <td className="py-3 pr-4"><StatusBadge status={u.role} /></td>
+                    <td className="py-3 pr-4">
+                      {adminEmails.some(
+                        (e) => e.toLowerCase() === u.email.toLowerCase()
+                      ) ? (
+                        <span className="inline-flex items-center rounded-full bg-purple/10 px-2 py-0.5 text-[11.5px] font-medium text-purple">
+                          Administrador
+                        </span>
+                      ) : (
+                        <StatusBadge status={u.role} />
+                      )}
+                    </td>
                     <td className="py-3 pr-4"><StatusBadge status={u.status} /></td>
                     <td className="py-3 text-ink-muted">{fmtDate(u.createdAt)}</td>
                   </tr>

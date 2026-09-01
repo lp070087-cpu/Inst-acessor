@@ -8,47 +8,58 @@ import { verifyWebhookSignature } from "@/lib/webhooks/signature";
  * Webhook do Instagram (Meta) — arquitetura segura.
  *
  * GET  → valida o challenge de verificação da Meta (hub.mode/hub.verify_token/hub.challenge).
+ *        O GET depende APENAS do verify token — o App Secret NÃO interfere.
+ *        Sem params `hub.*` → diagnóstico seguro `{ok, provider, verifyTokenConfigured,
+ *        appSecretConfigured}` (nunca expõe token/secret — só booleans).
  * POST → recebe eventos do Instagram com:
  *        - Verificação de origem via `X-Hub-Signature-256` (HMAC-SHA256 com o App Secret).
  *        - Idempotência por evento (AutomationEvent.eventId @@unique).
  *        - Sanitização de payload (nunca persiste tokens/secrets).
  *        - Rate limit por IP (proteção contra flood).
  *
- * Quando o webhook NÃO está configurado (app secret ou verify token ausentes),
- * NÃO finge receber eventos: retorna 503/404 e a Meta não envia.
+ * `.trim()` nos envs: evita que espaços/CRLF quebrem a comparação exata do token.
+ * Quando o webhook NÃO está configurado, NÃO finge receber eventos: 503/404.
  * Nada é executado automaticamente — apenas registrado.
  */
 
-const VERIFY_TOKEN = process.env.INSTAGRAM_WEBHOOK_VERIFY_TOKEN || "";
-const APP_SECRET = process.env.META_APP_SECRET || process.env.INSTAGRAM_APP_SECRET || "";
+const VERIFY_TOKEN = (process.env.INSTAGRAM_WEBHOOK_VERIFY_TOKEN ?? "").trim();
+const APP_SECRET = (process.env.META_APP_SECRET || process.env.INSTAGRAM_APP_SECRET || "").trim();
 
+// GET (desafio da Meta) depende apenas do verify token.
+const GET_CONFIGURED = Boolean(VERIFY_TOKEN);
+// POST (eventos reais) depende de ambos: sem app secret não há assinatura a validar.
 const CONFIGURED = Boolean(VERIFY_TOKEN && APP_SECRET);
 
 export async function GET(request: Request) {
-  // Não configurado → não aceita challenges (nada a validar).
-  if (!CONFIGURED) {
-    return new NextResponse("Webhook não configurado", { status: 503 });
-  }
-
   const url = new URL(request.url);
   const mode = url.searchParams.get("hub.mode");
   const token = url.searchParams.get("hub.verify_token");
   const challenge = url.searchParams.get("hub.challenge");
 
-  if (mode === "subscribe" && token === VERIFY_TOKEN && challenge) {
-    console.info("[instagram-webhook] challenge verificado pela Meta");
-    return new NextResponse(challenge, {
-      status: 200,
-      headers: { "Content-Type": "text/plain" },
-    });
+  // Chamada real da Meta para verificar o webhook (sempre inclui hub.mode).
+  if (mode) {
+    if (!GET_CONFIGURED) {
+      return new NextResponse("Webhook não configurado", { status: 503 });
+    }
+    if (mode === "subscribe" && token === VERIFY_TOKEN && challenge) {
+      console.info("[instagram-webhook] challenge verificado pela Meta");
+      return new NextResponse(challenge, {
+        status: 200,
+        headers: { "Content-Type": "text/plain" },
+      });
+    }
+    console.warn(`[instagram-webhook] challenge inválido (mode=${mode})`);
+    return new NextResponse("Verificação falhou", { status: 403 });
   }
 
-  console.warn(
-    `[instagram-webhook] challenge inválido (mode=${mode} token=${
-      token === VERIFY_TOKEN ? "ok" : "errado"
-    })`
-  );
-  return new NextResponse("Verificação falhou", { status: 403 });
+  // Diagnóstico seguro (sem params hub.*): só booleans de configuração.
+  // Nunca revela o token — nem tamanho, prefixo, sufixo, hash ou secret.
+  return NextResponse.json({
+    ok: true,
+    provider: "Instagram",
+    verifyTokenConfigured: GET_CONFIGURED,
+    appSecretConfigured: Boolean(APP_SECRET),
+  });
 }
 
 export async function POST(request: Request) {

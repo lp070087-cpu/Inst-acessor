@@ -183,6 +183,7 @@ function ProviderForm({ provider, status, onRefresh }: ProviderFormProps) {
 
 export function AdminAIClient({ initialStatus }: { initialStatus: AdminAIStatus }) {
   const [status, setStatus] = React.useState<AdminAIStatus>(initialStatus);
+  const [encryptionReady, setEncryptionReady] = React.useState<boolean | null>(null);
   const [loading, setLoading] = React.useState(false);
 
   const refresh = async () => {
@@ -190,8 +191,9 @@ export function AdminAIClient({ initialStatus }: { initialStatus: AdminAIStatus 
     try {
       const res = await fetch("/api/admin/ia/status");
       if (res.ok) {
-        const data = (await res.json()) as { status: AdminAIStatus };
+        const data = (await res.json()) as { status: AdminAIStatus; encryptionReady?: boolean };
         setStatus(data.status);
+        setEncryptionReady(typeof data.encryptionReady === "boolean" ? data.encryptionReady : null);
       }
     } catch {
       /* mantém o estado atual */
@@ -213,6 +215,16 @@ export function AdminAIClient({ initialStatus }: { initialStatus: AdminAIStatus 
           Atualizar status
         </Button>
       </div>
+
+      {encryptionReady === false && (
+        <div className="rounded-[11px] border border-warn/30 bg-warn-soft px-4 py-3 text-[12.5px] text-warn leading-relaxed">
+          <strong>Salvar chave indisponível:</strong> a variável{" "}
+          <code className="font-data">TOKEN_ENCRYPTION_KEY</code> não está configurada no
+          servidor (mín. 32 caracteres). O teste de conexão funciona — ele não grava nada —
+          mas salvar exige essa chave para criptografar. Adicione-a nas variáveis de ambiente
+          do Vercel e clique em “Atualizar status”.
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <ProviderForm provider="openai" status={status.openai} onRefresh={refresh} />
