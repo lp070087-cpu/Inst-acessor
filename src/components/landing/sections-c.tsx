@@ -69,13 +69,21 @@ export function Metas() {
               </span>
               <h3>{m.t}</h3>
               <p className="lnd-g-sub">{m.sub}</p>
-              <div className="lnd-goal-progress">
-                <div className="lnd-gp-bar">
-                  <i data-w={m.pct} style={{ width: 0 }} />
-                </div>
-                <b data-count={m.val} data-suffix={m.suffix ?? ""}>
-                  {m.val}
-                </b>
+              <div className="lnd-goal-ring" aria-hidden="true">
+                <svg viewBox="0 0 100 100">
+                  <circle className="lnd-goal-ring-track" cx="50" cy="50" r="40" />
+                  <circle
+                    className="lnd-goal-ring-fill"
+                    cx="50"
+                    cy="50"
+                    r="40"
+                    strokeDasharray="251.33"
+                    strokeDashoffset="251.33"
+                    data-ring={m.pct}
+                    data-circ="251.33"
+                  />
+                </svg>
+                <b>{m.pct}%</b>
               </div>
               <div className="lnd-goal-meta">
                 <span>
@@ -102,7 +110,7 @@ const XP_MILESTONES = [
 
 export function Xp() {
   return (
-    <section className="lnd-section lnd-xp-section" id="xp">
+    <section className="lnd-section lnd-console lnd-xp-section" id="xp">
       <div className="lnd-bg-decor" aria-hidden="true">
         <div className="lnd-orb lnd-orb-2" />
         <div className="lnd-orb lnd-orb-1" />
@@ -197,7 +205,7 @@ export function Xp() {
 
 export function Rank() {
   return (
-    <section className="lnd-section" id="rank">
+    <section className="lnd-section lnd-console" id="rank">
       <div className="lnd-container">
         <div className="lnd-section-head lnd-center lnd-reveal">
           <span className="lnd-eyebrow">Rank</span>
@@ -738,7 +746,7 @@ const HIST_MINI = [
 
 export function Historico() {
   return (
-    <section className="lnd-section" id="historico">
+    <section className="lnd-section lnd-console" id="historico">
       <div className="lnd-bg-decor" aria-hidden="true">
         <div className="lnd-orb lnd-orb-3" />
       </div>

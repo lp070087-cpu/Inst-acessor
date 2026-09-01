@@ -134,6 +134,43 @@ export function LandingClient() {
     root.querySelectorAll<HTMLElement>(".lnd-reveal").forEach((el) => observer.observe(el));
 
     // ------------------------------------------------------------
+    // Linha de progresso do "Como Funciona" (fallback rAF)
+    // Navegadores sem `animation-timeline: view()` preenchem a linha
+    // conforme o scroll. Com suporte, o CSS cuida sozinho.
+    // ------------------------------------------------------------
+    let scrubCleanup: (() => void) | null = null;
+    const supportsScrollTimeline =
+      typeof CSS !== "undefined" &&
+      !!CSS.supports &&
+      CSS.supports("animation-timeline: view()");
+    if (!supportsScrollTimeline && !reduced) {
+      const scrubLine = root.querySelector<HTMLElement>(".lnd-scrub-line");
+      const scrubHost = root.querySelector<HTMLElement>(".lnd-steps");
+      if (scrubLine && scrubHost) {
+        scrubLine.style.transform = "scaleX(0)";
+        let scrubRaf = 0;
+        const onScrub = () => {
+          const r = scrubHost.getBoundingClientRect();
+          const vh = window.innerHeight;
+          const start = vh * 0.82;
+          const end = vh * 0.22;
+          const p = Math.min(1, Math.max(0, (vh - r.top - start) / (end - start)));
+          scrubLine.style.transform = `scaleX(${p})`;
+        };
+        const onScrubRaf = () => {
+          cancelAnimationFrame(scrubRaf);
+          scrubRaf = requestAnimationFrame(onScrub);
+        };
+        window.addEventListener("scroll", onScrubRaf, { passive: true });
+        onScrubRaf();
+        scrubCleanup = () => {
+          window.removeEventListener("scroll", onScrubRaf);
+          cancelAnimationFrame(scrubRaf);
+        };
+      }
+    }
+
+    // ------------------------------------------------------------
     // Nav
     // ------------------------------------------------------------
     const nav = root.querySelector<HTMLElement>(".lnd-nav");
@@ -472,6 +509,7 @@ export function LandingClient() {
 
     return () => {
       observer.disconnect();
+      scrubCleanup?.();
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("scroll", onParallaxRaf);
       cancelAnimationFrame(rafId);

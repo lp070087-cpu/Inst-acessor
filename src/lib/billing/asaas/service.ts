@@ -13,10 +13,14 @@ import type {
 } from "./types";
 
 /**
- * ASAAS — SERVIÇO DE NEGÓCIO (server-only)
- * =========================================
- * Fluxo real de checkout do Inst Acessor:
+ * ASAAS — SERVIÇO DE NEGÓCIO (LEGADO preservado, server-only)
+ * =============================================================
+ * O Asaas deixou de ser o gateway oficial em 2026-08-31 (InfinitePay assumiu
+ * via checkout por links públicos). Este serviço é MANTIDO apenas para
+ * preservar a arquitetura e o histórico (banco/registros/webhook intactos) —
+ * NÃO deve iniciar cobranças novas em produção.
  *
+ * REFERÊNCIA DO FLUXO LEGADO:
  *   1. Resolve o plano SEMPRE no servidor (`getPlanById`) — o client envia
  *      apenas `planId`; NUNCA preço/duração vindos do browser.
  *   2. Garante o customer Asaas (busca pelo `User.asaasCustomerId`; cria se
@@ -26,7 +30,8 @@ import type {
  *      pagamento aprovado) com os IDs externos e preço travado.
  *
  * NENHUMA chamada é feita quando `ASAAS_API_KEY` está ausente — os métodos
- * retornam `INTEGRATION_NOT_CONFIGURED` (fail-closed).
+ * retornam `INTEGRATION_NOT_CONFIGURED` (fail-closed). NENHUMA aprovação de
+ * pagamento é simulada.
  */
 
 export interface AsaasCheckoutData {

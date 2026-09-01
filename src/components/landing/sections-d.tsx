@@ -71,8 +71,8 @@ export function PreviewSocial() {
             ))}
           </div>
 
-          <div className="lnd-reveal" data-dir="right">
-            <div className="lnd-phone" aria-hidden="true">
+          <div className="lnd-preview-phones lnd-reveal" data-dir="right">
+            <div className="lnd-phone lnd-phone-a" aria-hidden="true">
               <div className="lnd-phone-screen">
                 <div className="lnd-phone-top">
                   <span className="lnd-av">V</span>
@@ -96,6 +96,33 @@ export function PreviewSocial() {
                   <span className="lnd-hl">#instagram</span>
                   <br />
                   <span style={{ color: "var(--lnd-ink-3)", fontSize: 11 }}>há 2 horas · ver tradução</span>
+                </div>
+              </div>
+            </div>
+            <div className="lnd-phone lnd-phone-b" aria-hidden="true">
+              <div className="lnd-phone-screen">
+                <div className="lnd-phone-top">
+                  <span className="lnd-av">V</span>
+                  <span>
+                    <span className="lnd-uname">sua.marca</span>
+                    <span className="lnd-usub">Patrocinado · 21h</span>
+                  </span>
+                </div>
+                <div className="lnd-phone-media">
+                  <Play size={42} />
+                  <span className="lnd-vtag">Carrossel · 5 slides</span>
+                </div>
+                <div className="lnd-phone-actions">
+                  <Heart size={19} />
+                  <MessageCircle size={19} />
+                  <Send size={19} />
+                  <Bookmark size={19} />
+                </div>
+                <div className="lnd-phone-caption">
+                  <b>sua.marca</b> Os bastidores do novo lookbook ✨{" "}
+                  <span className="lnd-hl">#moda</span> <span className="lnd-hl">#lookbook</span>
+                  <br />
+                  <span style={{ color: "var(--lnd-ink-3)", fontSize: 11 }}>há 5 horas · ver tradução</span>
                 </div>
               </div>
             </div>
@@ -128,17 +155,15 @@ export function CentralPublicacao() {
           </p>
         </div>
 
-        <div className="lnd-auto-grid">
+        <div className="lnd-pipeline">
           {PUBLISHING_ITEMS.map((p, i) => (
-            <div className="lnd-auto-card lnd-a-ready lnd-reveal" data-delay={String((i % 2) + 1)} key={p.t}>
+            <div className="lnd-pipe-step lnd-reveal" data-delay={String((i % 2) + 1)} key={p.t}>
               <span className="lnd-a-ic">
                 <p.ic />
               </span>
-              <h3>
-                {p.t}
-                <span className="lnd-status-pill lnd-ready">Disponível</span>
-              </h3>
+              <h3>{p.t}</h3>
               <p>{p.d}</p>
+              <span className="lnd-status-pill lnd-ready">Disponível</span>
             </div>
           ))}
         </div>
@@ -352,6 +377,7 @@ const PLANS = [
     desc: "Para começar a crescer com dados e testar a plataforma.",
     feats: ["Dashboard e Score", "Diagnóstico do perfil", "Gerador de copy (básico)", "Calendário inteligente", "Suporte por e-mail"],
     cta: "Assinar semanal",
+    href: "https://invoice.infinitepay.io/plans/lucas-66438449-2n4/QxyWJ8UOq6",
     featured: false,
   },
   {
@@ -361,15 +387,17 @@ const PLANS = [
     desc: "O plano completo para quem leva o crescimento a sério.",
     feats: ["Tudo do plano Semanal", "IA Acessor completa", "Central de ideias e mentoria", "Central de publicação", "Automações e rank", "Suporte prioritário"],
     cta: "Assinar mensal",
+    href: "https://invoice.infinitepay.io/plans/lucas-66438449-2n4/gC8t6WTiVQ",
     featured: true,
   },
   {
     name: "Anual",
-    price: 497,
+    price: 547,
     period: "por ano",
     desc: "O melhor custo-benefício para manter a estratégia por 12 meses.",
     feats: ["Tudo do plano Mensal", "2 meses grátis", "Análise de desempenho avançada", "Onboarding acompanhado", "Prioridade em novos recursos"],
     cta: "Assinar anual",
+    href: "https://invoice.infinitepay.io/plans/lucas-66438449-2n4/5LZNvhvbLY",
     featured: false,
   },
 ];
@@ -390,7 +418,7 @@ export function Planos() {
 
         <div className="lnd-plans-grid">
           {PLANS.map((p, i) => (
-            <div className={`lnd-plan-card${p.featured ? " lnd-featured" : ""} lnd-reveal`} data-delay={String(i + 1)} key={p.name}>
+            <div className={`lnd-plan-card${p.featured ? " lnd-featured lnd-glowbox" : ""} lnd-reveal`} data-delay={String(i + 1)} key={p.name}>
               {p.featured && <span className="lnd-plan-badge">Mais escolhido</span>}
               <span className="lnd-plan-name">{p.name}</span>
               <div className="lnd-plan-price">
@@ -408,7 +436,7 @@ export function Planos() {
                   </li>
                 ))}
               </ul>
-              <a className={`lnd-btn lnd-btn-block ${p.featured ? "lnd-btn-primary" : "lnd-btn-ghost"} lnd-plan-cta`} href="/cadastro">
+              <a className={`lnd-btn lnd-btn-block ${p.featured ? "lnd-btn-primary" : "lnd-btn-ghost"} lnd-plan-cta`} href={p.href} target="_blank" rel="noopener noreferrer">
                 {p.cta}
                 <ArrowRight />
               </a>
@@ -462,7 +490,10 @@ export function Faq() {
           {FAQ_ITEMS.map((f, i) => (
             <div className="lnd-faq-item lnd-reveal" data-delay={String((i % 3) + 1)} key={f.q}>
               <button className="lnd-faq-q" type="button">
-                {f.q}
+                <span className="lnd-faq-num" aria-hidden="true">
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <span className="lnd-faq-txt">{f.q}</span>
                 <ChevronDown className="lnd-faq-chev" size={20} />
               </button>
               <div className="lnd-faq-a">

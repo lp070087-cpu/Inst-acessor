@@ -104,11 +104,11 @@ function catalogSection() {
     );
   });
 
-  test("preços oficiais em centavos: semanal 2700, mensal 7700, anual 49700", () => {
+  test("preços oficiais em centavos: semanal 2700, mensal 7700, anual 54700", () => {
     const bySlug = new Map(PLAN_CATALOG.map((p) => [p.slug, p]));
     assert.strictEqual(bySlug.get("semanal")?.priceCents, 2700);
     assert.strictEqual(bySlug.get("mensal")?.priceCents, 7700);
-    assert.strictEqual(bySlug.get("anual")?.priceCents, 49700);
+    assert.strictEqual(bySlug.get("anual")?.priceCents, 54700);
     for (const p of PLAN_CATALOG) {
       assert.ok(Number.isInteger(p.priceCents), `${p.slug} preço deve ser inteiro em centavos`);
       assert.strictEqual(p.currency, "BRL");
@@ -297,7 +297,7 @@ function webhookSection() {
     for (const event of ASAAS_SUBSCRIPTION_EVENTS) {
       const parsed = parseAsaasWebhook({
         event,
-        subscription: { id: "sub_x", customer: "cus_1", value: 497 },
+        subscription: { id: "sub_x", customer: "cus_1", value: 547 },
       });
       assert.ok(parsed, `deve aceitar ${event}`);
       assert.strictEqual(parsed!.eventId, `${event}:sub_x`);

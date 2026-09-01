@@ -2,9 +2,14 @@ import { getBillingAdapter } from "@/lib/billing/provider";
 import { getPlanById } from "@/lib/billing/plans";
 
 /**
- * CHECKOUT — Fase atual (Asaas real)
- * ===================================
- * Fluxo "Escolher plano".
+ * CHECKOUT — LEGADO (Asaas preservado; InfinitePay é o oficial)
+ * ==============================================================
+ * Fluxo antigo "Escolher plano" via `/api/billing/checkout`.
+ * Desde 2026-08-31 o checkout oficial é o InfinitePay (links públicos por
+ * plano, conectados diretamente nos cards/CTAs — `plan.checkoutUrl`).
+ * Este fluxo é mantido apenas como FALLBACK legado (caso um plano não tenha
+ * `checkoutUrl`), preservando a arquitetura Asaas. NENHUMA cobrança nova
+ * deve depender dele em produção.
  *
  * - O preço/duração/ciclo são SEMPRE resolvidos no servidor (`getPlanById`).
  * - O client envia apenas `planId`; nunca valor vindo do browser.

@@ -8,11 +8,14 @@ import { getAsaasConfig, isAsaasConfigured } from "@/lib/billing/asaas/config";
 import { startAsaasCheckout, cancelAsaasSubscription } from "@/lib/billing/asaas/service";
 
 /**
- * ASAAS BILLING ADAPTER — integração real (Fase atual)
- * =====================================================
- * Adapter do gateway oficial de pagamento do Inst Acessor.
+ * ASAAS BILLING ADAPTER — LEGADO (descontinuado, preservado)
+ * ==========================================================
+ * O Asaas deixou de ser o gateway oficial em 2026-08-31 (o InfinitePay
+ * assumiu, via checkout por links públicos). Este adapter é MANTIDO para
+ * preservar a arquitetura e o histórico (banco/registros/webhook intactos),
+ * mas NÃO deve iniciar cobranças novas.
  *
- * DECISÃO OFICIAL (docs/ESCOPO-OFICIAL.md §12):
+ * REFERÊNCIA DA ARQUITETURA LEGADA (docs/ESCOPO-OFICIAL.md §12):
  * - Sandbox: https://api-sandbox.asaas.com/v3
  * - Produção: https://api.asaas.com/v3
  * - Autenticação: header `access_token` (apenas server-side).
@@ -20,7 +23,7 @@ import { startAsaasCheckout, cancelAsaasSubscription } from "@/lib/billing/asaas
  *
  * Quando `ASAAS_API_KEY` está ausente, todos os métodos retornam
  * `INTEGRATION_NOT_CONFIGURED` (fail-closed) — nenhuma chamada HTTP é feita
- * e nenhuma URL fake é gerada.
+ * e nenhuma URL fake é gerada. NENHUMA aprovação de pagamento é simulada.
  */
 
 const NOT_CONFIGURED = {

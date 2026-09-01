@@ -377,14 +377,16 @@ Estrutura oficial de planos — **NÃO existe plano Combo**. Todos os planos lib
 | --- | --- | --- | --- | --- |
 | Semanal | R$ 27,00 (2700) | ONE_TIME | — (7 dias) | — |
 | Mensal | R$ 77,00 (7700) | RECURRING | MONTH | MAIS ESCOLHIDO |
-| Anual | R$ 497,00 (49700) | RECURRING | YEAR | MELHOR CUSTO-BENEFÍCIO |
+| Anual | R$ 547,00 (54700) | RECURRING | YEAR | MELHOR CUSTO-BENEFÍCIO |
+
+> **Atualização comercial (2026-08-31):** o preço anual oficial passou de **R$ 497,00 → R$ 547,00**. O valor antigo NÃO é mais válido. Nomes oficiais: "Inst acessor Semanal", "Inst acessor mensal", "Inst acessor Anual". Checkout oficial: **InfinitePay** (links públicos por plano — ver `src/lib/billing/plans/catalog.ts` → `checkoutUrl`). O Asaas permanece apenas como código legado preservado.
 
 Anual (matemática oficial):
 
-- equivalente aproximado: R$ 41,42/mês;
+- equivalente aproximado: R$ 45,58/mês;
 - 12 mensalidades: R$ 924;
-- plano anual: R$ 497;
-- economia: R$ 427.
+- plano anual: R$ 547;
+- economia: R$ 377.
 
 Regras:
 

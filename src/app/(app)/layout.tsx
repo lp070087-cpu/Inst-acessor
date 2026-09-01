@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireSession } from "@/lib/auth/guard";
+import { isOfficialAdminEmail } from "@/lib/auth/admin-access";
 import { getActiveAccessForUser } from "@/lib/first-access";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { ToastProvider } from "@/components/ui/toast";
@@ -16,12 +17,19 @@ export default async function AppLayout({
   // Estado do usuário no banco (fase "Primeiro Acesso").
   const user = (await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { id: true, firstAccessCompleted: true, passwordHash: true },
+    select: { id: true, email: true, firstAccessCompleted: true, passwordHash: true },
   } as unknown as never)) as unknown as {
     id: string;
+    email: string | null;
     firstAccessCompleted: boolean;
     passwordHash: string | null;
   } | null;
+
+  // Autorização do ADMIN é decidida NO SERVIDOR (nunca no client), pela mesma
+  // regra oficial (`isOfficialAdminEmail`) usando o e-mail do BANCO (fonte da
+  // verdade — idêntico ao `requireAdminSession`). Apenas o e-mail canônico
+  // normalizado recebe o item "Admin" no menu. Clientes comuns nunca veem.
+  const isAdmin = isOfficialAdminEmail(user?.email ?? null);
 
   // Expiração/estado do acesso (PENDING_FIRST_ACCESS / ACTIVE / EXPIRED / CANCELED).
   const access = await getActiveAccessForUser(session.user.id);
@@ -58,7 +66,7 @@ export default async function AppLayout({
   return (
     <ToastProvider>
       <div className="min-h-screen bg-bg">
-        <AppSidebar user={session.user} />
+        <AppSidebar user={session.user} isAdmin={isAdmin} />
         <main className="lg:pl-72 min-h-screen flex flex-col">
           <div className="flex-1 px-5 sm:px-8 lg:px-10 py-8 max-w-[1400px] mx-auto w-full">
             {children}

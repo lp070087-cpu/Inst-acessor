@@ -255,8 +255,15 @@ export function Hero() {
             <span className="lnd-pulse" aria-hidden="true" />
             Plataforma inteligente de análise e crescimento para Instagram
           </div>
-          <h1 className="lnd-reveal" data-delay="1">
-            Transforme dados do Instagram em <span className="lnd-grad">decisões de crescimento.</span>
+          <h1 className="lnd-hero-title lnd-reveal" data-delay="1">
+            <span className="lnd-line">
+              <span className="lnd-line-inner">Transforme dados do Instagram em</span>
+            </span>
+            <span className="lnd-line">
+              <span className="lnd-line-inner">
+                <span className="lnd-grad">decisões de crescimento.</span>
+              </span>
+            </span>
           </h1>
           <p className="lnd-hero-sub lnd-reveal" data-delay="2">
             O Inst Acessor analisa seu perfil, acompanha sua evolução e transforma métricas em
@@ -347,14 +354,14 @@ export function Problema() {
           </p>
         </div>
 
-        <div className="lnd-problem-list">
-          {PROBLEMAS.map((p, i) => (
-            <div className="lnd-problem-card lnd-reveal" data-delay={String((i % 3) + 1)} key={p.t}>
-              <span className="lnd-ic">
-                <p.ic />
+        <div className="lnd-problem-editorial">
+          {PROBLEMAS.map((p) => (
+            <div className="lnd-problem-row lnd-reveal" key={p.t}>
+              <span className="lnd-px" aria-hidden="true">
+                ✕
               </span>
-              <h3>{p.t}</h3>
-              <p>{p.d}</p>
+              <b>{p.t}</b>
+              <span>{p.d}</span>
             </div>
           ))}
         </div>
@@ -416,10 +423,10 @@ export function Solucao() {
             próximos passos e te acompanha até a execução.
           </p>
         </div>
-        <div className="lnd-solucao-grid">
+        <div className="lnd-bento-grid">
           {SOLUCAO_ITEMS.map((s, i) => (
-            <div className="lnd-problem-card lnd-reveal" data-delay={String((i % 2) + 1)} key={s.t}>
-              <span className="lnd-ic" style={{ color: "var(--lnd-purple)", background: "var(--lnd-ai-soft)" }}>
+            <div className={`lnd-bento-card lnd-bento-${i + 1} lnd-reveal`} data-dir={i === 0 ? "scale" : "left"} data-delay={String(i + 1)} key={s.t}>
+              <span className="lnd-ic">
                 <s.ic />
               </span>
               <h3>{s.t}</h3>
@@ -450,6 +457,7 @@ export function ComoFunciona() {
           </h2>
         </div>
         <div className="lnd-steps">
+          <span className="lnd-scrub-line" aria-hidden="true" />
           {STEPS.map((s, i) => (
             <div className="lnd-step lnd-reveal" data-delay={String(i + 1)} key={s.n}>
               <span className="lnd-step-num">{s.n}</span>
@@ -562,7 +570,7 @@ const COMPARE: { title: string; rows: CompareRow[] }[] = [
 
 export function Dashboard() {
   return (
-    <section className="lnd-section" id="dashboard">
+    <section className="lnd-section lnd-console" id="dashboard">
       <span id="funcionalidades" className="lnd-anchor" aria-hidden="true" />
       <div className="lnd-container">
         <div className="lnd-section-head lnd-reveal">

@@ -556,7 +556,7 @@ model Plan {
   id              String   @id @default(cuid())
   slug            String   @unique // "semanal" | "mensal" | "anual"
   name            String // "Semanal" | "Mensal" | "Anual"
-  priceCents      Int // SEMPRE centavos inteiros (2700 | 7700 | 49700). NUNCA Float.
+  priceCents      Int // SEMPRE centavos inteiros (2700 | 7700 | 54700). NUNCA Float.
   currency        String   @default("BRL")
   type            String   @default("ONE_TIME") // "ONE_TIME" | "RECURRING"
   billingInterval String? // null (avulso) | "MONTH" | "YEAR"

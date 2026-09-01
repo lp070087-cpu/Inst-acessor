@@ -32,7 +32,7 @@ const SCORE_PILLARS = [
 
 export function Score() {
   return (
-    <section className="lnd-section" id="score">
+    <section className="lnd-section lnd-console" id="score">
       <div className="lnd-container">
         <div className="lnd-section-head lnd-center lnd-reveal">
           <span className="lnd-eyebrow">Score de crescimento</span>
@@ -207,17 +207,15 @@ export function Diagnostico() {
           </p>
         </div>
 
-        <div className="lnd-diag-grid">
-          {DIAG.map((d, i) => (
-            <div className={`lnd-diag-card lnd-diag-${d.st} lnd-reveal`} data-delay={String((i % 4) + 1)} key={d.lbl}>
-              <div className="lnd-diag-head">
-                <span>{d.lbl}</span>
-                <b>{d.cap}</b>
-              </div>
-              <div className="lnd-diag-track">
+        <div className="lnd-diag-list">
+          {DIAG.map((d) => (
+            <div className={`lnd-diag-row lnd-diag-${d.st} lnd-reveal`} key={d.lbl}>
+              <span className="lnd-diag-lbl">{d.lbl}</span>
+              <span className="lnd-diag-track">
                 <i data-w={d.w} style={{ width: 0 }} />
-              </div>
+              </span>
               <small>{d.w}/100</small>
+              <span className="lnd-diag-cap">{d.cap}</span>
             </div>
           ))}
         </div>
@@ -382,17 +380,18 @@ export function Nichos() {
           </p>
         </div>
 
-        <div className="lnd-niche-grid">
+        <div className="lnd-niche-table">
+          <div className="lnd-niche-th" aria-hidden="true">
+            <span>Dimensão</span>
+            <span>Referência do nicho</span>
+          </div>
           {NICHOS.map((n, i) => (
-            <div className="lnd-niche-card lnd-reveal" data-delay={String((i % 4) + 1)} key={n.lbl}>
-              <div className="lnd-niche-head">
-                <span>{n.lbl}</span>
+            <div className="lnd-niche-tr lnd-reveal" data-delay={String((i % 2) + 1)} key={n.lbl}>
+              <span className="lnd-niche-key">
                 {n.hot ? <b className="lnd-niche-hot">Top</b> : null}
-              </div>
-              <div className="lnd-niche-val">
-                <b>{n.val}</b>
-              </div>
-              {n.hot ? <span className="lnd-niche-tags">alta relevância</span> : null}
+                {n.lbl}
+              </span>
+              <span className="lnd-niche-val">{n.val}</span>
             </div>
           ))}
         </div>
@@ -488,9 +487,9 @@ export function Ideias() {
           </p>
         </div>
 
-        <div className="lnd-ideas-grid">
+        <div className="lnd-ideas-editorial">
           {IDEIAS.map((id, i) => (
-            <div className="lnd-idea-card lnd-reveal" data-delay={String((i % 3) + 1)} key={id.t}>
+            <div className={`lnd-idea-row${i === 4 ? " lnd-featured-idea" : ""} lnd-reveal`} data-delay={String((i % 2) + 1)} key={id.t}>
               <span className="lnd-idea-ic">
                 <id.ic />
               </span>
@@ -608,24 +607,26 @@ export function Mentoria() {
           </p>
         </div>
 
-        <div className="lnd-mentor-grid">
+        <div className="lnd-mentor-track">
           {MENTORIAS.map((m, i) => (
-            <div className="lnd-mentor-card lnd-reveal" data-delay={String((i % 3) + 1)} key={m.cat}>
-              <div className="lnd-m-cat">
-                <span className="lnd-ic">
-                  <Target size={19} />
-                </span>
-                <b>{m.cat}</b>
+            <div className={`lnd-mentor-row${i % 2 === 0 ? " lnd-wide" : " lnd-narrow"} lnd-reveal`} data-delay={String(i + 1)} key={m.cat}>
+              <span className="lnd-m-dot" aria-hidden="true" />
+              <div className="lnd-m-card">
+                <div className="lnd-m-top">
+                  <span className="lnd-m-cat">
+                    <b>{m.cat}</b>
+                  </span>
+                  <span className={`lnd-m-pri lnd-${m.pri}`}>
+                    {m.pri === "high" ? "Prioridade alta" : m.pri === "med" ? "Prioridade média" : "Prioridade baixa"}
+                  </span>
+                </div>
+                <div className="lnd-m-problem">{m.prob}</div>
+                <p className="lnd-m-expl">{m.expl}</p>
+                <div className="lnd-m-action">
+                  <b>→ </b>
+                  {m.action}
+                </div>
               </div>
-              <div className="lnd-m-problem">{m.prob}</div>
-              <p className="lnd-m-expl">{m.expl}</p>
-              <div className="lnd-m-action">
-                <b>→ </b>
-                {m.action}
-              </div>
-              <span className={`lnd-m-pri lnd-${m.pri}`}>
-                {m.pri === "high" ? "Prioridade alta" : m.pri === "med" ? "Prioridade média" : "Prioridade baixa"}
-              </span>
             </div>
           ))}
         </div>

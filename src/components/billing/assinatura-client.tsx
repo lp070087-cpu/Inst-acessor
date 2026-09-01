@@ -33,8 +33,8 @@ const CHECKOUT_EMAIL_WARNING =
   "Use um e-mail que você tenha acesso. Este mesmo e-mail será utilizado para liberar seu acesso ao Inst Acessor.";
 
 /**
- * MINHA ASSINATURA — Fase atual (Asaas real)
- * ============================================
+ * MINHA ASSINATURA — InfinitePay (checkout externo) + Asaas legado
+ * =================================================================
  * Página funcional de planos e assinatura com os estados REAIS:
  *
  * Duas áreas na ordem oficial:
@@ -42,17 +42,20 @@ const CHECKOUT_EMAIL_WARNING =
  *    Sem assinatura → "Você ainda não tem uma assinatura" (EmptyState).
  * 2) PLANOS DISPONÍVEIS — cards gerados a partir dos planos REAIS vindos do
  *    servidor (`listPlans`/`/api/billing/plans`). Nunca inventa preço no
- *    frontend. CTA chama o fluxo real `/api/billing/checkout`.
+ *    frontend. Cada CTA abre o checkout InfinitePay correspondente
+ *    (`plan.checkoutUrl` — link público oficial, em nova aba). Nunca mistura
+ *    links entre planos. Sem `checkoutUrl` → fallback legado do fluxo
+ *    `/api/billing/checkout` (Asaas).
  *
  * Estados reais:
- * - Aguardando pagamento (PENDING) → cobrança criada no Asaas, aguardando
+ * - Aguardando pagamento (PENDING) → cobrança criada no gateway, aguardando
  *   confirmação. NUNCA mostra "pagamento aprovado" sem confirmação real.
- * - Ativa (ACTIVE) → acesso liberado (webhook confirmou o pagamento).
+ * - Ativa (ACTIVE) → acesso liberado (confirmação do pagamento processada).
  * - Vencida/Expirada (EXPIRED), Cancelada (CANCELED), Pagamento atrasado
  *   (PAST_DUE) — cada uma com mensagem própria.
  *
- * Sem `ASAAS_API_KEY` → estado controlado "Pagamento online em configuração."
- * (nenhuma URL fake). Com gateway → URL real de checkout/PIX quando existir.
+ * Asaas permanece como código LEGADO preservado (não deletado): banco,
+ * registros e webhook intactos. NENHUMA aprovação de pagamento é simulada.
  * - Cancelar renovação futura (owner-check, sem cancelamento externo falso).
  * - Responsivo (desktop/notebook/tablet/mobile).
  */
@@ -71,6 +74,8 @@ interface PlanView {
   badge: string | null;
   active: boolean;
   sortOrder: number;
+  /** Link público do checkout InfinitePay (vindo do catálogo no servidor). */
+  checkoutUrl?: string | null;
 }
 
 interface SubscriptionView {
@@ -303,9 +308,16 @@ export function AssinaturaClient({
   }
 
   const scrollToPlans = () => {
-    document
-      .getElementById("planos-disponiveis")
-      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const el = document.getElementById("planos-disponiveis");
+    if (!el) return;
+    // Respeita prefers-reduced-motion: sem animação de scroll suave.
+    const reduced =
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollIntoView({
+      behavior: reduced ? "auto" : "smooth",
+      block: "start",
+    });
   };
 
   return (
@@ -413,16 +425,10 @@ export function AssinaturaClient({
 
             <p className="text-[11.5px] text-ink-muted flex flex-wrap items-center gap-x-1.5">
               <span>
-                Pagamento online via Asaas{" "}
-                {billingConfigured
-                  ? `(ambiente ${billingLabel ?? "sandbox"})`
-                  : "em configuração — nenhuma cobrança é feita até a integração ser ativada."}
+                Pagamento online via InfinitePay (checkout oficial). A liberação
+                do acesso depende da confirmação real do pagamento — nunca é
+                simulada.
               </span>
-              {billingConfigured && (
-                <span>
-                  · O acesso é liberado somente após a confirmação do pagamento.
-                </span>
-              )}
             </p>
           </div>
         )}
@@ -481,8 +487,8 @@ export function AssinaturaClient({
                   </div>
                   {plan.slug === "anual" && (
                     <p className="text-[11.5px] text-ink-soft">
-                      ≈ {formatBRL(49700 / 12)}/mês · 12× {formatBRL(7700 * 12)} · economia{" "}
-                      {formatBRL(7700 * 12 - 49700)}
+                      ≈ {formatBRL(54700 / 12)}/mês · 12× {formatBRL(7700 * 12)} · economia{" "}
+                      {formatBRL(7700 * 12 - 54700)}
                     </p>
                   )}
                   {plan.description && (
@@ -503,21 +509,45 @@ export function AssinaturaClient({
                   </li>
                 </ul>
 
-                <Button
-                  variant={isFeatured ? "primary" : "outline"}
-                  size="sm"
-                  block
-                  disabled={checkingPlan !== null || isCurrent}
-                  onClick={() => choosePlan(plan)}
-                  className={cn(!isFeatured && isBest && "border-purple/40 text-purple hover:bg-ai-soft")}
-                >
-                  {checkingPlan === plan.id ? (
-                    <Loader2 size={15} className="animate-spin" />
-                  ) : (
+                {plan.checkoutUrl ? (
+                  // Checkout oficial InfinitePay — link público do plano (nunca
+                  // mistura links entre planos). Abre em nova aba.
+                  <a
+                    href={plan.checkoutUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-disabled={isCurrent}
+                    className={cn(
+                      "inline-flex items-center justify-center gap-2 font-semibold whitespace-nowrap select-none transition-all duration-300 rounded-pill w-full",
+                      "px-4 py-2.5 text-[14px]",
+                      isFeatured
+                        ? "bg-[linear-gradient(115deg,#F43F8E_0%,#A855F7_45%,#6366F1_100%)] bg-[length:160%_160%] text-white shadow-brand hover:shadow-brand-lg hover:-translate-y-0.5 hover:bg-[position:100%_100%]"
+                        : "bg-transparent text-ink border border-border hover:border-purple/40 hover:text-purple",
+                      !isFeatured && isBest && "border-purple/40 text-purple hover:bg-ai-soft",
+                      isCurrent && "opacity-50 pointer-events-none"
+                    )}
+                  >
                     <Wallet size={15} />
-                  )}
-                  {isCurrent ? "Plano atual" : "Escolher plano"}
-                </Button>
+                    {isCurrent ? "Plano atual" : "Assinar agora"}
+                  </a>
+                ) : (
+                  // Fallback legado: fluxo /api/billing/checkout (Asaas).
+                  <Button
+                    variant={isFeatured ? "primary" : "outline"}
+                    size="sm"
+                    block
+                    disabled={checkingPlan !== null || isCurrent}
+                    onClick={() => choosePlan(plan)}
+                    className={cn(!isFeatured && isBest && "border-purple/40 text-purple hover:bg-ai-soft")}
+                  >
+                    {checkingPlan === plan.id ? (
+                      <Loader2 size={15} className="animate-spin" />
+                    ) : (
+                      <Wallet size={15} />
+                    )}
+                    {isCurrent ? "Plano atual" : "Escolher plano"}
+                  </Button>
+                )}
               </div>
             );
           })}
