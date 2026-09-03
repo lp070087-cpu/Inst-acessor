@@ -1,6 +1,6 @@
 import { ai } from "@/lib/ai/db";
 import type { AIConversationWithMessages } from "@/lib/ai/db";
-import { getAIProvider } from "@/lib/ai";
+import { getAIProvider, AIConfiguredError } from "@/lib/ai";
 import { buildKnowledgeContext, knowledgeContextToPrompt } from "@/lib/knowledge/context-builder";
 import { buildGrowthContext, growthContextToPrompt } from "@/lib/growth-engine";
 
@@ -10,12 +10,6 @@ import { buildGrowthContext, growthContextToPrompt } from "@/lib/growth-engine";
  * - Usa o provider ativo (OpenAI/Gemini) ou lança erro controlado.
  * - Monta contexto real do usuário (perfil + métricas disponíveis).
  */
-
-export class AIConfiguredError extends Error {
-  constructor() {
-    super("IA_NAO_CONFIGURADA");
-  }
-}
 
 export interface ChatResult {
   conversation: AIConversationWithMessages;

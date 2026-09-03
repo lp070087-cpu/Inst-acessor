@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import "./landing.css";
 
 import { LandingClient } from "@/components/landing/landing-client";
+import { HorizontalScroll } from "@/components/landing/horizontal-scroll";
 import {
   Nav,
   Hero,
@@ -71,6 +72,7 @@ export default function HomePage() {
   return (
     <main className="lnd-root">
       <LandingClient />
+      <HorizontalScroll />
 
       {/* Background spotlight sutil que segue o cursor */}
       <div className="lnd-spotlight" aria-hidden="true" />
@@ -105,41 +107,50 @@ export default function HomePage() {
       {/* Print 06 — Rank */}
       <Rank />
 
-      {/* Print 07 — Badges */}
-      <Badges />
+      {/* ————— Storytelling horizontal (GSAP) —————
+          Sequência pinada: Badges (“Cinco níveis...”) → Metas
+          (“Objetivos claros...”). Encaixe das 15 seções na ordem atual,
+          sem remover/reordenar conteúdo. Mobile e reduced-motion seguem
+          verticais (fallback) — controlado pelo HorizontalScroll. */}
+      <div className="lnd-h-pin">
+        <div className="lnd-h-track">
+          {/* Print 07 — Badges */}
+          <Badges />
 
-      {/* Print 08 — Análise de Conteúdo */}
-      <AnaliseConteudos />
+          {/* Print 08 — Análise de Conteúdo */}
+          <AnaliseConteudos />
 
-      {/* Print 09 — Preview Social */}
-      <PreviewSocial />
+          {/* Print 09 — Preview Social */}
+          <PreviewSocial />
 
-      {/* Print 10 — Redes Sociais */}
-      <RedesSociais />
+          {/* Print 10 — Redes Sociais */}
+          <RedesSociais />
 
-      {/* ————— Restante das seções (preservadas, ordem comercial) ————— */}
+          {/* ————— Restante das seções (preservadas, ordem comercial) ————— */}
 
-      <Problema />
+          <Problema />
 
-      <Solucao />
+          <Solucao />
 
-      <ComoFunciona />
+          <ComoFunciona />
 
-      <Score />
+          <Score />
 
-      <IaAcessor />
+          <IaAcessor />
 
-      <Alertas />
+          <Alertas />
 
-      <Estrategia />
+          <Estrategia />
 
-      <Nichos />
+          <Nichos />
 
-      <Calendario />
+          <Calendario />
 
-      <Ideias />
+          <Ideias />
 
-      <Metas />
+          <Metas />
+        </div>
+      </div>
 
       <Conquistas />
 

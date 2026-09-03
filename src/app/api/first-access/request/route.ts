@@ -8,6 +8,7 @@ import {
 import { sendFirstAccessEmail } from "@/lib/email";
 import { createRateLimiter, clientIp } from "@/lib/publishing/rate-limit";
 import { FIRST_ACCESS_TOKEN_TTL_MINUTES } from "@/lib/first-access/core";
+import { getAppBaseUrl } from "@/lib/config/site";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -52,8 +53,7 @@ export async function POST(request: Request) {
     const isDev = process.env.NODE_ENV !== "production";
 
     // Monta a URL de ativação (o token vai na query — por HTTPS em produção).
-    const baseUrl =
-      process.env.AUTH_URL?.replace(/\/$/, "") ?? "http://localhost:3000";
+    const baseUrl = getAppBaseUrl();
     const activationUrl = `${baseUrl}/primeiro-acesso?token=${encodeURIComponent(
       result.rawToken
     )}`;

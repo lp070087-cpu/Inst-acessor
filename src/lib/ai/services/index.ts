@@ -1,12 +1,21 @@
 /**
  * Barrel da camada de serviços da Fase 4.
  * Exports explícitos para evitar colisões de nomes entre módulos
- * (ex.: AIConfiguredError existe em chat e copy; Platform em score e diagnosis).
+ * (ex.: Platform em score e diagnosis).
+ *
+ * O erro de "IA não configurada" é uma classe ÚNICA (`AIConfiguredError`)
+ * exportada por `@/lib/ai`; mantemos os aliases AIConfiguredError* apenas
+ * para compatibilidade com as rotas existentes.
  */
+
+import { AIConfiguredError } from "@/lib/ai";
+
+export { AIConfiguredError as AIConfiguredErrorChat };
+export { AIConfiguredError as AIConfiguredErrorCopy };
+export { AIConfiguredError as AIConfiguredErrorIdeas };
 
 // Chat
 export {
-  AIConfiguredError as AIConfiguredErrorChat,
   sendChatMessage,
   listConversations,
   getConversation,
@@ -16,7 +25,6 @@ export {
 
 // Copy
 export {
-  AIConfiguredError as AIConfiguredErrorCopy,
   generateCopy,
   listCopies,
   saveCopy,
@@ -27,7 +35,6 @@ export {
 
 // Ideias
 export {
-  AIConfiguredError as AIConfiguredErrorIdeas,
   generateIdeas,
   listIdeas,
   saveIdea,

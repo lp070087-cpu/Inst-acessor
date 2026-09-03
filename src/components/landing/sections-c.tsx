@@ -32,6 +32,7 @@ import {
   Clock,
   CircleCheck,
 } from "lucide-react";
+import { LogoMark } from "./sections-a";
 
 /* ============================================================
    Bloco C — Metas, XP, Rank, Conquistas, Badges,
@@ -667,7 +668,7 @@ export function Perfil() {
 
 function HistSvg({ id, area, line, dot }: { id: string; area: string; line: string; dot?: [number, number] }) {
   return (
-    <svg className="lnd-hist-svg" viewBox="0 0 640 260" role="img" aria-label="Gráfico de evolução">
+    <svg className="lnd-hist-svg" viewBox="0 0 640 384" role="img" aria-label="Gráfico de evolução">
       <defs>
         <linearGradient id={`lndHistLine${id}`} x1="0" y1="0" x2="1" y2="0">
           <stop offset="0%" stopColor="#F43F8E" />
@@ -679,19 +680,19 @@ function HistSvg({ id, area, line, dot }: { id: string; area: string; line: stri
           <stop offset="100%" stopColor="#A855F7" stopOpacity="0" />
         </linearGradient>
       </defs>
-      {[0, 1, 2, 3].map((i) => (
-        <line key={i} className="lnd-grid-line" x1="0" y1={40 + i * 55} x2="640" y2={40 + i * 55} />
+      {[59, 140, 222, 303].map((y) => (
+        <line key={y} className="lnd-grid-line" x1="0" y1={y} x2="640" y2={y} />
       ))}
-      <text className="lnd-axis-txt" x="8" y="34">
+      <text className="lnd-axis-txt" x="8" y="50">
         13k
       </text>
-      <text className="lnd-axis-txt" x="8" y="89">
+      <text className="lnd-axis-txt" x="8" y="131">
         12,5k
       </text>
-      <text className="lnd-axis-txt" x="8" y="144">
+      <text className="lnd-axis-txt" x="8" y="213">
         12k
       </text>
-      <text className="lnd-axis-txt" x="8" y="199">
+      <text className="lnd-axis-txt" x="8" y="294">
         11,5k
       </text>
       <path className="lnd-area" d={area} fill={`url(#lndHistArea${id})`} />
@@ -705,34 +706,34 @@ const HIST_PANELS: { id: string; label: string; area: string; line: string; dot?
   {
     id: "hist-7d",
     label: "7 dias",
-    area: "M0,180 C50,172 90,178 140,160 C190,142 240,150 290,128 C340,106 390,118 440,92 C490,66 550,74 640,40 L640,260 L0,260 Z",
-    line: "M0,180 C50,172 90,178 140,160 C190,142 240,150 290,128 C340,106 390,118 440,92 C490,66 550,74 640,40",
-    dot: [440, 92],
+    area: "M0,266 C50,254 90,263 140,236 C190,210 240,222 290,189 C340,157 390,174 440,136 C490,97 550,109 640,59 L640,384 L0,384 Z",
+    line: "M0,266 C50,254 90,263 140,236 C190,210 240,222 290,189 C340,157 390,174 440,136 C490,97 550,109 640,59",
+    dot: [440, 136],
   },
   {
     id: "hist-30d",
     label: "30 dias",
-    area: "M0,200 C60,192 120,198 180,178 C240,158 300,166 360,140 C420,116 480,128 560,96 L640,70 L640,260 L0,260 Z",
-    line: "M0,200 C60,192 120,198 180,178 C240,158 300,166 360,140 C420,116 480,128 560,96 L640,70",
-    dot: [560, 96],
+    area: "M0,295 C60,284 120,292 180,263 C240,233 300,245 360,207 C420,171 480,189 560,142 L640,103 L640,384 L0,384 Z",
+    line: "M0,295 C60,284 120,292 180,263 C240,233 300,245 360,207 C420,171 480,189 560,142 L640,103",
+    dot: [560, 142],
   },
   {
     id: "hist-90d",
     label: "90 dias",
-    area: "M0,220 C80,210 140,214 220,186 C300,158 380,168 460,132 C540,100 600,90 640,76 L640,260 L0,260 Z",
-    line: "M0,220 C80,210 140,214 220,186 C300,158 380,168 460,132 C540,100 600,90 640,76",
+    area: "M0,325 C80,310 140,316 220,275 C300,233 380,248 460,195 C540,148 600,133 640,112 L640,384 L0,384 Z",
+    line: "M0,325 C80,310 140,316 220,275 C300,233 380,248 460,195 C540,148 600,133 640,112",
   },
   {
     id: "hist-6m",
     label: "6 meses",
-    area: "M0,240 C100,228 160,230 240,204 C320,178 420,186 520,146 C580,122 620,108 640,96 L640,260 L0,260 Z",
-    line: "M0,240 C100,228 160,230 240,204 C320,178 420,186 520,146 C580,122 620,108 640,96",
+    area: "M0,354 C100,337 160,340 240,301 C320,263 420,275 520,216 C580,180 620,160 640,142 L640,384 L0,384 Z",
+    line: "M0,354 C100,337 160,340 240,301 C320,263 420,275 520,216 C580,180 620,160 640,142",
   },
   {
     id: "hist-1a",
     label: "1 ano",
-    area: "M0,250 C120,238 200,244 300,212 C400,180 520,192 640,140 L640,260 L0,260 Z",
-    line: "M0,250 C120,238 200,244 300,212 C400,180 520,192 640,140",
+    area: "M0,369 C120,352 200,360 300,313 C400,266 520,284 640,207 L640,384 L0,384 Z",
+    line: "M0,369 C120,352 200,360 300,313 C400,266 520,284 640,207",
   },
 ];
 
@@ -835,7 +836,7 @@ export function Diferencial() {
           <div className="lnd-diff-col lnd-diff-acessor lnd-reveal" data-dir="right" data-delay="2">
             <h3>
               <span className="lnd-logo-mark">
-                <TrendingUp />
+                <LogoMark />
               </span>{" "}
               Inst Acessor
             </h3>

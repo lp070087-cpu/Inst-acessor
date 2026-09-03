@@ -9,6 +9,9 @@ import {
   getEvolutionHistory,
   getUserAchievements,
   recomputeGoalProgress,
+  recomputeRitmo,
+  getDisplayNameInfo,
+  applySelfDisplayName,
 } from "@/lib/gamification";
 import { RankClient } from "@/components/gamification/rank-client";
 
@@ -23,15 +26,21 @@ export default async function RankPage() {
   const { session } = await requireOnboardedSession();
   const userId = session.user.id;
 
+  // Reconciliar Ritmo/Impulso PRIMEIRO (concede XP de metas batidas + bônus
+  // de sequência) para que as leituras abaixo reflitam o XP real.
+  const ritmo = await recomputeRitmo(userId);
+
   // Dados reais do usuário (nível, ranking, evolução, conquistas, metas).
-  const [progress, summary, ranking, evolution, achievements, goalsResult] = await Promise.all([
-    getUserProgress(userId),
-    getUserRankSummary(userId),
-    getRanking(userId, 50),
-    getEvolutionHistory(userId, 30),
-    getUserAchievements(userId),
-    recomputeGoalProgress(userId),
-  ]);
+  const [progress, summary, ranking, evolution, achievements, goalsResult, displayNameInfo] =
+    await Promise.all([
+      getUserProgress(userId),
+      getUserRankSummary(userId),
+      getRanking(userId, 50),
+      getEvolutionHistory(userId, 30),
+      getUserAchievements(userId),
+      recomputeGoalProgress(userId),
+      getDisplayNameInfo(userId),
+    ]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -61,7 +70,7 @@ export default async function RankPage() {
             totalUsers: summary.totalUsers,
           },
           ranking: {
-            entries: ranking.entries,
+            entries: applySelfDisplayName(ranking.entries, displayNameInfo),
           },
           evolution: evolution.map((e) => ({ label: e.label, level: e.level, xp: e.xp })),
           achievements: achievements.map((a) => ({
@@ -98,6 +107,22 @@ export default async function RankPage() {
             amount: l.amount,
             createdAt: l.createdAt.toISOString(),
           })),
+          momentum: {
+            cards: ritmo.state.cards,
+            streakDays: ritmo.state.streakDays,
+            activeWeekStreak: ritmo.state.activeWeekStreak,
+            nextStreakBonus: ritmo.state.nextStreakBonus,
+            todayXp: ritmo.state.todayXp,
+            bonusXpGranted: ritmo.state.bonusXpGranted,
+            completedNow: ritmo.completedNow,
+            bonusesGrantedNow: ritmo.bonusesGrantedNow,
+          },
+          displayName: {
+            source: displayNameInfo.source,
+            value: displayNameInfo.value,
+            storedSource: displayNameInfo.storedSource,
+            hasInstagram: displayNameInfo.hasInstagram,
+          },
         }}
       />
     </div>

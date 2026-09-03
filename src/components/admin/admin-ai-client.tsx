@@ -208,7 +208,7 @@ export function AdminAIClient({ initialStatus }: { initialStatus: AdminAIStatus 
         <Badge tone={status.aiConfigured ? "success" : "warning"} dot size="md">
           {status.aiConfigured
             ? `IA ativa — ${status.activeProvider === "openai" ? "OpenAI" : "Gemini"}`
-            : "IA não configurada"}
+            : "Configuração pendente"}
         </Badge>
         <Button variant="ghost" size="xs" disabled={loading} onClick={refresh}>
           {loading && <Loader2 size={14} className="animate-spin" />}

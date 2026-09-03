@@ -57,7 +57,7 @@ export const PLAN_CATALOG = [
     sortOrder: 1,
     /** Link público do checkout InfinitePay do plano semanal. */
     checkoutUrl:
-      "https://invoice.infinitepay.io/plans/lucas-66438449-2n4/QxyWJ8UOq6",
+      "https://invoice.infinitepay.io/plans/unitrix/QxyWJ8UOq6",
   },
   {
     slug: "mensal",
@@ -93,7 +93,7 @@ export const PLAN_CATALOG = [
     sortOrder: 2,
     /** Link público do checkout InfinitePay do plano mensal. */
     checkoutUrl:
-      "https://invoice.infinitepay.io/plans/lucas-66438449-2n4/gC8t6WTiVQ",
+      "https://invoice.infinitepay.io/plans/unitrix/gC8t6WTiVQ",
   },
   {
     slug: "anual",
@@ -129,7 +129,7 @@ export const PLAN_CATALOG = [
     sortOrder: 3,
     /** Link público do checkout InfinitePay do plano anual. */
     checkoutUrl:
-      "https://invoice.infinitepay.io/plans/lucas-66438449-2n4/5LZNvhvbLY",
+      "https://invoice.infinitepay.io/plans/unitrix/5LZNvhvbLY",
   },
 ] as const;
 

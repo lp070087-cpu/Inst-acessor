@@ -1,5 +1,5 @@
 import { ai } from "@/lib/ai/db";
-import { getAIProvider } from "@/lib/ai";
+import { getAIProvider, AIConfiguredError } from "@/lib/ai";
 import { buildUserContext, contextToPrompt } from "@/lib/ai/context";
 import { getRulesByCategory, getRuleBySlug } from "@/lib/knowledge/rules/registry";
 
@@ -7,12 +7,6 @@ import { getRulesByCategory, getRuleBySlug } from "@/lib/knowledge/rules/registr
  * Serviço de geração de copy (IA).
  * Usa o provider ativo; sem provider → lança erro controlado.
  */
-
-export class AIConfiguredError extends Error {
-  constructor() {
-    super("IA_NAO_CONFIGURADA");
-  }
-}
 
 export interface GenerateCopyParams {
   platform: string;

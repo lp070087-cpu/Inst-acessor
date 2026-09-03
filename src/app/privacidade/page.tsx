@@ -2,13 +2,14 @@ import type { Metadata } from "next";
 
 import "../legal.css";
 import { LegalShell } from "@/components/legal/legal-shell";
+import { OFFICIAL_SITE_URL } from "@/lib/config/site";
 
 export const metadata: Metadata = {
   title: "Política de Privacidade | Inst Acessor",
   description:
     "Saiba quais dados o Inst Acessor coleta, por que coleta, como usa, armazena e protege suas informações ao conectar seu Instagram ou TikTok.",
   alternates: {
-    canonical: "https://inst-acessor.vercel.app/privacidade",
+    canonical: `${OFFICIAL_SITE_URL}/privacidade`,
   },
 };
 

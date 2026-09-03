@@ -274,7 +274,7 @@
   height: var(--lnd-nav-h);
 }
 .lnd-logo {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 11px;
   font-family: "Sora", sans-serif;
@@ -282,6 +282,13 @@
   font-size: 19px;
   letter-spacing: -0.02em;
   color: var(--lnd-ink);
+  white-space: nowrap;
+  flex-wrap: nowrap;
+  min-width: 0;
+  flex: none;
+}
+.lnd-logo > span:last-child {
+  white-space: nowrap;
 }
 .lnd-logo-mark {
   width: 38px;
@@ -518,9 +525,23 @@
 .lnd-hero-visual {
   position: relative;
 }
+.lnd-hero-visual::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: -8% -4% auto;
+  height: 92%;
+  background:
+    radial-gradient(48% 52% at 24% 18%, rgba(244, 63, 142, 0.16), transparent 70%),
+    radial-gradient(52% 58% at 82% 24%, rgba(99, 102, 241, 0.18), transparent 70%),
+    radial-gradient(44% 46% at 52% 88%, rgba(168, 85, 247, 0.14), transparent 70%);
+  filter: blur(6px);
+  pointer-events: none;
+}
 .lnd-dash-mock {
   position: relative;
   z-index: 2;
+  width: 100%;
   background: var(--lnd-card);
   border: 1px solid var(--lnd-border);
   border-radius: var(--lnd-r-lg);
@@ -530,78 +551,20 @@
 }
 
 /* ============================================================
-   NOTEBOOK PREMIUM (Hero) — moldura de laptop em HTML/CSS/SVG
-   O dashboard interno (.lnd-dash-mock) é a TELA do notebook.
+   HERO — dashboard como janela do app premium (moldura de
+   notebook removida na rodada #275). O .lnd-dash-mock passou a
+   ser o próprio card: topbar (URL) + corpo do dashboard.
    ============================================================ */
-.lnd-notebook {
-  position: relative;
-  z-index: 2;
-  width: min(100%, 640px);
-  margin: 0 auto;
-  animation: lndFloat 9s ease-in-out infinite;
-  will-change: transform;
-}
-.lnd-notebook-screen {
-  position: relative;
-  z-index: 1;
-  padding: 12px;
-  border-radius: 18px;
-  background: linear-gradient(160deg, #2a2d35, #17181d 55%, #0e0f13);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow:
-    0 30px 60px -18px rgba(17, 19, 24, 0.45),
-    0 12px 28px -14px rgba(17, 19, 24, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-}
-.lnd-notebook-cam {
-  position: absolute;
-  top: 6px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 35%, #4a4f5a, #1c1e24 70%);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
-  z-index: 3;
-}
-.lnd-notebook-screen .lnd-dash-mock {
-  box-shadow: none;
-  border-radius: 12px;
-}
-.lnd-notebook-base {
-  position: relative;
-  z-index: 0;
-  margin: -1px auto 0;
-  width: 104%;
-  max-width: 660px;
-  height: 16px;
-  border-radius: 0 0 22px 22px;
-  background: linear-gradient(180deg, #3a3d45, #23252b);
-  box-shadow:
-    0 16px 30px -12px rgba(17, 19, 24, 0.5),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  transform: perspective(600px) rotateX(4deg);
-  transform-origin: top center;
-}
-.lnd-notebook-base-track {
-  position: absolute;
-  top: 5px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 34%;
-  height: 5px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04));
-}
-.lnd-notebook-base-hinge {
+.lnd-dash-mock::before {
+  content: "";
   position: absolute;
   top: 0;
-  left: 2%;
-  width: 96%;
+  left: 0;
+  right: 0;
   height: 3px;
-  border-radius: 999px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.02));
+  z-index: 3;
+  background: var(--lnd-grad);
+  pointer-events: none;
 }
 
 .lnd-dash-topbar {
@@ -3345,9 +3308,7 @@
     font-size: 15.5px;
   }
   .lnd-hero-grid { grid-template-columns: 1fr; }
-  .lnd-hero-visual { max-width: 560px; }
-  .lnd-notebook { width: min(100%, 560px); }
-  .lnd-notebook-base { max-width: 580px; }
+  .lnd-hero-visual { max-width: 580px; margin-inline: auto; width: 100%; }
   .lnd-hero h1 { font-size: clamp(34px, 8vw, 48px); }
   .lnd-score-wrap { grid-template-columns: 1fr; }
   .lnd-ai-wrap { grid-template-columns: 1fr; }
@@ -3374,10 +3335,7 @@
   .lnd-chart-card { grid-column: span 1; }
   .lnd-compare-grid { grid-template-columns: 1fr; }
   .lnd-float-chip { display: none; }
-  .lnd-notebook { width: min(100%, 460px); }
-  .lnd-notebook-screen { padding: 9px; border-radius: 14px; }
-  .lnd-notebook-screen .lnd-dash-mock { border-radius: 10px; }
-  .lnd-notebook-base { max-width: 480px; height: 12px; }
+  .lnd-dash-mock { border-radius: 14px; }
   .lnd-hero-trust { gap: 12px; }
   .lnd-hero-ctas .lnd-btn { width: 100%; }
   .lnd-problem-pivot { flex-direction: column; padding: 26px 20px; }
@@ -3390,6 +3348,66 @@
   .lnd-cta-final h2 { font-size: 32px; }
   .lnd-footer-bottom { flex-direction: column; text-align: center; }
   .lnd-copy-actions { flex-direction: column; }
+}
+
+/* ---------- LOGO/NOME lado a lado em telas estreitas ----------
+   O wordmark nunca quebra ("Inst" sobre "Acessor"); em celulares
+   pequenos o bloco inteiro (marca + CTA + menu) é re-escalado para
+   caber numa linha sem sobrepor. A seta decorativa do CTA sai em
+   telas muito estreitas; o rótulo "Criar conta" permanece.
+   ============================================================ */
+@media (max-width: 480px) {
+  .lnd-footer-grid { grid-template-columns: 1fr; gap: 26px; }
+  .lnd-logo { gap: 9px; font-size: 17.5px; }
+  .lnd-logo-mark { width: 35px; height: 35px; border-radius: 10px; }
+  .lnd-logo-mark svg { width: 18px; height: 18px; }
+  .lnd-nav-cta { gap: 8px; }
+  .lnd-nav-burger { width: 40px; height: 40px; }
+}
+
+@media (max-width: 400px) {
+  .lnd-logo { gap: 8px; font-size: 16.5px; }
+  .lnd-logo-mark { width: 32px; height: 32px; border-radius: 10px; }
+  .lnd-nav-cta .lnd-btn-sm { padding: 9px 14px; font-size: 13.5px; }
+}
+
+@media (max-width: 360px) {
+  .lnd-logo { gap: 7px; font-size: 15px; }
+  .lnd-logo-mark { width: 30px; height: 30px; border-radius: 9px; }
+  .lnd-logo-mark svg { width: 16px; height: 16px; }
+  .lnd-nav-cta { gap: 6px; }
+  .lnd-nav-cta .lnd-btn-sm { padding: 9px 11px; font-size: 13px; }
+  .lnd-nav-cta .lnd-btn-primary svg { display: none; }
+  .lnd-nav-burger { width: 38px; height: 38px; }
+}
+
+/* ============================================================
+   WIDE / PREMIUM (1440 / 1920) — usa melhor a largura disponível
+   sem espremer cards nem esticar linhas de leitura além do bom
+   senso. O container cresce em degraus; grades grandes ganham
+   mais área; blocos deliberadamente estreitos (FAQ, trilha,
+   tabela, segurança) só sobem até um teto confortável.
+   ============================================================ */
+@media (min-width: 1280px) {
+  .lnd-root {
+    --lnd-container: 1240px;
+  }
+}
+
+@media (min-width: 1600px) {
+  .lnd-root {
+    --lnd-container: 1360px;
+  }
+  .lnd-bento-grid { max-width: 1120px; }
+  .lnd-pipeline { max-width: 1160px; }
+  .lnd-diag-list { max-width: 1080px; }
+  .lnd-mentor-track,
+  .lnd-niche-table { max-width: 960px; }
+  .lnd-faq-list,
+  .lnd-alert-list { max-width: 860px; }
+  .lnd-security-list { max-width: 900px; }
+  .lnd-security-note,
+  .lnd-social-note { max-width: 900px; }
 }
 
 /* ---------- REDUCED MOTION ---------- */
@@ -3410,10 +3428,7 @@
   }
   .lnd-float-chip,
   .lnd-dash-mock,
-  .lnd-hero-visual-inner,
-  .lnd-notebook,
-  .lnd-notebook-screen,
-  .lnd-notebook-base {
+  .lnd-hero-visual-inner {
     animation: none;
   }
   .lnd-js .lnd-float-chip > * {
@@ -4388,6 +4403,9 @@
   border-radius: var(--lnd-r-lg);
   box-shadow: var(--lnd-shadow-sm);
   padding: 22px;
+  /* Nunca estica o card do gráfico para igualar a coluna direita: sem isto o
+     grid deixava uma grande área escura vazia abaixo da linha de evolução. */
+  align-self: start;
 }
 .lnd-hist-chart-card h3 {
   font-size: 15px;
@@ -5207,6 +5225,18 @@
 }
 .lnd-bento-1 h3 { font-size: 20px; }
 .lnd-bento-1 p { max-width: 40ch; }
+.lnd-bento-1 .lnd-bento-art {
+  position: absolute;
+  top: 20px;
+  left: 22px;
+  right: 22px;
+  height: 92px;
+  max-width: 420px;
+  opacity: 0.95;
+}
+@media (max-width: 1080px) {
+  .lnd-bento-1 .lnd-bento-art { display: none; }
+}
 @media (max-width: 1080px) {
   .lnd-bento-grid { grid-template-columns: 1fr 1fr; }
   .lnd-bento-1 { grid-column: 1 / 3; grid-row: auto; }
@@ -5959,19 +5989,24 @@
 }
 .lnd-copy-tabs {
   position: relative;
-  padding-left: 58px;
+  padding-left: 66px;
+  align-items: center;
 }
 .lnd-copy-tabs::before {
   content: "";
   position: absolute;
-  left: 14px;
+  left: 12px;
   top: 50%;
   transform: translateY(-50%);
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: #f43f8e;
   box-shadow: 18px 0 0 rgba(245, 158, 11, 0.85), 36px 0 0 rgba(16, 185, 129, 0.85);
+}
+@media (max-width: 640px) {
+  .lnd-copy-tabs { padding-left: 0; }
+  .lnd-copy-tabs::before { display: none; }
 }
 .lnd-copy-btn.lnd-primary {
   position: relative;
@@ -6238,6 +6273,145 @@
   }
   .lnd-reco-strip::before {
     animation: none;
+  }
+}
+
+/* ============================================================
+   STORYTELLING HORIZONTAL (GSAP + ScrollTrigger)
+   Sequência pinada: Badges ("Cinco níveis...") → Metas
+   ("Objetivos claros..."). Cada seção ocupa 100vw como etapa.
+   No mobile e no prefers-reduced-motion o pin é desativado e o
+   trecho volta ao scroll vertical normal (fallback), sem cortar
+   conteúdo nem alterar a identidade visual.
+
+   IMPORTANTE: o estado padrão (sem .lnd-h-on) é VERTICAL — fluxo
+   normal empilhado, seguro para SSR/no-JS/mobile. A classe
+   .lnd-h-on é adicionada pelo HorizontalScroll apenas quando o
+   GSAP vai de fato rodar (desktop >= 901px e sem reduced-motion).
+   ============================================================ */
+.lnd-h-pin {
+  position: relative;
+  width: 100%;
+}
+.lnd-h-track {
+  display: block;
+  width: 100%;
+}
+.lnd-h-track > .lnd-section {
+  width: 100%;
+}
+
+/* Estado horizontal — aplicado somente com JS ativo (desktop). */
+.lnd-h-pin.lnd-h-on {
+  overflow: hidden;
+  height: 100vh;
+}
+.lnd-h-pin.lnd-h-on .lnd-h-track {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  width: max-content;
+  min-width: 100%;
+  height: 100vh;
+  will-change: transform;
+}
+.lnd-h-pin.lnd-h-on .lnd-h-track > .lnd-section {
+  flex: 0 0 100vw;
+  width: 100vw;
+  max-width: 100vw;
+  height: 100vh;
+  min-height: 100vh;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  /* Remove o padding vertical nativo; usa apenas topo reservado p/ a nav. */
+  padding-block: 0;
+  padding-top: var(--lnd-nav-h);
+}
+.lnd-h-pin.lnd-h-on .lnd-h-track > .lnd-section > .lnd-container {
+  width: 100%;
+  max-width: var(--lnd-container, 1180px);
+  margin-inline: auto;
+  flex: 0 0 auto;
+  transform-origin: center center;
+}
+/* Encaixe: se o conteúdo do painel for mais alto que a área útil
+   (100vh − nav), aplica uma escala proporcional para nada cortar.
+   Sem alterar textos, cores ou ordem — apenas dimensiona o encaixe. */
+.lnd-h-pin.lnd-h-on .lnd-h-track > .lnd-section.lnd-h-fit > .lnd-container {
+  transform: scale(var(--lnd-h-fit-scale, 0.82));
+}
+/* Painel que mesmo no piso de escala passa da área útil: rolagem interna
+   sutil (o conteúdo permanece 100% alcançável, nada é cortado). */
+.lnd-h-pin.lnd-h-on .lnd-h-track > .lnd-section.lnd-h-tall {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+/* Linha de progresso do "Como Funciona" é um efeito de scroll VERTICAL;
+   dentro do storytelling horizontal ela não faz sentido (congelaria ou
+   ficaria incorreta), então some apenas nesse modo e volta no fallback. */
+.lnd-h-pin.lnd-h-on .lnd-scrub-line {
+  display: none;
+}
+/* Os painéis herdam o fundo da própria seção (.lnd-console já pinta a
+   superfície escura e os claros usam o fundo da página) — o painel em si
+   é uma "etapa" 100vw contínua, sem bordas/emendas artificiais. */
+
+/* Mobile: nunca horizontal, mesmo com classe (fallback vertical). */
+@media (max-width: 900px) {
+  .lnd-h-pin.lnd-h-on {
+    overflow: visible;
+    height: auto;
+  }
+  .lnd-h-pin.lnd-h-on .lnd-h-track {
+    display: block;
+    width: 100%;
+    height: auto;
+    min-width: 0;
+  }
+  .lnd-h-pin.lnd-h-on .lnd-h-track > .lnd-section {
+    width: 100%;
+    max-width: none;
+    min-height: 0;
+    height: auto;
+    display: block;
+    overflow: visible;
+    padding-block: clamp(72px, 10vw, 132px);
+    padding-top: clamp(72px, 10vw, 132px);
+  }
+  .lnd-h-pin.lnd-h-on .lnd-h-track > .lnd-section.lnd-h-fit > .lnd-container,
+  .lnd-h-pin.lnd-h-on .lnd-h-track > .lnd-section.lnd-h-tall > .lnd-container {
+    transform: none;
+  }
+}
+/* Reduced motion: nunca horizontal (fallback vertical). */
+@media (prefers-reduced-motion: reduce) {
+  .lnd-h-pin.lnd-h-on {
+    overflow: visible;
+    height: auto;
+  }
+  .lnd-h-pin.lnd-h-on .lnd-h-track {
+    display: block;
+    width: 100%;
+    height: auto;
+    min-width: 0;
+  }
+  .lnd-h-pin.lnd-h-on .lnd-h-track > .lnd-section {
+    width: 100%;
+    max-width: none;
+    min-height: 0;
+    height: auto;
+    display: block;
+    overflow: visible;
+    padding-block: clamp(72px, 10vw, 132px);
+    padding-top: clamp(72px, 10vw, 132px);
+  }
+  .lnd-h-pin.lnd-h-on .lnd-h-track > .lnd-section.lnd-h-fit > .lnd-container,
+  .lnd-h-pin.lnd-h-on .lnd-h-track > .lnd-section.lnd-h-tall > .lnd-container {
+    transform: none;
   }
 }
 

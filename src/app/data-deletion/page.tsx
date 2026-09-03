@@ -2,13 +2,14 @@ import type { Metadata } from "next";
 
 import "../legal.css";
 import { LegalShell } from "@/components/legal/legal-shell";
+import { OFFICIAL_SITE_URL } from "@/lib/config/site";
 
 export const metadata: Metadata = {
   title: "Exclusão de Dados | Inst Acessor",
   description:
     "Saiba como solicitar a exclusão dos seus dados e da sua conta no Inst Acessor, e como remover as permissões de acesso ao Instagram e TikTok.",
   alternates: {
-    canonical: "https://inst-acessor.vercel.app/data-deletion",
+    canonical: `${OFFICIAL_SITE_URL}/data-deletion`,
   },
 };
 

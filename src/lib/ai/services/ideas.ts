@@ -1,5 +1,5 @@
 import { ai } from "@/lib/ai/db";
-import { getAIProvider } from "@/lib/ai";
+import { getAIProvider, AIConfiguredError } from "@/lib/ai";
 import { buildUserContext, contextToPrompt } from "@/lib/ai/context";
 import { getRuleBySlug } from "@/lib/knowledge/rules/registry";
 
@@ -7,12 +7,6 @@ import { getRuleBySlug } from "@/lib/knowledge/rules/registry";
  * Serviço da Central de Ideias.
  * Gera ideias via IA (provider ativo) — sem inventar tendências externas.
  */
-
-export class AIConfiguredError extends Error {
-  constructor() {
-    super("IA_NAO_CONFIGURADA");
-  }
-}
 
 const CATEGORY_LABEL: Record<string, string> = {
   reels: "Reels (Instagram)",

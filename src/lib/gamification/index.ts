@@ -53,3 +53,32 @@ export {
   type UserRankSummary,
   type EvolutionPoint,
 } from "./ranking";
+export {
+  getDisplayNameInfo,
+  setDisplayNameSource,
+  applySelfDisplayName,
+  type DisplayNameInfo,
+  type DisplayNameSource,
+} from "./display-name";
+export {
+  getRitmoState,
+  recomputeRitmo,
+  computeStreak,
+  grantStreakBonuses,
+  streakBonusesGranted,
+  startOfDay,
+  startOfWeek,
+  startOfMonth,
+  RITMO_BANDS,
+  RITMO_KINDS,
+  RITMO_PERIODS,
+  STREAK_BONUS_MILESTONES,
+  STREAK_BONUS_XP,
+  type RitmoPeriod,
+  type RitmoCard,
+  type RitmoCardStatus,
+  type RitmoState,
+  type RitmoReconcileResult,
+  type CadenceBand,
+  type BandMetric,
+} from "./momentum";

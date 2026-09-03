@@ -14,7 +14,8 @@ export const runtime = "nodejs";
  * Recebe notificações de pagamento do checkout InfinitePay.
  *
  * URL de produção (oficial):
- *   https://inst-acessor.vercel.app/api/webhooks/infinitepay
+ *   https://unitrixapp.com.br/api/webhooks/infinitepay
+ *   (domínio antigo inst-acessor.vercel.app mantido só como fallback técnico)
  *
  * Segurança (fail-closed):
  *   - NUNCA concede acesso apenas porque um POST chegou. A liberação depende de:

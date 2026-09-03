@@ -90,23 +90,20 @@ function HeroMockup() {
   return (
     <div className="lnd-hero-visual lnd-reveal" data-dir="right" data-delay="2">
       <div className="lnd-hero-visual-inner" data-parallax="0.12">
-        <div className="lnd-notebook">
-          <div className="lnd-notebook-screen">
-            <span className="lnd-notebook-cam" aria-hidden="true" />
-            <div className="lnd-dash-mock">
-              <div className="lnd-dash-topbar">
-                <div className="lnd-dots" aria-hidden="true">
-                  <i />
-                  <i />
-                  <i />
-                </div>
-                <div className="lnd-url">
-                  <span>app.instacessor.com.br</span>
-                </div>
-                <div className="lnd-dots" aria-hidden="true" style={{ visibility: "hidden" }}>
-                  <i />
-                </div>
-              </div>
+        <div className="lnd-dash-mock">
+          <div className="lnd-dash-topbar">
+            <div className="lnd-dots" aria-hidden="true">
+              <i />
+              <i />
+              <i />
+            </div>
+            <div className="lnd-url">
+              <span>app.instacessor.com.br</span>
+            </div>
+            <div className="lnd-dots" aria-hidden="true" style={{ visibility: "hidden" }}>
+              <i />
+            </div>
+          </div>
           <div className="lnd-dash-body">
             <div className="lnd-dash-left">
               <div className="lnd-dash-card lnd-dash-stats">
@@ -197,12 +194,6 @@ function HeroMockup() {
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-          </div>
-          <div className="lnd-notebook-base" aria-hidden="true">
-            <span className="lnd-notebook-base-track" />
-            <span className="lnd-notebook-base-hinge" />
           </div>
         </div>
 
@@ -426,6 +417,20 @@ export function Solucao() {
         <div className="lnd-bento-grid">
           {SOLUCAO_ITEMS.map((s, i) => (
             <div className={`lnd-bento-card lnd-bento-${i + 1} lnd-reveal`} data-dir={i === 0 ? "scale" : "left"} data-delay={String(i + 1)} key={s.t}>
+              {i === 0 && (
+                <svg className="lnd-bento-art" viewBox="0 0 360 130" preserveAspectRatio="none" aria-hidden="true">
+                  <rect x="10" y="106" width="20" height="24" rx="3" fill="#8b5cf6" fillOpacity="0.14" />
+                  <rect x="44" y="110" width="20" height="20" rx="3" fill="#8b5cf6" fillOpacity="0.18" />
+                  <rect x="78" y="100" width="20" height="30" rx="3" fill="#8b5cf6" fillOpacity="0.18" />
+                  <rect x="112" y="86" width="20" height="44" rx="3" fill="#8b5cf6" fillOpacity="0.24" />
+                  <rect x="146" y="90" width="20" height="40" rx="3" fill="#8b5cf6" fillOpacity="0.22" />
+                  <rect x="180" y="70" width="20" height="60" rx="3" fill="#8b5cf6" fillOpacity="0.3" />
+                  <rect x="214" y="54" width="20" height="76" rx="3" fill="#8b5cf6" fillOpacity="0.34" />
+                  <rect x="248" y="68" width="20" height="62" rx="3" fill="#8b5cf6" fillOpacity="0.28" />
+                  <rect x="282" y="36" width="20" height="94" rx="3" fill="#8b5cf6" fillOpacity="0.42" />
+                  <rect x="316" y="20" width="20" height="110" rx="3" fill="#f43f8e" fillOpacity="0.5" />
+                </svg>
+              )}
               <span className="lnd-ic">
                 <s.ic />
               </span>

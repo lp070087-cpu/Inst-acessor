@@ -9,6 +9,7 @@
 /.billing-test-build
 /.publishing-test-build
 /.first-access-test-build
+/.rank-test-build
 
 # Next.js
 /.next/
@@ -49,3 +50,6 @@ yarn-error.log*
 
 # TypeScript
 *.tsbuildinfo
+pasta da ordem/
+prisma-diff-neon.sql
+schema-neon-atual.prisma

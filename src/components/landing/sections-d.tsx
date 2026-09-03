@@ -1,5 +1,5 @@
+import { LogoMark } from "./sections-a";
 import {
-  Sparkles,
   ArrowRight,
   CheckCircle2,
   ShieldCheck,
@@ -369,35 +369,49 @@ export function Seguranca() {
   );
 }
 
+// Todos os 3 planos liberam AS MESMAS funcionalidades — sem plano "básico",
+// sem recurso "exclusivo" de um período. A diferença entre eles é apenas o
+// período e o valor. A lista abaixo é intencionalmente idêntica nos 3 cards.
+const ALL_FEATURES = [
+  "Instagram + TikTok conectados",
+  "Dashboard com Score de crescimento",
+  "IA Acessor + Cérebro Estratégico",
+  "Diagnóstico + Central de Ideias",
+  "Gerador de Copy + Preview Social",
+  "Calendário + Planejamento",
+  "Mentoria + Análise de desempenho",
+  "Rank com XP, Metas e Conquistas",
+];
+
 const PLANS = [
   {
     name: "Semanal",
-    price: 27,
+    priceLabel: "R$ 27,00",
     period: "por semana",
-    desc: "Para começar a crescer com dados e testar a plataforma.",
-    feats: ["Dashboard e Score", "Diagnóstico do perfil", "Gerador de copy (básico)", "Calendário inteligente", "Suporte por e-mail"],
+    desc: "Acesso completo por 7 dias para conhecer a plataforma sem limite de funcionalidades.",
+    feats: ALL_FEATURES,
     cta: "Assinar semanal",
-    href: "https://invoice.infinitepay.io/plans/lucas-66438449-2n4/QxyWJ8UOq6",
+    href: "https://invoice.infinitepay.io/plans/unitrix/QxyWJ8UOq6",
     featured: false,
   },
   {
     name: "Mensal",
-    price: 77,
+    priceLabel: "R$ 77,00",
     period: "por mês",
-    desc: "O plano completo para quem leva o crescimento a sério.",
-    feats: ["Tudo do plano Semanal", "IA Acessor completa", "Central de ideias e mentoria", "Central de publicação", "Automações e rank", "Suporte prioritário"],
+    desc: "Todas as funcionalidades liberadas, com renovação simples quando quiser.",
+    feats: ALL_FEATURES,
     cta: "Assinar mensal",
-    href: "https://invoice.infinitepay.io/plans/lucas-66438449-2n4/gC8t6WTiVQ",
+    href: "https://invoice.infinitepay.io/plans/unitrix/gC8t6WTiVQ",
     featured: true,
   },
   {
     name: "Anual",
-    price: 547,
+    priceLabel: "R$ 547,00",
     period: "por ano",
-    desc: "O melhor custo-benefício para manter a estratégia por 12 meses.",
-    feats: ["Tudo do plano Mensal", "2 meses grátis", "Análise de desempenho avançada", "Onboarding acompanhado", "Prioridade em novos recursos"],
+    desc: "O melhor custo-benefício: todas as funcionalidades por 12 meses.",
+    feats: ALL_FEATURES,
     cta: "Assinar anual",
-    href: "https://invoice.infinitepay.io/plans/lucas-66438449-2n4/5LZNvhvbLY",
+    href: "https://invoice.infinitepay.io/plans/unitrix/5LZNvhvbLY",
     featured: false,
   },
 ];
@@ -422,9 +436,7 @@ export function Planos() {
               {p.featured && <span className="lnd-plan-badge">Mais escolhido</span>}
               <span className="lnd-plan-name">{p.name}</span>
               <div className="lnd-plan-price">
-                <b>
-                  R$ {p.price}
-                </b>
+                <b>{p.priceLabel}</b>
                 <span>{p.period}</span>
               </div>
               <p className="lnd-plan-desc">{p.desc}</p>
@@ -555,7 +567,7 @@ export function Footer() {
           <div className="lnd-footer-brand">
             <a href="#" className="lnd-logo">
               <span className="lnd-logo-mark">
-                <Sparkles />
+                <LogoMark />
               </span>
               Inst <em>Acessor</em>
             </a>

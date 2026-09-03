@@ -7,12 +7,13 @@ import {
   encryptAccessToken,
   IntegrationConfigError,
 } from "@/lib/integrations/tiktok";
+import { getAppBaseUrl } from "@/lib/config/site";
 
 export const dynamic = "force-dynamic";
 
 const REDIRECT_OK = "/redes-sociais?connected=true";
 const REDIRECT_ERROR = "/redes-sociais?error=";
-const APP_BASE = process.env.AUTH_URL || "http://localhost:3000";
+const APP_BASE = getAppBaseUrl();
 
 /**
  * Callback oficial do OAuth do TikTok.

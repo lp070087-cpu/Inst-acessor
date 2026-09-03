@@ -6,6 +6,7 @@ import { requireAdminSession } from "@/lib/auth/guard";
 import { bll } from "@/lib/billing/db";
 import { infinitepayStatus } from "@/lib/billing/infinitepay/config";
 import { INFINITEPAY_PROVIDER } from "@/lib/billing/infinitepay/events";
+import { OFFICIAL_SITE_URL } from "@/lib/config/site";
 import { SectionCard } from "@/components/ui/section-card";
 import { StatusBadge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -19,8 +20,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 /** URL de produção do webhook InfinitePay (oficial). */
-const INFINITEPAY_PROD_URL =
-  "https://inst-acessor.vercel.app/api/webhooks/infinitepay";
+const INFINITEPAY_PROD_URL = `${OFFICIAL_SITE_URL}/api/webhooks/infinitepay`;
 
 function fmtDate(d: Date | null | undefined): string {
   if (!d) return "—";

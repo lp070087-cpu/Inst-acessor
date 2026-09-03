@@ -16,6 +16,10 @@ export * from "./gemini";
  *
  * Consulta primeiro a configuração central (admin, persistida encriptada no
  * banco); se nada estiver gravado, usa as env vars. Nunca é chamado no client.
+ *
+ * O MODELO escolhido na configuração admin é propagado ao provider — antes,
+ * `gpt-4o-mini`/`gemini-1.5-flash` eram fixos no provider mesmo quando o
+ * admin escolhia outro modelo.
  */
 export async function getAIProvider(): Promise<AIProvider | null> {
   const { resolveRuntimeAI } = await import("@/lib/admin/ai-config");
@@ -23,9 +27,9 @@ export async function getAIProvider(): Promise<AIProvider | null> {
 
   if (resolved) {
     if (resolved.provider === "openai") {
-      return new OpenAIProvider(resolved.apiKey);
+      return new OpenAIProvider(resolved.apiKey, resolved.model);
     }
-    return new GeminiProvider(resolved.apiKey);
+    return new GeminiProvider(resolved.apiKey, resolved.model);
   }
 
   if (process.env.OPENAI_API_KEY) return new OpenAIProvider();

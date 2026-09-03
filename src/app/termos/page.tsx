@@ -2,13 +2,14 @@ import type { Metadata } from "next";
 
 import "../legal.css";
 import { LegalShell } from "@/components/legal/legal-shell";
+import { OFFICIAL_SITE_URL } from "@/lib/config/site";
 
 export const metadata: Metadata = {
   title: "Termos de Uso | Inst Acessor",
   description:
     "Termos de uso da plataforma Inst Acessor: uso do serviço, contas, integrações com Instagram e TikTok, pagamentos, responsabilidades e mais.",
   alternates: {
-    canonical: "https://inst-acessor.vercel.app/termos",
+    canonical: `${OFFICIAL_SITE_URL}/termos`,
   },
 };
 

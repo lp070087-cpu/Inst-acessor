@@ -9,6 +9,7 @@ import {
 } from "@/lib/gamification";
 import { getUserAchievements } from "@/lib/gamification";
 import { recomputeGoalProgress } from "@/lib/gamification";
+import { recomputeRitmo, getDisplayNameInfo } from "@/lib/gamification";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,11 @@ export async function GET() {
   try {
     const session = await requireSession();
     const userId = session.user.id;
+
+    // Impulso/Ritmo (rodada #274) é reconciliado PRIMEIRO: concede o XP das
+    // metas prontas batidas (uma vez por período) + bônus de sequência, para
+    // que as leituras abaixo (progresso/ranking/evolução) já reflitam o XP.
+    const ritmo = await recomputeRitmo(userId);
 
     // Nível/XP + auditoria recente
     const progress = await getUserProgress(userId);
@@ -38,6 +44,9 @@ export async function GET() {
     const recomputed = await recomputeGoalProgress(userId);
     const goals = recomputed.goals;
 
+    // Nome exibido (rodada #274): preferência do usuário com fallback real.
+    const displayNameInfo = await getDisplayNameInfo(userId);
+
     return NextResponse.json({
       progress: {
         level: progress.levelInfo.level,
@@ -55,7 +64,7 @@ export async function GET() {
         createdAt: l.createdAt.toISOString(),
       })),
       ranking: {
-        entries: ranking.entries,
+        entries: ranking.entries.map((e) => (e.isMe ? { ...e, name: displayNameInfo.value } : e)),
         summary: ranking.summary,
       },
       summary,
@@ -63,6 +72,22 @@ export async function GET() {
       achievements,
       goals,
       completedNow: recomputed.completedNow,
+      momentum: {
+        cards: ritmo.state.cards,
+        streakDays: ritmo.state.streakDays,
+        activeWeekStreak: ritmo.state.activeWeekStreak,
+        nextStreakBonus: ritmo.state.nextStreakBonus,
+        todayXp: ritmo.state.todayXp,
+        bonusXpGranted: ritmo.state.bonusXpGranted,
+        completedNow: ritmo.completedNow,
+        bonusesGrantedNow: ritmo.bonusesGrantedNow,
+      },
+      displayName: {
+        source: displayNameInfo.source,
+        value: displayNameInfo.value,
+        storedSource: displayNameInfo.storedSource,
+        hasInstagram: displayNameInfo.hasInstagram,
+      },
     });
   } catch (err) {
     console.error("[rank] erro ao carregar", err);

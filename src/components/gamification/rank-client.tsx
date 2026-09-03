@@ -20,6 +20,9 @@ import {
   Flame,
   BarChart3,
   Target as TargetIcon,
+  CalendarDays,
+  Check,
+  UserCog,
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
@@ -101,6 +104,44 @@ interface XpLogData {
   createdAt: string;
 }
 
+// Rodada #274 — Impulso/Ritmo: metas prontas + streak + nome exibido.
+interface RitmoCardData {
+  id: string;
+  bandId: string;
+  period: "dia" | "semana" | "mes";
+  periodKey: string;
+  title: string;
+  subtitle: string;
+  current: number;
+  target: number;
+  unit: string;
+  isPercent: boolean;
+  progressPercent: number;
+  status: "pendente" | "concluida" | "sem-dados";
+  xpReward: number;
+  remainingLabel: string;
+  available: boolean;
+  granted: boolean;
+}
+
+interface MomentumData {
+  cards: RitmoCardData[];
+  streakDays: number;
+  activeWeekStreak: number;
+  nextStreakBonus: number;
+  todayXp: number;
+  bonusXpGranted: number;
+  completedNow: { cardId: string; bandId: string; title: string; period: string; xpReward: number }[];
+  bonusesGrantedNow: { day: number; amount: number }[];
+}
+
+interface DisplayNameData {
+  source: "profile" | "instagram";
+  value: string;
+  storedSource: "profile" | "instagram";
+  hasInstagram: boolean;
+}
+
 interface RankInitialData {
   progress: ProgressData;
   summary: SummaryData;
@@ -109,6 +150,8 @@ interface RankInitialData {
   achievements: AchievementData[];
   goals: GoalData[];
   xpLogs: XpLogData[];
+  momentum?: MomentumData;
+  displayName?: DisplayNameData;
 }
 
 interface RankClientProps {
@@ -135,6 +178,16 @@ const SOURCE_LABEL: Record<string, string> = {
   "concluir-onboarding": "Onboarding concluído",
   "melhorar-perfil": "Perfil melhorado",
   "conquista-desbloqueada": "Conquista desbloqueada",
+  // Rodada #274 — Impulso/Ritmo
+  "ritmo-seguidores": "Meta de seguidores batida",
+  "ritmo-ideias": "Meta de ideias batida",
+  "ritmo-copy": "Meta de copies batida",
+  "ritmo-ia": "Meta de IA batida",
+  "ritmo-publicar": "Meta de publicações batida",
+  "ritmo-alcance": "Meta de alcance batida",
+  "ritmo-engajamento": "Meta de engajamento batida",
+  "ritmo-crescimento": "Meta de crescimento geral batida",
+  "streak-bonus": "Bônus de sequência",
 };
 
 const GOAL_CATEGORY_LABEL: Record<string, string> = {
@@ -185,6 +238,10 @@ export function RankClient({ initial }: RankClientProps) {
   const [achievements, setAchievements] = React.useState<AchievementData[]>(initial.achievements);
   const [goals, setGoals] = React.useState<GoalData[]>(initial.goals);
   const [xpLogs, setXpLogs] = React.useState<XpLogData[]>(initial.xpLogs);
+  const [momentum, setMomentum] = React.useState<MomentumData | null>(initial.momentum ?? null);
+  const [displayName, setDisplayName] = React.useState<DisplayNameData | null>(
+    initial.displayName ?? null
+  );
 
   const [goalModalOpen, setGoalModalOpen] = React.useState(false);
   const [checking, setChecking] = React.useState(false);
@@ -216,6 +273,8 @@ export function RankClient({ initial }: RankClientProps) {
         setAchievements(full.achievements);
         setGoals(full.goals);
         setXpLogs(full.xpLogs);
+        if (full.momentum) setMomentum(full.momentum);
+        if (full.displayName) setDisplayName(full.displayName);
       }
       if (data.unlockedNow) {
         toast(`${data.amount} XP conquistado! Continue assim.`);
@@ -241,6 +300,8 @@ export function RankClient({ initial }: RankClientProps) {
       setAchievements(full.achievements);
       setGoals(full.goals);
       setXpLogs(full.xpLogs);
+      if (full.momentum) setMomentum(full.momentum);
+      if (full.displayName) setDisplayName(full.displayName);
     } catch {
       // silencioso — UI já tem dados
     }
@@ -316,6 +377,10 @@ export function RankClient({ initial }: RankClientProps) {
           unlockedCount={unlockedCount}
           visibleCount={visibleCount}
           goals={goals}
+          momentum={momentum}
+          displayName={displayName}
+          onDisplayNameChange={(info) => setDisplayName(info)}
+          toast={toast}
         />
       )}
 
@@ -372,75 +437,401 @@ function VisaoGeral({
   unlockedCount,
   visibleCount,
   goals,
+  momentum,
+  displayName,
+  onDisplayNameChange,
+  toast,
 }: {
   progress: ProgressData;
   evolution: EvolutionPoint[];
   unlockedCount: number;
   visibleCount: number;
   goals: GoalData[];
+  momentum: MomentumData | null;
+  displayName: DisplayNameData | null;
+  onDisplayNameChange: (info: DisplayNameData) => void;
+  toast: (m: string, t?: "success" | "error" | "warning" | "info") => void;
 }) {
   const activeGoals = goals.filter((g) => g.status === "ATIVA");
   const doneGoals = goals.filter((g) => g.status === "CONCLUIDA").length;
   const completion = visibleCount > 0 ? Math.round((unlockedCount / visibleCount) * 100) : 0;
+  const hasMomentum = momentum !== null;
 
   return (
-    <div className="grid gap-5 lg:grid-cols-3">
-      {/* Evolução */}
-      <div className="lg:col-span-2 rounded-xl bg-card border border-border-soft shadow-xs p-5 flex flex-col gap-4">
-        <div>
-          <h3 className="font-display text-[16px] font-semibold text-ink flex items-center gap-2">
-            <TrendingUp size={18} className="text-purple" />
-            Evolução do seu XP
-          </h3>
-          <p className="text-[13px] text-ink-soft mt-0.5">
-            Acúmulo de XP ao longo do tempo. Cada ponto é uma ação real registrada.
-          </p>
-        </div>
-        {evolution.length < 2 ? (
-          <div className="h-52 rounded-[16px] bg-surface/40 border border-dashed border-[#D0D4DB] flex items-center justify-center">
-            <p className="text-[13px] text-ink-soft">
-              Ainda não há pontos suficientes — faça ações no app para acumular XP.
+    <div className="flex flex-col gap-5">
+      <div className="grid gap-5 lg:grid-cols-3">
+        {/* Evolução */}
+        <div className="lg:col-span-2 rounded-xl bg-card border border-border-soft shadow-xs p-5 flex flex-col gap-4">
+          <div>
+            <h3 className="font-display text-[16px] font-semibold text-ink flex items-center gap-2">
+              <TrendingUp size={18} className="text-purple" />
+              Evolução do seu XP
+            </h3>
+            <p className="text-[13px] text-ink-soft mt-0.5">
+              Acúmulo de XP ao longo do tempo. Cada ponto é uma ação real registrada.
             </p>
           </div>
-        ) : (
-          <EvolutionSvg points={evolution} />
-        )}
+          {evolution.length < 2 ? (
+            <div className="h-52 rounded-[16px] bg-surface/40 border border-dashed border-[#D0D4DB] flex items-center justify-center">
+              <p className="text-[13px] text-ink-soft">
+                Ainda não há pontos suficientes — faça ações no app para acumular XP.
+              </p>
+            </div>
+          ) : (
+            <EvolutionSvg points={evolution} />
+          )}
+        </div>
+
+        {/* Resumo rápido */}
+        <div className="flex flex-col gap-4">
+          <div className="rounded-xl bg-card border border-border-soft shadow-xs p-5 flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[12.5px] font-semibold text-ink-soft">Nível</span>
+              <Badge tone="brand">{progress.level}</Badge>
+            </div>
+            <ProgressBar value={progress.progressToNext} gradient="brand" />
+            <p className="text-[12.5px] text-ink-muted">
+              {progress.xpInLevel} / {progress.xpNeededForNext} XP para o próximo nível
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-card border border-border-soft shadow-xs p-5 flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[12.5px] font-semibold text-ink-soft">Conquistas</span>
+              <Badge tone="ai">{unlockedCount}/{visibleCount}</Badge>
+            </div>
+            <ProgressBar value={completion} gradient="magenta" />
+            <p className="text-[12.5px] text-ink-muted">
+              {completion}% das conquistas visíveis desbloqueadas
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-card border border-border-soft shadow-xs p-5 flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[12.5px] font-semibold text-ink-soft">Metas ativas</span>
+              <Badge tone={activeGoals.length > 0 ? "success" : "neutral"}>{activeGoals.length}</Badge>
+            </div>
+            <p className="text-[12.5px] text-ink-muted">
+              {doneGoals} concluída(s). Metas concluídas rendem XP.
+            </p>
+          </div>
+        </div>
       </div>
 
-      {/* Resumo rápido */}
+      {/* Rodada #274 — Impulso: streak + metas prontas (MESMO sistema visual) */}
+      {hasMomentum && (
+        <MomentumSection
+          momentum={momentum}
+          displayName={displayName}
+          onDisplayNameChange={onDisplayNameChange}
+          toast={toast}
+        />
+      )}
+    </div>
+  );
+}
+
+// ------------------------------------------------------------
+// Impulso (rodada #274) — metas prontas + sequência
+// ------------------------------------------------------------
+
+const PERIOD_LABEL_SHORT: Record<string, string> = {
+  dia: "Diárias",
+  semana: "Semanais",
+  mes: "Mensais",
+};
+
+function MomentumSection({
+  momentum,
+  displayName,
+  onDisplayNameChange,
+  toast,
+}: {
+  momentum: MomentumData;
+  displayName: DisplayNameData | null;
+  onDisplayNameChange: (info: DisplayNameData) => void;
+  toast: (m: string, t?: "success" | "error" | "warning" | "info") => void;
+}) {
+  const [openGroup, setOpenGroup] = React.useState<Record<string, boolean>>({
+    dia: true,
+    semana: true,
+    mes: true,
+  });
+  const [savingName, setSavingName] = React.useState(false);
+
+  const grouped = React.useMemo(() => {
+    const g: Record<string, RitmoCardData[]> = { dia: [], semana: [], mes: [] };
+    for (const c of momentum.cards) {
+      if (g[c.period]) g[c.period].push(c);
+    }
+    return g;
+  }, [momentum.cards]);
+
+  const doneCount = momentum.cards.filter((c) => c.status === "concluida").length;
+  const totalDone = momentum.cards.length;
+  const streakPct = Math.min(100, Math.round((momentum.streakDays / (momentum.nextStreakBonus || 30)) * 100));
+
+  async function changeSource(source: "profile" | "instagram") {
+    setSavingName(true);
+    try {
+      const res = await fetch("/api/rank/display-name", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast(data.error ?? "Erro ao atualizar nome exibido.", "error");
+        return;
+      }
+      if (data.displayName) onDisplayNameChange(data.displayName);
+      toast("Nome exibido atualizado.");
+    } catch {
+      toast("Erro ao atualizar nome exibido.", "error");
+    } finally {
+      setSavingName(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Sequência + bônus + nome exibido */}
+      <div className="rounded-xl bg-card border border-border-soft shadow-xs p-5 flex flex-col gap-4">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <h3 className="font-display text-[16px] font-semibold text-ink flex items-center gap-2">
+            <Zap size={18} className="text-purple" />
+            Impulso
+          </h3>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Badge tone="brand" size="sm">
+              <Flame size={12} /> Sequência: {momentum.streakDays} {momentum.streakDays === 1 ? "dia" : "dias"}
+            </Badge>
+            {momentum.activeWeekStreak > 0 && (
+              <Badge tone="ai" size="sm">
+                {momentum.activeWeekStreak} {momentum.activeWeekStreak === 1 ? "semana ativa" : "semanas ativas"}
+              </Badge>
+            )}
+            <Badge tone="neutral" size="sm">
+              Hoje: {momentum.todayXp} XP
+            </Badge>
+            {doneCount > 0 && (
+              <Badge tone="success" size="sm">
+                <CheckCircle2 size={12} /> {doneCount}/{totalDone} metas batidas
+              </Badge>
+            )}
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          {/* Próximo marco de sequência */}
+          <div className="rounded-[16px] bg-surface/40 border border-border-soft p-4 flex flex-col gap-2.5">
+            <span className="text-[12.5px] font-semibold text-ink-soft flex items-center gap-1.5">
+              <CalendarDays size={14} className="text-purple" />
+              Próximo marco de sequência
+            </span>
+            <div className="flex items-end justify-between gap-3 flex-wrap">
+              <div>
+                <p className="font-display text-[20px] font-bold text-ink">
+                  {momentum.streakDays} <span className="text-[14px] font-semibold text-ink-muted">de {momentum.nextStreakBonus} dias</span>
+                </p>
+                <p className="text-[12.5px] text-ink-muted">
+                  {momentum.streakDays >= momentum.nextStreakBonus
+                    ? "Sequência máxima do ciclo atingida — mantenha o ritmo!"
+                    : `Faltam ${momentum.nextStreakBonus - momentum.streakDays} ${momentum.nextStreakBonus - momentum.streakDays === 1 ? "dia" : "dias"} para +${momentum.nextStreakBonus} XP`}
+                </p>
+              </div>
+            </div>
+            <ProgressBar value={streakPct} gradient="magenta" size="sm" />
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {[3, 7, 15, 30].map((m) => {
+                const reached = momentum.streakDays >= m;
+                return (
+                  <span
+                    key={m}
+                    className={cn(
+                      "text-[10.5px] font-bold rounded-pill px-2 py-0.5 border",
+                      reached
+                        ? "bg-success-soft text-success border-success/25"
+                        : "bg-surface text-ink-muted border-border-soft"
+                    )}
+                  >
+                    {reached ? <Check size={11} className="inline mr-0.5" /> : null}
+                    {m}d · +{m === 3 ? 20 : m === 7 ? 50 : m === 15 ? 120 : 300} XP
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Nome exibido */}
+          <div className="rounded-[16px] bg-surface/40 border border-border-soft p-4 flex flex-col gap-2.5">
+            <span className="text-[12.5px] font-semibold text-ink-soft flex items-center gap-1.5">
+              <UserCog size={14} className="text-purple" />
+              Como você aparece no Rank
+            </span>
+            <p className="text-[14px] font-semibold text-ink truncate">
+              {displayName?.value ?? "Usuário"}
+            </p>
+            <div className="flex flex-col gap-1.5 mt-0.5">
+              <button
+                onClick={() => changeSource("profile")}
+                disabled={savingName}
+                className={cn(
+                  "flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-[12.5px] font-semibold transition-all cursor-pointer disabled:opacity-50",
+                  displayName?.storedSource === "profile"
+                    ? "bg-ai-soft border-purple/40 text-purple"
+                    : "bg-card border-border-soft text-ink-soft hover:text-ink"
+                )}
+              >
+                <span className="w-4 h-4 rounded-full border border-current grid place-items-center flex-none">
+                  {displayName?.source === "profile" && <span className="w-1.5 h-1.5 rounded-full bg-current" />}
+                </span>
+                Nome do perfil
+              </button>
+              <button
+                onClick={() => changeSource("instagram")}
+                disabled={savingName || !displayName?.hasInstagram}
+                title={!displayName?.hasInstagram ? "Conecte uma conta Instagram para usar esta opção" : undefined}
+                className={cn(
+                  "flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-[12.5px] font-semibold transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed",
+                  displayName?.storedSource === "instagram"
+                    ? "bg-ai-soft border-purple/40 text-purple"
+                    : "bg-card border-border-soft text-ink-soft hover:text-ink"
+                )}
+              >
+                <span className="w-4 h-4 rounded-full border border-current grid place-items-center flex-none">
+                  {displayName?.source === "instagram" && <span className="w-1.5 h-1.5 rounded-full bg-current" />}
+                </span>
+                Nome da conta Instagram
+                {!displayName?.hasInstagram && <span className="text-[11px] text-ink-muted ml-auto">sem conta</span>}
+              </button>
+            </div>
+            {displayName?.source === "instagram" && displayName?.storedSource === "instagram" ? (
+              <p className="text-[11.5px] text-ink-muted">Usando o nome da conta Instagram conectada.</p>
+            ) : displayName?.storedSource === "instagram" && !displayName?.hasInstagram ? (
+              <p className="text-[11.5px] text-ink-muted">
+                Conta Instagram indisponível — mostrando o nome do perfil.
+              </p>
+            ) : (
+              <p className="text-[11.5px] text-ink-muted">Usando o nome do perfil do Inst Acessor.</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Metas prontas agrupadas por período */}
       <div className="flex flex-col gap-4">
-        <div className="rounded-xl bg-card border border-border-soft shadow-xs p-5 flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <span className="text-[12.5px] font-semibold text-ink-soft">Nível</span>
-            <Badge tone="brand">{progress.level}</Badge>
-          </div>
-          <ProgressBar value={progress.progressToNext} gradient="brand" />
-          <p className="text-[12.5px] text-ink-muted">
-            {progress.xpInLevel} / {progress.xpNeededForNext} XP para o próximo nível
-          </p>
-        </div>
-
-        <div className="rounded-xl bg-card border border-border-soft shadow-xs p-5 flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <span className="text-[12.5px] font-semibold text-ink-soft">Conquistas</span>
-            <Badge tone="ai">{unlockedCount}/{visibleCount}</Badge>
-          </div>
-          <ProgressBar value={completion} gradient="magenta" />
-          <p className="text-[12.5px] text-ink-muted">
-            {completion}% das conquistas visíveis desbloqueadas
-          </p>
-        </div>
-
-        <div className="rounded-xl bg-card border border-border-soft shadow-xs p-5 flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <span className="text-[12.5px] font-semibold text-ink-soft">Metas ativas</span>
-            <Badge tone={activeGoals.length > 0 ? "success" : "neutral"}>{activeGoals.length}</Badge>
-          </div>
-          <p className="text-[12.5px] text-ink-muted">
-            {doneGoals} concluída(s). Metas concluídas rendem XP.
-          </p>
-        </div>
+        {(["dia", "semana", "mes"] as const).map((period) => {
+          const cards = grouped[period];
+          if (!cards || cards.length === 0) return null;
+          const concluded = cards.filter((c) => c.status === "concluida").length;
+          const open = openGroup[period] ?? true;
+          return (
+            <div key={period} className="rounded-xl bg-card border border-border-soft shadow-xs">
+              <button
+                onClick={() => setOpenGroup((s) => ({ ...s, [period]: !s[period] }))}
+                className="w-full flex items-center justify-between gap-3 px-5 py-4 cursor-pointer text-left"
+                aria-expanded={open}
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="font-display text-[15px] font-bold text-ink">
+                    {PERIOD_LABEL_SHORT[period]}
+                  </span>
+                  <Badge tone={concluded === cards.length ? "success" : "neutral"} size="sm">
+                    {concluded}/{cards.length}
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-2 text-ink-muted">
+                  {concluded === cards.length && (
+                    <span className="text-[12px] font-semibold text-success flex items-center gap-1">
+                      <CheckCircle2 size={13} /> Concluído
+                    </span>
+                  )}
+                  <span
+                    className={cn(
+                      "text-ink-muted transition-transform duration-200",
+                      open && "rotate-180"
+                    )}
+                  >
+                    ▾
+                  </span>
+                </div>
+              </button>
+              {open && (
+                <div className="px-5 pb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {cards.map((c) => (
+                    <MomentumCard key={c.id} card={c} />
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
+    </div>
+  );
+}
+
+function MomentumCard({ card }: { card: RitmoCardData }) {
+  const done = card.status === "concluida";
+  const noData = card.status === "sem-dados";
+
+  return (
+    <div
+      className={cn(
+        "rounded-xl border shadow-xs p-4 flex flex-col gap-3",
+        done ? "bg-brand-grad-card border-purple/25" : noData ? "bg-card border-border-soft opacity-80" : "bg-card border-border-soft"
+      )}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex flex-col gap-1 min-w-0">
+          <p className="font-display text-[14px] font-bold text-ink leading-tight">{card.title}</p>
+          <p className="text-[12px] text-ink-soft">{card.subtitle}</p>
+        </div>
+        <Badge
+          tone={done ? "success" : noData ? "neutral" : "warning"}
+          size="xs"
+          className="flex-none"
+        >
+          {done ? "Concluída" : noData ? "Sem dados" : "Em andamento"}
+        </Badge>
+      </div>
+
+      <div className="flex items-end justify-between gap-3 flex-wrap">
+        <div>
+          <p className="font-data text-[18px] font-bold text-ink">
+            {card.available ? (
+              card.isPercent ? (
+                <>
+                  {card.current}%
+                  <span className="text-[13px] text-ink-muted font-semibold">
+                    {" "}/ +{card.target}%
+                  </span>
+                </>
+              ) : (
+                <>
+                  {card.current}
+                  <span className="text-[13px] text-ink-muted font-semibold">
+                    {" "}/ {card.target} {card.unit}
+                  </span>
+                </>
+              )
+            ) : (
+              <span className="text-[15px] text-ink-muted">—</span>
+            )}
+          </p>
+          <p className="text-[11.5px] text-ink-muted">{card.remainingLabel}</p>
+        </div>
+        <span className="text-[12.5px] font-bold text-ink-soft flex items-center gap-1">
+          <Zap size={13} className="text-purple" /> +{card.xpReward} XP
+        </span>
+      </div>
+
+      <ProgressBar
+        value={card.progressPercent}
+        gradient={done ? "green" : "brand"}
+        size="sm"
+      />
     </div>
   );
 }

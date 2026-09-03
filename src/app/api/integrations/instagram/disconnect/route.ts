@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
+import { getAppBaseUrl } from "@/lib/config/site";
 
 export const dynamic = "force-dynamic";
 
-const APP_BASE = process.env.AUTH_URL || "http://localhost:3000";
+const APP_BASE = getAppBaseUrl();
 
 /**
  * Desconecta o Instagram do usuário autenticado.

@@ -30,6 +30,18 @@ export const XP_VALUES: Record<string, number> = {
   "planejar-conteudo": 10, // Fase 6: criar/duplicar conteúdo no calendário
   "conquista-desbloqueada": 0, // XP real vem do xpReward da conquista (5–100)
   "concluir-acao-crescimento": 15, // Fase 8: concluir GrowthAction real
+  // Rodada #274 — Impulso/Ritmo: XP por metas prontas batidas (por período).
+  // Valores "exibição/validação" — a concessão real usa o xp por faixa/bando
+  // (RITMO_BANDS), sempre com grantXpAmount e amount explícito.
+  "ritmo-seguidores": 10,
+  "ritmo-ideias": 8,
+  "ritmo-copy": 8,
+  "ritmo-ia": 10,
+  "ritmo-publicar": 12,
+  "ritmo-alcance": 30,
+  "ritmo-engajamento": 30,
+  "ritmo-crescimento": 100,
+  "streak-bonus": 0, // XP real varia por marco (3/7/15/30 dias → 20/50/120/300)
 };
 
 /** Fontes válidas para validação em APIs. */

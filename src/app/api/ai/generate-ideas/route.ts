@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth/guard";
 import { generateIdeaSchema } from "@/lib/validators/ai";
 import { generateIdeas, AIConfiguredErrorIdeas } from "@/lib/ai/services";
+import { AIProviderError } from "@/lib/ai";
 import { aiRateLimiter } from "@/lib/publishing/rate-limit";
 import { grantXp, stableRefId } from "@/lib/gamification";
 
@@ -51,6 +52,14 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "IA_NAO_CONFIGURADA", message: "A IA ainda não foi configurada." },
         { status: 503 }
+      );
+    }
+    if (err instanceof AIProviderError) {
+      console.error("[ai/generate-ideas] erro do provider", err.code, err.status ?? "");
+      const status = err.code === "auth" ? 401 : err.code === "quota" ? 429 : 502;
+      return NextResponse.json(
+        { error: err.code, message: err.message },
+        { status }
       );
     }
     console.error("[ai/generate-ideas] erro", err);

@@ -4,10 +4,11 @@ import { requireSession } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
 import { randomState } from "@/lib/crypto";
 import { buildAuthUrl, IntegrationConfigError } from "@/lib/integrations/instagram";
+import { getAppBaseUrl } from "@/lib/config/site";
 
 export const dynamic = "force-dynamic";
 
-const APP_BASE = process.env.AUTH_URL || "http://localhost:3000";
+const APP_BASE = getAppBaseUrl();
 
 /**
  * Inicia a conexão com o Instagram (fluxo oficial da Meta).
