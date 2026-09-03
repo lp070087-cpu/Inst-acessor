@@ -12,9 +12,20 @@ import * as React from "react";
  * visível." (#metas) está completamente apresentada — aí o pin é encerrado e
  * a página volta ao scroll vertical normal. Rolar para cima inverte tudo.
  *
- * Arquitetura canônica do ScrollTrigger horizontal:
- *   .lnd-h-pin   → elemento pinado (100vh, overflow:hidden)
- *   .lnd-h-track → faixa flex com 100vw por etapa; GSAP anima o x() do track
+ * GEOMETRIA (o que causava o desalinhamento):
+ *  - Cada painel (`.lnd-h-track > .lnd-section`) recebe via style inline a
+ *    MESMA largura em px = largura real do palco (`pin.clientWidth`), com
+ *    flex 0 0 fixo, sem shrink/grow. Nenhuma largura é derivada de conteúdo,
+ *    não há gap nem margem externa — o painel é exatamente 1 viewport útil.
+ *  - O track NÃO tem `width: max-content`: é um flex `nowrap`, então o
+ *    `scrollWidth` real = n × largura do painel, e a distância percorrida é
+ *    `track.scrollWidth - pin.clientWidth` (nunca aproximada).
+ *  - O antigo "fit" aplicava escala DIFERENTE por painel (e mudava durante o
+ *    scroll). Agora há UMA escala única (`--lnd-h-s`) para TODOS os painéis,
+ *    calculada UMA vez por refresh, aplicada apenas no container INTERNO. A
+ *    largura/posição externa do painel nunca muda. Caso raro de viewport muito
+ *    baixa: o painel ganha rolagem interna (`lnd-h-tall`) sem mexer na largura.
+ *  - Nada de translate/scale no track além do `x` do GSAP; sem xPercent.
  *
  * Regras respeitadas:
  *  - Importa GSAP/ScrollTrigger APENAS aqui (carregamento localizado);
@@ -25,8 +36,7 @@ import * as React from "react";
  *  - Mobile (<= 900px) e prefers-reduced-motion: NÃO pin; scroll vertical
  *    normal, com os reveals leves já existentes (fallback);
  *  - Nenhuma seção é removida, reordenada ou reescrita — apenas reposicionada
- *    dentro do pin (transform) e, quando necessário, encaixada por escala,
- *    sem alterar a identidade visual aprovada.
+ *    dentro do pin (transform), sem alterar a identidade visual aprovada.
  */
 export function HorizontalScroll() {
   React.useEffect(() => {
@@ -39,21 +49,33 @@ export function HorizontalScroll() {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
     const canRun = () => mqDesktop.matches && !reduced.matches;
 
+    // Altura real do header fixo, lida do token da landing (.lnd-root).
+    const navHeight = () => {
+      const raw = getComputedStyle(root).getPropertyValue("--lnd-nav-h");
+      const n = Number.parseFloat(raw);
+      return Number.isFinite(n) && n > 0 ? n : 72;
+    };
+
     let teardown: (() => void) | undefined;
     let refresh: (() => void) | undefined;
     let disposed = false;
     let resizeTimer = 0;
+    // Geração do run: impede que um import("gsap") pendente de um run antigo
+    // crie ScrollTrigger duplicado se o breakpoint alternou (desktop→mobile→
+    // desktop) antes do módulo resolver.
+    let runId = 0;
 
     const start = () => {
       if (!canRun()) return;
 
       let gsapCleanup: (() => void) | undefined;
-
+      const myRun = ++runId;
       void import("gsap").then(({ gsap }) =>
         void import("gsap/ScrollTrigger").then(({ ScrollTrigger }) => {
-          // Se o componente desmontou ou o viewport mudou enquanto o módulo
-          // carregava, não cria nada (evita trigger órfão / pin no mobile).
-          if (disposed || !canRun()) return;
+          // Se o componente desmontou, o run foi superado ou o viewport mudou
+          // enquanto o módulo carregava, não cria nada (evita trigger órfão,
+          // pin no mobile e instâncias duplicadas).
+          if (disposed || myRun !== runId || !canRun()) return;
           gsap.registerPlugin(ScrollTrigger);
 
           const panels = Array.from(
@@ -61,74 +83,110 @@ export function HorizontalScroll() {
           );
           if (panels.length < 2) return;
 
-          // Ativa o layout horizontal no CSS (fora daqui o padrão é vertical).
-          pin.classList.add("lnd-h-on");
-
-          // Encaixe: nenhuma seção pode ser cortada. Painéis cujo conteúdo é
-          // mais alto que a área útil (100vh − nav) recebem uma escala
-          // proporcional (nunca acima de 1). Mede no fluxo natural (offsetHeight
-          // ignora transforms), depois deixa a regra .lnd-h-fit aplicar o scale.
-          // Há um piso de escala (0.78) para não destruir a legibilidade: se nem
-          // assim couber, o painel ganha rolagem interna sutil (.lnd-h-tall) — o
-          // conteúdo permanece 100% alcançável, sem cortar nem vazar da etapa.
-          const navH =
-            parseFloat(
-              getComputedStyle(document.documentElement).getPropertyValue(
-                "--lnd-nav-h"
-              )
-            ) || 72;
-          const usable = () => window.innerHeight - navH;
-          const fitPanels = () => {
-            panels.forEach((panel) => {
-              const container =
-                panel.querySelector<HTMLElement>(".lnd-container");
-              if (!container) return;
-              container.style.transform = "";
-              const needed = container.offsetHeight;
-              const area = usable();
-              const scale = needed > area ? Math.min(1, area / needed) : 1;
-              const fitted = Math.max(0.78, scale);
-              if (fitted < 1) {
-                panel.classList.add("lnd-h-fit");
-                panel.style.setProperty("--lnd-h-fit-scale", fitted.toFixed(3));
-                // Se mesmo no piso ainda passar da área, libera rolagem interna
-                // no painel (caso raro); senão garante que nada vaze/clipe.
-                const fittedNeeded = needed * fitted;
-                panel.classList.toggle(
-                  "lnd-h-tall",
-                  fittedNeeded > area + 24
-                );
-              } else {
-                panel.classList.remove("lnd-h-fit");
-                panel.classList.remove("lnd-h-tall");
-                panel.style.removeProperty("--lnd-h-fit-scale");
-              }
-            });
+          const stageWidth = () =>
+            Math.max(1, pin.clientWidth || window.innerWidth);
+          const stageArea = () => {
+            // Palco = altura total do pin (100vh). A folga da nav fixa é
+            // reservada pelo padding-top do painel; aqui mede-se o espaço
+            // disponível para o conteúdo interno.
+            const h = pin.clientHeight || window.innerHeight;
+            return Math.max(240, h - navHeight());
           };
-          fitPanels();
 
-          const distancePx = () =>
-            Math.max(1, track.scrollWidth - window.innerWidth);
+          const applyWidths = (vp: number) => {
+            for (const panel of panels) {
+              panel.style.flex = `0 0 ${vp}px`;
+              panel.style.width = `${vp}px`;
+              panel.style.minWidth = `${vp}px`;
+              panel.style.maxWidth = `${vp}px`;
+            }
+          };
+
+          // Encaixe vertical: UMA escala única para todos, aplicada no
+          // container interno (nunca no painel, nunca durante o scroll).
+          const measureFit = (vp: number) => {
+            applyWidths(vp);
+            const containers = panels
+              .map((p) => p.querySelector<HTMLElement>(".lnd-container"))
+              .filter((c): c is HTMLElement => Boolean(c));
+
+            let maxNeeded = 0;
+            for (const c of containers) {
+              const h = c.offsetHeight;
+              if (h > maxNeeded) maxNeeded = h;
+            }
+            const area = stageArea();
+            let scale = maxNeeded > 0 ? area / maxNeeded : 1;
+            if (scale > 1) scale = 1;
+            // Piso de legibilidade: se nem no piso couber, o painel ganha
+            // rolagem interna — nunca texto minúsculo nem conteúdo cortado.
+            const FLOOR = 0.6;
+            const uniform = scale < FLOOR ? FLOOR : scale;
+
+            // A classe no .lnd-root ativa o scale só quando < 1 (preserva
+            // position:sticky/fixed em qualquer seção fora do storytelling).
+            root.style.setProperty(
+              "--lnd-h-s",
+              uniform < 1 ? uniform.toFixed(4) : "1"
+            );
+            root.classList.toggle("lnd-h-scaled", uniform < 1);
+
+            for (let i = 0; i < panels.length; i++) {
+              const c = containers[i];
+              if (!c) continue;
+              const stillTall = c.offsetHeight * uniform > area + 2;
+              panels[i].classList.toggle("lnd-h-tall", stillTall);
+            }
+          };
+
+          const geometry = () => {
+            const vp = stageWidth();
+            measureFit(vp);
+            return {
+              vp,
+              dist: Math.max(1, track.scrollWidth - pin.clientWidth),
+            };
+          };
+
+          // Ativa o layout horizontal (fora daqui o padrão é vertical).
+          pin.classList.add("lnd-h-on");
+          const geo = geometry();
 
           const tween = gsap.to(track, {
-            x: () => -distancePx(),
+            // Lê o valor atualizado de geo a cada refresh (invalidateOnRefresh).
+            x: () => -geo.dist,
             ease: "none",
             scrollTrigger: {
               trigger: pin,
+              // Começa quando o topo do palco encosta no topo do viewport. A
+              // nav é position:fixed e fica por cima; a folga do header é
+              // reservada pelo padding-top do painel — sem deslocar o pin.
               start: "top top",
-              end: () => "+=" + distancePx(),
-              scrub: 1,
+              // A distância real em pixels: soma dos painéis − palco.
+              end: () => "+=" + geo.dist,
+              scrub: 0.8,
               pin: true,
               pinType: "transform",
               anticipatePin: 1,
               invalidateOnRefresh: true,
-              onRefresh: () => fitPanels(),
+              // Snap suave: cada painel assenta exatamente na viewport.
+              snap: {
+                snapTo: 1 / (panels.length - 1),
+                duration: { min: 0.15, max: 0.55 },
+                delay: 0.08,
+                ease: "power2.out",
+              },
             },
           });
 
-          const doRefresh = () => {
+          const refreshAll = () => {
             if (disposed || !canRun()) return;
-            fitPanels();
+            const next = geometry();
+            // Se a distância mudou (resize/fonte/imagem), re-aponta o tween e
+            // deixa o invalidateOnRefresh reavaliar a função x().
+            if (Math.abs(next.dist - geo.dist) > 0.5) {
+              geo.dist = next.dist;
+            }
             ScrollTrigger.refresh();
           };
 
@@ -138,14 +196,18 @@ export function HorizontalScroll() {
             ScrollTrigger.getAll().forEach((t) => t.kill());
             gsap.set(track, { clearProps: "all" });
             pin.classList.remove("lnd-h-on");
-            panels.forEach((p) => {
-              p.classList.remove("lnd-h-fit");
-              p.classList.remove("lnd-h-tall");
-              p.style.removeProperty("--lnd-h-fit-scale");
-            });
+            root.classList.remove("lnd-h-scaled");
+            root.style.setProperty("--lnd-h-s", "1");
+            for (const panel of panels) {
+              panel.style.flex = "";
+              panel.style.width = "";
+              panel.style.minWidth = "";
+              panel.style.maxWidth = "";
+              panel.classList.remove("lnd-h-tall");
+            }
           };
 
-          refresh = doRefresh;
+          refresh = refreshAll;
         })
       );
 
@@ -161,7 +223,7 @@ export function HorizontalScroll() {
       refresh = undefined;
     };
 
-    // Só reconstroi quando o comportamento muda de fato (breakpoint ou
+    // Só reconstrói quando o comportamento muda de fato (breakpoint ou
     // reduced-motion). Resize comum apenas recalcula encaixe + pin.
     const onMediaChange = () => {
       stop();

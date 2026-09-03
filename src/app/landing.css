@@ -6309,15 +6309,19 @@
 .lnd-h-pin.lnd-h-on .lnd-h-track {
   display: flex;
   flex-direction: row;
-  align-items: flex-start;
-  width: max-content;
-  min-width: 100%;
+  flex-wrap: nowrap;
+  align-items: stretch;
   height: 100vh;
   will-change: transform;
 }
+/* Cada painel é EXATAMENTE uma largura de viewport útil. Sem gap, sem
+   margens e sem largura derivada de conteúdo. O HorizontalScroll ainda
+   reforça a largura em px (clientWidth real do palco) via style inline —
+   100vw aqui é o fallback. A largura do painel nunca muda durante o scroll. */
 .lnd-h-pin.lnd-h-on .lnd-h-track > .lnd-section {
   flex: 0 0 100vw;
   width: 100vw;
+  min-width: 100vw;
   max-width: 100vw;
   height: 100vh;
   min-height: 100vh;
@@ -6330,25 +6334,33 @@
   padding-block: 0;
   padding-top: var(--lnd-nav-h);
 }
-.lnd-h-pin.lnd-h-on .lnd-h-track > .lnd-section > .lnd-container {
-  width: 100%;
-  max-width: var(--lnd-container, 1180px);
-  margin-inline: auto;
-  flex: 0 0 auto;
+/* O container interno mantém o max-width da landing (1180px). Se o conteúdo
+   precisar ser reduzido para caber na área vertical (100vh − nav), a redução
+   acontece AQUI, com uma escala ÚNICA e FIXA (--lnd-h-s) igual para todos os
+   painéis — calculada uma vez por refresh, nunca durante o scroll. A largura
+   física do painel permanece sempre 100vw.
+
+   A escala só é aplicada quando o JS marca `.lnd-h-scaled` no .lnd-root (ou
+   seja, somente quando < 1). Sem a classe, o container fica SEM transform —
+   o que preserva position:sticky/fixed de quaisquer descendentes. */
+.lnd-root.lnd-h-scaled .lnd-h-pin.lnd-h-on .lnd-h-track > .lnd-section > .lnd-container {
+  transform: scale(var(--lnd-h-s, 1));
   transform-origin: center center;
 }
-/* Encaixe: se o conteúdo do painel for mais alto que a área útil
-   (100vh − nav), aplica uma escala proporcional para nada cortar.
-   Sem alterar textos, cores ou ordem — apenas dimensiona o encaixe. */
-.lnd-h-pin.lnd-h-on .lnd-h-track > .lnd-section.lnd-h-fit > .lnd-container {
-  transform: scale(var(--lnd-h-fit-scale, 0.82));
-}
-/* Painel que mesmo no piso de escala passa da área útil: rolagem interna
-   sutil (o conteúdo permanece 100% alcançável, nada é cortado). */
+/* Rede de segurança rara: painel que, mesmo com a escala única, ainda for
+   mais alto que a área útil ganha rolagem interna sutil e volta a 1:1 —
+   nada é cortado nem fica ilegível (conteúdo sempre alcançável). Para que o
+   scroll funcione até o topo, o painel sai do flex-centrado e vira fluxo em
+   bloco (o container interno centraliza com margin-inline auto). */
 .lnd-h-pin.lnd-h-on .lnd-h-track > .lnd-section.lnd-h-tall {
+  display: block;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
+}
+.lnd-h-pin.lnd-h-on .lnd-h-track > .lnd-section.lnd-h-tall > .lnd-container {
+  transform: none;
+  margin-block: auto 0;
 }
 /* Linha de progresso do "Como Funciona" é um efeito de scroll VERTICAL;
    dentro do storytelling horizontal ela não faz sentido (congelaria ou
@@ -6360,7 +6372,11 @@
    superfície escura e os claros usam o fundo da página) — o painel em si
    é uma "etapa" 100vw contínua, sem bordas/emendas artificiais. */
 
-/* Mobile: nunca horizontal, mesmo com classe (fallback vertical). */
+/* Mobile: nunca horizontal, mesmo com classe (fallback vertical).
+   A especificidade cobre inclusive a escala única (`.lnd-root.lnd-h-scaled`)
+   e o fallback raro `.lnd-h-tall`: se qualquer uma dessas classes ainda
+   estiver presente durante a transição de breakpoint, o fallback VENCE e
+   nada fica escalado, com rolagem interna ou com largura forçada. */
 @media (max-width: 900px) {
   .lnd-h-pin.lnd-h-on {
     overflow: visible;
@@ -6370,10 +6386,11 @@
     display: block;
     width: 100%;
     height: auto;
-    min-width: 0;
   }
-  .lnd-h-pin.lnd-h-on .lnd-h-track > .lnd-section {
+  .lnd-h-pin.lnd-h-on .lnd-h-track > .lnd-section,
+  .lnd-h-pin.lnd-h-on .lnd-h-track > .lnd-section.lnd-h-tall {
     width: 100%;
+    min-width: 0;
     max-width: none;
     min-height: 0;
     height: auto;
@@ -6382,12 +6399,19 @@
     padding-block: clamp(72px, 10vw, 132px);
     padding-top: clamp(72px, 10vw, 132px);
   }
-  .lnd-h-pin.lnd-h-on .lnd-h-track > .lnd-section.lnd-h-fit > .lnd-container,
-  .lnd-h-pin.lnd-h-on .lnd-h-track > .lnd-section.lnd-h-tall > .lnd-container {
+  .lnd-h-pin.lnd-h-on .lnd-h-track > .lnd-section > .lnd-container,
+  .lnd-root.lnd-h-scaled
+    .lnd-h-pin.lnd-h-on
+    .lnd-h-track
+    > .lnd-section
+    > .lnd-container {
     transform: none;
+    transform-origin: initial;
+    margin-block: 0;
   }
 }
-/* Reduced motion: nunca horizontal (fallback vertical). */
+/* Reduced motion: nunca horizontal (fallback vertical). Mesma cobertura de
+   especificidade do bloco mobile acima. */
 @media (prefers-reduced-motion: reduce) {
   .lnd-h-pin.lnd-h-on {
     overflow: visible;
@@ -6397,10 +6421,11 @@
     display: block;
     width: 100%;
     height: auto;
-    min-width: 0;
   }
-  .lnd-h-pin.lnd-h-on .lnd-h-track > .lnd-section {
+  .lnd-h-pin.lnd-h-on .lnd-h-track > .lnd-section,
+  .lnd-h-pin.lnd-h-on .lnd-h-track > .lnd-section.lnd-h-tall {
     width: 100%;
+    min-width: 0;
     max-width: none;
     min-height: 0;
     height: auto;
@@ -6409,9 +6434,15 @@
     padding-block: clamp(72px, 10vw, 132px);
     padding-top: clamp(72px, 10vw, 132px);
   }
-  .lnd-h-pin.lnd-h-on .lnd-h-track > .lnd-section.lnd-h-fit > .lnd-container,
-  .lnd-h-pin.lnd-h-on .lnd-h-track > .lnd-section.lnd-h-tall > .lnd-container {
+  .lnd-h-pin.lnd-h-on .lnd-h-track > .lnd-section > .lnd-container,
+  .lnd-root.lnd-h-scaled
+    .lnd-h-pin.lnd-h-on
+    .lnd-h-track
+    > .lnd-section
+    > .lnd-container {
     transform: none;
+    transform-origin: initial;
+    margin-block: 0;
   }
 }
 
