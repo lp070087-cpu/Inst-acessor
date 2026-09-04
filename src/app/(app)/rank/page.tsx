@@ -7,6 +7,7 @@ import {
   getUserRankSummary,
   getRanking,
   getEvolutionHistory,
+  getRankSocialSummary,
   getUserAchievements,
   recomputeGoalProgress,
   recomputeRitmo,
@@ -31,16 +32,25 @@ export default async function RankPage() {
   const ritmo = await recomputeRitmo(userId);
 
   // Dados reais do usuário (nível, ranking, evolução, conquistas, metas).
-  const [progress, summary, ranking, evolution, achievements, goalsResult, displayNameInfo] =
-    await Promise.all([
-      getUserProgress(userId),
-      getUserRankSummary(userId),
-      getRanking(userId, 50),
-      getEvolutionHistory(userId, 30),
-      getUserAchievements(userId),
-      recomputeGoalProgress(userId),
-      getDisplayNameInfo(userId),
-    ]);
+  const [
+    progress,
+    summary,
+    ranking,
+    evolution,
+    social,
+    achievements,
+    goalsResult,
+    displayNameInfo,
+  ] = await Promise.all([
+    getUserProgress(userId),
+    getUserRankSummary(userId),
+    getRanking(userId, 50),
+    getEvolutionHistory(userId, 30),
+    getRankSocialSummary(userId),
+    getUserAchievements(userId),
+    recomputeGoalProgress(userId),
+    getDisplayNameInfo(userId),
+  ]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -122,6 +132,19 @@ export default async function RankPage() {
             value: displayNameInfo.value,
             storedSource: displayNameInfo.storedSource,
             hasInstagram: displayNameInfo.hasInstagram,
+          },
+          social: {
+            followers: social.followers,
+            growth30d: social.growth30d,
+            instagramConnected: social.instagramConnected,
+            instagramUsername: social.instagramUsername,
+          },
+          profilePublic: {
+            name: session.user.name ?? displayNameInfo.profileName ?? "Usuário",
+            image: session.user.image ?? null,
+            username: displayNameInfo.profileUsername,
+            igUsername: displayNameInfo.igUsername,
+            igName: displayNameInfo.igName,
           },
         }}
       />

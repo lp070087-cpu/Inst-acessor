@@ -101,28 +101,101 @@ export interface EvolutionPoint {
   xp: number;
 }
 
+function localDateKey(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 /**
  * Evolução recente do usuário a partir do XpLog (histórico de concessões).
- * Não inventa pontos; cada ponto corresponde a uma concessão real.
+ * Não inventa pontos.
+ *
+ * - Agrega todas as ações de um MESMO dia em um único ponto (o último valor
+ *   acumulado do dia) — evita vários rótulos "03/09" repetidos no eixo X.
+ * - Usa como baseline o XP total real (UserLevel.xp) menos a soma da janela:
+ *   assim o primeiro ponto já representa o XP acumulado real antes da janela,
+ *   e a linha mostra o XP acumulado REAL ao longo do tempo.
+ * - Se a janela inteira cair num único dia, retorna 1 ponto (a UI decide como
+ *   exibir sem inventar histórico).
  */
 export async function getEvolutionHistory(userId: string, take = 30): Promise<EvolutionPoint[]> {
-  const logs = await gp.xpLog.findMany({
+  const lvl = await gp.level.findUnique({ where: { userId } });
+  const logsDesc = await gp.xpLog.findMany({
     where: { userId },
-    orderBy: { createdAt: "asc" },
+    orderBy: { createdAt: "desc" },
     take,
   });
+  const logs = [...(logsDesc as { amount: number; createdAt: Date }[])].reverse();
 
-  let running = 0;
-  const points: EvolutionPoint[] = [];
+  const windowSum = logs.reduce((s, l) => s + l.amount, 0);
+  const totalXp = (lvl as { xp: number } | null)?.xp ?? 0;
+  const base = Math.max(0, totalXp - windowSum);
+
+  const byDay = new Map<string, EvolutionPoint>();
+  let running = base;
   for (const log of logs) {
-    const l = log as { amount: number; createdAt: Date };
-    running += l.amount;
+    running += log.amount;
     const info = levelInfoFromXp(running);
-    points.push({
-      label: l.createdAt.toISOString(),
+    const key = localDateKey(log.createdAt);
+    byDay.set(key, {
+      label: log.createdAt.toISOString(),
       level: info.level,
       xp: running,
     });
   }
-  return points;
+  return [...byDay.values()];
+}
+
+// ------------------------------------------------------------
+// Resumo social real p/ o topo do Rank (seguidores/crescimento/IG)
+// ------------------------------------------------------------
+
+export interface RankSocialSummary {
+  /** Seguidores reais mais recentes (snapshot atual ou perfil IG). */
+  followers: number | null;
+  /** Ganho real de seguidores nos últimos 30 dias (snapshots). */
+  growth30d: number | null;
+  instagramConnected: boolean;
+  instagramUsername: string | null;
+}
+
+/**
+ * Lê dados sociais REAIS do usuário para o resumo superior do Rank.
+ * Nunca inventa número: sem conta/snapshot → null (a UI mostra "—").
+ */
+export async function getRankSocialSummary(userId: string): Promise<RankSocialSummary> {
+  const profile = await prisma.instagramProfile.findFirst({
+    where: { userId },
+    orderBy: { updatedAt: "desc" },
+    select: { username: true, followersCount: true },
+  });
+
+  const snapshots = await prisma.instagramSnapshot.findMany({
+    where: { userId },
+    orderBy: { capturedAt: "asc" },
+    select: { capturedAt: true, followersCount: true },
+  });
+
+  const latest = snapshots[snapshots.length - 1] ?? null;
+  const current = latest?.followersCount ?? profile?.followersCount ?? null;
+
+  let growth30d: number | null = null;
+  if (snapshots.length > 0 && current != null) {
+    const cutoff = Date.now() - 30 * 864e5;
+    let past: { followersCount: number | null } | null = null;
+    for (let i = snapshots.length - 1; i >= 0; i--) {
+      if (snapshots[i].capturedAt.getTime() <= cutoff) {
+        past = snapshots[i];
+        break;
+      }
+    }
+    if (past?.followersCount != null) growth30d = current - past.followersCount;
+  }
+
+  return {
+    followers: current,
+    growth30d,
+    instagramConnected: Boolean(profile?.username || profile?.followersCount != null),
+    instagramUsername: profile?.username ?? null,
+  };
 }

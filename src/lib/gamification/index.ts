@@ -49,9 +49,11 @@ export {
   getRanking,
   getUserRankSummary,
   getEvolutionHistory,
+  getRankSocialSummary,
   type RankingEntry,
   type UserRankSummary,
   type EvolutionPoint,
+  type RankSocialSummary,
 } from "./ranking";
 export {
   getDisplayNameInfo,

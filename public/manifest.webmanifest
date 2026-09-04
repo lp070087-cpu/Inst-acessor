@@ -1,7 +1,8 @@
 {
-  "name": "Inst Acessor — Inteligência para o crescimento do seu Instagram",
+  "name": "Inst Acessor",
   "short_name": "Inst Acessor",
   "description": "O Inst Acessor analisa seu perfil, acompanha sua evolução e transforma métricas do Instagram em estratégias práticas para crescer de forma inteligente.",
+  "id": "/",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

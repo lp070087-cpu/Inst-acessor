@@ -958,10 +958,12 @@ export function PreviewSocial({ initialDrafts, copies = [], initialContent }: Pr
               Preview · {platformLabel} · {formatLabel}
             </div>
 
-            <div className="relative w-[300px] rounded-[40px] border-[10px] border-ink bg-ink shadow-brand-lg overflow-hidden">
+            {/* Phone shell 100% fixo — Post/Carrossel/Reel/Story mudam apenas o
+                conteúdo interno (a tela é um viewport absoluto de tamanho constante). */}
+            <div className="relative w-[300px] h-[560px] flex-none rounded-[40px] border-[10px] border-ink bg-ink shadow-brand-lg overflow-hidden">
               <div className="absolute top-2 left-1/2 -translate-x-1/2 w-24 h-5 bg-ink rounded-full z-20" />
 
-              <div className={cn("bg-bg-ice flex flex-col", isStory ? "h-[540px]" : "h-[540px]")}>
+              <div className="absolute inset-0 bg-bg-ice flex flex-col overflow-hidden">
                 {/* Header do perfil */}
                 <div className="flex items-center gap-2.5 px-4 pt-9 pb-2">
                   <span className="w-8 h-8 rounded-full bg-brand-grad grid place-items-center text-[11px] font-bold text-white">

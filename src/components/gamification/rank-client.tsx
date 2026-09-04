@@ -23,9 +23,16 @@ import {
   CalendarDays,
   Check,
   UserCog,
+  Users,
+  Share2,
+  Copy as CopyIcon,
+  Instagram,
+  Globe,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
+import { Avatar } from "@/components/ui/avatar";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { ProgressBar } from "@/components/ui/progress-bar";
@@ -142,6 +149,21 @@ interface DisplayNameData {
   hasInstagram: boolean;
 }
 
+interface RankSocialData {
+  followers: number | null;
+  growth30d: number | null;
+  instagramConnected: boolean;
+  instagramUsername: string | null;
+}
+
+interface RankProfilePublicData {
+  name: string;
+  image: string | null;
+  username: string | null;
+  igUsername: string | null;
+  igName: string | null;
+}
+
 interface RankInitialData {
   progress: ProgressData;
   summary: SummaryData;
@@ -152,6 +174,8 @@ interface RankInitialData {
   xpLogs: XpLogData[];
   momentum?: MomentumData;
   displayName?: DisplayNameData;
+  social?: RankSocialData;
+  profilePublic?: RankProfilePublicData;
 }
 
 interface RankClientProps {
@@ -242,9 +266,48 @@ export function RankClient({ initial }: RankClientProps) {
   const [displayName, setDisplayName] = React.useState<DisplayNameData | null>(
     initial.displayName ?? null
   );
+  const [social, setSocial] = React.useState<RankSocialData | null>(initial.social ?? null);
+  const [profilePublic, setProfilePublic] = React.useState<RankProfilePublicData | null>(
+    initial.profilePublic ?? null
+  );
 
   const [goalModalOpen, setGoalModalOpen] = React.useState(false);
   const [checking, setChecking] = React.useState(false);
+
+  // Perfil público — link real (usando o domínio oficial; quando o app roda em
+  // preview/dev, o link reflete o domínio do deploy atual via window.location).
+  const publicProfileUrl = React.useMemo(() => {
+    const username = profilePublic?.username ?? profilePublic?.igUsername ?? null;
+    if (!username) return null;
+    return `${window.location.origin}/p/${encodeURIComponent(username)}`;
+  }, [profilePublic]);
+
+  async function copyText(text: string, okMsg: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast(okMsg, "success");
+    } catch {
+      toast("Não foi possível copiar.", "error");
+    }
+  }
+
+  async function handleShareEvolution() {
+    const shareData = {
+      title: "Inst Acessor — Minha evolução",
+      text: `Estou no nível ${progress.level} com ${progress.xp} XP no Inst Acessor!`,
+      url: publicProfileUrl ?? window.location.href,
+    };
+    try {
+      if (typeof navigator !== "undefined" && "share" in navigator) {
+        await navigator.share(shareData);
+        return;
+      }
+    } catch {
+      // usuário cancelou — cai no fallback
+    }
+    if (publicProfileUrl) await copyText(publicProfileUrl, "Link copiado!");
+    else await copyText(window.location.href, "Link copiado!");
+  }
 
   // Sub-aba de conquistas (visíveis vs. todas)
   const [onlyVisible, setOnlyVisible] = React.useState(true);
@@ -275,6 +338,8 @@ export function RankClient({ initial }: RankClientProps) {
         setXpLogs(full.xpLogs);
         if (full.momentum) setMomentum(full.momentum);
         if (full.displayName) setDisplayName(full.displayName);
+        if (full.social) setSocial(full.social);
+        if (full.profilePublic) setProfilePublic(full.profilePublic);
       }
       if (data.unlockedNow) {
         toast(`${data.amount} XP conquistado! Continue assim.`);
@@ -302,6 +367,8 @@ export function RankClient({ initial }: RankClientProps) {
       setXpLogs(full.xpLogs);
       if (full.momentum) setMomentum(full.momentum);
       if (full.displayName) setDisplayName(full.displayName);
+      if (full.social) setSocial(full.social);
+      if (full.profilePublic) setProfilePublic(full.profilePublic);
     } catch {
       // silencioso — UI já tem dados
     }
@@ -357,10 +424,18 @@ export function RankClient({ initial }: RankClientProps) {
         </div>
       </div>
 
+      {/* Rodada #289 — Resumo social no topo (seguidores/crescimento/IG/conquistas) */}
+      <SocialSummaryStrip
+        social={social}
+        unlockedCount={unlockedCount}
+        visibleCount={visibleCount}
+      />
+
       {/* Abas */}
       <Tabs
         tabs={[
           { id: "visao-geral", label: "Visão geral" },
+          { id: "perfil-publico", label: "Perfil Público" },
           { id: "ranking", label: "Ranking" },
           { id: "metas", label: "Metas" },
           { id: "conquistas", label: "Conquistas" },
@@ -381,6 +456,21 @@ export function RankClient({ initial }: RankClientProps) {
           displayName={displayName}
           onDisplayNameChange={(info) => setDisplayName(info)}
           toast={toast}
+        />
+      )}
+
+      {tab === "perfil-publico" && (
+        <PerfilPublicoView
+          progress={progress}
+          summary={summary}
+          social={social}
+          profilePublic={profilePublic}
+          unlockedCount={unlockedCount}
+          totalCount={totalCount}
+          achievements={achievements}
+          publicProfileUrl={publicProfileUrl}
+          onCopyLink={(u) => copyText(u, "Link do perfil copiado!")}
+          onShare={() => handleShareEvolution()}
         />
       )}
 
@@ -471,10 +561,10 @@ function VisaoGeral({
               Acúmulo de XP ao longo do tempo. Cada ponto é uma ação real registrada.
             </p>
           </div>
-          {evolution.length < 2 ? (
+          {evolution.length === 0 ? (
             <div className="h-52 rounded-[16px] bg-surface/40 border border-dashed border-[#D0D4DB] flex items-center justify-center">
               <p className="text-[13px] text-ink-soft">
-                Ainda não há pontos suficientes — faça ações no app para acumular XP.
+                Ainda não há XP registrado — faça ações no app para começar a acumular.
               </p>
             </div>
           ) : (
@@ -836,26 +926,315 @@ function MomentumCard({ card }: { card: RitmoCardData }) {
   );
 }
 
+// ------------------------------------------------------------
+// Resumo social no topo (rodada #289) — 4 métricas reais
+// ------------------------------------------------------------
+
+function SocialSummaryStrip({
+  social,
+  unlockedCount,
+  visibleCount,
+}: {
+  social: RankSocialData | null;
+  unlockedCount: number;
+  visibleCount: number;
+}) {
+  const followers = social?.followers != null ? formatCount(social.followers) : "—";
+  const growth =
+    social?.growth30d != null
+      ? formatSigned(social.growth30d)
+      : "—";
+  const instagram = social?.instagramConnected
+    ? social.instagramUsername
+      ? `@${social.instagramUsername}`
+      : "Conectado"
+    : "Não conectado";
+
+  const items: { label: string; value: string; hint: string; icon: LucideIcon; ok?: boolean }[] = [
+    {
+      label: "Seguidores",
+      value: followers,
+      hint: "Instagram · mais recente",
+      icon: Users,
+      ok: social?.followers != null,
+    },
+    {
+      label: "Crescimento",
+      value: growth,
+      hint: "nos últimos 30 dias",
+      icon: TrendingUp,
+      ok: social?.growth30d != null,
+    },
+    {
+      label: "Instagram",
+      value: instagram,
+      hint: social?.instagramConnected ? "conta conectada" : "conecte sua conta p/ exibir",
+      icon: Instagram,
+      ok: social?.instagramConnected ?? false,
+    },
+    {
+      label: "Conquistas",
+      value: `${unlockedCount}/${visibleCount}`,
+      hint: "desbloqueadas (visíveis)",
+      icon: Award,
+      ok: unlockedCount > 0,
+    },
+  ];
+
+  return (
+    <div className="grid gap-3 grid-cols-2 xl:grid-cols-4">
+      {items.map((it) => (
+        <div
+          key={it.label}
+          className="rounded-xl bg-card border border-border-soft shadow-xs p-4 flex flex-col gap-2"
+        >
+          <div className="flex items-center gap-2">
+            <span className="w-8 h-8 rounded-[10px] bg-ai-soft text-purple grid place-items-center flex-none">
+              <it.icon size={15} />
+            </span>
+            <span className="text-[12.5px] font-semibold text-ink-soft">{it.label}</span>
+          </div>
+          <p className="font-data font-bold text-[20px] leading-none text-ink">{it.value}</p>
+          <p className="text-[11.5px] text-ink-muted">{it.hint}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ------------------------------------------------------------
+// Perfil Público (rodada #289) — aba logo após "Visão geral"
+// ------------------------------------------------------------
+
+const TIER_ORDER: Record<string, number> = { BRONZE: 0, PRATA: 1, OURO: 2, DESAFIO: 3 };
+
+function bestAchievement(list: AchievementData[], onlyDesafio = false) {
+  const unlocked = list.filter((a) => a.unlocked && (onlyDesafio ? a.tier === "DESAFIO" : a.tier !== "DESAFIO"));
+  if (unlocked.length === 0) return null;
+  return unlocked.sort((a, b) => {
+    const diff = (TIER_ORDER[b.tier] ?? 0) - (TIER_ORDER[a.tier] ?? 0);
+    if (diff !== 0) return diff;
+    // entre honrarias do mesmo tier, mostra a mais recente primeiro
+    return (b.unlockedAt ?? "").localeCompare(a.unlockedAt ?? "");
+  })[0];
+}
+
+function PerfilPublicoView({
+  progress,
+  summary,
+  social,
+  profilePublic,
+  unlockedCount,
+  totalCount,
+  achievements,
+  publicProfileUrl,
+  onCopyLink,
+  onShare,
+}: {
+  progress: ProgressData;
+  summary: SummaryData;
+  social: RankSocialData | null;
+  profilePublic: RankProfilePublicData | null;
+  unlockedCount: number;
+  totalCount: number;
+  achievements: AchievementData[];
+  publicProfileUrl: string | null;
+  onCopyLink: (url: string) => void;
+  onShare: () => void;
+}) {
+  const name = profilePublic?.name ?? "Usuário";
+  const ig = profilePublic?.igUsername ?? profilePublic?.username ?? null;
+  const pos = summary.position !== null ? `#${summary.position}` : "—";
+
+  const badge = bestAchievement(achievements, false);
+  const trophy = bestAchievement(achievements, true);
+
+  const stats: { label: string; value: string; icon: LucideIcon; empty: boolean }[] = [
+    {
+      label: "Seguidores",
+      value: social?.followers != null ? formatCount(social.followers) : "—",
+      icon: Users,
+      empty: social?.followers == null,
+    },
+    {
+      label: "Crescimento (30d)",
+      value: social?.growth30d != null ? formatSigned(social.growth30d) : "—",
+      icon: TrendingUp,
+      empty: social?.growth30d == null,
+    },
+    {
+      label: "Instagram",
+      value: ig ? `@${ig}` : "Não conectado",
+      icon: Instagram,
+      empty: !ig,
+    },
+    {
+      label: "Conquistas",
+      value: `${unlockedCount}/${totalCount}`,
+      icon: Award,
+      empty: unlockedCount === 0,
+    },
+  ];
+
+  return (
+    <div className="grid gap-5 lg:grid-cols-[1.2fr_1fr]">
+      {/* Card principal — como o perfil aparece publicamente */}
+      <div className="rounded-xl bg-card border border-border-soft shadow-xs p-6 flex flex-col gap-5">
+        <div className="flex items-center gap-4 flex-wrap">
+          <Avatar name={name} src={profilePublic?.image ?? null} size="lg" />
+          <div className="flex flex-col gap-1 min-w-0">
+            <h3 className="font-display text-[18px] font-bold text-ink truncate">{name}</h3>
+            <p className="text-[13px] text-ink-soft flex items-center gap-1.5 flex-wrap">
+              {ig ? (
+                <>
+                  <Instagram size={13} className="text-purple flex-none" />
+                  <span className="truncate">@{ig}</span>
+                </>
+              ) : (
+                <span className="text-ink-muted">Instagram não conectado</span>
+              )}
+            </p>
+            <div className="flex items-center gap-2 mt-1">
+              <Badge tone="brand" size="sm">Nível {progress.level}</Badge>
+              <Badge tone="neutral" size="sm">{progress.xp} XP</Badge>
+              <Badge tone="ai" size="sm">Rank {pos}</Badge>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-[16px] bg-surface/40 border border-border-soft p-4 flex flex-col gap-2.5">
+          <span className="text-[12.5px] font-semibold text-ink-soft">
+            Progresso para o nível {progress.level + 1}
+          </span>
+          <ProgressBar value={progress.progressToNext} gradient="brand" />
+          <p className="text-[12.5px] text-ink-muted">
+            {progress.xpInLevel} / {progress.xpNeededForNext} XP ·{" "}
+            {Math.round(progress.progressToNext)}%
+          </p>
+        </div>
+
+        <div className="grid gap-3 grid-cols-2">
+          {stats.map((s) => (
+            <div key={s.label} className="rounded-[16px] bg-surface/40 border border-border-soft p-4 flex flex-col gap-1.5">
+              <span className="text-[11.5px] font-semibold text-ink-soft flex items-center gap-1.5">
+                <s.icon size={13} className="text-purple" />
+                {s.label}
+              </span>
+              <p className={cn("font-data font-bold text-[18px] leading-none", s.empty ? "text-ink-muted" : "text-ink")}>
+                {s.value}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            size="sm"
+            className="gap-2"
+            disabled={!publicProfileUrl}
+            onClick={() => publicProfileUrl && onCopyLink(publicProfileUrl)}
+          >
+            <CopyIcon size={15} /> Copiar link do perfil
+          </Button>
+          <Button variant="outline" size="sm" className="gap-2" onClick={onShare}>
+            <Share2 size={15} /> Compartilhar evolução
+          </Button>
+        </div>
+        {!publicProfileUrl && (
+          <p className="text-[12px] text-ink-muted">
+            Defina um nome de usuário no Perfil para gerar o link público.
+          </p>
+        )}
+      </div>
+
+      {/* Honrarias reais */}
+      <div className="flex flex-col gap-5">
+        <div className="rounded-xl bg-card border border-border-soft shadow-xs p-5 flex flex-col gap-2">
+          <h4 className="font-display text-[14px] font-bold text-ink flex items-center gap-2">
+            <Crown size={16} className="text-warn" />
+            Melhor badge
+          </h4>
+          {badge ? (
+            <div className="flex items-center gap-3">
+              <span className={cn("w-10 h-10 rounded-[14px] grid place-items-center", tierClass(badge.tier))}>
+                {achievementIcon(badge.tier)({ size: 18 })}
+              </span>
+              <div className="flex flex-col gap-0.5 min-w-0">
+                <p className="text-[13.5px] font-semibold text-ink truncate">{badge.title}</p>
+                <span className="text-[11.5px] text-ink-muted">{TIER_LABEL[badge.tier] ?? badge.tier}</span>
+              </div>
+            </div>
+          ) : (
+            <p className="text-[13px] text-ink-muted">— Nenhuma ainda</p>
+          )}
+        </div>
+
+        <div className="rounded-xl bg-card border border-border-soft shadow-xs p-5 flex flex-col gap-2">
+          <h4 className="font-display text-[14px] font-bold text-ink flex items-center gap-2">
+            <Sparkles size={16} className="text-purple" />
+            Melhor troféu
+          </h4>
+          {trophy ? (
+            <div className="flex items-center gap-3">
+              <span className={cn("w-10 h-10 rounded-[14px] grid place-items-center", tierClass(trophy.tier))}>
+                {achievementIcon(trophy.tier)({ size: 18 })}
+              </span>
+              <div className="flex flex-col gap-0.5 min-w-0">
+                <p className="text-[13.5px] font-semibold text-ink truncate">{trophy.title}</p>
+                <span className="text-[11.5px] text-ink-muted">{TIER_LABEL[trophy.tier] ?? trophy.tier}</span>
+              </div>
+            </div>
+          ) : (
+            <p className="text-[13px] text-ink-muted">— Nenhuma ainda</p>
+          )}
+        </div>
+
+        <div className="rounded-xl bg-card border border-border-soft shadow-xs p-5 flex flex-col gap-2">
+          <h4 className="font-display text-[14px] font-bold text-ink flex items-center gap-2">
+            <Globe size={16} className="text-purple" />
+            Link público
+          </h4>
+          {publicProfileUrl ? (
+            <p className="text-[12px] text-ink-muted break-all leading-relaxed">{publicProfileUrl}</p>
+          ) : (
+            <p className="text-[12.5px] text-ink-muted">
+              Seu perfil público fica em <span className="font-semibold text-ink-soft">/p/[usuário]</span>. Conecte o
+              Instagram ou defina um nome de usuário para ativar.
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EvolutionSvg({ points }: { points: EvolutionPoint[] }) {
   const values = points.map((p) => p.xp);
   const W = 720;
   const H = 210;
-  const PAD = { top: 18, right: 16, bottom: 26, left: 40 };
+  const PAD = { top: 18, right: 16, bottom: 26, left: 42 };
 
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const span = max - min || 1;
-  const lower = min - span * 0.08;
-  const upper = max + span * 0.08;
+  // Escala do eixo Y: sempre cobre 0 → valor máximo, com "ticks" bonitos e
+  // inteiros (nunca 566667 / 333333 / 999999 quebrados). O eixo começa em 0
+  // pois XP é acumulado e não pode ser negativo.
+  const rawMax = Math.max(...values, 0);
+  const ticks = niceTicks(rawMax);
+  const upper = ticks[ticks.length - 1];
+  const lower = 0;
   const ySpan = upper - lower || 1;
 
-  const x = (i: number) => PAD.left + (i / (values.length - 1)) * (W - PAD.left - PAD.right);
+  const x = (i: number) => {
+    if (values.length === 1) return PAD.left + (W - PAD.left - PAD.right) / 2;
+    return PAD.left + (i / (values.length - 1)) * (W - PAD.left - PAD.right);
+  };
   const y = (v: number) => PAD.top + ((upper - v) / ySpan) * (H - PAD.top - PAD.bottom);
 
   const linePath = values
     .map((v, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(v).toFixed(1)}`)
     .join(" ");
-  const areaPath = `${linePath} L${x(values.length - 1).toFixed(1)},${H - PAD.bottom} L${x(0).toFixed(1)},${H - PAD.bottom} Z`;
+  const areaPath = values.length === 1
+    ? `${linePath} L${x(0).toFixed(1)},${H - PAD.bottom} L${x(0).toFixed(1)},${H - PAD.bottom} Z`
+    : `${linePath} L${x(values.length - 1).toFixed(1)},${H - PAD.bottom} L${x(0).toFixed(1)},${H - PAD.bottom} Z`;
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img" aria-label="Evolução do XP">
@@ -871,14 +1250,13 @@ function EvolutionSvg({ points }: { points: EvolutionPoint[] }) {
         </linearGradient>
       </defs>
 
-      {[0, 1, 2, 3].map((t) => {
-        const gy = PAD.top + (t / 3) * (H - PAD.top - PAD.bottom);
-        const gv = upper - (t / 3) * ySpan;
+      {ticks.map((tick, t) => {
+        const gy = y(tick);
         return (
-          <g key={t}>
+          <g key={tick}>
             <line x1={PAD.left} x2={W - PAD.right} y1={gy} y2={gy} stroke="#E5E7EB" strokeDasharray="4 4" />
             <text x={PAD.left - 8} y={gy + 3} textAnchor="end" fontSize="10.5" fill="#9CA3AF">
-              {formatXp(gv)}
+              {tick === 0 ? "0" : formatXp(tick)}
             </text>
           </g>
         );
@@ -887,28 +1265,81 @@ function EvolutionSvg({ points }: { points: EvolutionPoint[] }) {
       <path d={areaPath} fill="url(#xpArea)" />
       <path d={linePath} fill="none" stroke="url(#xpLine)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
 
-      <circle cx={x(0)} cy={y(values[0])} r="4" fill="#fff" stroke="#A855F7" strokeWidth="2" />
-      <circle cx={x(values.length - 1)} cy={y(values[values.length - 1])} r="4.5" fill="#F43F8E" stroke="#fff" strokeWidth="2" />
+      {values.length === 1 ? (
+        <circle cx={x(0)} cy={y(values[0])} r="5" fill="#F43F8E" stroke="#fff" strokeWidth="2" />
+      ) : (
+        <>
+          <circle cx={x(0)} cy={y(values[0])} r="4" fill="#fff" stroke="#A855F7" strokeWidth="2" />
+          <circle cx={x(values.length - 1)} cy={y(values[values.length - 1])} r="4.5" fill="#F43F8E" stroke="#fff" strokeWidth="2" />
+        </>
+      )}
 
-      {[0, Math.floor((values.length - 1) / 2), values.length - 1].map((i) => (
+      {values.length === 1 ? (
         <text
-          key={i}
-          x={x(i)}
+          x={x(0)}
           y={H - 6}
-          textAnchor={i === 0 ? "start" : i === values.length - 1 ? "end" : "middle"}
+          textAnchor="middle"
           fontSize="10.5"
           fill="#9CA3AF"
         >
-          {shortDate(points[i]?.label)}
+          {shortDate(points[0]?.label)}
         </text>
-      ))}
+      ) : (
+        [0, Math.floor((values.length - 1) / 2), values.length - 1].map((i) => (
+          <text
+            key={i}
+            x={x(i)}
+            y={H - 6}
+            textAnchor={i === 0 ? "start" : i === values.length - 1 ? "end" : "middle"}
+            fontSize="10.5"
+            fill="#9CA3AF"
+          >
+            {shortDate(points[i]?.label)}
+          </text>
+        ))
+      )}
     </svg>
   );
 }
 
 function formatXp(n: number): string {
-  if (Math.abs(n) >= 1_000) return `${(n / 1_000).toFixed(1).replace(".", ",")}k`;
-  return String(n);
+  // XP é sempre inteiro. Para valores grandes usa-se abreviação inteira (sem
+  // decimais) para os rótulos do eixo — nunca "566,7k" quebrado.
+  if (Math.abs(n) >= 1_000) {
+    if (Math.abs(n) >= 1_000_000) return `${Math.round(n / 1_000_000)}M`;
+    if (Math.abs(n) >= 10_000) return `${Math.round(n / 1_000)}k`;
+    return `${(n / 1_000).toFixed(1).replace(".", ",")}k`;
+  }
+  return String(Math.round(n));
+}
+
+/**
+ * Gera "ticks" bonitos e INTEIROS para o eixo Y do gráfico de XP.
+ * - 3 a 5 linhas de grade (incluindo o 0).
+ * - Sempre cobre o valor máximo dos dados (upper >= max).
+ * - Passo inteiro "redondo" (1/2/5 × potência de 10) → rótulos legíveis,
+ *   sem números concatenados tipo 566667/333333/999999.
+ */
+function niceTicks(maxValue: number): number[] {
+  const max = Math.max(1, Math.ceil(maxValue));
+  const baseStep = max / 4;
+  const mag = Math.pow(10, Math.floor(Math.log10(Math.max(1, baseStep))));
+  const norm = baseStep / mag;
+  const stepF = norm <= 1 ? mag : norm <= 2 ? 2 * mag : norm <= 5 ? 5 * mag : 10 * mag;
+  const step = Math.max(1, Math.ceil(stepF));
+  const k = Math.max(1, Math.ceil(max / step));
+  const ticks: number[] = [];
+  for (let i = 0; i <= k; i++) ticks.push(i * step);
+  return ticks;
+}
+
+function formatCount(n: number): string {
+  return new Intl.NumberFormat("pt-BR").format(n);
+}
+
+function formatSigned(n: number): string {
+  const abs = new Intl.NumberFormat("pt-BR").format(Math.abs(n));
+  return n > 0 ? `+${abs}` : n < 0 ? `-${abs}` : "0";
 }
 
 function shortDate(iso?: string): string {

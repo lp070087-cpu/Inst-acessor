@@ -6,10 +6,12 @@ import {
   getUserRankSummary,
   getRanking,
   getEvolutionHistory,
+  getRankSocialSummary,
 } from "@/lib/gamification";
 import { getUserAchievements } from "@/lib/gamification";
 import { recomputeGoalProgress } from "@/lib/gamification";
 import { recomputeRitmo, getDisplayNameInfo } from "@/lib/gamification";
+import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +48,15 @@ export async function GET() {
 
     // Nome exibido (rodada #274): preferência do usuário com fallback real.
     const displayNameInfo = await getDisplayNameInfo(userId);
+
+    // Rodada #289 — Resumo social real (seguidores/crescimento) p/ o topo do Rank.
+    const social = await getRankSocialSummary(userId);
+
+    // Rodada #289 — Perfil público (gamificação/evolução) — dados REAIS mínimos.
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true, image: true },
+    });
 
     return NextResponse.json({
       progress: {
@@ -87,6 +98,19 @@ export async function GET() {
         value: displayNameInfo.value,
         storedSource: displayNameInfo.storedSource,
         hasInstagram: displayNameInfo.hasInstagram,
+      },
+      social: {
+        followers: social.followers,
+        growth30d: social.growth30d,
+        instagramConnected: social.instagramConnected,
+        instagramUsername: social.instagramUsername,
+      },
+      profilePublic: {
+        name: user?.name ?? displayNameInfo.profileName ?? "Usuário",
+        image: user?.image,
+        username: displayNameInfo.profileUsername,
+        igUsername: displayNameInfo.igUsername,
+        igName: displayNameInfo.igName,
       },
     });
   } catch (err) {

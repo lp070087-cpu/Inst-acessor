@@ -4,6 +4,7 @@ import * as React from "react";
 import { Loader2, UserRound, Target, Palette, Layers, AtSign, Check, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
+import { NicheCombobox } from "@/components/perfil/niche-combobox";
 
 interface PerfilClientProps {
   user: {
@@ -104,12 +105,7 @@ export function PerfilClient({ user, profile }: PerfilClientProps) {
         </Field>
 
         <Field label="Nicho" icon={Palette}>
-          <input
-            className={inputCls}
-            value={niche}
-            onChange={(e) => setNiche(e.target.value)}
-            placeholder="Ex.: Moda, Fitness, Gastronomia"
-          />
+          <NicheCombobox value={niche} onChange={setNiche} />
         </Field>
 
         <Field label="Subnicho" icon={Layers}>

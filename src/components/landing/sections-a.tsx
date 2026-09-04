@@ -38,7 +38,7 @@ const NAV_LINKS = [
   { href: "#dashboard", label: "Funcionalidades" },
   { href: "#score", label: "Score" },
   { href: "#ia", label: "Inteligência" },
-  { href: "#calendario", label: "Calendário" },
+  { href: "#estrategia", label: "Estratégia" },
   { href: "#seguranca", label: "Segurança" },
   { href: "#planos", label: "Planos" },
 ];
