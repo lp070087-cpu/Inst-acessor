@@ -15,6 +15,7 @@ import {
   Copy,
   RefreshCw,
   Compass,
+  BellRing,
 } from "lucide-react";
 
 /* ============================================================
@@ -234,39 +235,6 @@ const ALERTAS: Alerta[] = [
   { ic: CheckCircle2, kind: "success", t: "Melhor conteúdo", d: "Carrosséis educativos têm o melhor desempenho de salvamentos.", time: "há 3 dias" },
 ];
 
-export function Alertas() {
-  return (
-    <section className="lnd-section" id="alertas">
-      <div className="lnd-container">
-        <div className="lnd-section-head lnd-center lnd-reveal">
-          <span className="lnd-eyebrow">Alertas inteligentes</span>
-          <h2 className="lnd-h2">
-            O Inst Acessor <span className="lnd-grad">avisa antes</span> do problema virar queda
-          </h2>
-          <p className="lnd-lead">
-            Sinais de mudança no comportamento do seu perfil, resumidos em alertas acionáveis.
-          </p>
-        </div>
-
-        <div className="lnd-alert-list">
-          {ALERTAS.map((a, i) => (
-            <div className={`lnd-alert-item lnd-alert-${a.kind} lnd-reveal`} data-delay={String(i + 1)} key={a.t}>
-              <span className="lnd-ic">
-                <a.ic />
-              </span>
-              <div className="lnd-a-body">
-                <b>{a.t}</b>
-                <p>{a.d}</p>
-              </div>
-              <span className="lnd-a-time">{a.time}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
 const MOVES: { tag: "up" | "info"; t: string; d: string }[] = [
   { tag: "up", t: "Publicar Reels 3x por semana", d: "Reels têm 2,1x mais alcance que a sua média de outros formatos." },
   { tag: "up", t: "Manter stories diários", d: "Sua audiência assiste stories com constância — aproveite o topo do feed." },
@@ -280,71 +248,117 @@ export function Estrategia() {
     <section className="lnd-section" id="estrategia">
       <div className="lnd-container">
         <div className="lnd-section-head lnd-center lnd-reveal">
-          <span className="lnd-eyebrow">Estratégia</span>
+          <span className="lnd-eyebrow">Alertas inteligentes + Estratégia</span>
           <h2 className="lnd-h2">
-            Um plano de ação <span className="lnd-grad">priorizado por impacto</span>
+            Do alerta ao <span className="lnd-grad">plano de ação</span>
           </h2>
           <p className="lnd-lead">
-            Não é um monte de dica genérica: é uma sequência de movimentos ordenada pela
-            oportunidade que cada um representa para o seu perfil.
+            O Inst Acessor detecta o que muda no seu perfil e traduz cada sinal em uma ação
+            priorizada por impacto — do problema ao próximo passo.
           </p>
         </div>
 
-        <div className="lnd-strategy-wrap">
-          <div className="lnd-strategy-score lnd-reveal" data-dir="left">
-            <span className="lnd-ring-cap">Score de estratégia</span>
-            <svg viewBox="0 0 160 160" width="176" height="176" className="lnd-ring-svg" role="img" aria-label="76 de 100">
-              <circle cx="80" cy="80" r="68" fill="none" stroke="var(--lnd-surface)" strokeWidth="14" />
-              <circle
-                className="lnd-ring-progress"
-                cx="80"
-                cy="80"
-                r="68"
-                fill="none"
-                stroke="url(#lndStratGrad)"
-                strokeWidth="14"
-                strokeLinecap="round"
-                strokeDasharray="427.3"
-                strokeDashoffset="427.3"
-                data-ring="76"
-                data-circ="427.3"
-              />
-              <defs>
-                <linearGradient id="lndStratGrad" x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0" stopColor="#6366F1" />
-                  <stop offset="1" stopColor="#3B82F6" />
-                </linearGradient>
-              </defs>
-            </svg>
-            <div className="lnd-gauge-num">
-              <b>
-                <span data-count="76">0</span>
-                <span className="lnd-slash">/100</span>
-              </b>
-              <span>5 movimentos de alto impacto sugeridos</span>
+        <div className="lnd-strategy-wrap lnd-strategy-unified lnd-reveal" data-dir="scale">
+          {/* Esquerda — alertas detectados (problemas) */}
+          <div className="lnd-strategy-col lnd-strategy-col-alerts">
+            <div className="lnd-strategy-col-head">
+              <span className="lnd-sc-icon lnd-sc-icon-alert">
+                <BellRing />
+              </span>
+              <div>
+                <b>Alertas detectados</b>
+                <span>Sinais que exigem atenção agora</span>
+              </div>
             </div>
-          </div>
-
-          <div className="lnd-strategy-main lnd-reveal" data-dir="right" data-delay="1">
-            <div className="lnd-move-list">
-              {MOVES.map((m) => (
-                <div className="lnd-move-item" key={m.t}>
-                  <span className={`lnd-move-tag lnd-tag-${m.tag}`}>
-                    {m.tag === "up" ? <ArrowUpRight /> : <MoveRight />}
+            <div className="lnd-alert-list">
+              {ALERTAS.map((a, i) => (
+                <div className={`lnd-alert-item lnd-alert-${a.kind} lnd-reveal`} data-delay={String(i + 1)} key={a.t}>
+                  <span className="lnd-ic">
+                    <a.ic />
                   </span>
-                  <div className="lnd-move-body">
-                    <b>{m.t}</b>
-                    <p>{m.d}</p>
+                  <div className="lnd-a-body">
+                    <b>{a.t}</b>
+                    <p>{a.d}</p>
                   </div>
+                  <span className="lnd-a-time">{a.time}</span>
                 </div>
               ))}
             </div>
-            <div className="lnd-reco-strip">
-              <span className="lnd-reco-label">Recomendado esta semana</span>
-              <div className="lnd-reco-items">
-                <span>3 Reels</span>
-                <span>2 Carrosséis</span>
-                <span>4 Stories</span>
+          </div>
+
+          {/* Fluxo PROBLEMA → AÇÃO (conector decorativo) */}
+          <div className="lnd-strategy-flow" aria-hidden="true">
+            <span className="lnd-flow-label">Problema</span>
+            <span className="lnd-flow-arrow">
+              <MoveRight />
+            </span>
+            <span className="lnd-flow-label">Ação</span>
+          </div>
+
+          {/* Direita — score + plano de ação priorizado */}
+          <div className="lnd-strategy-col lnd-strategy-col-plan">
+            <div className="lnd-strategy-col-head">
+              <span className="lnd-sc-icon lnd-sc-icon-plan">
+                <Target />
+              </span>
+              <div>
+                <b>Plano de ação</b>
+                <span>Priorizado por impacto para o seu momento</span>
+              </div>
+            </div>
+            <div className="lnd-strategy-score lnd-reveal" data-dir="left">
+              <svg viewBox="0 0 160 160" width="150" height="150" className="lnd-ring-svg" role="img" aria-label="76 de 100">
+                <circle cx="80" cy="80" r="68" fill="none" stroke="var(--lnd-surface)" strokeWidth="13" />
+                <circle
+                  className="lnd-ring-progress"
+                  cx="80"
+                  cy="80"
+                  r="68"
+                  fill="none"
+                  stroke="url(#lndStratGrad)"
+                  strokeWidth="13"
+                  strokeLinecap="round"
+                  strokeDasharray="427.3"
+                  strokeDashoffset="427.3"
+                  data-ring="76"
+                  data-circ="427.3"
+                />
+                <defs>
+                  <linearGradient id="lndStratGrad" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" stopColor="#6366F1" />
+                    <stop offset="1" stopColor="#3B82F6" />
+                  </linearGradient>
+                </defs>
+              </svg>
+              <div className="lnd-gauge-num">
+                <b>
+                  <span data-count="76">0</span>
+                  <span className="lnd-slash">/100</span>
+                </b>
+                <span>5 movimentos de alto impacto</span>
+              </div>
+            </div>
+            <div className="lnd-strategy-main lnd-reveal" data-dir="right" data-delay="1">
+              <div className="lnd-move-list">
+                {MOVES.map((m) => (
+                  <div className="lnd-move-item" key={m.t}>
+                    <span className={`lnd-move-tag lnd-tag-${m.tag}`}>
+                      {m.tag === "up" ? <ArrowUpRight /> : <MoveRight />}
+                    </span>
+                    <div className="lnd-move-body">
+                      <b>{m.t}</b>
+                      <p>{m.d}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="lnd-reco-strip">
+                <span className="lnd-reco-label">Recomendado esta semana</span>
+                <div className="lnd-reco-items">
+                  <span>3 Reels</span>
+                  <span>2 Carrosséis</span>
+                  <span>4 Stories</span>
+                </div>
               </div>
             </div>
           </div>
@@ -607,25 +621,22 @@ export function Mentoria() {
           </p>
         </div>
 
-        <div className="lnd-mentor-track">
+        <div className="lnd-mentor-grid">
           {MENTORIAS.map((m, i) => (
-            <div className={`lnd-mentor-row${i % 2 === 0 ? " lnd-wide" : " lnd-narrow"} lnd-reveal`} data-delay={String(i + 1)} key={m.cat}>
-              <span className="lnd-m-dot" aria-hidden="true" />
-              <div className="lnd-m-card">
-                <div className="lnd-m-top">
-                  <span className="lnd-m-cat">
-                    <b>{m.cat}</b>
-                  </span>
-                  <span className={`lnd-m-pri lnd-${m.pri}`}>
-                    {m.pri === "high" ? "Prioridade alta" : m.pri === "med" ? "Prioridade média" : "Prioridade baixa"}
-                  </span>
-                </div>
-                <div className="lnd-m-problem">{m.prob}</div>
-                <p className="lnd-m-expl">{m.expl}</p>
-                <div className="lnd-m-action">
-                  <b>→ </b>
-                  {m.action}
-                </div>
+            <div className="lnd-m-card lnd-reveal" data-delay={String((i % 3) + 1)} key={m.cat}>
+              <div className="lnd-m-top">
+                <span className="lnd-m-cat">
+                  <b>{m.cat}</b>
+                </span>
+                <span className={`lnd-m-pri lnd-${m.pri}`}>
+                  {m.pri === "high" ? "Prioridade alta" : m.pri === "med" ? "Prioridade média" : "Prioridade baixa"}
+                </span>
+              </div>
+              <div className="lnd-m-problem">{m.prob}</div>
+              <p className="lnd-m-expl">{m.expl}</p>
+              <div className="lnd-m-action">
+                <b>→ </b>
+                {m.action}
               </div>
             </div>
           ))}
@@ -635,4 +646,4 @@ export function Mentoria() {
   );
 }
 
-export const SectionsB = [Score, IaAcessor, Diagnostico, Alertas, Estrategia, Nichos, Calendario, Ideias, GeradorCopy, Mentoria];
+export const SectionsB = [Score, IaAcessor, Diagnostico, Estrategia, Nichos, Calendario, Ideias, GeradorCopy, Mentoria];

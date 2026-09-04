@@ -24,13 +24,16 @@ import {
   PenLine,
   User,
   Share2,
-  Copy,
   TrendingDown,
   Search,
   X,
   History,
   Clock,
   CircleCheck,
+  Heart,
+  MessageCircle,
+  Send,
+  BadgeCheck,
 } from "lucide-react";
 import { LogoMark } from "./sections-a";
 
@@ -580,32 +583,46 @@ export function Perfil() {
     <section className="lnd-section" id="perfil">
       <div className="lnd-container">
         <div className="lnd-section-head lnd-center lnd-reveal">
-          <span className="lnd-eyebrow">Perfil público</span>
+          <span className="lnd-eyebrow">Compartilhe sua evolução</span>
           <h2 className="lnd-h2">
-            Compartilhe sua <span className="lnd-grad">evolução.</span>
+            Seu crescimento, <span className="lnd-grad">pronto pra contar.</span>
           </h2>
           <p className="lnd-lead">
-            Um cartão público e bonito com sua jornada: rank, XP, conquistas e badges — pronto
-            para compartilhar.
+            O Inst Acessor monta um cartão público com a sua jornada — rank, XP, conquistas e
+            evolução — do jeito que fica bem em qualquer rede.
           </p>
         </div>
 
         <div className="lnd-profile-wrap">
           <div className="lnd-profile-card lnd-reveal" data-dir="scale">
-            <div className="lnd-profile-cover" />
-            <div className="lnd-profile-body">
-              <div className="lnd-profile-avatar">
-                <User />
+            {/* Linha de topo estilo publicação */}
+            <div className="lnd-pub-top">
+              <div className="lnd-pub-brand">
+                <span className="lnd-pub-brand-ic" aria-hidden="true">
+                  <LogoMark />
+                </span>
+                <span>Inst Acessor</span>
               </div>
+              <button className="lnd-pub-dots" type="button" aria-label="Opções do cartão" tabIndex={-1}>
+                <i />
+                <i />
+                <i />
+              </button>
+            </div>
+
+            <div className="lnd-profile-body">
+              {/* Cabeçalho do autor + ações */}
               <div className="lnd-profile-head">
-                <div>
-                  <h3>@seuperfil</h3>
-                  <div className="lnd-ph-handle">Criador de conteúdo · Moda & Lifestyle</div>
-                  <div className="lnd-ph-badges">
-                    <span>Rank 8 · Estrategista</span>
-                    <span>2.840 XP</span>
-                    <span>12 conquistas</span>
-                    <span>5 badges</span>
+                <div className="lnd-pub-author">
+                  <span className="lnd-profile-avatar">
+                    <User />
+                  </span>
+                  <div>
+                    <h3>
+                      @seuperfil
+                      <BadgeCheck size={15} className="lnd-verified" aria-label="Verificado" />
+                    </h3>
+                    <div className="lnd-ph-handle">Criador de conteúdo · Moda &amp; Lifestyle</div>
                   </div>
                 </div>
                 <div className="lnd-profile-actions">
@@ -613,13 +630,20 @@ export function Perfil() {
                     Compartilhar evolução
                     <Share2 size={15} />
                   </a>
-                  <button className="lnd-btn lnd-btn-ghost lnd-btn-sm" type="button">
-                    Copiar perfil
-                    <Copy size={15} />
-                  </button>
                 </div>
               </div>
 
+              {/* Faixa de conquista (semântica de share) */}
+              <div className="lnd-pub-achieve">
+                <span className="lnd-pub-achieve-ic" aria-hidden="true">
+                  <Trophy size={17} />
+                </span>
+                <p>
+                  Evoluí no <b>Rank 8 · Estrategista</b> — <b>2.840 XP</b> conquistados em 90 dias
+                </p>
+              </div>
+
+              {/* Métricas */}
               <div className="lnd-profile-stats">
                 <div className="lnd-profile-stat">
                   <b data-count="12840">0</b>
@@ -641,6 +665,7 @@ export function Perfil() {
                 </div>
               </div>
 
+              {/* Evolução em barras */}
               <div className="lnd-profile-evol">
                 <h4>
                   Evolução <span>Últimos 90 dias</span>
@@ -657,6 +682,25 @@ export function Perfil() {
                   <i />
                   <i />
                 </div>
+              </div>
+
+              {/* Ações sociais + compartilhar */}
+              <div className="lnd-pub-foot">
+                <div className="lnd-pub-social">
+                  <span className="lnd-pub-social-ic lnd-pub-heart" aria-label="Curtir">
+                    <Heart size={17} />
+                  </span>
+                  <span className="lnd-pub-social-ic lnd-pub-comment" aria-label="Comentar">
+                    <MessageCircle size={17} />
+                  </span>
+                  <span className="lnd-pub-social-ic lnd-pub-send" aria-label="Enviar">
+                    <Send size={17} />
+                  </span>
+                </div>
+                <button className="lnd-pub-share" type="button">
+                  <Share2 size={15} />
+                  Compartilhar evolução
+                </button>
               </div>
             </div>
           </div>

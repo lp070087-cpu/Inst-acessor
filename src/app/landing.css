@@ -45,8 +45,8 @@
   --lnd-r-lg: 22px;
   --lnd-r-xl: 28px;
   --lnd-r-pill: 999px;
-  --lnd-container: 1180px;
-  --lnd-gutter: clamp(20px, 4vw, 40px);
+  --lnd-container: 1200px;
+  --lnd-gutter: clamp(20px, 3.6vw, 40px);
   --lnd-nav-h: 72px;
   --lnd-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --lnd-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -123,7 +123,7 @@
 }
 .lnd-section {
   position: relative;
-  padding-block: clamp(72px, 10vw, 132px);
+  padding-block: clamp(58px, 7vw, 96px);
   scroll-margin-top: var(--lnd-nav-h);
 }
 
@@ -153,8 +153,8 @@
   box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.15);
 }
 .lnd-section-head {
-  max-width: 720px;
-  margin-bottom: clamp(40px, 6vw, 64px);
+  max-width: 760px;
+  margin-bottom: clamp(34px, 5vw, 52px);
 }
 .lnd-section-head.lnd-center {
   margin-inline: auto;
@@ -3143,6 +3143,16 @@
   font-size: 13px;
   color: var(--lnd-ink-3);
 }
+.lnd-footer-credit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.lnd-footer-credit .lnd-credit-unitrix {
+  font-weight: 600;
+  color: var(--lnd-ink-2);
+  letter-spacing: 0.01em;
+}
 .lnd-footer-disclaimer {
   margin-top: 22px;
   padding: 14px 18px;
@@ -3228,6 +3238,15 @@
   }
   to {
     transform: scaleY(1);
+  }
+}
+@keyframes lndPubHeart {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.22);
   }
 }
 @keyframes lndFadeSlide {
@@ -3325,7 +3344,7 @@
 
 @media (max-width: 640px) {
   .lnd-root { --lnd-nav-h: 62px; }
-  .lnd-section { padding-block: 64px; }
+  .lnd-section { padding-block: 54px; }
   .lnd-h2 { font-size: 28px; }
   .lnd-hero { padding-top: calc(var(--lnd-nav-h) + 36px); }
   .lnd-steps,
@@ -3390,18 +3409,17 @@
    ============================================================ */
 @media (min-width: 1280px) {
   .lnd-root {
-    --lnd-container: 1240px;
+    --lnd-container: 1280px;
   }
 }
 
 @media (min-width: 1600px) {
   .lnd-root {
-    --lnd-container: 1360px;
+    --lnd-container: 1420px;
   }
   .lnd-bento-grid { max-width: 1120px; }
   .lnd-pipeline { max-width: 1160px; }
   .lnd-diag-list { max-width: 1080px; }
-  .lnd-mentor-track,
   .lnd-niche-table { max-width: 960px; }
   .lnd-faq-list,
   .lnd-alert-list { max-width: 860px; }
@@ -4245,9 +4263,12 @@
   color: var(--lnd-ink-3);
 }
 
-/* ---------- PERFIL PÚBLICO ---------- */
+/* ---------- PERFIL / COMPARTILHE SUA EVOLUÇÃO ----------
+   Card com semântica de publicação social: linha de topo com marca,
+   autor (avatar + @handle verificado), faixa de conquista, métricas,
+   evolução e rodapé com ações sociais + compartilhar. Demo apenas. */
 .lnd-profile-wrap {
-  max-width: 760px;
+  max-width: 620px;
   margin-inline: auto;
 }
 .lnd-profile-card {
@@ -4257,101 +4278,169 @@
   box-shadow: var(--lnd-shadow-lg);
   overflow: hidden;
 }
-.lnd-profile-cover {
-  height: 108px;
-  background: linear-gradient(120deg, rgba(244, 63, 142, 0.7), rgba(168, 85, 247, 0.75), rgba(99, 102, 241, 0.7));
-  position: relative;
+.lnd-pub-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 22px;
+  border-bottom: 1px solid var(--lnd-border-soft);
 }
-.lnd-profile-body {
-  padding: 0 28px 28px;
+.lnd-pub-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--lnd-font-display);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--lnd-ink);
 }
-.lnd-profile-avatar {
-  width: 74px;
-  height: 74px;
-  border-radius: 50%;
-  border: 4px solid var(--lnd-card);
+.lnd-pub-brand-ic {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
   background: var(--lnd-grad);
   color: #fff;
   display: grid;
   place-items: center;
-  margin-top: -37px;
-  position: relative;
-  z-index: 1;
-  box-shadow: var(--lnd-shadow-sm);
 }
-.lnd-profile-avatar svg {
-  width: 32px;
-  height: 32px;
+.lnd-pub-brand-ic svg {
+  width: 15px;
+  height: 15px;
+}
+.lnd-pub-dots {
+  display: inline-flex;
+  gap: 3px;
+  padding: 6px;
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+.lnd-pub-dots i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--lnd-ink-3);
+}
+.lnd-profile-body {
+  padding: 0 24px 22px;
+}
+/* Autor + ações (cabeçalho da "publicação") */
+.lnd-pub-author {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-width: 0;
 }
 .lnd-profile-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 18px;
+  gap: 16px;
   flex-wrap: wrap;
-  margin-top: 14px;
+  padding: 18px 0 4px;
 }
 .lnd-profile-head h3 {
-  font-size: 22px;
+  font-size: 17px;
   font-weight: 700;
   color: var(--lnd-ink);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1.2;
+}
+.lnd-profile-avatar {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: var(--lnd-grad);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  flex: none;
+  box-shadow: 0 0 0 3px var(--lnd-card), 0 0 0 4px rgba(139, 92, 246, 0.28);
+}
+.lnd-profile-avatar svg {
+  width: 25px;
+  height: 25px;
+}
+.lnd-verified {
+  color: var(--lnd-purple);
+  flex: none;
 }
 .lnd-ph-handle {
-  font-size: 13px;
-  color: var(--lnd-ink-2);
+  font-size: 12.5px;
+  color: var(--lnd-ink-3);
   margin-top: 2px;
-}
-.lnd-ph-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 12px;
-}
-.lnd-ph-badges span {
-  font-family: "Space Grotesk", monospace;
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--lnd-purple);
-  background: var(--lnd-ai-soft);
-  border: 1px solid rgba(139, 92, 246, 0.16);
-  padding: 5px 11px;
-  border-radius: var(--lnd-r-pill);
 }
 .lnd-profile-actions {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
 }
+/* Faixa de conquista */
+.lnd-pub-achieve {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-top: 14px;
+  background: linear-gradient(120deg, rgba(244, 63, 142, 0.08), rgba(99, 102, 241, 0.1));
+  border: 1px solid rgba(139, 92, 246, 0.18);
+  border-radius: var(--lnd-r-md);
+  padding: 11px 14px;
+}
+.lnd-pub-achieve-ic {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  color: #fff;
+  background: var(--lnd-grad);
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.lnd-pub-achieve p {
+  font-size: 13px;
+  color: var(--lnd-ink-2);
+  line-height: 1.5;
+}
+.lnd-pub-achieve p b {
+  color: var(--lnd-ink);
+  font-weight: 700;
+}
+/* Métricas */
 .lnd-profile-stats {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-  margin-top: 24px;
+  gap: 10px;
+  margin-top: 14px;
 }
 .lnd-profile-stat {
   background: var(--lnd-surface);
   border: 1px solid var(--lnd-border-soft);
   border-radius: var(--lnd-r-md);
-  padding: 14px;
+  padding: 13px 8px;
   text-align: center;
+  min-width: 0;
 }
 .lnd-profile-stat b {
   display: block;
   font-family: "Space Grotesk", monospace;
-  font-size: 21px;
+  font-size: 19px;
   font-weight: 700;
   color: var(--lnd-ink);
 }
 .lnd-profile-stat span {
-  font-size: 11.5px;
+  font-size: 11px;
   color: var(--lnd-ink-3);
 }
+/* Evolução */
 .lnd-profile-evol {
-  margin-top: 24px;
+  margin-top: 14px;
   background: var(--lnd-surface);
   border: 1px solid var(--lnd-border-soft);
   border-radius: var(--lnd-r-md);
-  padding: 16px 18px;
+  padding: 14px 16px;
 }
 .lnd-profile-evol h4 {
   font-size: 13px;
@@ -4370,7 +4459,7 @@
   display: flex;
   align-items: flex-end;
   gap: 6px;
-  height: 64px;
+  height: 56px;
   margin-top: 12px;
 }
 .lnd-evol-bars i {
@@ -4389,6 +4478,70 @@
 .lnd-evol-bars i:nth-child(8) { height: 68%; }
 .lnd-evol-bars i:nth-child(9) { height: 84%; }
 .lnd-evol-bars i:nth-child(10) { height: 100%; }
+/* Rodapé da publicação: ações sociais + compartilhar */
+.lnd-pub-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--lnd-border-soft);
+}
+.lnd-pub-social {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.lnd-pub-social-ic {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--lnd-ink-2);
+  transition: color 0.25s ease, transform 0.25s var(--lnd-ease-spring), background-color 0.25s ease;
+  cursor: default;
+}
+.lnd-pub-heart:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  transform: scale(1.08);
+}
+.lnd-pub-social-ic.lnd-pub-heart svg {
+  animation: lndPubHeart 3.6s ease-in-out infinite;
+}
+.lnd-pub-comment:hover {
+  color: var(--lnd-purple);
+  background: var(--lnd-ai-soft);
+  transform: scale(1.08);
+}
+.lnd-pub-send:hover {
+  color: var(--lnd-info);
+  background: rgba(59, 130, 246, 0.1);
+  transform: scale(1.08);
+}
+.lnd-pub-share {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lnd-purple);
+  background: var(--lnd-ai-soft);
+  border: 1px solid rgba(139, 92, 246, 0.18);
+  border-radius: var(--lnd-r-pill);
+  padding: 9px 16px;
+  cursor: pointer;
+  transition: transform 0.25s var(--lnd-ease-spring), box-shadow 0.25s ease, border-color 0.25s ease;
+}
+.lnd-pub-share:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--lnd-shadow-sm);
+  border-color: rgba(139, 92, 246, 0.34);
+}
 
 /* ---------- HISTÓRICO ---------- */
 .lnd-hist-wrap {
@@ -4650,9 +4803,13 @@
   .lnd-rank-next { grid-template-columns: 1fr; }
   .lnd-rank-tier { flex-wrap: wrap; }
   .lnd-tier-xp { margin-left: 0; text-align: left; width: 100%; }
-  .lnd-profile-head { flex-direction: column; }
+  .lnd-profile-head { align-items: flex-start; }
   .lnd-profile-stats { grid-template-columns: repeat(2, 1fr); }
   .lnd-profile-body { padding: 0 20px 22px; }
+  .lnd-profile-actions { width: 100%; }
+  .lnd-profile-actions .lnd-btn { flex: 1 1 auto; justify-content: center; }
+  .lnd-pub-top { padding: 12px 18px; }
+  .lnd-pub-dots { display: none; }
   .lnd-hist-cards { grid-template-columns: 1fr; }
   .lnd-alert-item { flex-wrap: wrap; }
   .lnd-a-time { margin-left: 53px; }
@@ -5487,44 +5644,24 @@
   }
 }
 
-/* ---------- MENTORIA — trilha vertical com conector ---------- */
-.lnd-mentor-track {
-  position: relative;
-  max-width: 860px;
+/* ---------- MENTORIA — grade compacta premium ----------
+   Desktop: grade de 2 colunas com cards compactos e conteúdo
+   preservado (título, prioridade, problema, explicação e ação).
+   Tablet: 2 colunas adaptáveis · Mobile: 1 coluna.
+   A antiga "trilha" com linha conectora e recuos laterais foi
+   removida — o novo grid não depende de largura nem cria vazios. */
+.lnd-mentor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  max-width: 1000px;
   margin-inline: auto;
-  padding-left: 22px;
-}
-.lnd-mentor-track::before {
-  content: "";
-  position: absolute;
-  left: 5px;
-  top: 6px;
-  bottom: 6px;
-  width: 2px;
-  background: linear-gradient(180deg, rgba(139, 92, 246, 0.14), rgba(99, 102, 241, 0.4));
-  border-radius: 2px;
-}
-.lnd-mentor-row {
-  position: relative;
-  margin-bottom: 18px;
-}
-.lnd-m-dot {
-  position: absolute;
-  left: -22px;
-  top: 22px;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--lnd-card);
-  border: 3px solid var(--lnd-purple);
-  box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.12);
-  z-index: 1;
 }
 .lnd-m-card {
   background: var(--lnd-card);
   border: 1px solid var(--lnd-border-soft);
   border-radius: var(--lnd-r-md);
-  padding: 20px 22px;
+  padding: 18px 20px;
   box-shadow: var(--lnd-shadow-xs);
   transition: transform 0.3s var(--lnd-ease-spring), box-shadow 0.3s ease, border-color 0.3s ease;
 }
@@ -5532,12 +5669,6 @@
   transform: translateY(-3px);
   box-shadow: var(--lnd-shadow-md);
   border-color: rgba(139, 92, 246, 0.28);
-}
-.lnd-mentor-row.lnd-wide .lnd-m-card {
-  margin-right: 8%;
-}
-.lnd-mentor-row.lnd-narrow .lnd-m-card {
-  margin-left: 12%;
 }
 .lnd-m-top {
   display: flex;
@@ -5591,14 +5722,21 @@
 .lnd-m-card .lnd-m-action b {
   color: var(--lnd-purple);
 }
-@media (max-width: 640px) {
-  .lnd-mentor-row.lnd-wide .lnd-m-card,
-  .lnd-mentor-row.lnd-narrow .lnd-m-card {
-    margin-right: 0;
-    margin-left: 0;
+/* Tablet: mantém 2 colunas, reduzindo o teto de largura. */
+@media (max-width: 1080px) {
+  .lnd-mentor-grid {
+    max-width: 880px;
   }
-  .lnd-mentor-track { padding-left: 18px; }
-  .lnd-m-dot { left: -18px; }
+}
+/* Mobile: 1 coluna confortável. */
+@media (max-width: 640px) {
+  .lnd-mentor-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .lnd-m-card {
+    padding: 16px 18px;
+  }
 }
 
 /* ---------- NICHOS — tabela benchmark ---------- */
@@ -5872,6 +6010,13 @@
 .lnd-profile-evol {
   background: rgba(255, 255, 255, 0.6);
   border-color: rgba(255, 255, 255, 0.7);
+}
+.lnd-pub-top {
+  border-color: rgba(17, 19, 24, 0.08);
+}
+.lnd-pub-achieve {
+  background: linear-gradient(120deg, rgba(244, 63, 142, 0.09), rgba(99, 102, 241, 0.11));
+  border-color: rgba(139, 92, 246, 0.2);
 }
 
 /* ---------- ANÁLISE DE CONTEÚDOS — ranking editorial ---------- */
@@ -6274,6 +6419,16 @@
   .lnd-reco-strip::before {
     animation: none;
   }
+  .lnd-evol-bars i {
+    animation: none;
+  }
+  .lnd-pub-social-ic:hover,
+  .lnd-pub-share:hover {
+    transform: none;
+  }
+  .lnd-pub-social-ic svg {
+    animation: none;
+  }
 }
 
 /* ---------- RESPONSIVO — novos blocos ---------- */
@@ -6293,4 +6448,217 @@
   .lnd-preview-phones { min-height: 480px; }
   .lnd-faq-num { min-width: 20px; padding-right: 8px; }
   .lnd-hero-kicker { letter-spacing: 0.1em; font-size: 11px; }
+}
+
+/* ============================================================
+   ESTRATÉGIA UNIFICADA — Alertas Inteligentes + Plano de Ação
+   Uma única seção premium em duas colunas:
+   ESQUERDA = alertas detectados (problemas) · DIREITA = plano
+   (score + movimentos priorizados + recomendação da semana).
+   Um conector central indica o fluxo PROBLEMA → AÇÃO.
+   Empilha naturalmente em tablet/mobile.
+   ============================================================ */
+.lnd-strategy-unified {
+  grid-template-columns: minmax(0, 1fr) 92px minmax(0, 1fr);
+  gap: 0;
+  align-items: stretch;
+}
+.lnd-strategy-col {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: var(--lnd-card);
+  border: 1px solid var(--lnd-border-soft);
+  border-radius: var(--lnd-r-lg);
+  box-shadow: var(--lnd-shadow-sm);
+  padding: clamp(18px, 2.6vw, 30px);
+}
+.lnd-strategy-col-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.lnd-sc-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.lnd-sc-icon svg {
+  width: 19px;
+  height: 19px;
+}
+.lnd-sc-icon-alert {
+  color: var(--lnd-warn);
+  background: var(--lnd-warn-soft);
+}
+.lnd-sc-icon-plan {
+  color: var(--lnd-purple);
+  background: var(--lnd-ai-soft);
+}
+.lnd-strategy-col-head b {
+  display: block;
+  font-size: 15.5px;
+  font-weight: 700;
+  color: var(--lnd-ink);
+}
+.lnd-strategy-col-head span:not(.lnd-sc-icon) {
+  display: block;
+  font-size: 12.5px;
+  color: var(--lnd-ink-3);
+  margin-top: 1px;
+  line-height: 1.4;
+}
+/* Lista de alertas dentro da coluna: largura total, sem centralizar. */
+.lnd-strategy-unified .lnd-alert-list {
+  max-width: none;
+  margin-inline: 0;
+  gap: 10px;
+}
+.lnd-strategy-unified .lnd-alert-item {
+  background: var(--lnd-surface);
+  padding: 13px 14px;
+}
+/* Card do score compacto dentro do plano (anel + número lado a lado). */
+.lnd-strategy-unified .lnd-strategy-score {
+  position: static;
+  flex-flow: row wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px 18px;
+  background: var(--lnd-surface);
+  border: 1px solid var(--lnd-border-soft);
+  border-radius: var(--lnd-r-md);
+  box-shadow: none;
+  padding: 16px 18px;
+}
+.lnd-strategy-unified .lnd-strategy-score .lnd-ring-cap {
+  flex: 1 0 100%;
+}
+.lnd-strategy-unified .lnd-ring-svg {
+  width: 92px;
+  height: 92px;
+}
+.lnd-strategy-unified .lnd-gauge-num {
+  text-align: left;
+}
+.lnd-strategy-unified .lnd-gauge-num b {
+  font-size: clamp(26px, 2.6vw, 34px);
+}
+.lnd-strategy-unified .lnd-gauge-num > span {
+  font-size: 12.5px;
+  color: var(--lnd-ink-3);
+}
+.lnd-strategy-unified .lnd-strategy-main {
+  flex: 1;
+  gap: 14px;
+}
+.lnd-strategy-unified .lnd-move-item {
+  padding: 12px 14px;
+}
+.lnd-strategy-unified .lnd-reco-strip {
+  padding: 12px 16px;
+}
+/* Conector central PROBLEMA → AÇÃO */
+.lnd-strategy-flow {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.lnd-strategy-flow::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, rgba(244, 63, 142, 0.18), rgba(139, 92, 246, 0.4), rgba(99, 102, 241, 0.16));
+  border-radius: 2px;
+}
+.lnd-flow-label {
+  font-family: var(--lnd-font-data);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 5px 10px;
+  border-radius: var(--lnd-r-pill);
+  position: relative;
+  z-index: 1;
+  white-space: nowrap;
+}
+.lnd-strategy-flow .lnd-flow-label:first-child {
+  color: var(--lnd-danger);
+  background: var(--lnd-danger-soft);
+}
+.lnd-strategy-flow .lnd-flow-label:last-child {
+  color: var(--lnd-purple);
+  background: var(--lnd-ai-soft);
+}
+.lnd-flow-arrow {
+  position: relative;
+  z-index: 1;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: var(--lnd-grad);
+  box-shadow: 0 6px 18px rgba(168, 85, 247, 0.32);
+}
+.lnd-flow-arrow svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Empilha em telas médias: alertas sobre o plano, com o conector
+   virando uma legenda horizontal PROBLEMA → AÇÃO. */
+@media (max-width: 1080px) {
+  .lnd-strategy-unified {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .lnd-strategy-flow {
+    flex-direction: row;
+    justify-content: center;
+    gap: 12px;
+    padding: 6px 0 2px;
+  }
+  .lnd-strategy-flow::before {
+    top: 50%;
+    left: 0;
+    right: 0;
+    bottom: auto;
+    width: auto;
+    height: 2px;
+    transform: translateY(-50%);
+    background: linear-gradient(90deg, rgba(244, 63, 142, 0.18), rgba(139, 92, 246, 0.4), rgba(99, 102, 241, 0.16));
+  }
+  .lnd-flow-arrow {
+    width: 38px;
+    height: 38px;
+  }
+  .lnd-flow-arrow svg {
+    width: 18px;
+    height: 18px;
+  }
+}
+@media (max-width: 640px) {
+  .lnd-strategy-col {
+    padding: 16px;
+  }
+  .lnd-strategy-unified .lnd-alert-item {
+    padding: 12px 12px;
+  }
+  .lnd-strategy-unified .lnd-strategy-score {
+    padding: 13px 14px;
+  }
 }

@@ -13,10 +13,8 @@ import {
   Dashboard,
 } from "@/components/landing/sections-a";
 import {
-  Score,
   IaAcessor,
   Diagnostico,
-  Alertas,
   Estrategia,
   GeradorCopy,
   Mentoria,
@@ -104,10 +102,14 @@ export default function HomePage() {
 
       {/* Seções do storytelling — agora em fluxo VERTICAL normal.
           As etapas Badges → Análise → Preview → Redes → Problema →
-          Solução → Como Funciona → Score → IA → Alertas → Estratégia
-          → Metas seguem empilhadas, sem pin/scroll horizontal.
-          (Nichos, Calendário e Ideias foram removidas da página de vendas;
-          as funcionalidades correspondentes continuam no aplicativo.) */}
+          Solução → Como Funciona → IA → Estratégia (unificada com
+          os Alertas Inteligentes) → Metas seguem empilhadas, sem
+          pin/scroll horizontal.
+          (A seção de Score foi removida da página de vendas; a
+          funcionalidade /score continua no aplicativo. Nichos,
+          Calendário e Ideias também foram removidas da página de
+          vendas; as funcionalidades correspondentes continuam no
+          aplicativo.) */}
       <Badges />
 
       <AnaliseConteudos />
@@ -122,11 +124,7 @@ export default function HomePage() {
 
       <ComoFunciona />
 
-      <Score />
-
       <IaAcessor />
-
-      <Alertas />
 
       <Estrategia />
 

@@ -599,7 +599,9 @@ export function Footer() {
           <p>
             © <span data-year>2026</span> Inst Acessor. Todos os direitos reservados.
           </p>
-          <p>Feito para quem quer crescer com inteligência.</p>
+          <p className="lnd-footer-credit">
+            Desenvolvido pela <span className="lnd-credit-unitrix">Unitrix</span>
+          </p>
         </div>
       </div>
     </footer>

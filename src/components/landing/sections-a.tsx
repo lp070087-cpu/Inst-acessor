@@ -36,7 +36,6 @@ export function LogoMark() {
 const NAV_LINKS = [
   { href: "#como-funciona", label: "Como funciona" },
   { href: "#dashboard", label: "Funcionalidades" },
-  { href: "#score", label: "Score" },
   { href: "#ia", label: "Inteligência" },
   { href: "#estrategia", label: "Estratégia" },
   { href: "#seguranca", label: "Segurança" },
