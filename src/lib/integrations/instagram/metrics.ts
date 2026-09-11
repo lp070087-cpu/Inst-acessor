@@ -12,47 +12,70 @@ import type {
  * Coleta e normalização das métricas do Instagram.
  * Usa APENAS os campos que a API realmente retorna.
  * Campos indisponíveis → null.
+ *
+ * Fluxo Instagram Business Login: a conta autorizada É a conta profissional do
+ * Instagram. Consultamos o nó `me` diretamente — NÃO existe (nem é necessário)
+ * o caminho `me?fields=instagram_business_account`, que pertence ao fluxo de
+ * Facebook Login com Página vinculada.
  */
 
-/** Obtém a conta Instagram + dados básicos do perfil. */
+/** Nó `me` do Instagram Business Login. */
+interface InstagramMeNode {
+  /** ID no escopo do app (usado para identificar a conta do usuário). */
+  user_id?: string;
+  /** ID do usuário do Instagram (usado nos endpoints de mídia/insights). */
+  id?: string;
+  username?: string;
+  name?: string;
+  account_type?: string;
+  profile_picture_url?: string;
+}
+
+/**
+ * Obtém a conta Instagram autenticada + dados básicos do perfil.
+ *
+ * Campos solicitados (todos cobertos por `instagram_business_basic`):
+ *   id, user_id, username, name, account_type, profile_picture_url
+ *
+ * O `account_type` vem da própria API (`BUSINESS`, `CREATOR` ou
+ * `MEDIA_CREATOR`) — nunca é fixado em código.
+ */
 export async function getInstagramAccountInfo(
   accessToken: string
 ): Promise<InstagramAccountInfo> {
-  const me = await graphGet<{ id: string; name?: string }>(
-    "me?fields=id,name",
+  const me = await graphGet<InstagramMeNode>(
+    "me?fields=id,user_id,username,name,account_type,profile_picture_url",
     accessToken
   );
 
-  const withIg = await graphGet<{
-    id: string;
-    name?: string;
-    instagram_business_account?: {
-      id: string;
-      username?: string;
-      name?: string;
-      profile_picture_url?: string;
-    };
-  }>(
-    `${me.id}?fields=id,name,instagram_business_account{id,username,name,profile_picture_url}`,
-    accessToken
-  );
-
-  const ig = withIg.instagram_business_account;
-
-  if (!ig?.id) {
+  if (!me.id) {
     throw new InstagramApiError(
-      "A conta autorizada não tem um perfil profissional (Business/Creator) do Instagram compatível.",
+      "A conta autorizada não retornou um perfil do Instagram válido.",
       "NOT_IG_BUSINESS"
     );
   }
 
   return {
-    id: ig.id,
-    username: ig.username ?? "",
-    name: ig.name ?? withIg.name,
-    accountType: "BUSINESS",
-    profilePictureUrl: ig.profile_picture_url,
+    id: me.id,
+    username: me.username ?? "",
+    name: me.name,
+    accountType: normalizeAccountType(me.account_type),
+    profilePictureUrl: me.profile_picture_url,
   };
+}
+
+/**
+ * Normaliza o tipo de conta informado pela API.
+ * A API pode devolver `BUSINESS`, `CREATOR` ou `MEDIA_CREATOR`. Valores
+ * desconhecidos caem em `PROFESSIONAL` (descrição honesta: é uma conta
+ * profissional, mas o tipo exato não foi informado).
+ */
+export function normalizeAccountType(raw: unknown): string {
+  const value = typeof raw === "string" ? raw.toUpperCase().trim() : "";
+  if (value === "BUSINESS") return "BUSINESS";
+  if (value === "CREATOR") return "CREATOR";
+  if (value === "MEDIA_CREATOR") return "CREATOR";
+  return value || "PROFESSIONAL";
 }
 
 /** Obtém o perfil completo do usuário do Instagram. */
@@ -68,6 +91,15 @@ export async function getInstagramUser(
 
 /**
  * Obtém insights da conta (janela configurável).
+ *
+ * ⚠️ CONFIRMAÇÃO EXTERNA PENDENTE: a documentação oficial está bloqueada no
+ * ambiente de desenvolvimento (egress allowlist). Os nomes de métrica abaixo
+ * são os que já estavam em uso e são aceitos pela API do Instagram; o conjunto
+ * exato disponível pode variar conforme a versão do Graph/Instagram API.
+ * A chamada é DEGRADANTE por natureza (ver catch): métrica indisponível ou
+ * recusada → `null`, sem derrubar o sync. Antes de depender destes números em
+ * produção, confirme a lista vigente na documentação oficial do Instagram API.
+ *
  * @param since timestamp inicial (opcional)
  */
 export async function getAccountInsights(

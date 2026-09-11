@@ -6,26 +6,37 @@ import {
   getInstagramAccountInfo,
   encryptAccessToken,
   InstagramApiError,
+  IntegrationConfigError,
   type InstagramAccountInfo,
   type InstagramTokenPayload,
 } from "@/lib/integrations/instagram";
+import { getAppBaseUrl } from "@/lib/config/site";
 
 export const dynamic = "force-dynamic";
 
 const REDIRECT_OK = "/redes-sociais?connected=true";
 const REDIRECT_ERROR = "/redes-sociais?error=";
-const APP_BASE = process.env.AUTH_URL || "http://localhost:3000";
+const APP_BASE = getAppBaseUrl();
 
 /**
- * Callback oficial do OAuth da Meta/Instagram.
+ * Callback oficial do OAuth do Instagram Business Login.
  *
  * Responsabilidades:
  * - validar `state` (CSRF) — associação ao usuário + não consumido + não expirado;
  * - capturar o `code` (ou tratar negação de permissão);
- * - trocar `code` por token NO SERVIDOR;
- * - obter dados básicos da conta autorizada;
+ * - trocar `code` por token NO SERVIDOR (code → token curto → token longo ~60d);
+ * - obter dados básicos da conta autorizada (nó `me`, sem Página do Facebook);
  * - persistir token ENCRIPTADO + expiração + scopes + status;
  * - redirecionar para /redes-sociais?connected=true.
+ *
+ * O `state` é gerado em /api/integrations/instagram/connect e é single-use:
+ * este handler o marca como consumido antes da troca de token.
+ *
+ * REGRA ANTI-TRAVAMENTO (bug crítico):
+ * - Todo caminho de erro SAI do status `CONNECTING`. Falhas precoces
+ *   (negado, sem code, state inválido/expirado) restauram `CONNECTED` se já
+ *   existia token (ex.: "Trocar conta" negado) ou voltam para `DISCONNECTED`.
+ * - Assim o botão "Conectar Instagram" nunca fica preso em "Conectando...".
  *
  * Erros redirecionam com código controlado — NUNCA token ou secret.
  */
@@ -44,11 +55,19 @@ export async function GET(request: Request) {
     console.warn(
       `[instagram-callback] autorização negada pela Meta: reason=${errorReason} desc=${errorDescription}`
     );
+    if (state) {
+      const userId = await resolveStateUser(state);
+      if (userId) await resetOrRestore(userId);
+    }
     return NextResponse.redirect(`${base}${REDIRECT_ERROR}denied`);
   }
 
   // ---- Sem code ou sem state ----
   if (!code) {
+    if (state) {
+      const userId = await resolveStateUser(state);
+      if (userId) await resetOrRestore(userId);
+    }
     return NextResponse.redirect(`${base}${REDIRECT_ERROR}missing_code`);
   }
   if (!state) {
@@ -68,9 +87,13 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${base}${REDIRECT_ERROR}invalid_state`);
   }
   if (oauthState.consumed) {
+    const userId = oauthState.userId;
+    await resetOrRestore(userId);
     return NextResponse.redirect(`${base}${REDIRECT_ERROR}invalid_state`);
   }
   if (oauthState.expiresAt.getTime() < Date.now()) {
+    const userId = oauthState.userId;
+    await resetOrRestore(userId);
     return NextResponse.redirect(`${base}${REDIRECT_ERROR}state_expired`);
   }
 
@@ -84,6 +107,7 @@ export async function GET(request: Request) {
     });
   } catch (err) {
     console.error("[instagram-callback] falha ao consumir state", err);
+    await resetOrRestore(userId);
     return NextResponse.redirect(`${base}${REDIRECT_ERROR}server`);
   }
 
@@ -92,6 +116,11 @@ export async function GET(request: Request) {
   try {
     tokenData = await exchangeCodeForToken(code);
   } catch (err) {
+    if (err instanceof IntegrationConfigError) {
+      console.error("[instagram-callback] configuração ausente", err.message);
+      await resetOrRestore(userId);
+      return NextResponse.redirect(`${base}${REDIRECT_ERROR}config`);
+    }
     if (err instanceof InstagramApiError) {
       console.error(
         "[instagram-callback] falha na troca do code por token",
@@ -110,6 +139,11 @@ export async function GET(request: Request) {
   try {
     account = await getInstagramAccountInfo(tokenData.accessToken);
   } catch (err) {
+    if (err instanceof IntegrationConfigError) {
+      console.error("[instagram-callback] configuração ausente", err.message);
+      await resetOrRestore(userId);
+      return NextResponse.redirect(`${base}${REDIRECT_ERROR}config`);
+    }
     if (err instanceof InstagramApiError) {
       console.error(
         "[instagram-callback] falha ao obter dados da conta",
@@ -162,10 +196,44 @@ export async function GET(request: Request) {
     );
   } catch (err) {
     console.error("[instagram-callback] falha ao persistir conexão", err);
+    await resetOrRestore(userId);
     return NextResponse.redirect(`${base}${REDIRECT_ERROR}server`);
   }
 
   return NextResponse.redirect(`${base}${REDIRECT_OK}`);
+}
+
+/** Resolve o userId a partir do state (para reset em falhas precoces). */
+async function resolveStateUser(state: string): Promise<string | null> {
+  try {
+    const record = await prisma.oAuthState.findUnique({
+      where: { state },
+      select: { userId: true },
+    });
+    return record?.userId ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Sai do status CONNECTING em falhas precoces (sem token novo).
+ * - Se já existia conexão com token (ex.: "Trocar conta"), restaura CONNECTED.
+ * - Caso contrário, volta para DISCONNECTED (botão habilitado novamente).
+ */
+async function resetOrRestore(userId: string) {
+  try {
+    const existing = await prisma.socialConnection.findFirst({
+      where: { userId, platform: "instagram" },
+      select: { tokenEncrypted: true },
+    });
+    await prisma.socialConnection.updateMany({
+      where: { userId, platform: "instagram" },
+      data: { status: existing?.tokenEncrypted ? "CONNECTED" : "DISCONNECTED" },
+    });
+  } catch {
+    /* reset é best-effort — não bloqueia o redirecionamento */
+  }
 }
 
 /** Marca a conexão como erro (preservando histórico). */
@@ -179,7 +247,3 @@ async function markError(userId: string) {
     /* falha ao marcar erro não bloqueia o redirecionamento */
   }
 }
-
-// Nota: IntegrationConfigError é tratado dentro de exchangeCodeForToken
-// e getInstagramAccountInfo (getMetaCredentials()). Os erros de configuração
-// caem no bloco "erro inesperado" e redirecionam com código `server`.
