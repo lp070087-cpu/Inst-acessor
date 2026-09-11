@@ -19,15 +19,18 @@ const REDIRECT_ERROR = "/redes-sociais?error=";
 const APP_BASE = getAppBaseUrl();
 
 /**
- * Callback oficial do OAuth da Meta/Instagram.
+ * Callback oficial do OAuth do Instagram Business Login.
  *
  * Responsabilidades:
  * - validar `state` (CSRF) — associação ao usuário + não consumido + não expirado;
  * - capturar o `code` (ou tratar negação de permissão);
- * - trocar `code` por token NO SERVIDOR;
- * - obter dados básicos da conta autorizada;
+ * - trocar `code` por token NO SERVIDOR (code → token curto → token longo ~60d);
+ * - obter dados básicos da conta autorizada (nó `me`, sem Página do Facebook);
  * - persistir token ENCRIPTADO + expiração + scopes + status;
  * - redirecionar para /redes-sociais?connected=true.
+ *
+ * O `state` é gerado em /api/integrations/instagram/connect e é single-use:
+ * este handler o marca como consumido antes da troca de token.
  *
  * REGRA ANTI-TRAVAMENTO (bug crítico):
  * - Todo caminho de erro SAI do status `CONNECTING`. Falhas precoces

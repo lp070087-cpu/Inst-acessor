@@ -76,6 +76,7 @@ model User {
   subscriptions         Subscription[]
   payments              Payment[]
   billingEvents         BillingEvent[]
+  checkoutOrders        CheckoutOrder[]
   publishQueue          PublishQueue[]
   publishLogs           PublishLog[]
   automationRules       AutomationRule[]
@@ -570,6 +571,7 @@ model Plan {
   updatedAt       DateTime @updatedAt
 
   subscriptions Subscription[]
+  CheckoutOrder CheckoutOrder[]
 
   @@index([active])
 }
@@ -666,6 +668,57 @@ model BillingEvent {
   @@index([userId])
   @@index([subscriptionId])
   @@index([processed])
+}
+
+// ------------------------------------------------------------
+// PEDIDO DE COMPRA (CheckoutOrder) — checkout hospedado oficial (Asaas)
+// ------------------------------------------------------------
+// Registro LOCAL de cada tentativa de compra criada no checkout hospedado.
+// Princípios:
+// - `externalReference` é ÚNICA por compra (regra 5) e é a âncora usada pelo
+//   webhook para localizar o pedido — nunca confia em preço/plano do browser.
+// - `email`/`name` do comprador são normalizados e persistidos ANTES do
+//   pagamento para permitir liberar o primeiro acesso mesmo SEM User/cadastro
+//   (regra 6/9). `userId` é preenchido APÓS quando uma conta é criada/vínculada.
+// - `expectedAmountCents`, `planSlug` e `billingType`/`billingInterval` são
+//   resolvidos do catálogo no SERVIDOR (regra 4) — o webhook valida o valor
+//   recebido contra eles (regra 14).
+// - `status`: PENDING | PAID | FAILED | REFUNDED | CANCELED | EXPIRED.
+// - NUNCA contém secrets/tokens de pagamento.
+model CheckoutOrder {
+  id                     String    @id @default(cuid())
+  // E-mail do comprador normalizado (minúsculas/trim) — identidade do acesso.
+  email                  String
+  name                   String?
+  userId                 String? // preenchido quando o comprador já tem conta
+  planId                 String? // plano de referência (id real do banco ou plan:<slug>)
+  planSlug               String // "semanal" | "mensal" | "anual"
+  planName               String? // snapshot do nome do plano
+  expectedAmountCents    Int // valor oficial do plano (centavos) — validado no webhook
+  currency               String    @default("BRL")
+  billingType            String // "ONE_TIME" | "RECURRING"
+  billingInterval        String? // null | "MONTH" | "YEAR"
+  status                 String    @default("PENDING") // PENDING | PAID | FAILED | REFUNDED | CANCELED | EXPIRED
+  // Referência ÚNICA da compra (externalReference enviada ao Asaas).
+  externalReference      String    @unique
+  // IDs retornados pelo gateway (checkout/pagamento/assinatura). NUNCA inventados.
+  externalCheckoutId     String?
+  externalPaymentId      String?
+  externalSubscriptionId String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  paidAt                 DateTime? // confirmação REAL do pagamento (webhook)
+  // JSON de auditoria do processamento (sanitizado, sem secrets).
+  audit                  Json?
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  plan Plan? @relation(fields: [planId], references: [id], onDelete: SetNull)
+
+  @@index([email])
+  @@index([status])
+  @@index([userId])
+  @@index([planSlug])
+  @@index([externalPaymentId])
 }
 
 // ------------------------------------------------------------

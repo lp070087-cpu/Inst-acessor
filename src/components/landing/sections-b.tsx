@@ -112,6 +112,14 @@ const AI_CHIPS = [
   { ic: Compass, t: "Mentoria", d: "Direcionamento passo a passo para o seu momento." },
 ];
 
+const AI_QUESTIONS = [
+  { k: "1", q: "Por que meus Reels perderam alcance?" },
+  { k: "2", q: "Qual é o melhor horário para eu postar?" },
+  { k: "3", q: "Que conteúdo eu deveria criar esta semana?" },
+  { k: "4", q: "Como posso aumentar meu engajamento?" },
+  { k: "5", q: "O que preciso melhorar no meu perfil?" },
+];
+
 export function IaAcessor() {
   return (
     <section className="lnd-section" id="ia">
@@ -158,20 +166,27 @@ export function IaAcessor() {
                 <p>online agora</p>
               </div>
             </div>
-            <div className="lnd-ai-bubbles">
-              <div className="lnd-ai-bubble lnd-b-left">
-                <span className="lnd-tag lnd-purple">Você</span>
-                Meus Reels caíram em alcance essa semana. O que eu faço?
-              </div>
-              <div className="lnd-ai-bubble lnd-b-right">
+            <div className="lnd-ai-bubbles" data-ai-log aria-live="polite">
+              <div className="lnd-ai-bubble lnd-b-right lnd-ai-greet">
                 <span className="lnd-tag">IA Acessor</span>
-                Olhando seus dados, o horário das 18h perdeu força. Sua audiência está mais ativa
-                às <b>11h</b> e <b>21h</b>. Testa 3 Reels nesses horários — e mantém a frequência
-                de 4 por semana. Quer que eu monte o calendário?
+                <span className="lnd-ai-body">
+                  Opa! 👋 Toque numa pergunta abaixo e eu analiso seu perfil — do mesmo jeito que
+                  faria dentro do app.
+                </span>
               </div>
-              <div className="lnd-ai-bubble lnd-b-left">
-                <span className="lnd-tag lnd-purple">Você</span> Sim, monta! 🔥
-              </div>
+            </div>
+            <div className="lnd-ai-qs" role="group" aria-label="Perguntas demonstrativas">
+              {AI_QUESTIONS.map((it) => (
+                <button
+                  type="button"
+                  className="lnd-ai-q"
+                  data-ai-q={it.k}
+                  data-ai-question={it.q}
+                  key={it.k}
+                >
+                  {it.q}
+                </button>
+              ))}
             </div>
           </div>
         </div>

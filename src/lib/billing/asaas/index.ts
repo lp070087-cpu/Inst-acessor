@@ -31,6 +31,8 @@ export type {
   AsaasPaymentCreated,
   AsaasSubscription,
   AsaasSubscriptionCreated,
+  AsaasCheckoutRequest,
+  AsaasCheckoutResponse,
   AsaasBillingTypeValue,
   AsaasPaymentStatusValue,
   AsaasSubscriptionStatusValue,

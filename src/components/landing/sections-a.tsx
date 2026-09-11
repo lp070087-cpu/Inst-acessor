@@ -10,8 +10,6 @@ import {
   EyeOff,
   Calendar,
   AlertTriangle,
-  Bot,
-  Rocket,
   ArrowUpRight,
   ArrowDownRight,
 } from "lucide-react";
@@ -392,18 +390,11 @@ export function Problema() {
   );
 }
 
-const SOLUCAO_ITEMS = [
-  { ic: BarChart3, t: "Análise completa", d: "Seu perfil é lido por dentro: alcance, engajamento, formatos e audiência em um só painel." },
-  { ic: Target, t: "Estratégia personalizada", d: "Um plano de ação direcionado para o seu momento, nicho e objetivos — não um template genérico." },
-  { ic: Bot, t: "IA que age com você", d: "Copy, ideias, diagnósticos e mentoria: a IA trabalha a partir dos seus dados reais." },
-  { ic: Rocket, t: "Execução com previsibilidade", d: "Calendário, automações e publicação programada para você manter consistência sem caos." },
-];
-
 export function Solucao() {
   return (
-    <section className="lnd-section" id="solucao">
+    <section className="lnd-section lnd-solucao" id="solucao">
       <div className="lnd-container">
-        <div className="lnd-section-head lnd-center lnd-reveal">
+        <div className="lnd-solucao-note lnd-reveal" data-dir="scale">
           <span className="lnd-eyebrow">A solução</span>
           <h2 className="lnd-h2">
             Tudo o que você precisa para crescer, <span className="lnd-grad">em um só lugar</span>
@@ -412,31 +403,6 @@ export function Solucao() {
             O Inst Acessor é o seu time de estratégia de Instagram: ele lê os dados, decide os
             próximos passos e te acompanha até a execução.
           </p>
-        </div>
-        <div className="lnd-bento-grid">
-          {SOLUCAO_ITEMS.map((s, i) => (
-            <div className={`lnd-bento-card lnd-bento-${i + 1} lnd-reveal`} data-dir={i === 0 ? "scale" : "left"} data-delay={String(i + 1)} key={s.t}>
-              {i === 0 && (
-                <svg className="lnd-bento-art" viewBox="0 0 360 130" preserveAspectRatio="none" aria-hidden="true">
-                  <rect x="10" y="106" width="20" height="24" rx="3" fill="#8b5cf6" fillOpacity="0.14" />
-                  <rect x="44" y="110" width="20" height="20" rx="3" fill="#8b5cf6" fillOpacity="0.18" />
-                  <rect x="78" y="100" width="20" height="30" rx="3" fill="#8b5cf6" fillOpacity="0.18" />
-                  <rect x="112" y="86" width="20" height="44" rx="3" fill="#8b5cf6" fillOpacity="0.24" />
-                  <rect x="146" y="90" width="20" height="40" rx="3" fill="#8b5cf6" fillOpacity="0.22" />
-                  <rect x="180" y="70" width="20" height="60" rx="3" fill="#8b5cf6" fillOpacity="0.3" />
-                  <rect x="214" y="54" width="20" height="76" rx="3" fill="#8b5cf6" fillOpacity="0.34" />
-                  <rect x="248" y="68" width="20" height="62" rx="3" fill="#8b5cf6" fillOpacity="0.28" />
-                  <rect x="282" y="36" width="20" height="94" rx="3" fill="#8b5cf6" fillOpacity="0.42" />
-                  <rect x="316" y="20" width="20" height="110" rx="3" fill="#f43f8e" fillOpacity="0.5" />
-                </svg>
-              )}
-              <span className="lnd-ic">
-                <s.ic />
-              </span>
-              <h3>{s.t}</h3>
-              <p>{s.d}</p>
-            </div>
-          ))}
         </div>
       </div>
     </section>

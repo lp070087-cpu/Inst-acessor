@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "lib": ["ES2020", "DOM"],
+    "outDir": ".instagram-test-build",
+    "rootDir": ".",
+    "strict": true,
+    "noEmitOnError": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": false,
+    "baseUrl": ".",
+    "paths": { "@/*": ["src/*"] },
+    "types": ["node"]
+  },
+  "include": [
+    "src/lib/integrations/instagram/client.ts",
+    "src/lib/integrations/instagram/oauth.ts",
+    "src/lib/integrations/instagram/metrics.ts",
+    "src/lib/integrations/instagram/types.ts",
+    "src/lib/integrations/instagram/errors.ts",
+    "src/lib/integrations/instagram/token-policy.ts",
+    "src/lib/integrations/errors.ts",
+    "src/lib/crypto.ts",
+    "scripts/instagram-tests.ts"
+  ]
+}

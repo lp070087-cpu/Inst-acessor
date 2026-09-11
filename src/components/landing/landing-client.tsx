@@ -477,6 +477,164 @@ export function LandingClient() {
     }
 
     // ------------------------------------------------------------
+    // Chat demonstrativo IA Acessor — [data-ai-q]
+    // Perguntas fixas + respostas pré-escritas (SEM API/auth).
+    // ------------------------------------------------------------
+    const aiAnswers: Record<string, string> = {
+      "1": "Analisei os últimos 30 dias: seus Reels perderam força principalmente no <b>3º toque</b> — quem vê para antes do final. Dois ajustes de alto impacto: abre com um <b>gancho nos 2 primeiros segundos</b> (corta o “oi gente”) e testa Reels de <b>15–20s</b>, que seguram retenção. Sua frequência de 4/semana está boa — mantém. Quer que eu monte esse teste no calendário?",
+      "2": "Pelo seu histórico, sua audiência engaja mais às <b>11h</b> e <b>21h</b> — o horário das 18h vem perdendo força nas últimas 4 semanas. Sugestão: Reels às <b>11h30</b>, Stories às <b>21h</b> e carrosséis no fim de tarde. Consistência pesa mais que horário “perfeito”: mantém os mesmos dias da semana.",
+      "3": "Com base no que mais performou, sugiro: 1 Reel de <b>antes/depois</b> do seu processo (seu formato com melhor retenção), 1 carrossel de <b>3 erros</b> que travam o alcance, e 1 story de <b>bastidor</b> com enquete. Isso cobre descoberta, salvamento e conexão — o trio que move seu Score.",
+      "4": "Seu engajamento está em 62 — o gargalo é <b>comunidade</b>: poucos comentários e respostas. Três ações: responda todo comentário na <b>1ª hora</b>, encerre os Reels com uma <b>pergunta</b> (em vez de “salva esse post”), e use stories com <b>caixa de perguntas</b> 2x por semana. Em 14 dias isso costuma subir 8–12 pontos.",
+      "5": "Seu perfil está bem, mas 3 pontos seguram o Score: <b>bio sem palavra-chave</b> clara do seu nicho, destaques desatualizados e <b>frequência irregular</b> nos Stories. Passo a passo: bio com o que você faz + pra quem, 3 capas de destaque alinhadas à sua marca e 5 Stories/semana. Posso gerar a bio pronta pra você?",
+    };
+    let aiTimer: ReturnType<typeof setTimeout> | null = null;
+    const onAiQ = (e: Event) => {
+      const btn = (e.target as HTMLElement).closest<HTMLElement>("[data-ai-q]");
+      if (!btn) return;
+      const key = btn.dataset.aiQ;
+      const question = btn.dataset.aiQuestion;
+      if (!key || !question) return;
+      const panel = btn.closest<HTMLElement>(".lnd-ai-panel");
+      const log = panel?.querySelector<HTMLElement>("[data-ai-log]");
+      if (!panel || !log) return;
+      if (aiTimer) clearTimeout(aiTimer);
+
+      // Se é a primeira pergunta, remove a saudação.
+      log.querySelector(".lnd-ai-greet")?.remove();
+      // Remove um "analisando…" pendente de uma pergunta anterior não concluída.
+      log.querySelector(".lnd-ai-thinking")?.remove();
+
+      // Confirma a pergunta selecionada visualmente.
+      panel.querySelectorAll<HTMLElement>("[data-ai-q]").forEach((b) => {
+        b.classList.toggle("lnd-active", b === btn);
+      });
+
+      const mkTag = (txt: string, cls = "") => {
+        const s = document.createElement("span");
+        s.className = "lnd-tag" + (cls ? " " + cls : "");
+        s.textContent = txt;
+        return s;
+      };
+      const mkBody = (html: string) => {
+        const b = document.createElement("span");
+        b.className = "lnd-ai-body";
+        b.innerHTML = html;
+        return b;
+      };
+      const mkUser = () => {
+        const d = document.createElement("div");
+        d.className = "lnd-ai-bubble lnd-b-left lnd-ai-dyn";
+        d.appendChild(mkTag("Você", "lnd-purple"));
+        d.appendChild(mkBody(question.replace(/[<>&]/g, "")));
+        log.appendChild(d);
+        return d;
+      };
+      const mkThinking = () => {
+        const d = document.createElement("div");
+        d.className = "lnd-ai-bubble lnd-b-right lnd-ai-thinking lnd-ai-dyn";
+        d.innerHTML =
+          '<span class="lnd-tag">IA Acessor</span><span class="lnd-dots" aria-hidden="true"><i></i><i></i><i></i></span>';
+        log.appendChild(d);
+        return d;
+      };
+      const mkAnswer = (html: string) => {
+        const d = document.createElement("div");
+        d.className = "lnd-ai-bubble lnd-b-right lnd-ai-dyn";
+        d.appendChild(mkTag("IA Acessor"));
+        d.appendChild(mkBody(html));
+        log.appendChild(d);
+        return d;
+      };
+
+      // Novos balões iniciam com a classe que o CSS transiciona; o `lnd-in`
+      // é adicionado no próximo frame para a entrada acontecer de fato.
+      const userEl = mkUser();
+      const thinkEl = mkThinking();
+      requestAnimationFrame(() => {
+        userEl.classList.add("lnd-in");
+        thinkEl.classList.add("lnd-in");
+      });
+
+      aiTimer = setTimeout(() => {
+        thinkEl.remove();
+        const answer = aiAnswers[key] ?? aiAnswers["1"];
+        const answerEl = mkAnswer(answer);
+        answerEl.classList.add("lnd-in");
+        // Segue a conversa até a resposta.
+        log.scrollTo({ top: log.scrollHeight, behavior: reduced ? "auto" : "smooth" });
+      }, reduced ? 60 : 820);
+    };
+    root.addEventListener("click", onAiQ);
+
+    // ------------------------------------------------------------
+    // Demo social do cartão "Seu crescimento" — curtir, comentários,
+    // enviar. Visual apenas (SEM backend/auth/persistência).
+    // ------------------------------------------------------------
+    const pubLike = (btn: HTMLElement) => {
+      const card = btn.closest<HTMLElement>(".lnd-profile-card");
+      const likes = card?.querySelector<HTMLElement>("[data-pub-likes] b");
+      const on = btn.classList.toggle("lnd-on");
+      btn.setAttribute("aria-pressed", String(on));
+      if (likes) {
+        const cur = parseInt(likes.textContent || "128", 10);
+        if (!Number.isNaN(cur)) likes.textContent = String(cur + (on ? 1 : -1));
+      }
+    };
+    const pubToggleComments = (btn: HTMLElement) => {
+      const card = btn.closest<HTMLElement>(".lnd-profile-card");
+      const comments = card?.querySelector<HTMLElement>("[data-pub-comments]");
+      if (!comments) return;
+      const open = comments.classList.toggle("lnd-open");
+      card
+        ?.querySelectorAll<HTMLElement>("[data-pub-comments-toggle], [data-pub-comment-toggle]")
+        .forEach((b) => b.setAttribute("aria-expanded", String(open)));
+      const label = card?.querySelector<HTMLElement>("[data-pub-comments-toggle]");
+      if (label) label.textContent = open ? "Ocultar comentários" : "Ver 3 comentários";
+    };
+    const onPubSocial = (e: Event) => {
+      const t = e.target as HTMLElement;
+      const like = t.closest<HTMLElement>("[data-pub-like]");
+      if (like) {
+        e.preventDefault();
+        pubLike(like);
+        return;
+      }
+      const commentsToggle = t.closest<HTMLElement>("[data-pub-comments-toggle]");
+      if (commentsToggle) {
+        e.preventDefault();
+        pubToggleComments(commentsToggle);
+        return;
+      }
+      const commentIcon = t.closest<HTMLElement>("[data-pub-comment-toggle]");
+      if (commentIcon) {
+        e.preventDefault();
+        pubToggleComments(commentIcon);
+        return;
+      }
+      const send = t.closest<HTMLElement>("[data-pub-send]");
+      if (send) {
+        e.preventDefault();
+        send.classList.add("lnd-on");
+        setTimeout(() => send.classList.remove("lnd-on"), 500);
+      }
+    };
+    root.addEventListener("click", onPubSocial);
+
+    // ------------------------------------------------------------
+    // Preview Social — cards laterais: pulso de toque / clique
+    // (`lnd-tapped`). Touch e mouse disparam igual; o efeito some ao
+    // fim da animação. Nada depende de hover.
+    // ------------------------------------------------------------
+    const onPreviewTap = (e: Event) => {
+      const item = (e.target as HTMLElement).closest<HTMLElement>(".lnd-preview-item");
+      if (!item || reduced) return;
+      item.classList.remove("lnd-tapped");
+      void item.offsetWidth; // reinicia a animação
+      item.classList.add("lnd-tapped");
+    };
+    root.addEventListener("pointerdown", onPreviewTap, { passive: true });
+
+    // ------------------------------------------------------------
     // FAQ acordeão
     // ------------------------------------------------------------
     const onFaq = (e: Event) => {
@@ -518,7 +676,11 @@ export function LandingClient() {
       root.removeEventListener("click", onTabs);
       root.removeEventListener("click", onCopyActions);
       root.removeEventListener("click", onFaq);
+      root.removeEventListener("click", onAiQ);
+      root.removeEventListener("click", onPubSocial);
+      root.removeEventListener("pointerdown", onPreviewTap);
       if (copyTimer) clearTimeout(copyTimer);
+      if (aiTimer) clearTimeout(aiTimer);
       charTimers.forEach((t) => clearInterval(t));
       window.removeEventListener("pointermove", onMove);
       document.documentElement.removeEventListener("mouseleave", onLeave);

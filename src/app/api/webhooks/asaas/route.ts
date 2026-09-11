@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { timingSafeEqual } from "crypto";
 
 import { webhookRateLimiter, clientIp } from "@/lib/publishing/rate-limit";
-import { bll } from "@/lib/billing/db";
 import { getAsaasConfig } from "@/lib/billing/asaas/config";
 import { parseAsaasWebhook } from "@/lib/billing/asaas/webhook";
 import { handleAsaasEvent } from "@/lib/billing/asaas/events";
@@ -19,11 +18,14 @@ export const runtime = "nodejs";
  *   - Sem `ASAAS_WEBHOOK_TOKEN` → 503 (webhook não configurado; NÃO aceita nada).
  *   - Token validado por comparação constante (timingSafeEqual). Fontes aceitas
  *     (nesta ordem): header `asaas-access-token` (forma oficial do Asaas),
- *     `Authorization: Bearer`, query `?token=`. Ausente/incorreto → 403.
+ *     `Authorization: Bearer`. NUNCA por query string (`?token=` não é aceito).
+ *     Ausente/incorreto → 403.
  *   - Rate limit por IP (proteção contra flood).
  *   - Idempotência: `eventId` único em `BillingEvent` — replays NÃO reprocessam.
- *   - NUNCA confia em `userId` do payload: o dono é localizado pela referência
- *     externa (customer/subscription/payment id) no banco.
+ *   - NUNCA confia em `userId`/preço/plano do payload: a ordem é localizada pela
+ *     `externalReference` e o valor/duração/ciclo são validados no SERVIDOR.
+ *   - Regra 13: `processed=true` só é marcado após efeito aplicado OU no-effect
+ *     consciente; falha mantém `processed=false` (auditável/reprocessável).
  *   - Atualiza SOMENTE registros correspondentes; se não encontrar, registra o
  *     evento (payload sanitizado) e responde 200 rapidamente.
  *   - Payload persistido SEMPRE sanitizado (nunca tokens/secrets).
@@ -45,13 +47,8 @@ function extractToken(request: Request): string | null {
   if (header) return header.trim();
   const auth = request.headers.get("authorization");
   if (auth && /^bearer\s+/i.test(auth)) return auth.replace(/^bearer\s+/i, "").trim();
-  try {
-    const url = new URL(request.url);
-    const q = url.searchParams.get("token");
-    if (q) return q.trim();
-  } catch {
-    /* URL inválida → sem token */
-  }
+  // Token por QUERY STRING é proibido (vaza em logs/proxies). Fonte oficial:
+  // header `asaas-access-token` (ou Authorization: Bearer como fallback).
   return null;
 }
 
@@ -90,18 +87,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Payload inválido." }, { status: 400 });
   }
 
-  // 6) Idempotência: evento já processado → reconhece sem reprocessar.
-  const existing = (await bll.billingEvent.findUnique({
-    where: { eventId: parsed.eventId },
-  })) as unknown as { id: string } | null;
-  if (existing) {
-    return NextResponse.json({ received: true, duplicate: true }, { status: 200 });
+  // 6) Processa o evento (idempotência por claim-first dentro de events.ts).
+  //    - replay (processed:true) → 200 duplicate.
+  //    - falha ao aplicar → 5xx para o Asaas REENVIAR (regra 13: falhas ficam
+  //      reprocessáveis; processed permanece false).
+  const { duplicate, failed } = await handleAsaasEvent(parsed);
+  if (failed) {
+    return NextResponse.json({ error: "Falha ao processar evento." }, { status: 500 });
   }
 
-  // 7) Processa o evento (localiza dono por referência externa, atualiza
-  //    somente registros correspondentes, persiste evento sanitizado).
-  const { duplicate } = await handleAsaasEvent(parsed);
-
-  // 8) Resposta rápida — o Asaas NÃO deve reenviar.
+  // 7) Resposta rápida — o Asaas NÃO deve reenviar.
   return NextResponse.json({ received: true, duplicate }, { status: 200 });
 }

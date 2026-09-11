@@ -33,8 +33,8 @@ const CHECKOUT_EMAIL_WARNING =
   "Use um e-mail que você tenha acesso. Este mesmo e-mail será utilizado para liberar seu acesso ao Inst Acessor.";
 
 /**
- * MINHA ASSINATURA — InfinitePay (checkout externo) + Asaas legado
- * =================================================================
+ * MINHA ASSINATURA — Asaas (checkout hospedado oficial)
+ * ======================================================
  * Página funcional de planos e assinatura com os estados REAIS:
  *
  * Duas áreas na ordem oficial:
@@ -42,10 +42,10 @@ const CHECKOUT_EMAIL_WARNING =
  *    Sem assinatura → "Você ainda não tem uma assinatura" (EmptyState).
  * 2) PLANOS DISPONÍVEIS — cards gerados a partir dos planos REAIS vindos do
  *    servidor (`listPlans`/`/api/billing/plans`). Nunca inventa preço no
- *    frontend. Cada CTA abre o checkout InfinitePay correspondente
- *    (`plan.checkoutUrl` — link público oficial, em nova aba). Nunca mistura
- *    links entre planos. Sem `checkoutUrl` → fallback legado do fluxo
- *    `/api/billing/checkout` (Asaas).
+ *    frontend. Cada CTA cria um checkout Asaas no servidor
+ *    (`POST /api/billing/checkout` → checkout hospedado `POST /v3/checkouts`,
+ *    em nova aba). Preço/duração/ciclo são SEMPRE resolvidos no backend pelo
+ *    catálogo — o navegador nunca envia valor.
  *
  * Estados reais:
  * - Aguardando pagamento (PENDING) → cobrança criada no gateway, aguardando
@@ -54,8 +54,8 @@ const CHECKOUT_EMAIL_WARNING =
  * - Vencida/Expirada (EXPIRED), Cancelada (CANCELED), Pagamento atrasado
  *   (PAST_DUE) — cada uma com mensagem própria.
  *
- * Asaas permanece como código LEGADO preservado (não deletado): banco,
- * registros e webhook intactos. NENHUMA aprovação de pagamento é simulada.
+ * O InfinitePay foi REMOVIDO dos fluxos ativos (histórico preservado).
+ * NENHUMA aprovação de pagamento é simulada.
  * - Cancelar renovação futura (owner-check, sem cancelamento externo falso).
  * - Responsivo (desktop/notebook/tablet/mobile).
  */
@@ -74,8 +74,6 @@ interface PlanView {
   badge: string | null;
   active: boolean;
   sortOrder: number;
-  /** Link público do checkout InfinitePay (vindo do catálogo no servidor). */
-  checkoutUrl?: string | null;
 }
 
 interface SubscriptionView {
@@ -425,8 +423,8 @@ export function AssinaturaClient({
 
             <p className="text-[11.5px] text-ink-muted flex flex-wrap items-center gap-x-1.5">
               <span>
-                Pagamento online via InfinitePay (checkout oficial). A liberação
-                do acesso depende da confirmação real do pagamento — nunca é
+                Pagamento online via Asaas (checkout oficial). A liberação do
+                acesso depende da confirmação real do pagamento — nunca é
                 simulada.
               </span>
             </p>
@@ -458,14 +456,14 @@ export function AssinaturaClient({
                 )}
               >
                 {isFeatured && (
-                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-pill bg-brand-grad text-white text-[11px] font-bold uppercase tracking-wider shadow-brand">
+                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-pill bg-brand-grad text-white text-[11px] font-bold uppercase tracking-wider shadow-brand max-sm:static max-sm:top-auto max-sm:left-auto max-sm:translate-x-0 max-sm:self-center max-sm:w-fit">
                     <Badge tone="brand" className="!bg-transparent !border-0 !text-white">
                       <Crown size={11} /> Mais escolhido
                     </Badge>
                   </span>
                 )}
                 {isBest && !isFeatured && (
-                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-pill bg-purple text-white text-[11px] font-bold uppercase tracking-wider shadow-brand">
+                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-pill bg-purple text-white text-[11px] font-bold uppercase tracking-wider shadow-brand max-sm:static max-sm:top-auto max-sm:left-auto max-sm:translate-x-0 max-sm:self-center max-sm:w-fit">
                     Melhor custo-benefício
                   </span>
                 )}
@@ -509,45 +507,21 @@ export function AssinaturaClient({
                   </li>
                 </ul>
 
-                {plan.checkoutUrl ? (
-                  // Checkout oficial InfinitePay — link público do plano (nunca
-                  // mistura links entre planos). Abre em nova aba.
-                  <a
-                    href={plan.checkoutUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-disabled={isCurrent}
-                    className={cn(
-                      "inline-flex items-center justify-center gap-2 font-semibold whitespace-nowrap select-none transition-all duration-300 rounded-pill w-full",
-                      "px-4 py-2.5 text-[14px]",
-                      isFeatured
-                        ? "bg-[linear-gradient(115deg,#F43F8E_0%,#A855F7_45%,#6366F1_100%)] bg-[length:160%_160%] text-white shadow-brand hover:shadow-brand-lg hover:-translate-y-0.5 hover:bg-[position:100%_100%]"
-                        : "bg-transparent text-ink border border-border hover:border-purple/40 hover:text-purple",
-                      !isFeatured && isBest && "border-purple/40 text-purple hover:bg-ai-soft",
-                      isCurrent && "opacity-50 pointer-events-none"
-                    )}
-                  >
+                <Button
+                  variant={isFeatured ? "primary" : "outline"}
+                  size="sm"
+                  block
+                  disabled={checkingPlan !== null || isCurrent}
+                  onClick={() => choosePlan(plan)}
+                  className={cn(!isFeatured && isBest && "border-purple/40 text-purple hover:bg-ai-soft")}
+                >
+                  {checkingPlan === plan.id ? (
+                    <Loader2 size={15} className="animate-spin" />
+                  ) : (
                     <Wallet size={15} />
-                    {isCurrent ? "Plano atual" : "Assinar agora"}
-                  </a>
-                ) : (
-                  // Fallback legado: fluxo /api/billing/checkout (Asaas).
-                  <Button
-                    variant={isFeatured ? "primary" : "outline"}
-                    size="sm"
-                    block
-                    disabled={checkingPlan !== null || isCurrent}
-                    onClick={() => choosePlan(plan)}
-                    className={cn(!isFeatured && isBest && "border-purple/40 text-purple hover:bg-ai-soft")}
-                  >
-                    {checkingPlan === plan.id ? (
-                      <Loader2 size={15} className="animate-spin" />
-                    ) : (
-                      <Wallet size={15} />
-                    )}
-                    {isCurrent ? "Plano atual" : "Escolher plano"}
-                  </Button>
-                )}
+                  )}
+                  {isCurrent ? "Plano atual" : "Assinar agora"}
+                </Button>
               </div>
             );
           })}

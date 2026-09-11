@@ -1,7 +1,18 @@
 import { IntegrationConfigError } from "./errors";
 
 /**
- * Cliente HTTP da Graph API da Meta/Instagram.
+ * Cliente HTTP da API do Instagram (Instagram Business Login / Instagram API).
+ * ==========================================================================
+ * Este arquivo usa EXCLUSIVAMENTE os hosts oficiais do Instagram Business Login:
+ *
+ *   - `https://graph.instagram.com`  → dados, insights e publicação
+ *   - `https://api.instagram.com`    → troca do `code` por access token
+ *
+ * NÃO usa `graph.facebook.com` nem o dialog de Facebook Login. O app Meta
+ * "Inst Acessor" foi criado com o caso de uso "Gerenciar mensagens e conteúdo
+ * no Instagram", cujo fluxo é o Instagram Business Login — a conta autorizada é
+ * a própria conta profissional do Instagram, SEM exigir Página do Facebook.
+ *
  * - Timeout via AbortSignal.
  * - Retries controlados para falhas transitórias (429/5xx/network).
  * - Rate limit: respeita cabeçalho X-App-Usage quando presente.
@@ -9,7 +20,19 @@ import { IntegrationConfigError } from "./errors";
  */
 
 const GRAPH_VERSION = process.env.INSTAGRAM_GRAPH_VERSION || "v21.0";
-const GRAPH_BASE = "https://graph.facebook.com";
+
+/** Host da API de dados/insights/publicação do Instagram. */
+export const INSTAGRAM_GRAPH_BASE = "https://graph.instagram.com";
+
+/** Host da API de OAuth (troca de code por token) do Instagram. */
+export const INSTAGRAM_OAUTH_BASE = "https://api.instagram.com";
+
+/**
+ * Host do diálogo de autorização do Instagram Business Login.
+ * Exposto para testes determinísticos do fluxo OAuth.
+ */
+export const INSTAGRAM_AUTHORIZE_BASE = "https://www.instagram.com";
+
 const FETCH_TIMEOUT_MS = 20000;
 const MAX_RETRIES = 2;
 const RETRY_BASE_DELAY_MS = 500;
@@ -44,17 +67,47 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * Credenciais do app Meta/Instagram.
+ *
+ * PRIORIDADE OFICIAL (novo app):
+ *   1. `INSTAGRAM_APP_ID` / `INSTAGRAM_APP_SECRET`  ← novo app Instagram
+ *   2. `META_APP_ID`      / `META_APP_SECRET`       ← compatibilidade temporária
+ *
+ * O app do Instagram Business Login tem credenciais próprias. As variáveis
+ * `META_APP_*` continuam aceitas para não quebrar ambientes existentes, mas o
+ * par PRIORITÁRIO para o novo app é `INSTAGRAM_APP_*`. Remova o par antigo do
+ * ambiente quando a migração terminar.
+ */
 export function getMetaCredentials(): { appId: string; appSecret: string } {
-  const appId = process.env.META_APP_ID || process.env.INSTAGRAM_APP_ID;
-  const appSecret = process.env.META_APP_SECRET || process.env.INSTAGRAM_APP_SECRET;
+  const appId = process.env.INSTAGRAM_APP_ID || process.env.META_APP_ID;
+  const appSecret = process.env.INSTAGRAM_APP_SECRET || process.env.META_APP_SECRET;
   if (!appId || !appSecret) {
     throw new IntegrationConfigError(
-      "Meta/Instagram não configurado no servidor (META_APP_ID/INSTAGRAM_APP_ID e APP_SECRET)."
+      "Instagram não configurado no servidor (INSTAGRAM_APP_ID/INSTAGRAM_APP_SECRET)."
     );
   }
   return { appId, appSecret };
 }
 
+/**
+ * App Secret usado na validação da assinatura do webhook (`X-Hub-Signature-256`).
+ * Mesma prioridade de `getMetaCredentials`, porém tolerante à ausência —
+ * o chamador decide o que fazer quando não estiver configurado.
+ */
+export function getWebhookAppSecret(): string {
+  return (
+    process.env.INSTAGRAM_APP_SECRET ||
+    process.env.META_APP_SECRET ||
+    ""
+  ).trim();
+}
+
+/**
+ * Redirect URI do OAuth.
+ * Exige valor EXPLÍCITO — nunca inventa/hardcode (dev e produção são
+ * ambientes distintos e o valor precisa bater com o cadastrado no Meta).
+ */
 export function getRedirectUri(): string {
   const redirectUri = process.env.INSTAGRAM_REDIRECT_URI;
   if (!redirectUri) {
@@ -64,11 +117,11 @@ export function getRedirectUri(): string {
 }
 
 /**
- * GET na Graph API com retries e timeout.
+ * GET na API do Instagram com retries e timeout.
  * @throws InstagramApiError
  */
 export async function graphGet<T>(path: string, accessToken: string): Promise<T> {
-  const url = `${GRAPH_BASE}/${GRAPH_VERSION}/${path}${
+  const url = `${INSTAGRAM_GRAPH_BASE}/${GRAPH_VERSION}/${path}${
     path.includes("?") ? "&" : "?"
   }access_token=${encodeURIComponent(accessToken)}`;
 
@@ -131,8 +184,58 @@ export async function graphGet<T>(path: string, accessToken: string): Promise<T>
     : new InstagramApiError("Falha ao consultar a API do Instagram.", "UNKNOWN");
 }
 
-/** GET na Graph API sem retries (para troca de token — 1 chamada). */
+/**
+ * GET na API do Instagram sem retries (para troca de token — 1 chamada).
+ *
+ * A resposta é lida como TEXTO e convertida com `JSON.parse` protegido: se o
+ * host devolver uma página de erro (gateway/proxy em HTML) em vez de JSON, o
+ * chamador recebe um erro controlado em vez de uma exceção crua de parse.
+ * O corpo bruto nunca é repassado — apenas a indicação do status.
+ */
 export async function graphGetNoRetry<T>(url: string): Promise<T & { error?: Record<string, unknown> }> {
   const res = await fetch(url, { method: "GET", signal: timeoutSignal() });
-  return (await res.json()) as T & { error?: Record<string, unknown> };
+
+  const text = await res.text();
+  try {
+    return JSON.parse(text) as T & { error?: Record<string, unknown> };
+  } catch {
+    return {
+      error: { message: "Resposta inválida do Instagram.", code: res.status },
+    } as T & { error?: Record<string, unknown> };
+  }
 }
+
+/**
+ * POST `application/x-www-form-urlencoded` sem retries.
+ * Usado na troca do `code` por token (`api.instagram.com/oauth/access_token`),
+ * que é o formato oficial exigido por esse endpoint.
+ *
+ * O corpo é enviado no body (nunca na query) — o app secret não vai para logs
+ * de URL nem para o histórico do servidor.
+ */
+export async function postFormNoRetry<T>(
+  url: string,
+  form: Record<string, string>
+): Promise<T & { error?: Record<string, unknown>; error_message?: string }> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams(form).toString(),
+    signal: timeoutSignal(),
+  });
+
+  const text = await res.text();
+  try {
+    return JSON.parse(text) as T & {
+      error?: Record<string, unknown>;
+      error_message?: string;
+    };
+  } catch {
+    // Resposta não-JSON: devolve um erro controlado (nunca o corpo bruto).
+    return {
+      error: { message: "Resposta inválida do Instagram.", code: res.status },
+    } as T & { error?: Record<string, unknown> };
+  }
+}
+
+export { GRAPH_VERSION as INSTAGRAM_GRAPH_VERSION, FETCH_TIMEOUT_MS };

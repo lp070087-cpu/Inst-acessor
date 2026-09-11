@@ -19,18 +19,25 @@
 
 ## 2. Permissões solicitadas
 
+Escopos solicitados pelo app (Instagram Business Login):
+
 | Permissão | Uso no produto |
 | --- | --- |
 | `instagram_business_basic` | Ler perfil profissional (nome, seguidores, mídia, métricas de alcance/impressões) |
-| `instagram_business_content_publish` | **Não usado.** O app não publica conteúdo no Instagram. |
+| `instagram_business_manage_comments` | Ler comentários das próprias publicações para análise de engajamento |
+| `instagram_business_manage_messages` | Ler mensagens diretas recebidas na conta profissional |
+| `instagram_business_manage_insights` | Ler métricas e insights da conta e por publicação |
+| `instagram_business_content_publish` | Publicar conteúdo agendado na própria conta, a partir do módulo de Publicação |
 
-> A API do Instagram **exige** `instagram_business_content_publish` para acesso de leitura a certas
-> métricas em contas comerciais. O Inst Acessor **não publica** conteúdo — apenas lê métricas.
+> Os escopos padrão do código são exatamente os cinco acima
+> (`src/lib/integrations/instagram/oauth.ts`). A variável `INSTAGRAM_SCOPES`
+> permite sobrescrever a lista, mas só deve ser usada para reduzir/ajustar o conjunto
+> aprovado no painel da Meta.
 
 ### Produtos da Meta usados
 
-- **Instagram Graph API** (perfis profissionais Business/Creator).
-- **Login da Meta** (OAuth 2.0) para autenticação da conexão.
+- **Instagram Business Login** (API do Instagram — `graph.instagram.com`) para perfis profissionais
+  Business/Creator. O fluxo de autorização é `https://www.instagram.com/oauth/authorize`.
 - **Webhooks do Instagram** (preparado estruturalmente; processamento de eventos futuros).
 
 ## 3. Caso de uso
@@ -49,32 +56,37 @@ crescimento em um dashboard:
 ### 3.2 Fluxo do usuário
 
 1. O usuário clica em **"Conectar Instagram"** na página *Redes Sociais*.
-2. É redirecionado ao fluxo OAuth oficial da Meta.
-3. Conecta com uma conta **profissional** (Business ou Creator).
-4. Autoriza as permissões de leitura de métricas.
-5. Retorna ao app; o Inst Acessor armazena o token **criptografado** no servidor.
+2. É redirecionado ao **Instagram Business Login** (`www.instagram.com/oauth/authorize`).
+3. Entra com uma conta **profissional** (Business ou Creator). Não é necessário ter
+   Página do Facebook nem vínculo com Portfólio Empresarial.
+4. Autoriza as permissões solicitadas.
+5. Retorna ao app; o Inst Acessor troca o código por um token de **longa duração**
+   (~60 dias) e o armazena **criptografado** no servidor.
 6. O usuário sincroniza as métricas e acompanha no dashboard.
 
-### 3.3 Por que a permissão é necessária
+### 3.3 Por que as permissões são necessárias
 
 - `instagram_business_basic` — **obrigatória** para qualquer leitura de dados do perfil profissional
-  via Instagram Graph API (seguidores, mídia, alcance, impressões).
+  (seguidores, mídia, alcance, impressões).
+- `instagram_business_manage_insights` — métricas agregadas da conta e por publicação.
+- `instagram_business_content_publish` — publicação de conteúdo agendado pelo próprio usuário.
+- `instagram_business_manage_comments` — leitura de comentários das próprias publicações.
+- `instagram_business_manage_messages` — leitura de mensagens diretas recebidas.
 
 ### 3.4 O que o app NÃO faz
 
-- Não publica fotos, reels ou stories.
-- Não comenta em publicações.
+- Não publica nada sem ação explícita do usuário no módulo de Publicação.
+- Não comenta nem responde em nome do usuário.
 - Não envia mensagens diretas.
 - Não segue/dessegue contas.
 - Não acessa dados de outros usuários.
-- Não lê mensagens diretas (DMs).
 
 ## 4. Fluxo de dados
 
 ```
-Instagram (Graph API — Meta)
+Instagram (API do Instagram — graph.instagram.com)
    │
-   │  OAuth 2.0 (Login da Meta)
+   │  Instagram Business Login (OAuth 2.0)
    ▼
 Inst Acessor (servidor)
    │
@@ -100,7 +112,7 @@ Dashboard (somente leitura, dados do próprio usuário)
 Ao submeter no painel da Meta, inclua:
 
 1. Página **Redes Sociais** — botão "Conectar Instagram".
-2. Tela de autorização do Login da Meta.
+2. Tela de autorização do Instagram Business Login.
 3. Dashboard com métricas reais do Instagram conectado.
 4. Seção **Score Inteligente** e **Evolução**.
 5. Fluxo de **desconexão** (botão "Desconectar").
@@ -118,13 +130,16 @@ Crie uma **conta profissional de teste** no Instagram (Business/Creator) para a 
 
 ## 7. Checklist antes de submeter
 
-- [ ] App vinculado a uma página do Facebook (Business Verification).
-- [ ] Permissão `instagram_business_basic` adicionada.
+- [ ] Caso de uso "Gerenciar mensagens e conteúdo no Instagram" selecionado no app.
+- [ ] App **não** depende de Página do Facebook (Instagram Business Login).
+- [ ] Os 5 escopos `instagram_business_*` adicionados no painel da Meta.
 - [ ] App Secret apenas no servidor.
 - [ ] Token criptografado no banco.
 - [ ] Webhook do Instagram **desativado** até a aprovação (ou com URL válida + verificação).
 - [ ] Página de privacidade publicada.
 - [ ] Termos de serviço publicados.
 - [ ] Capturas de tela reais.
-- [ ] Conta de teste pronta.
-- [ ] URL de callback configurada no painel.
+- [ ] Conta de teste pronta (conta profissional Business/Creator).
+- [ ] URL de callback configurada no painel:
+      `https://unitrixapp.com.br/api/integrations/instagram/callback`
+- [ ] A MESMA URL definida em `INSTAGRAM_REDIRECT_URI` na Vercel.

@@ -6,8 +6,13 @@ import {
   EMAIL_NOT_ELIGIBLE_MESSAGE,
 } from "@/lib/first-access";
 import { sendFirstAccessEmail } from "@/lib/email";
-import { createRateLimiter, clientIp } from "@/lib/publishing/rate-limit";
+import {
+  createRateLimiter,
+  clientIp,
+  firstAccessEmailRateLimiter,
+} from "@/lib/publishing/rate-limit";
 import { FIRST_ACCESS_TOKEN_TTL_MINUTES } from "@/lib/first-access/core";
+import { normalizeEmail } from "@/lib/first-access";
 import { getAppBaseUrl } from "@/lib/config/site";
 
 export const dynamic = "force-dynamic";
@@ -44,6 +49,17 @@ export async function POST(request: Request) {
 
   const parsed = requestFirstAccessSchema.safeParse(body);
   if (!parsed.success) {
+    return NextResponse.json({ ok: true, message: EMAIL_NOT_ELIGIBLE_MESSAGE });
+  }
+
+  // Rate limit PER-EMAIL (além do por-IP acima) — anti-flood de tokens para um
+  // mesmo endereço. Usa o e-mail NORMALIZADO para não contornar com variações.
+  const normalizedInput = normalizeEmail(parsed.data.email);
+  if (
+    normalizedInput &&
+    !firstAccessEmailRateLimiter.check(`fa:${normalizedInput}`)
+  ) {
+    // Mesma resposta genérica — não revela se o e-mail é elegível.
     return NextResponse.json({ ok: true, message: EMAIL_NOT_ELIGIBLE_MESSAGE });
   }
 

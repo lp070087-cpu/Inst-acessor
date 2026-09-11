@@ -74,6 +74,15 @@ export function PreviewSocial() {
           <div className="lnd-preview-phones lnd-reveal" data-dir="right">
             <div className="lnd-phone lnd-phone-a" aria-hidden="true">
               <div className="lnd-phone-screen">
+                <div className="lnd-phone-status">
+                  <span className="lnd-st-time">9:41</span>
+                  <span className="lnd-st-island" />
+                  <span className="lnd-st-icons">
+                    <i />
+                    <i />
+                    <i />
+                  </span>
+                </div>
                 <div className="lnd-phone-top">
                   <span className="lnd-av">V</span>
                   <span>
@@ -91,6 +100,9 @@ export function PreviewSocial() {
                   <Send size={19} />
                   <Bookmark size={19} />
                 </div>
+                <div className="lnd-phone-likes">
+                  <b>12.408</b> curtidas
+                </div>
                 <div className="lnd-phone-caption">
                   <b>sua.marca</b> Novo conteúdo no ar! 🔥 <span className="lnd-hl">#estrategia</span>{" "}
                   <span className="lnd-hl">#instagram</span>
@@ -101,6 +113,15 @@ export function PreviewSocial() {
             </div>
             <div className="lnd-phone lnd-phone-b" aria-hidden="true">
               <div className="lnd-phone-screen">
+                <div className="lnd-phone-status">
+                  <span className="lnd-st-time">9:41</span>
+                  <span className="lnd-st-island" />
+                  <span className="lnd-st-icons">
+                    <i />
+                    <i />
+                    <i />
+                  </span>
+                </div>
                 <div className="lnd-phone-top">
                   <span className="lnd-av">V</span>
                   <span>
@@ -117,6 +138,9 @@ export function PreviewSocial() {
                   <MessageCircle size={19} />
                   <Send size={19} />
                   <Bookmark size={19} />
+                </div>
+                <div className="lnd-phone-likes">
+                  <b>8.231</b> curtidas
                 </div>
                 <div className="lnd-phone-caption">
                   <b>sua.marca</b> Os bastidores do novo lookbook ✨{" "}
@@ -391,7 +415,7 @@ const PLANS = [
     desc: "Acesso completo por 7 dias para conhecer a plataforma sem limite de funcionalidades.",
     feats: ALL_FEATURES,
     cta: "Assinar semanal",
-    href: "https://invoice.infinitepay.io/plans/unitrix/QxyWJ8UOq6",
+    href: "/checkout?plano=semanal",
     featured: false,
   },
   {
@@ -401,7 +425,7 @@ const PLANS = [
     desc: "Todas as funcionalidades liberadas, com renovação simples quando quiser.",
     feats: ALL_FEATURES,
     cta: "Assinar mensal",
-    href: "https://invoice.infinitepay.io/plans/unitrix/gC8t6WTiVQ",
+    href: "/checkout?plano=mensal",
     featured: true,
   },
   {
@@ -411,7 +435,7 @@ const PLANS = [
     desc: "O melhor custo-benefício: todas as funcionalidades por 12 meses.",
     feats: ALL_FEATURES,
     cta: "Assinar anual",
-    href: "https://invoice.infinitepay.io/plans/unitrix/5LZNvhvbLY",
+    href: "/checkout?plano=anual",
     featured: false,
   },
 ];
@@ -448,7 +472,7 @@ export function Planos() {
                   </li>
                 ))}
               </ul>
-              <a className={`lnd-btn lnd-btn-block ${p.featured ? "lnd-btn-primary" : "lnd-btn-ghost"} lnd-plan-cta`} href={p.href} target="_blank" rel="noopener noreferrer">
+              <a className={`lnd-btn lnd-btn-block ${p.featured ? "lnd-btn-primary" : "lnd-btn-ghost"} lnd-plan-cta`} href={p.href}>
                 {p.cta}
                 <ArrowRight />
               </a>

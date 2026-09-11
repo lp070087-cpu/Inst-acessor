@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server";
 
-import { requireSession } from "@/lib/auth/guard";
 import { listPlans } from "@/lib/billing";
 
 export const dynamic = "force-dynamic";
 
 /**
  * GET /api/billing/plans — lista os planos oficiais ativos.
- * Requer sessão. Sem dados sensíveis.
+ * PÚBLICO (a landing e o checkout sem login precisam listar os planos para o
+ * visitante escolher). Nenhum dado sensível; preço/duração/ciclo são apenas a
+ * vitrine do catálogo — o valor cobrado é SEMPRE resolvido no servidor no
+ * momento do checkout (nunca confiar nestes campos como fonte de cobrança).
  */
 export async function GET() {
   try {
-    await requireSession();
     const plans = await listPlans();
     return NextResponse.json({ plans });
   } catch (err) {

@@ -26,7 +26,7 @@ export function Tabs({
     <div
       role="tablist"
       className={cn(
-        "inline-flex gap-1.5 bg-surface border border-border-soft rounded-pill p-1.5",
+        "inline-flex max-w-full min-w-0 items-center gap-1.5 overflow-x-auto bg-surface border border-border-soft rounded-pill p-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
         className
       )}
     >
@@ -39,7 +39,7 @@ export function Tabs({
             aria-selected={active}
             onClick={() => onChange(tab.id)}
             className={cn(
-              "text-[13.5px] font-semibold text-ink-soft px-4 py-2 rounded-pill transition-all duration-300 cursor-pointer",
+              "shrink-0 whitespace-nowrap text-[13.5px] font-semibold text-ink-soft px-4 py-2 rounded-pill transition-all duration-300 cursor-pointer",
               active
                 ? cn("bg-card text-ink shadow-xs", activeClassName)
                 : "hover:text-ink"

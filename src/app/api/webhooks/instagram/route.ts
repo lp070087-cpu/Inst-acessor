@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { webhookRateLimiter, clientIp } from "@/lib/publishing/rate-limit";
 import { pub } from "@/lib/publishing/db";
 import { verifyWebhookSignature } from "@/lib/webhooks/signature";
+import { getWebhookAppSecret } from "@/lib/integrations/instagram/client";
 
 /**
  * Webhook do Instagram (Meta) — arquitetura segura.
@@ -23,7 +24,8 @@ import { verifyWebhookSignature } from "@/lib/webhooks/signature";
  */
 
 const VERIFY_TOKEN = (process.env.INSTAGRAM_WEBHOOK_VERIFY_TOKEN ?? "").trim();
-const APP_SECRET = (process.env.META_APP_SECRET || process.env.INSTAGRAM_APP_SECRET || "").trim();
+// Prioridade do novo app: INSTAGRAM_APP_SECRET → META_APP_SECRET (compat).
+const APP_SECRET = getWebhookAppSecret();
 
 // GET (desafio da Meta) depende apenas do verify token.
 const GET_CONFIGURED = Boolean(VERIFY_TOKEN);

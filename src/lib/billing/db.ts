@@ -45,6 +45,8 @@ export const bll = {
   user: p.user as unknown as Delegate<User>,
   // Fase "Primeiro Acesso" — AccessGrant (origem ASAAS/ADMIN_MANUAL).
   accessGrant: p.accessGrant as unknown as Delegate<AccessGrant>,
+  // Pedido de compra local (checkout hospedado Asaas).
+  checkoutOrder: p.checkoutOrder as unknown as Delegate<CheckoutOrder>,
 };
 
 export interface AccessGrant {
@@ -64,6 +66,29 @@ export interface AccessGrant {
   firstAccessCompletedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface CheckoutOrder {
+  id: string;
+  email: string;
+  name?: string | null;
+  userId?: string | null;
+  planId?: string | null;
+  planSlug: string;
+  planName?: string | null;
+  expectedAmountCents: number;
+  currency: string;
+  billingType: string;
+  billingInterval?: string | null;
+  status: string;
+  externalReference: string;
+  externalCheckoutId?: string | null;
+  externalPaymentId?: string | null;
+  externalSubscriptionId?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  paidAt?: Date | null;
+  audit?: unknown;
 }
 
 export { prisma };

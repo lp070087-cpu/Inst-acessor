@@ -1,8 +1,11 @@
 /**
  * ADAPTER INSTAGRAM — PUBLICAÇÃO REAL
  * ====================================
- * Implementa o contrato `PublishingAdapter` para o Instagram (Meta),
- * usando a Graph API oficial v21.0.
+ * Implementa o contrato `PublishingAdapter` para o Instagram, usando a API
+ * oficial em `graph.instagram.com` (fluxo Instagram Business Login — o app Meta
+ * "Inst Acessor" foi criado com o caso de uso de Instagram, não Facebook Login).
+ *
+ * Requer o scope `instagram_business_content_publish`.
  *
  * Fluxo oficial (apenas quando há conexão + mídia pública):
  *   1) Criar container:   POST /{ig-user-id}/media
@@ -45,15 +48,21 @@ import {
 } from "../media";
 import { resolvePublishConnection, type ConnectionResolution } from "../connection";
 
-/** Versão da Graph API usada no servidor (default: v21.0). */
+/**
+ * Versão e host da API do Instagram.
+ * Fluxo Instagram Business Login: os endpoints de publicação vivem em
+ * `graph.instagram.com` (NÃO em `graph.facebook.com`), e o
+ * `externalAccountId` guardado na conexão é o próprio IG user id devolvido
+ * pelo nó `me` — sem Página do Facebook no caminho.
+ */
 const GRAPH_VERSION = process.env.INSTAGRAM_GRAPH_VERSION || "v21.0";
-const GRAPH_BASE = "https://graph.facebook.com";
+const GRAPH_BASE = "https://graph.instagram.com";
 
-/** Nomes de endpoints OFICIAIS do Instagram Graph API. */
+/** Endpoints OFICIAIS usados na publicação do Instagram. */
 export const INSTAGRAM_GRAPH_ENDPOINTS = {
-  createContainer: "https://graph.facebook.com/v21.0/{ig-user-id}/media",
-  publishContainer: "https://graph.facebook.com/v21.0/{ig-user-id}/media_publish",
-  getContainer: "https://graph.facebook.com/v21.0/{container-id}",
+  createContainer: `https://graph.instagram.com/${GRAPH_VERSION}/{ig-user-id}/media`,
+  publishContainer: `https://graph.instagram.com/${GRAPH_VERSION}/{ig-user-id}/media_publish`,
+  getContainer: `https://graph.instagram.com/${GRAPH_VERSION}/{container-id}`,
 } as const;
 
 function graphUrl(path: string): string {
@@ -73,6 +82,19 @@ function mediaPublishUrl(igUserId: string): string {
 /** URL de consulta de status de um container. */
 function containerStatusUrl(containerId: string): string {
   return graphUrl(`${containerId}?fields=status_code,id`);
+}
+
+/**
+ * Opções de POST para a API do Instagram.
+ * O formato oficial dos endpoints de mídia é `application/x-www-form-urlencoded`;
+ * o `access_token` viaja no BODY (nunca na query, para não vazar em logs de URL).
+ */
+function formPost(form: Record<string, string>) {
+  return {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams(form).toString(),
+  } as const;
 }
 
 function connectionToCode(res: ConnectionResolution): PublishResult {
@@ -193,7 +215,7 @@ async function publishInstagram(payload: PublishPayload, userId: string): Promis
       };
       const created = await publishHttp<{ id?: string; error?: { message?: string } }>(
         mediaUrl(externalAccountId),
-        { method: "POST", body: JSON.stringify(body) }
+        formPost(body)
       );
       if (!created?.id) throw new PublishHttpError("Container não retornado pela API.", 0, false);
       containerIds.push(created.id);
@@ -219,7 +241,7 @@ async function publishInstagram(payload: PublishPayload, userId: string): Promis
 
     const containerRes = await publishHttp<{ id?: string; error?: { message?: string } }>(
       mediaUrl(externalAccountId),
-      { method: "POST", body: JSON.stringify(creationBody) }
+      formPost(creationBody)
     );
     const containerId = containerRes?.id;
     if (!containerId) {
@@ -229,7 +251,7 @@ async function publishInstagram(payload: PublishPayload, userId: string): Promis
     // 5) Publica o container (confirmação real).
     const published = await publishHttp<{ id?: string; error?: { message?: string } }>(
       mediaPublishUrl(externalAccountId),
-      { method: "POST", body: JSON.stringify({ creation_id: containerId, access_token: accessToken }) }
+      formPost({ creation_id: containerId, access_token: accessToken })
     );
     const mediaId = published?.id;
     if (!mediaId) {

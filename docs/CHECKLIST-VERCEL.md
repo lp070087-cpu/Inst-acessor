@@ -37,11 +37,13 @@ Copie de `.env.local` / `.env.example`. **NUNCA suba `.env*` para o repositório
 | `DIRECT_URL` | sim | Neon (pool vs. direct) |
 | `NEXTAUTH_SECRET` | sim | Gere com `openssl rand -base64 32` |
 | `NEXTAUTH_URL` | sim | URL do domínio de produção |
-| `INSTAGRAM_CLIENT_ID` | integração | App Meta |
-| `INSTAGRAM_CLIENT_SECRET` | integração | App Meta |
+| `INSTAGRAM_APP_ID` | integração | App Meta (Instagram Business Login) — par **prioritário** |
+| `INSTAGRAM_APP_SECRET` | integração | App Secret do mesmo app — par **prioritário** |
+| `META_APP_ID` / `META_APP_SECRET` | não | Compatibilidade temporária (usados só se `INSTAGRAM_APP_*` estiver vazio) |
+| `INSTAGRAM_REDIRECT_URI` | integração | **Obrigatória e explícita** (ex.: `https://unitrixapp.com.br/api/integrations/instagram/callback`). O código NÃO usa valor padrão. |
 | `INSTAGRAM_GRAPH_VERSION` | não | default `v21.0` |
 | `INSTAGRAM_WEBHOOK_VERIFY_TOKEN` | webhook | Token de verificação |
-| `INSTAGRAM_SCOPES` | não | default `instagram_business_basic,business_management` |
+| `INSTAGRAM_SCOPES` | não | override opcional. Default: `instagram_business_basic,instagram_business_manage_comments,instagram_business_manage_messages,instagram_business_manage_insights,instagram_business_content_publish` |
 | `TIKTOK_CLIENT_KEY` | integração | App TikTok |
 | `TIKTOK_CLIENT_SECRET` | integração | App TikTok |
 | `TIKTOK_WEBHOOK_VERIFY_TOKEN` | webhook | Token de verificação |

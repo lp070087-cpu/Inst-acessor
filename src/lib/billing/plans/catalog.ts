@@ -14,10 +14,11 @@
  *   Anual    R$ 547,00  → 54700   (preço oficial desde 2026-08-31;
  *                                  o antigo R$ 497,00 NÃO é mais válido)
  *
- * Checkout oficial: InfinitePay (links públicos por plano — ver seção 3 do
- * RELATORIO-INFINITEPAY-PLANOS.md). Os links podem viver no frontend porque
- * são URLs públicas de pagamento; nenhuma chave/segredo da InfinitePay é
- * usada nesta tarefa.
+ * Checkout oficial: ASAAS (checkout hospedado público — POST /v3/checkouts).
+ * O catálogo NÃO guarda URL de pagamento estática: cada compra cria um
+ * checkout único no servidor (preço/duração/ciclo SEMPRE resolvidos aqui —
+ * nunca vindos do browser). O InfinitePay foi REMOVIDO dos fluxos ativos
+ * (histórico preservado, se existir).
  *
  * NENHUM id externo é inventado.
  */
@@ -55,9 +56,6 @@ export const PLAN_CATALOG = [
     badge: null,
     active: true,
     sortOrder: 1,
-    /** Link público do checkout InfinitePay do plano semanal. */
-    checkoutUrl:
-      "https://invoice.infinitepay.io/plans/unitrix/QxyWJ8UOq6",
   },
   {
     slug: "mensal",
@@ -91,9 +89,6 @@ export const PLAN_CATALOG = [
     badge: "MAIS_ESCOLHIDO",
     active: true,
     sortOrder: 2,
-    /** Link público do checkout InfinitePay do plano mensal. */
-    checkoutUrl:
-      "https://invoice.infinitepay.io/plans/unitrix/gC8t6WTiVQ",
   },
   {
     slug: "anual",
@@ -127,9 +122,6 @@ export const PLAN_CATALOG = [
     badge: "MELHOR_CUSTO_BENEFICIO",
     active: true,
     sortOrder: 3,
-    /** Link público do checkout InfinitePay do plano anual. */
-    checkoutUrl:
-      "https://invoice.infinitepay.io/plans/unitrix/5LZNvhvbLY",
   },
 ] as const;
 

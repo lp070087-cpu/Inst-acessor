@@ -170,7 +170,9 @@ export default async function RedesSociaisPage() {
                             ? "Profissional (Business)"
                             : card.accountType === "CREATOR"
                               ? "Profissional (Creator)"
-                              : card.accountType ?? "—"
+                              : card.accountType === "PROFESSIONAL"
+                                ? "Profissional"
+                                : card.accountType ?? "—"
                           : card.accountType === "BUSINESS"
                             ? "Conta Business"
                             : card.accountType ?? "—"}

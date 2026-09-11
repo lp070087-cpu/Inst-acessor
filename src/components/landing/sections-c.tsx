@@ -34,6 +34,7 @@ import {
   MessageCircle,
   Send,
   BadgeCheck,
+  Smile,
 } from "lucide-react";
 import { LogoMark } from "./sections-a";
 
@@ -684,23 +685,87 @@ export function Perfil() {
                 </div>
               </div>
 
-              {/* Ações sociais + compartilhar */}
+              {/* Ações sociais (demo interativa) + compartilhar */}
               <div className="lnd-pub-foot">
                 <div className="lnd-pub-social">
-                  <span className="lnd-pub-social-ic lnd-pub-heart" aria-label="Curtir">
+                  <button
+                    className="lnd-pub-social-ic lnd-pub-heart"
+                    type="button"
+                    data-pub-like
+                    aria-pressed="false"
+                    aria-label="Curtir"
+                  >
                     <Heart size={17} />
-                  </span>
-                  <span className="lnd-pub-social-ic lnd-pub-comment" aria-label="Comentar">
+                  </button>
+                  <button
+                    className="lnd-pub-social-ic lnd-pub-comment"
+                    type="button"
+                    data-pub-comment-toggle
+                    aria-expanded="false"
+                    aria-label="Ver comentários"
+                  >
                     <MessageCircle size={17} />
-                  </span>
-                  <span className="lnd-pub-social-ic lnd-pub-send" aria-label="Enviar">
+                  </button>
+                  <button
+                    className="lnd-pub-social-ic lnd-pub-send"
+                    type="button"
+                    data-pub-send
+                    aria-label="Enviar"
+                  >
                     <Send size={17} />
-                  </span>
+                  </button>
                 </div>
                 <button className="lnd-pub-share" type="button">
                   <Share2 size={15} />
                   Compartilhar evolução
                 </button>
+              </div>
+
+              {/* Contador de curtidas (demo) */}
+              <div className="lnd-pub-likes" data-pub-likes>
+                <b>128</b> curtidas
+              </div>
+
+              {/* Comentários demo (3 fixos + expandir/encolher) */}
+              <div className="lnd-pub-comments" data-pub-comments>
+                <div className="lnd-pub-comment-item">
+                  <span className="lnd-pub-c-avatar lnd-pub-c-1" aria-hidden="true">
+                    M
+                  </span>
+                  <p>
+                    <b>@mariana</b> Muito bom 🔥
+                  </p>
+                </div>
+                <div className="lnd-pub-comment-item">
+                  <span className="lnd-pub-c-avatar lnd-pub-c-2" aria-hidden="true">
+                    C
+                  </span>
+                  <p>
+                    <b>@carlos</b> Gostei! 👏
+                  </p>
+                </div>
+                <div className="lnd-pub-comment-item lnd-pub-c-extra">
+                  <span className="lnd-pub-c-avatar lnd-pub-c-3" aria-hidden="true">
+                    B
+                  </span>
+                  <p>
+                    <b>@bia</b> Evolução incrível 🚀
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="lnd-pub-c-more"
+                  data-pub-comments-toggle
+                  aria-expanded="false"
+                >
+                  Ver 3 comentários
+                </button>
+              </div>
+
+              {/* Campo "Adicione um comentário…" (visual) */}
+              <div className="lnd-pub-add" data-pub-add>
+                <Smile size={18} />
+                <span>Adicione um comentário…</span>
               </div>
             </div>
           </div>

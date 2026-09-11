@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { pub } from "@/lib/publishing/db";
 import { webhookRateLimiter, clientIp } from "@/lib/publishing/rate-limit";
 import { verifyWebhookSignature } from "@/lib/webhooks/signature";
+import { getWebhookAppSecret } from "@/lib/integrations/instagram/client";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,8 @@ export const dynamic = "force-dynamic";
 // `.trim()` nos envs: espaços/CRLF acidentais quebrariam a comparação exata
 // do token no GET (causa real de 403 "Verificação falhou" com token válido).
 const VERIFY_TOKEN = (process.env.INSTAGRAM_WEBHOOK_VERIFY_TOKEN ?? "").trim();
-const APP_SECRET = (process.env.META_APP_SECRET ?? "").trim();
+// Prioridade do novo app: INSTAGRAM_APP_SECRET → META_APP_SECRET (compat).
+const APP_SECRET = getWebhookAppSecret();
 const CONFIGURED = Boolean(VERIFY_TOKEN);
 
 interface WebhookEvent {

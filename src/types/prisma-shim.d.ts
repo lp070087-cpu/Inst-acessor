@@ -437,6 +437,32 @@ declare module "@prisma/client" {
   }
 
   // ------------------------------------------------------------
+  // FASE ASAAS (checkout hospedado oficial) — PEDIDO DE COMPRA LOCAL
+  // ------------------------------------------------------------
+  interface CheckoutOrder {
+    id: string;
+    email: string;
+    name?: string | null;
+    userId?: string | null;
+    planId?: string | null;
+    planSlug: string;
+    planName?: string | null;
+    expectedAmountCents: number;
+    currency: string;
+    billingType: string; // "ONE_TIME" | "RECURRING"
+    billingInterval?: string | null; // null | "MONTH" | "YEAR"
+    status: string; // PENDING | PAID | FAILED | REFUNDED | CANCELED | EXPIRED
+    externalReference: string;
+    externalCheckoutId?: string | null;
+    externalPaymentId?: string | null;
+    externalSubscriptionId?: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+    paidAt?: Date | null;
+    audit?: unknown;
+  }
+
+  // ------------------------------------------------------------
   // FASE 7 — PUBLICAÇÃO REAL, FILA E CENTRAL DE PUBLICAÇÃO
   // ------------------------------------------------------------
   interface PublishQueue {

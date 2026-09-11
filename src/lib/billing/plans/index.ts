@@ -38,8 +38,9 @@ export interface PlanView {
   badge: string | null;
   active: boolean;
   sortOrder: number;
-  /** Link público de checkout InfinitePay (quando disponível no catálogo). */
-  checkoutUrl?: string | null;
+  // NOTE: nenhuma URL estática de pagamento por plano. O checkout Asaas é
+  // criado no servidor por compra (POST /v3/checkouts) e devolvido em
+  // `CreateCheckoutResult.checkoutUrl` — nunca no catálogo/plano.
 }
 
 /** ID determinístico de um plano do catálogo quando usado fora do banco. */
@@ -62,7 +63,6 @@ function toCatalogView(p: CatalogPlan): PlanView {
     badge: p.badge,
     active: p.active,
     sortOrder: p.sortOrder,
-    checkoutUrl: p.checkoutUrl,
   };
 }
 
@@ -80,7 +80,6 @@ function toPlanView(row: {
   badge: string | null;
   active: boolean;
   sortOrder: number;
-  checkoutUrl?: string | null;
 }): PlanView {
   return {
     id: row.id,
@@ -96,7 +95,6 @@ function toPlanView(row: {
     badge: row.badge,
     active: row.active,
     sortOrder: row.sortOrder,
-    checkoutUrl: row.checkoutUrl ?? null,
   };
 }
 
@@ -107,8 +105,8 @@ function toPlanView(row: {
  * R$ 547,00 desde 2026-08-31). Mantém a FK de `Subscription` válida e faz com
  * que os cards sempre apareçam — sem depender de um seed manual.
  * NÃO altera assinaturas/pagamentos históricos (esses preservam `amountCents`).
- * O campo `checkoutUrl` NÃO é persistido (não existe coluna no schema); ele é
- * sempre resolvido do catálogo em código.
+ * Nenhuma URL de pagamento é persistida: o checkout Asaas é criado no servidor
+ * por compra e nunca vive no catálogo/plano.
  */
 async function ensureCatalogPlans(): Promise<void> {
   const rows = (await bll.plan.findMany({
@@ -141,8 +139,8 @@ async function ensureCatalogPlans(): Promise<void> {
 
 /**
  * Sobrepoõe os valores oficiais do catálogo em um plano vindo do banco.
- * Garante que nome/preço/checkoutUrl exibidos sejam SEMPRE os do catálogo
- * (fonte de verdade), mesmo se a linha no banco ainda tiver o valor antigo
+ * Garante que nome/preço exibidos sejam SEMPRE os do catálogo (fonte de
+ * verdade), mesmo se a linha no banco ainda tiver o valor antigo
  * (ex.: plano anual 49700 gravado antes da atualização para 54700).
  */
 function withCatalogOverlay(view: PlanView): PlanView {
@@ -154,7 +152,6 @@ function withCatalogOverlay(view: PlanView): PlanView {
     priceCents: c.priceCents,
     description: c.description ?? view.description,
     badge: c.badge ?? view.badge,
-    checkoutUrl: c.checkoutUrl,
   };
 }
 

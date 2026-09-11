@@ -18,7 +18,8 @@
     "billing:test": "tsc -p tsconfig.billing-test.json && node .billing-test-build/scripts/billing-tests.js",
     "publishing:test": "tsc -p tsconfig.publishing-test.json && node .publishing-test-build/scripts/publishing-tests.js",
     "first-access:test": "tsc -p tsconfig.first-access-test.json && node .first-access-test-build/scripts/first-access-tests.js",
-    "rank:test": "tsc -p tsconfig.rank-test.json && node .rank-test-build/scripts/rank-tests.js"
+    "rank:test": "tsc -p tsconfig.rank-test.json && node .rank-test-build/scripts/rank-tests.js",
+    "instagram:test": "tsc -p tsconfig.instagram-test.json && node scripts/instagram-test-run.cjs"
   },
   "dependencies": {
     "@next-auth/prisma-adapter": "^1.0.7",

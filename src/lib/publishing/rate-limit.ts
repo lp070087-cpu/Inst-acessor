@@ -85,6 +85,17 @@ export const registerRateLimiter = createRateLimiter({
   max: 5,
 });
 
+/**
+ * Limiter de solicitação de primeiro acesso — PER-EMAIL e por IP.
+ * Evita flood de tokens de ativação para um mesmo endereço (anti-spam de
+ * e-mail/abuso do provider). O IP é coberto pelo limiter da própria rota;
+ * este complementa com a granularidade por e-mail normalizado.
+ */
+export const firstAccessEmailRateLimiter = createRateLimiter({
+  windowMs: 60_000,
+  max: 3,
+});
+
 /** Extrai o IP do cliente a partir do Request (best-effort). */
 export function clientIp(request: Request): string {
   const fwd = request.headers.get("x-forwarded-for");

@@ -62,8 +62,8 @@ export default function DataDeletionPage() {
         <p className="legal-p">
           Esta página explica como você pode solicitar a <strong>exclusão dos seus dados</strong>{" "}
           e da sua conta no Inst Acessor. Ela também serve como a página de instruções de
-          exclusão de dados exigida pela Meta para aplicativos que usam o login do Facebook,
-          sendo adequada para o campo <strong>"Data Deletion Instructions URL"</strong>.
+          exclusão de dados exigida pela Meta, sendo adequada para o campo{" "}
+          <strong>"Data Deletion Instructions URL"</strong>.
         </p>
         <div className="legal-note">
           <strong>Importante:</strong> atualmente a solicitação de exclusão é feita por{" "}

@@ -1739,6 +1739,130 @@
 .lnd-ai-bubble b {
   font-weight: 600;
 }
+.lnd-ai-bubble .lnd-ai-body {
+  display: block;
+}
+
+/* --- Chat demonstrativo IA — perguntas prontas + respostas demo --- */
+.lnd-ai-qs {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+  position: relative;
+  z-index: 1;
+}
+.lnd-ai-q {
+  --c: var(--lnd-purple);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--lnd-ink);
+  text-align: left;
+  background: rgba(139, 92, 246, 0.06);
+  border: 1px solid rgba(139, 92, 246, 0.14);
+  border-radius: 11px;
+  padding: 9px 12px;
+  cursor: pointer;
+  transition: background 0.25s ease, border-color 0.25s ease,
+    transform 0.25s var(--lnd-ease-spring), box-shadow 0.25s ease;
+}
+.lnd-ai-q::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--lnd-grad);
+  opacity: 0.75;
+  flex: none;
+}
+.lnd-ai-q:hover {
+  border-color: rgba(139, 92, 246, 0.38);
+  background: rgba(139, 92, 246, 0.1);
+  transform: translateY(-1px);
+}
+.lnd-ai-q:active {
+  transform: translateY(0);
+}
+.lnd-ai-q:focus-visible {
+  outline: 2px solid var(--lnd-purple);
+  outline-offset: 2px;
+}
+.lnd-ai-q.lnd-active {
+  border-color: rgba(139, 92, 246, 0.5);
+  background: rgba(139, 92, 246, 0.14);
+  box-shadow: inset 3px 0 0 var(--lnd-purple);
+}
+.lnd-ai-q.lnd-active::before {
+  opacity: 1;
+}
+/* Balões dinâmicos (anexados via JS) iniciam ocultos e entram com .lnd-in,
+   mesmo depois de o painel já ter sido revelado (`.lnd-ai-panel.lnd-in`). */
+.lnd-js .lnd-ai-panel .lnd-ai-bubble.lnd-ai-dyn {
+  opacity: 0;
+  transform: translateY(14px);
+}
+.lnd-js .lnd-ai-panel.lnd-in .lnd-ai-bubble.lnd-ai-dyn {
+  transition-delay: 0s;
+}
+.lnd-js .lnd-ai-panel .lnd-ai-bubble.lnd-ai-dyn.lnd-in {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.45s var(--lnd-ease-out), transform 0.45s var(--lnd-ease-out);
+}
+/* Estados "analisando…" */
+.lnd-ai-thinking .lnd-ai-body,
+.lnd-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+}
+.lnd-dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  animation: lndAiBlink 1.2s ease-in-out infinite;
+}
+.lnd-dots i:nth-child(2) {
+  animation-delay: 0.18s;
+}
+.lnd-dots i:nth-child(3) {
+  animation-delay: 0.36s;
+}
+@keyframes lndAiBlink {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+/* Conversa com altura máxima — o painel não cresce para sempre. */
+.lnd-ai-bubbles {
+  max-height: 330px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(139, 92, 246, 0.28) transparent;
+  padding-right: 2px;
+}
+@media (max-width: 640px) {
+  .lnd-ai-bubbles {
+    max-height: 280px;
+  }
+  .lnd-ai-panel {
+    padding: 18px 16px;
+  }
+}
 
 /* ---------- CALENDÁRIO ---------- */
 .lnd-cal-wrap {
@@ -2794,23 +2918,75 @@
   width: 300px;
   max-width: 100%;
   margin-inline: auto;
-  background: var(--lnd-card);
-  border: 1px solid var(--lnd-border);
-  border-radius: 40px;
-  box-shadow: var(--lnd-shadow-lg);
-  padding: 14px;
+  background: linear-gradient(160deg, #1c1f27, #0b0d12 70%);
+  border-radius: 46px;
+  box-shadow: 0 34px 70px rgba(17, 19, 24, 0.28), 0 6px 18px rgba(17, 19, 24, 0.12),
+    inset 0 0 0 2px rgba(255, 255, 255, 0.08), inset 0 0 0 3px rgba(0, 0, 0, 0.25);
+  padding: 12px;
 }
 .lnd-phone-screen {
-  border-radius: 30px;
+  border-radius: 36px;
   overflow: hidden;
-  border: 1px solid var(--lnd-border-soft);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   background: #fafafa;
+  position: relative;
+}
+/* Barra de status com dynamic island — moldura de aparelho real */
+.lnd-phone-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+  padding: 12px 18px 6px;
+  background: #fff;
+}
+.lnd-st-time {
+  font-family: "Space Grotesk", monospace;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--lnd-ink);
+  letter-spacing: 0.02em;
+}
+.lnd-st-island {
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  transform: translateX(-50%);
+  width: 74px;
+  height: 20px;
+  border-radius: 12px;
+  background: #0b0d12;
+}
+.lnd-st-icons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.lnd-st-icons i {
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--lnd-ink-3);
+}
+.lnd-st-icons i:nth-child(1) {
+  width: 10px;
+  height: 6px;
+  border-radius: 2px;
+  background: none;
+  border: 1px solid var(--lnd-ink-3);
+}
+.lnd-st-icons i:nth-child(2) {
+  border-radius: 1px;
+  background: none;
+  border: 1px solid var(--lnd-ink-3);
+  height: 6px;
 }
 .lnd-phone-top {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 14px;
+  padding: 8px 14px 10px;
   background: #fff;
   border-bottom: 1px solid var(--lnd-border-soft);
 }
@@ -2862,18 +3038,33 @@
 .lnd-phone-actions {
   display: flex;
   gap: 14px;
-  padding: 10px 14px;
+  padding: 10px 14px 2px;
   color: var(--lnd-ink);
+  background: #fff;
 }
 .lnd-phone-actions svg {
   width: 19px;
   height: 19px;
 }
+.lnd-phone-actions svg:last-child {
+  margin-left: auto;
+}
+.lnd-phone-likes {
+  padding: 6px 14px 0;
+  background: #fff;
+  font-size: 12.5px;
+  color: var(--lnd-ink);
+  font-weight: 600;
+}
+.lnd-phone-likes b {
+  font-weight: 700;
+}
 .lnd-phone-caption {
-  padding: 0 14px 12px;
+  padding: 4px 14px 12px;
   font-size: 12.5px;
   color: var(--lnd-ink);
   line-height: 1.5;
+  background: #fff;
 }
 .lnd-phone-caption b {
   font-weight: 700;
@@ -3204,6 +3395,75 @@
 .lnd-reveal[data-delay="8"] { transition-delay: 0.8s; }
 .lnd-reveal[data-delay="9"] { transition-delay: 0.9s; }
 
+/* Preview Social — microinterações premium dos cards laterais
+   Entrada em cascata (reveal acima) + halo rosa/roxo, reação do ícone,
+   elevação no hover e pulso de toque. Nada depende só de hover: o toque
+   dispara `.lnd-tapped` via JS. Reduzido em prefers-reduced-motion. */
+.lnd-js .lnd-preview-item.lnd-in {
+  transition:
+    opacity 0.8s var(--lnd-ease-out),
+    transform 0.55s var(--lnd-ease-out),
+    box-shadow 0.35s ease,
+    border-color 0.35s ease;
+}
+.lnd-preview-item {
+  position: relative;
+}
+.lnd-preview-item::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(120px 92px at 14% 0%, rgba(244, 63, 142, 0.12), transparent 70%),
+    radial-gradient(150px 100px at 90% 100%, rgba(99, 102, 241, 0.12), transparent 70%);
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  pointer-events: none;
+}
+.lnd-js .lnd-preview-item.lnd-in:hover,
+.lnd-js .lnd-preview-item.lnd-in:focus-visible {
+  transform: translateY(-4px);
+  border-color: rgba(168, 85, 247, 0.4);
+  box-shadow: 0 18px 44px -18px rgba(168, 85, 247, 0.45), var(--lnd-shadow-md);
+}
+.lnd-preview-item:hover::before,
+.lnd-preview-item.lnd-tapped::before {
+  opacity: 1;
+}
+.lnd-preview-item .lnd-p-ic {
+  position: relative;
+  transition:
+    transform 0.35s var(--lnd-ease-spring),
+    background 0.35s ease,
+    color 0.35s ease,
+    box-shadow 0.35s ease;
+}
+.lnd-preview-item .lnd-p-ic svg {
+  transition: transform 0.3s var(--lnd-ease-spring);
+}
+.lnd-preview-item:hover .lnd-p-ic,
+.lnd-preview-item.lnd-tapped .lnd-p-ic {
+  background: var(--lnd-grad);
+  color: #fff;
+  transform: scale(1.06) rotate(-4deg);
+  box-shadow: 0 10px 22px -8px rgba(168, 85, 247, 0.55);
+}
+.lnd-js .lnd-preview-item.lnd-in:active {
+  transform: translateY(-1px) scale(0.985);
+}
+.lnd-preview-item:focus-visible {
+  outline: 2px solid var(--lnd-purple);
+  outline-offset: 3px;
+}
+@keyframes lndPreviewTap {
+  0%, 100% { transform: translateY(0) scale(1); }
+  40% { transform: translateY(0) scale(0.976); }
+}
+.lnd-preview-item.lnd-tapped {
+  animation: lndPreviewTap 0.55s var(--lnd-ease-spring);
+}
+
 @keyframes lndFloat {
   0%,
   100% {
@@ -3417,7 +3677,6 @@
   .lnd-root {
     --lnd-container: 1420px;
   }
-  .lnd-bento-grid { max-width: 1120px; }
   .lnd-pipeline { max-width: 1160px; }
   .lnd-diag-list { max-width: 1080px; }
   .lnd-niche-table { max-width: 960px; }
@@ -4542,6 +4801,119 @@
   box-shadow: var(--lnd-shadow-sm);
   border-color: rgba(139, 92, 246, 0.34);
 }
+/* --- Demo social: curtir, comentários e enviar (SEM backend) --- */
+.lnd-pub-social-ic {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+}
+.lnd-pub-heart.lnd-on {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.12);
+}
+.lnd-js .lnd-pub-heart.lnd-on svg {
+  animation: lndPubPop 0.4s var(--lnd-ease-spring);
+}
+@keyframes lndPubPop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.3);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.lnd-pub-comment.lnd-on {
+  color: var(--lnd-purple);
+  background: var(--lnd-ai-soft);
+}
+.lnd-pub-likes {
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lnd-ink);
+}
+.lnd-pub-likes b {
+  font-weight: 700;
+}
+.lnd-pub-comments {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+.lnd-pub-comment-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+  color: var(--lnd-ink-2);
+  line-height: 1.4;
+}
+.lnd-pub-comment-item p {
+  min-width: 0;
+}
+.lnd-pub-comment-item p b {
+  color: var(--lnd-ink);
+  font-weight: 700;
+  margin-right: 4px;
+}
+.lnd-pub-c-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  flex: none;
+}
+.lnd-pub-c-1 { background: linear-gradient(135deg, #f43f8e, #a855f7); }
+.lnd-pub-c-2 { background: linear-gradient(135deg, #3b82f6, #6366f1); }
+.lnd-pub-c-3 { background: linear-gradient(135deg, #f59e0b, #ef4444); }
+/* Terceiro comentário fica recolhido até "Ver 3 comentários" */
+.lnd-pub-c-extra {
+  display: none;
+}
+.lnd-pub-comments.lnd-open .lnd-pub-c-extra {
+  display: flex;
+}
+.lnd-pub-c-more {
+  justify-self: start;
+  border: 0;
+  background: transparent;
+  padding: 2px 0;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lnd-ink-3);
+  cursor: pointer;
+}
+.lnd-pub-c-more:hover {
+  color: var(--lnd-purple);
+}
+.lnd-pub-c-more:focus-visible,
+.lnd-pub-social-ic:focus-visible {
+  outline: 2px solid var(--lnd-purple);
+  outline-offset: 2px;
+  border-radius: 50%;
+}
+.lnd-pub-add {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--lnd-border-soft);
+  color: var(--lnd-ink-3);
+  font-size: 13px;
+}
+.lnd-pub-add svg {
+  color: var(--lnd-ink-3);
+}
 
 /* ---------- HISTÓRICO ---------- */
 .lnd-hist-wrap {
@@ -5316,99 +5688,36 @@
   }
 }
 
-/* ---------- SOLUÇÃO — bento assimétrico (T8) ---------- */
-.lnd-bento-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-auto-rows: minmax(132px, auto);
-  gap: 16px;
-  max-width: 960px;
-  margin: 0 auto;
+/* ---------- SOLUÇÃO — headline equilibrada (cards removidos) ----------
+   A seção mantém fundo/identidade e passa a conter apenas o bloco
+   textual centralizado. O CSS bento abaixo foi removido junto com o
+   conjunto de cards (Análise completa / Estratégia personalizada /
+   IA que age / Execução) solicitado na revisão final. */
+.lnd-solucao {
+  padding-block: clamp(72px, 9vw, 132px);
 }
-.lnd-bento-card {
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  background: var(--lnd-card);
-  border: 1px solid var(--lnd-border-soft);
-  border-radius: var(--lnd-r-lg);
-  padding: 24px 22px;
-  box-shadow: var(--lnd-shadow-xs);
-  transition: transform 0.35s var(--lnd-ease-spring), box-shadow 0.35s ease, border-color 0.35s ease;
-  position: relative;
-  overflow: hidden;
+.lnd-solucao-note {
+  max-width: 820px;
+  margin-inline: auto;
+  text-align: center;
 }
-.lnd-bento-card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--lnd-shadow-md);
-  border-color: rgba(139, 92, 246, 0.3);
+.lnd-solucao-note .lnd-section-head {
+  margin-bottom: 0;
 }
-.lnd-bento-card .lnd-ic {
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-  display: grid;
-  place-items: center;
-  margin-bottom: 16px;
-  color: var(--lnd-purple);
-  background: var(--lnd-ai-soft);
+.lnd-solucao-note .lnd-h2 {
+  font-size: clamp(30px, 4.6vw, 48px);
+  line-height: 1.12;
+  text-wrap: balance;
 }
-.lnd-bento-card .lnd-ic svg {
-  width: 21px;
-  height: 21px;
+.lnd-solucao-note .lnd-lead {
+  margin-top: 18px;
+  margin-inline: auto;
+  max-width: 640px;
 }
-.lnd-bento-card h3 {
-  font-size: 17px;
-  font-weight: 700;
-  margin-bottom: 6px;
+.lnd-solucao-note .lnd-eyebrow {
+  margin-bottom: 20px;
 }
-.lnd-bento-card p {
-  font-size: 13.5px;
-  color: var(--lnd-ink-2);
-  line-height: 1.55;
-  max-width: 34ch;
-}
-.lnd-bento-1 { grid-column: 1 / 3; grid-row: 1 / 3; justify-content: flex-end; }
-.lnd-bento-2 { grid-column: 3 / 4; grid-row: 1; }
-.lnd-bento-3 { grid-column: 3 / 4; grid-row: 2; }
-.lnd-bento-4 { grid-column: 1 / 4; grid-row: 3; flex-direction: row; align-items: center; justify-content: flex-start; gap: 18px; }
-.lnd-bento-4 .lnd-ic { margin-bottom: 0; flex: none; }
-.lnd-bento-4 h3 { margin-bottom: 3px; }
-.lnd-bento-4 p { max-width: none; }
-.lnd-bento-1 .lnd-ic {
-  width: 52px;
-  height: 52px;
-  border-radius: 14px;
-}
-.lnd-bento-1 h3 { font-size: 20px; }
-.lnd-bento-1 p { max-width: 40ch; }
-.lnd-bento-1 .lnd-bento-art {
-  position: absolute;
-  top: 20px;
-  left: 22px;
-  right: 22px;
-  height: 92px;
-  max-width: 420px;
-  opacity: 0.95;
-}
-@media (max-width: 1080px) {
-  .lnd-bento-1 .lnd-bento-art { display: none; }
-}
-@media (max-width: 1080px) {
-  .lnd-bento-grid { grid-template-columns: 1fr 1fr; }
-  .lnd-bento-1 { grid-column: 1 / 3; grid-row: auto; }
-  .lnd-bento-2 { grid-column: 1; grid-row: auto; }
-  .lnd-bento-3 { grid-column: 2; grid-row: auto; }
-  .lnd-bento-4 { grid-column: 1 / 3; grid-row: auto; }
-}
-@media (max-width: 640px) {
-  .lnd-bento-grid { grid-template-columns: 1fr; }
-  .lnd-bento-1,
-  .lnd-bento-2,
-  .lnd-bento-3,
-  .lnd-bento-4 { grid-column: 1; grid-row: auto; }
-  .lnd-bento-4 { flex-direction: column; align-items: flex-start; gap: 12px; }
-}
+
 
 /* ---------- COMO FUNCIONA — linha de progresso com scroll (T4) ---------- */
 .lnd-steps {
@@ -6061,7 +6370,7 @@
   width: 300px;
   max-width: 100%;
   margin-inline: auto;
-  min-height: 540px;
+  min-height: 580px;
 }
 .lnd-preview-phones .lnd-phone {
   position: absolute;
@@ -6093,7 +6402,7 @@
   background: linear-gradient(160deg, #1e293b, #4f46e5 65%, #a855f7);
 }
 @media (max-width: 640px) {
-  .lnd-preview-phones { min-height: 500px; }
+  .lnd-preview-phones { min-height: 560px; }
 }
 
 /* ---------- REDES SOCIAIS — borda superior de plataforma ---------- */
@@ -6443,9 +6752,8 @@
 @media (max-width: 640px) {
   .lnd-console .lnd-kpi-grid { grid-template-columns: 1fr 1fr; }
   .lnd-console .lnd-hist-cards { grid-template-columns: 1fr; }
-  .lnd-bento-4 { grid-column: 1; grid-row: auto; }
   .lnd-featured-idea { padding-left: 12px; }
-  .lnd-preview-phones { min-height: 480px; }
+  .lnd-preview-phones { min-height: 560px; }
   .lnd-faq-num { min-width: 20px; padding-right: 8px; }
   .lnd-hero-kicker { letter-spacing: 0.1em; font-size: 11px; }
 }

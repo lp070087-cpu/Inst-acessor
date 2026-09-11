@@ -35,8 +35,9 @@ interface InstagramActionsProps {
  *  - Conectar Instagram
  *
  * Regra de produto: a interface mostra APENAS "Conectar Instagram".
- * A infraestrutura da Meta (que usa o app do Facebook como base)
- * é interna e invisível para o usuário.
+ * A autenticação acontece por Instagram Business Login, do lado do servidor:
+ * o usuário autoriza a própria conta profissional do Instagram, sem Página do
+ * Facebook no caminho. Toda essa infraestrutura é interna e invisível.
  */
 function InstagramActionsInner({ connected, status }: InstagramActionsProps) {
   const router = useRouter();

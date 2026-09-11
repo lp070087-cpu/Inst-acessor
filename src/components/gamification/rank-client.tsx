@@ -1360,7 +1360,7 @@ function RankingView({ entries, me }: { entries: RankingEntry[]; me: SummaryData
     <div className="flex flex-col gap-5">
       {/* Pódio */}
       {podium.length > 0 && (
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 min-[480px]:grid-cols-3 gap-3">
           {[podium[1], podium[0], podium[2]]
             .filter(Boolean)
             .map((e) => (

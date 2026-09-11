@@ -22,6 +22,20 @@ function integrationEnvStatus(envKeys: string[]): "configurado" | "nao_configura
   return envKeys.some((k) => Boolean(process.env[k])) ? "configurado" : "nao_configurado";
 }
 
+/**
+ * Status da integração Instagram com a MESMA regra do código de integração:
+ * o par prioritário é INSTAGRAM_APP_ID/SECRET; META_APP_ID/SECRET é apenas
+ * compatibilidade temporária. A URL de redirecionamento é obrigatória e
+ * explícita. Um app id sem secret NÃO conta como configurado — o servidor
+ * recusaria o fluxo.
+ */
+function instagramEnvStatus(): "configurado" | "nao_configurado" {
+  const appId = process.env.INSTAGRAM_APP_ID || process.env.META_APP_ID;
+  const appSecret = process.env.INSTAGRAM_APP_SECRET || process.env.META_APP_SECRET;
+  const redirect = process.env.INSTAGRAM_REDIRECT_URI;
+  return appId && appSecret && redirect ? "configurado" : "nao_configurado";
+}
+
 export default async function AdminIntegrationsPage() {
   await requireAdminSession();
 
@@ -59,8 +73,9 @@ export default async function AdminIntegrationsPage() {
   const integracoes = [
     {
       name: "Instagram (Meta)",
-      description: "Conexão de contas Business/Creator e sincronização de métricas.",
-      env: integrationEnvStatus(["META_APP_ID", "META_APP_SECRET", "INSTAGRAM_APP_ID"]),
+      description:
+        "Instagram Business Login — conexão de contas Business/Creator e sincronização de métricas.",
+      env: instagramEnvStatus(),
       connections: igNormalized,
     },
     {
