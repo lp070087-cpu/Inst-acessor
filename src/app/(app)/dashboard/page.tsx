@@ -25,6 +25,8 @@ export default async function DashboardPage() {
   ]);
 
   const firstName = session.user.name?.trim().split(/\s+/)[0] ?? "";
+  // Saudação ao usuário autenticado do Inst Acessor (nunca da conta social).
+  const greeting = firstName ? `Olá, ${firstName}` : "Olá, bem-vindo(a)";
 
   return (
     <div className="flex flex-col gap-8">
@@ -32,9 +34,7 @@ export default async function DashboardPage() {
       <div className="flex flex-col gap-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="font-display text-[26px] font-bold text-ink">
-              Olá, {firstName || "bem-vindo(a)"}
-            </h1>
+            <h1 className="font-display text-[26px] font-bold text-ink">{greeting}</h1>
             <p className="text-[13.5px] text-ink-soft mt-0.5">
               Veja como suas redes sociais estão evoluindo.
             </p>
@@ -106,6 +106,7 @@ export default async function DashboardPage() {
         <DashboardClient
           instagramData={instagramData}
           tiktokData={tiktokData}
+          greeting={greeting}
         />
       </div>
     </div>

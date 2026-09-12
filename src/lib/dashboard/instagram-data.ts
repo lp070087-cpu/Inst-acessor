@@ -27,6 +27,10 @@ export interface EvolutionPoint {
 export interface DashboardInstagramData {
   connected: boolean;
   username?: string | null;
+  /** Nome de exibição da conta conectada (quando a plataforma devolve). */
+  displayName?: string | null;
+  /** Avatar real da conta conectada. null → a UI usa fallback. */
+  avatarUrl?: string | null;
   followersCount?: number | null;
   mediaCount?: number | null;
   lastSyncAt?: Date | null;
@@ -85,6 +89,8 @@ export async function getDashboardInstagramData(
   const empty: DashboardInstagramData = {
     connected,
     username: connection?.username ?? null,
+    displayName: null,
+    avatarUrl: null,
     followersCount: null,
     mediaCount: null,
     lastSyncAt: connection?.lastSyncAt ?? null,
@@ -139,6 +145,9 @@ export async function getDashboardInstagramData(
   const data: DashboardInstagramData = {
     ...empty,
     username: profile?.username ?? connection.username ?? null,
+    // Foto e nome vêm do InstagramProfile (gravados na sincronização).
+    displayName: profile?.name ?? null,
+    avatarUrl: profile?.profilePictureUrl ?? null,
     followersCount: latest?.followersCount ?? profile?.followersCount ?? null,
     mediaCount: latest?.mediaCount ?? profile?.mediaCount ?? null,
     lastSyncAt: connection.lastSyncAt ?? null,

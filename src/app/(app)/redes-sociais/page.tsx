@@ -5,9 +5,9 @@ import { requireOnboardedSession } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
 import { StatusBadge } from "@/components/ui/badge";
 import { Divider } from "@/components/ui/divider";
-import { Avatar } from "@/components/ui/avatar";
 import { InstagramActions } from "@/components/integrations/instagram-actions";
 import { TikTokActions } from "@/components/integrations/tiktok-actions";
+import { ConnectedAccountCard } from "@/components/integrations/connected-account-card";
 
 export const metadata: Metadata = {
   title: "Redes Sociais",
@@ -18,40 +18,45 @@ type PlatformConnection = {
   platform: "instagram" | "tiktok";
   status: string | null;
   username: string | null;
+  /** Nome de exibição da conta (quando a plataforma devolve). */
+  displayName: string | null;
+  /** Avatar real da conta conectada. null → fallback com inicial. */
+  avatarUrl: string | null;
   accountType: string | null;
   lastSyncAt: Date | null;
-  avatarName: string;
 };
-
-function formatLastSync(date: Date | null): string {
-  if (!date) return "—";
-  return new Intl.DateTimeFormat("pt-BR", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
 
 export default async function RedesSociaisPage() {
   const { session } = await requireOnboardedSession();
 
-  const [instagram, tiktok, oauthStates] = await Promise.all([
-    prisma.socialConnection.findFirst({
-      where: { userId: session.user.id, platform: "instagram" },
-    }),
-    prisma.socialConnection.findFirst({
-      where: { userId: session.user.id, platform: "tiktok" },
-    }),
-    prisma.oAuthState.findMany({
-      where: {
-        userId: session.user.id,
-        consumed: false,
-        expiresAt: { gt: new Date() },
-      },
-      select: { provider: true, state: true },
-    }),
-  ]);
+  const [instagram, tiktok, instagramProfile, tiktokProfile, oauthStates] =
+    await Promise.all([
+      prisma.socialConnection.findFirst({
+        where: { userId: session.user.id, platform: "instagram" },
+      }),
+      prisma.socialConnection.findFirst({
+        where: { userId: session.user.id, platform: "tiktok" },
+      }),
+      // Perfis sincronizados — fonte do avatar e do nome de exibição reais.
+      prisma.instagramProfile.findFirst({
+        where: { userId: session.user.id },
+        orderBy: { updatedAt: "desc" },
+        select: { name: true, profilePictureUrl: true },
+      }),
+      prisma.tikTokProfile.findFirst({
+        where: { userId: session.user.id },
+        orderBy: { updatedAt: "desc" },
+        select: { displayName: true, avatarUrl: true },
+      }),
+      prisma.oAuthState.findMany({
+        where: {
+          userId: session.user.id,
+          consumed: false,
+          expiresAt: { gt: new Date() },
+        },
+        select: { provider: true, state: true },
+      }),
+    ]);
 
   // Proteção anti-travamento (bug crítico):
   // Se o status está CONNECTING mas NÃO existe um fluxo OAuth ativo e válido
@@ -71,22 +76,29 @@ export default async function RedesSociaisPage() {
   const instagramConnected = instagramStatus === "CONNECTED";
   const tiktokConnected = tiktokStatus === "CONNECTED";
 
+  // Início do fluxo CONNECTING (para o botão não ficar preso se a Meta não
+  // devolver o usuário ao nosso callback — ver InstagramActions).
+  const instagramConnectingSince =
+    instagramStatus === "CONNECTING" ? (instagram?.updatedAt?.toISOString() ?? null) : null;
+
   const cards: PlatformConnection[] = [
     {
       platform: "instagram",
       status: instagramStatus,
       username: instagram?.username ?? null,
+      displayName: instagramProfile?.name ?? null,
+      avatarUrl: instagramProfile?.profilePictureUrl ?? null,
       accountType: instagram?.accountType ?? null,
       lastSyncAt: instagram?.lastSyncAt ?? null,
-      avatarName: instagram?.username ?? "IG",
     },
     {
       platform: "tiktok",
       status: tiktokStatus,
       username: tiktok?.username ?? null,
+      displayName: tiktokProfile?.displayName ?? null,
+      avatarUrl: tiktokProfile?.avatarUrl ?? null,
       accountType: tiktok?.accountType ?? null,
       lastSyncAt: tiktok?.lastSyncAt ?? null,
-      avatarName: tiktok?.username ?? "TK",
     },
   ];
 
@@ -106,88 +118,66 @@ export default async function RedesSociaisPage() {
           const connected =
             card.platform === "instagram" ? instagramConnected : tiktokConnected;
           const Icon = card.platform === "instagram" ? Instagram : Music2;
+          const platformLabel = card.platform === "instagram" ? "Instagram" : "TikTok";
 
           return (
             <div
               key={card.platform}
               className="bg-card border border-border-soft rounded-lg shadow-xs p-6"
             >
-              <div className="flex items-start gap-4 flex-wrap">
-                <span className="w-12 h-12 rounded-[14px] bg-ai-soft text-purple grid place-items-center flex-none">
-                  <Icon size={22} />
-                </span>
+              {connected ? (
+                <>
+                  {/* Identificação da conta conectada — MESMO padrão do Dashboard.
+                      Avatar real, @username da conta social, rede, status e última
+                      sincronização. Sem foto → fallback com a inicial do @. */}
+                  <ConnectedAccountCard
+                    platform={card.platform}
+                    username={card.username}
+                    displayName={card.displayName}
+                    avatarUrl={card.avatarUrl}
+                    lastSyncAt={card.lastSyncAt}
+                  />
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2.5 flex-wrap">
-                    <h2 className="font-display text-[17px] font-bold text-ink">
-                      {card.platform === "instagram" ? "Instagram" : "TikTok"}
-                    </h2>
-                    {connected ? (
-                      <StatusBadge status={card.status ?? "DISCONNECTED"} />
-                    ) : (
-                      <span className="inline-flex items-center rounded-pill bg-surface text-ink-soft border border-border-soft font-semibold text-[11px] uppercase tracking-wider px-2.5 py-1 whitespace-nowrap">
-                        Conta não conectada
-                      </span>
-                    )}
+                  <div className="mt-5">
+                    <p className="text-[12px] font-semibold uppercase tracking-wider text-ink-muted">
+                      Tipo de conta
+                    </p>
+                    <p className="mt-1 text-[13.5px] text-ink font-medium">
+                      {card.platform === "instagram"
+                        ? card.accountType === "BUSINESS"
+                          ? "Profissional (Business)"
+                          : card.accountType === "CREATOR"
+                            ? "Profissional (Creator)"
+                            : card.accountType === "PROFESSIONAL"
+                              ? "Profissional"
+                              : card.accountType ?? "—"
+                        : card.accountType === "BUSINESS"
+                          ? "Conta Business"
+                          : card.accountType ?? "—"}
+                    </p>
                   </div>
+                </>
+              ) : (
+                <div className="flex items-start gap-4 flex-wrap">
+                  <span className="w-12 h-12 rounded-[14px] bg-ai-soft text-purple grid place-items-center flex-none">
+                    <Icon size={22} />
+                  </span>
 
-                  <p className="text-[13px] text-ink-soft mt-1">
-                    {connected
-                      ? `Conectado como @${card.username ?? ""}`
-                      : card.platform === "instagram"
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <h2 className="font-display text-[17px] font-bold text-ink">
+                        {platformLabel}
+                      </h2>
+                      <StatusBadge status={card.status ?? "DISCONNECTED"} />
+                    </div>
+
+                    <p className="text-[13px] text-ink-soft mt-1">
+                      {card.platform === "instagram"
                         ? "Conecte seu perfil profissional para acompanhar seguidores, engajamento, alcance e muito mais."
                         : "Conecte seu perfil para acompanhar seguidores, curtidas, vídeos e muito mais."}
-                  </p>
-                </div>
-
-                {connected && (
-                  <div className="flex items-center gap-3 flex-none">
-                    <Avatar name={card.avatarName} src={null} size="lg" />
+                    </p>
                   </div>
-                )}
-              </div>
-
-              {connected && (
-                <>
-                  <Divider className="my-5" />
-
-                  <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-[13.5px]">
-                    <div>
-                      <dt className="text-[12px] font-semibold uppercase tracking-wider text-ink-muted">
-                        Usuário
-                      </dt>
-                      <dd className="mt-1 text-ink font-medium">
-                        @{card.username ?? "—"}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-[12px] font-semibold uppercase tracking-wider text-ink-muted">
-                        Tipo de conta
-                      </dt>
-                      <dd className="mt-1 text-ink font-medium">
-                        {card.platform === "instagram"
-                          ? card.accountType === "BUSINESS"
-                            ? "Profissional (Business)"
-                            : card.accountType === "CREATOR"
-                              ? "Profissional (Creator)"
-                              : card.accountType === "PROFESSIONAL"
-                                ? "Profissional"
-                                : card.accountType ?? "—"
-                          : card.accountType === "BUSINESS"
-                            ? "Conta Business"
-                            : card.accountType ?? "—"}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-[12px] font-semibold uppercase tracking-wider text-ink-muted">
-                        Última sincronização
-                      </dt>
-                      <dd className="mt-1 text-ink font-medium">
-                        {formatLastSync(card.lastSyncAt)}
-                      </dd>
-                    </div>
-                  </dl>
-                </>
+                </div>
               )}
 
               <Divider className="my-5" />
@@ -196,6 +186,7 @@ export default async function RedesSociaisPage() {
                 <InstagramActions
                   connected={instagramConnected}
                   status={instagramStatus}
+                  connectingSince={instagramConnectingSince}
                 />
               ) : (
                 <TikTokActions

@@ -24,6 +24,10 @@ export interface TikTokEvolutionPoint {
 export interface TikTokDashboardData {
   connected: boolean;
   username?: string | null;
+  /** Nome de exibição da conta conectada (quando a plataforma devolve). */
+  displayName?: string | null;
+  /** Avatar real da conta conectada. null → a UI usa fallback. */
+  avatarUrl?: string | null;
   followersCount?: number | null;
   videoCount?: number | null;
   lastSyncAt?: Date | null;
@@ -74,6 +78,8 @@ export async function getTikTokDashboardData(
   const empty: TikTokDashboardData = {
     connected,
     username: connection?.username ?? null,
+    displayName: null,
+    avatarUrl: null,
     followersCount: null,
     videoCount: null,
     lastSyncAt: connection?.lastSyncAt ?? null,
@@ -122,6 +128,9 @@ export async function getTikTokDashboardData(
   const data: TikTokDashboardData = {
     ...empty,
     username: profile?.username ?? connection.username ?? null,
+    // Foto e nome vêm do TikTokProfile (gravados na sincronização).
+    displayName: profile?.displayName ?? null,
+    avatarUrl: profile?.avatarUrl ?? null,
     followersCount: latest?.followersCount ?? profile?.followersCount ?? null,
     videoCount: latest?.videoCount ?? profile?.videoCount ?? null,
     lastSyncAt: connection.lastSyncAt ?? null,

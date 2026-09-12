@@ -20,7 +20,21 @@ type ConnectionStatus = "CONNECTED" | "CONNECTING" | "DISCONNECTED" | "ERROR";
 interface InstagramActionsProps {
   connected: boolean;
   status: ConnectionStatus;
+  /**
+   * Quando o fluxo OAuth foi iniciado (updatedAt da conexão em CONNECTING).
+   * Usado APENAS para liberar o botão quando a Meta não devolve o usuário ao
+   * nosso callback (ex.: erro exibido dentro do instagram.com). Sem isso, o
+   * `state` válido por 10 min manteria o botão preso em "Conectando...".
+   */
+  connectingSince?: string | null;
 }
+
+/**
+ * Tempo máximo que o botão aceita ficar em "Conectando..." sem o usuário voltar.
+ * Alinhado à validade do `state` (10 min) — depois disso o fluxo é considerado
+ * abandonado e o usuário pode tentar de novo.
+ */
+const FLOW_STALE_MS = 10 * 60 * 1000;
 
 /**
  * Ações da página Redes Sociais.
@@ -39,7 +53,11 @@ interface InstagramActionsProps {
  * o usuário autoriza a própria conta profissional do Instagram, sem Página do
  * Facebook no caminho. Toda essa infraestrutura é interna e invisível.
  */
-function InstagramActionsInner({ connected, status }: InstagramActionsProps) {
+function InstagramActionsInner({
+  connected,
+  status,
+  connectingSince,
+}: InstagramActionsProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -57,9 +75,34 @@ function InstagramActionsInner({ connected, status }: InstagramActionsProps) {
     return () => clearTimeout(t);
   }, [busy]);
 
-  // Nunca mostra "Conectando..." quando a própria URL já carregou um erro.
-  // (a conexão não está em andamento de verdade — só a mensagem de erro).
-  const connecting = status === "CONNECTING" && !error;
+  // Escape por tempo para o fluxo abandonado.
+  //
+  // Cenário real: a Meta exibe o erro DENTRO do instagram.com
+  // (`/oauth/authorize/third_party/error/`) e NUNCA chama nosso callback.
+  // Nesse caso o `state` continua não-consumido e válido por 10 min, então
+  // /redes-sociais segue reportando CONNECTING e o botão fica preso.
+  // Enquanto isso não expirar, o usuário não tem como tentar outra conta.
+  const [now, setNow] = React.useState(() => Date.now());
+
+  const startedAt = connectingSince ? Date.parse(connectingSince) : NaN;
+  const flowStale =
+    status === "CONNECTING" &&
+    (!Number.isFinite(startedAt) || now - startedAt > FLOW_STALE_MS);
+
+  // Só agenda o relógio quando de fato há um fluxo em andamento — evita
+  // re-render desnecessário no estado normal (conectado/desconectado).
+  React.useEffect(() => {
+    if (status !== "CONNECTING") return;
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, [status]);
+
+  // Nunca mostra "Conectando..." quando a própria URL já carregou um erro
+  // (a conexão não está em andamento de verdade — só a mensagem de erro)
+  // nem quando o fluxo já passou do prazo sem o usuário retornar.
+  const connecting = status === "CONNECTING" && !error && !flowStale;
+
+  const flowAbandoned = status === "CONNECTING" && flowStale && !error;
 
   React.useEffect(() => {
     // Feedback de sucesso/erro vindo do callback (query params controlados).
@@ -192,6 +235,15 @@ function InstagramActionsInner({ connected, status }: InstagramActionsProps) {
               Instagram conectado com sucesso!
             </p>
           )}
+          {flowAbandoned && (
+            <p className="inline-flex items-start gap-1.5 text-[13px] text-ink-soft">
+              <AlertTriangle size={15} className="text-warn flex-none mt-0.5" />
+              <span>
+                A conexão anterior não foi concluída. Verifique se sua conta do
+                Instagram é Profissional (Business ou Creator) e tente novamente.
+              </span>
+            </p>
+          )}
         </div>
       )}
     </div>
@@ -211,7 +263,9 @@ function getErrorMessage(error: string | null): string | null {
   if (!error) return null;
   switch (error) {
     case "denied":
-      return "Você não autorizou a conexão com o Instagram. Nenhuma conta foi conectada.";
+      return "Você cancelou a autorização. Nenhuma conta foi conectada.";
+    case "permission":
+      return "Esta conta ainda não possui autorização para conectar ao aplicativo. Verifique se sua conta do Instagram é Profissional (Business ou Creator) e tente novamente.";
     case "missing_code":
       return "A Meta não retornou o código de autorização. Tente novamente.";
     case "invalid_state":

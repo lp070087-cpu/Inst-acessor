@@ -51,15 +51,29 @@ export async function GET(request: Request) {
   const errorDescription = url.searchParams.get("error_description");
 
   // ---- Usuário negou permissão / erro da Meta na autorização ----
+  //
+  // Dois casos distintos, com mensagens diferentes na UI:
+  //   - CANCELAMENTO: o usuário fechou/negou a tela de autorização.
+  //   - PERMISSÃO: a Meta recusou o acesso (ex.: conta sem permissão para o app).
+  //
+  // Nenhum dos dois é conexão bem-sucedida. O `error_description` da Meta é
+  // usado apenas para CLASSIFICAR; nunca é repassado para a URL.
   if (error) {
+    const reason = `${errorReason ?? ""} ${errorDescription ?? ""}`.toLowerCase();
+    const isDenied =
+      error === "access_denied" ||
+      reason.includes("user_denied") ||
+      reason.includes("cancel") ||
+      reason.includes("denied");
+
     console.warn(
-      `[instagram-callback] autorização negada pela Meta: reason=${errorReason} desc=${errorDescription}`
+      `[instagram-callback] autorização não concluída: error=${error} reason=${errorReason}`
     );
     if (state) {
       const userId = await resolveStateUser(state);
       if (userId) await resetOrRestore(userId);
     }
-    return NextResponse.redirect(`${base}${REDIRECT_ERROR}denied`);
+    return NextResponse.redirect(`${base}${REDIRECT_ERROR}${isDenied ? "denied" : "permission"}`);
   }
 
   // ---- Sem code ou sem state ----
@@ -165,7 +179,7 @@ export async function GET(request: Request) {
     const encrypted = encryptAccessToken(tokenData.accessToken);
     const expiresAt = tokenData.expiresAt;
 
-    await prisma.socialConnection.upsert({
+    const connection = await prisma.socialConnection.upsert({
       where: { userId_platform: { userId, platform: "instagram" } },
       create: {
         userId,
@@ -190,6 +204,31 @@ export async function GET(request: Request) {
         lastSyncAt: new Date(),
       },
     });
+
+    // Perfil mínimo já na conexão: garante avatar/nome reais no Dashboard e em
+    // /redes-sociais ANTES da primeira sincronização. Campos ausentes ficam null
+    // (a UI usa fallback). Os valores completos chegam depois, via /sync.
+    try {
+      await prisma.instagramProfile.upsert({
+        where: { socialConnectionId: connection.id },
+        create: {
+          userId,
+          socialConnectionId: connection.id,
+          igAccountId: account.id,
+          username: account.username,
+          name: account.name ?? null,
+          profilePictureUrl: account.profilePictureUrl ?? null,
+        },
+        update: {
+          username: account.username,
+          name: account.name ?? null,
+          profilePictureUrl: account.profilePictureUrl ?? null,
+        },
+      });
+    } catch (profileErr) {
+      // Não invalida a conexão: o perfil é recriado na próxima sincronização.
+      console.error("[instagram-callback] falha ao persistir perfil", profileErr);
+    }
 
     console.info(
       `[instagram-callback] conexão criada/atualizada para user=${userId} (${account.username})`
