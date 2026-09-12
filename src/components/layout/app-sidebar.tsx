@@ -7,7 +7,7 @@ import { Menu, ChevronLeft, LogOut, X } from "lucide-react";
 import type { Session } from "next-auth";
 
 import { cn } from "@/lib/utils";
-import { mainNav, bottomNav } from "@/lib/navigation";
+import { mainNav, bottomNav, adminNavItem } from "@/lib/navigation";
 import { AppLogo } from "@/components/layout/app-logo";
 import { SidebarNavItem } from "@/components/layout/sidebar-nav-item";
 import { Avatar } from "@/components/ui/avatar";
@@ -15,7 +15,14 @@ import { IconButton } from "@/components/ui/icon-button";
 
 const STORAGE_KEY = "inst-acessor:sidebar-collapsed";
 
-export function AppSidebar({ user }: { user: Session["user"] }) {
+export function AppSidebar({
+  user,
+  isAdmin = false,
+}: {
+  user: Session["user"];
+  /** Autorizado como admin exclusivo (decidido no servidor). */
+  isAdmin?: boolean;
+}) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const [collapsed, setCollapsed] = React.useState(false);
@@ -96,6 +103,14 @@ export function AppSidebar({ user }: { user: Session["user"] }) {
           </div>
           <div className="my-4 h-px bg-border-soft" />
           <div className="flex flex-col gap-0.5">
+            {isAdmin && (
+              <SidebarNavItem
+                key={adminNavItem.href}
+                item={adminNavItem}
+                active={isActive(adminNavItem.href)}
+                collapsed={collapsed}
+              />
+            )}
             {bottomNav.map((item) => (
               <SidebarNavItem
                 key={item.href}
@@ -155,6 +170,9 @@ export function AppSidebar({ user }: { user: Session["user"] }) {
               </div>
               <div className="my-4 h-px bg-border-soft" />
               <div className="flex flex-col gap-0.5">
+                {isAdmin && (
+                  <SidebarNavItem key={adminNavItem.href} item={adminNavItem} active={isActive(adminNavItem.href)} />
+                )}
                 {bottomNav.map((item) => (
                   <SidebarNavItem key={item.href} item={item} active={isActive(item.href)} />
                 ))}

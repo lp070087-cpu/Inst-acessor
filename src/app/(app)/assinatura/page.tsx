@@ -1,18 +1,46 @@
 import type { Metadata } from "next";
 import { CreditCard } from "lucide-react";
-import { PagePlaceholder } from "@/components/layout/page-placeholder";
+
+import { requireOnboardedSession } from "@/lib/auth/guard";
+import { listPlans, getMySubscription, listMySubscriptions, getAccessStatus } from "@/lib/billing";
+import { AssinaturaClient } from "@/components/billing/assinatura-client";
 
 export const metadata: Metadata = {
   title: "Minha Assinatura",
-  description: "Gerencie seu plano e cobrança.",
+  description: "Gerencie seu plano, cobrança e acesso do Inst Acessor.",
 };
 
-export default function AssinaturaPage() {
+export const dynamic = "force-dynamic";
+
+export default async function AssinaturaPage() {
+  const { session } = await requireOnboardedSession();
+  const userId = session.user.id;
+
+  const [plans, current, history, access] = await Promise.all([
+    listPlans(),
+    getMySubscription(userId),
+    listMySubscriptions(userId),
+    getAccessStatus(userId),
+  ]);
+
   return (
-    <PagePlaceholder
-      title="Minha Assinatura"
-      icon={CreditCard}
-      description="Gerencie seu plano, métodos de pagamento e histórico de cobrança. Assinaturas chegam nas próximas fases."
-    />
+    <div className="flex flex-col gap-6">
+      <div>
+        <h1 className="font-display text-[26px] font-bold text-ink flex items-center gap-2.5">
+          <CreditCard size={26} className="text-purple" />
+          Minha Assinatura
+        </h1>
+        <p className="text-[13.5px] text-ink-soft mt-1">
+          Uma assinatura. Duas redes. Uma inteligência trabalhando no seu crescimento.
+        </p>
+      </div>
+
+      <AssinaturaClient
+        initialPlans={plans}
+        initialCurrent={current}
+        initialHistory={history}
+        initialAccess={access}
+      />
+    </div>
   );
 }

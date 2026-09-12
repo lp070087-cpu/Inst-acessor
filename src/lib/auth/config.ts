@@ -50,6 +50,7 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           name: user.name,
           image: user.image,
+          role: user.role,
         };
       },
     }),
@@ -59,12 +60,14 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id;
         token.email = user.email ?? "";
+        token.role = (user as { role?: "USER" | "ADMIN" }).role ?? "USER";
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
         session.user.id = (token.id as string) ?? "";
+        session.user.role = (token.role as "USER" | "ADMIN" | undefined) ?? "USER";
       }
       return session;
     },

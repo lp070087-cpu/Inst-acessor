@@ -15,6 +15,7 @@ import {
   Settings,
   Info,
   LogOut,
+  ShieldCheck,
 } from "lucide-react";
 
 /**
@@ -130,6 +131,22 @@ export const bottomNav: NavItem[] = [
     description: "Conheça o produto",
   },
 ];
+
+/**
+ * Item de navegação da área administrativa — renderizado CONDICIONALMENTE
+ * apenas para o admin exclusivo (`isOfficialAdminEmail`), decidido no servidor
+ * em `src/app/(app)/layout.tsx` e passado como prop ao `AppSidebar`.
+ *
+ * Nunca é exibido para clientes comuns: o `AppSidebar` só o renderiza quando
+ * `isAdmin === true`, e o servidor redireciona quem não é admin caso tente
+ * acessar `/admin` diretamente.
+ */
+export const adminNavItem: NavItem = {
+  label: "Admin",
+  href: "/admin",
+  icon: ShieldCheck,
+  description: "Painel administrativo (exclusivo)",
+};
 
 export const signOutItem: NavItem = {
   label: "Sair",
