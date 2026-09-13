@@ -40,10 +40,27 @@ export interface DashboardInstagramData {
     followers: DashboardCard;
     engagement: DashboardCard;
     reach: DashboardCard;
+    /**
+     * Alcance ACUMULADO dos últimos 7 dias.
+     *
+     * Por que existe separado de `reach`: o snapshot guarda o alcance de UM
+     * dia (a API devolve valores diários e o sync persiste o último). Somar
+     * esses dias NÃO é o alcance único de 7 dias — é a soma dos alcances
+     * diários. O rótulo e o hint da UI dizem exatamente isso, para não
+     * misturar "alcance do dia" com "alcance de 7 dias".
+     */
+    reach7d: DashboardCard;
+    /**
+     * Visualizações da conta. Reaproveita `impressions` — a integração já
+     * persiste esse valor e "impressions" é o equivalente real de
+     * "visualizações" na API atual. NÃO há uma segunda sincronização.
+     */
     impressions: DashboardCard;
     profileViews: DashboardCard;
     media: DashboardCard;
   };
+  /** Quantos dias reais entraram na soma de `cards.reach7d`. */
+  reach7dDays: number;
   /** Evolução 7/30/90 dias a partir dos snapshots. */
   evolution: {
     "7d": EvolutionPoint[];
@@ -54,8 +71,18 @@ export interface DashboardInstagramData {
   comparison: {
     weeklyGrowth: number | null;
     monthlyGrowth: number | null;
+    /** Saldo LÍQUIDO de seguidores em 7 dias (atual − 7 dias atrás). */
     followersGained7d: number | null;
     followersGained30d: number | null;
+    /**
+     * Soma BRUTA dos dias positivos da última semana (ganhos reais).
+     * Diferente do saldo líquido: um dia de alta seguido de um dia de baixa
+     * aparece aqui inteiro, não diluído.
+     */
+    followersGrossGained7d: number | null;
+    /** Soma BRUTA dos dias negativos da última semana, em valor absoluto. */
+    followersLost7d: number | null;
+    /** Média real de interações (curtidas + comentários) por publicação. */
     avgEngagement: number | null;
   };
   timeline: {
@@ -98,17 +125,21 @@ export async function getDashboardInstagramData(
     cards: {
       followers: { label: "Seguidores", value: null, changePercent: null, available: false },
       engagement: { label: "Engajamento", value: null, changePercent: null, available: false },
-      reach: { label: "Alcance", value: null, changePercent: null, available: false },
-      impressions: { label: "Impressões", value: null, changePercent: null, available: false },
+      reach: { label: "Alcance (dia)", value: null, changePercent: null, available: false },
+      reach7d: { label: "Alcance (7 dias)", value: null, changePercent: null, available: false },
+      impressions: { label: "Visualizações", value: null, changePercent: null, available: false },
       profileViews: { label: "Visitas ao perfil", value: null, changePercent: null, available: false },
       media: { label: "Publicações", value: null, changePercent: null, available: false },
     },
+    reach7dDays: 0,
     evolution: { "7d": [], "30d": [], "90d": [] },
     comparison: {
       weeklyGrowth: null,
       monthlyGrowth: null,
       followersGained7d: null,
       followersGained30d: null,
+      followersGrossGained7d: null,
+      followersLost7d: null,
       avgEngagement: null,
     },
     timeline: {
@@ -142,6 +173,29 @@ export async function getDashboardInstagramData(
   const recent30d = snapshots.filter((s) => s.capturedAt.getTime() >= now - 30 * 864e5);
   const recent90d = snapshots.filter((s) => s.capturedAt.getTime() >= now - 90 * 864e5);
 
+  // Alcance de 7 dias: soma APENAS os snapshots reais da janela. Sem snapshots
+  // suficientes → null (a UI mostra "—"), jamais um zero inventado.
+  const reach7dValues = recent7d
+    .map((s) => s.reach)
+    .filter((v): v is number => v != null);
+  const reach7dTotal =
+    reach7dValues.length > 0
+      ? reach7dValues.reduce((a, b) => a + b, 0)
+      : null;
+  // Compara com a janela equivalente anterior (dias 8–14) para a variação.
+  const prev7dValues = snapshots
+    .filter(
+      (s) =>
+        s.capturedAt.getTime() >= now - 14 * 864e5 &&
+        s.capturedAt.getTime() < now - 7 * 864e5
+    )
+    .map((s) => s.reach)
+    .filter((v): v is number => v != null);
+  const prev7dTotal =
+    prev7dValues.length > 0
+      ? prev7dValues.reduce((a, b) => a + b, 0)
+      : null;
+
   const data: DashboardInstagramData = {
     ...empty,
     username: profile?.username ?? connection.username ?? null,
@@ -166,13 +220,20 @@ export async function getDashboardInstagramData(
         available: latest?.engagement != null,
       },
       reach: {
-        label: "Alcance",
+        label: "Alcance (dia)",
         value: latest?.reach ?? null,
         changePercent: safePct(latest?.reach, previous?.reach),
         available: latest?.reach != null,
       },
+      reach7d: {
+        label: "Alcance (7 dias)",
+        value: reach7dTotal,
+        changePercent: safePct(reach7dTotal, prev7dTotal),
+        available: reach7dTotal != null,
+      },
       impressions: {
-        label: "Impressões",
+        // "Visualizações": equivalente real já persistido pela integração.
+        label: "Visualizações",
         value: latest?.impressions ?? null,
         changePercent: safePct(latest?.impressions, previous?.impressions),
         available: latest?.impressions != null,
@@ -190,6 +251,7 @@ export async function getDashboardInstagramData(
         available: latest?.mediaCount != null,
       },
     },
+    reach7dDays: reach7dValues.length,
     evolution: {
       "7d": mapEvolution(recent7d),
       "30d": mapEvolution(recent30d),
@@ -235,6 +297,21 @@ function computeComparison(
   // Snapshot ~30 dias atrás
   const monthAgo = [...snapshots].reverse().find((s) => s.capturedAt.getTime() <= now - 30 * 864e5);
 
+  // Ganhos/perdas BRUTOS dos últimos 7 dias: percorre os pares consecutivos de
+  // snapshots reais e separa dias de alta dos dias de baixa. Sem snapshot
+  // suficiente (menos de 2 na janela) → null, nunca 0.
+  const inWindow = snapshots.filter((s) => s.capturedAt.getTime() >= now - 7 * 864e5);
+  let grossGained: number | null = null;
+  let grossLost: number | null = null;
+  for (let i = 1; i < inWindow.length; i++) {
+    const prev = inWindow[i - 1].followersCount;
+    const curr = inWindow[i].followersCount;
+    if (prev == null || curr == null) continue;
+    const diff = curr - prev;
+    if (diff > 0) grossGained = (grossGained ?? 0) + diff;
+    if (diff < 0) grossLost = (grossLost ?? 0) + Math.abs(diff);
+  }
+
   return {
     weeklyGrowth: safePct(current, weekAgo?.followersCount ?? null),
     monthlyGrowth: safePct(current, monthAgo?.followersCount ?? null),
@@ -244,7 +321,11 @@ function computeComparison(
     followersGained30d: current != null && monthAgo?.followersCount != null
       ? current - monthAgo.followersCount
       : null,
-    avgEngagement: null, // apenas quando houver dados reais de engajamento
+    followersGrossGained7d: grossGained,
+    followersLost7d: grossLost,
+    // Preenchido pelo chamador com a média real de interações das publicações
+    // coletadas — ver `getMediaProductionData`. Sem dados → permanece null.
+    avgEngagement: null,
   };
 }
 

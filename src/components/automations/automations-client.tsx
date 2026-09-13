@@ -198,7 +198,7 @@ export function AutomationsClient({ initial }: AutomationsClientProps) {
                 ) : (
                   <AlertCircle size={14} className="text-warn flex-none" />
                 )}
-                <span className="text-[12px] text-ink-soft">
+                <span className="text-[12px] text-ink-soft min-w-0 break-words">
                   {e.detail || e.status}
                 </span>
               </div>

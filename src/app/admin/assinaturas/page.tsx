@@ -3,7 +3,7 @@ import { CreditCard, ShieldCheck } from "lucide-react";
 
 import { requireAdminSession } from "@/lib/auth/guard";
 import { bll } from "@/lib/billing/db";
-import { infinitepayStatus } from "@/lib/billing/infinitepay/config";
+import { asaasStatus } from "@/lib/billing/asaas/config";
 import { INFINITEPAY_SOURCE } from "@/lib/billing/infinitepay/events";
 import { SectionCard } from "@/components/ui/section-card";
 import { StatusBadge } from "@/components/ui/badge";
@@ -73,7 +73,14 @@ function maskId(id: string | null | undefined): string {
 export default async function AdminSubscriptionsPage() {
   await requireAdminSession();
 
-  const billing = infinitepayStatus();
+  // GATEWAY OFICIAL = ASAAS. O status exibido vem de `asaasStatus()`, que
+  // lê as env vars do SERVIDOR e devolve apenas rótulos — nunca valores.
+  const billing = asaasStatus();
+
+  // Checkout habilitado = a integração consegue de fato montar uma cobrança.
+  // Depende de API configurada; o webhook é o que confirma o pagamento, mas
+  // não é pré-requisito para ABRIR o checkout.
+  const checkoutEnabled = billing.configured;
 
   const subscriptions = (await (
     bll.subscription.findMany as unknown as (args: unknown) => Promise<AdminSubscriptionRow[]>
@@ -125,23 +132,64 @@ export default async function AdminSubscriptionsPage() {
               <ShieldCheck size={20} />
             </div>
             <div className="flex flex-col gap-0.5">
-              <p className="text-[14px] font-semibold text-ink">InfinitePay</p>
-              <p className="text-[12px] text-ink-muted">{billing.label}</p>
+              <p className="text-[14px] font-semibold text-ink flex items-center gap-2">
+                Asaas
+                <span className="text-[10.5px] font-bold uppercase tracking-wider text-purple bg-ai-soft rounded-pill px-2 py-0.5">
+                  Gateway oficial
+                </span>
+              </p>
+              <p className="text-[12px] text-ink-muted">
+                {billing.configured ? "Asaas / Gateway oficial" : "Asaas / não configurado"}
+              </p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 sm:ml-auto">
-            <StatusBadge status={billing.checkoutsReady ? "ACTIVE" : "DISCONNECTED"} />
-            <StatusBadge
-              status={
-                billing.webhookConfigured ? "CONNECTED" : "PENDING"
-              }
-            />
+            <StatusBadge status={billing.configured ? "ACTIVE" : "DISCONNECTED"} />
+            <StatusBadge status={billing.webhookConfigured ? "CONNECTED" : "PENDING"} />
           </div>
         </div>
+
+        {/* Os quatro estados exigidos, um por linha — sem ambiguidade. */}
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+          <div className="rounded-[11px] border border-border-soft bg-surface/50 px-4 py-3">
+            <dt className="text-[11.5px] font-bold uppercase tracking-wider text-ink-muted">
+              API
+            </dt>
+            <dd className="text-[13.5px] font-medium text-ink mt-0.5">
+              {billing.configured ? "Configurada" : "Não configurada"}
+            </dd>
+          </div>
+          <div className="rounded-[11px] border border-border-soft bg-surface/50 px-4 py-3">
+            <dt className="text-[11.5px] font-bold uppercase tracking-wider text-ink-muted">
+              Webhook
+            </dt>
+            <dd className="text-[13.5px] font-medium text-ink mt-0.5">
+              {billing.webhookConfigured ? "Configurado" : "Não configurado"}
+            </dd>
+          </div>
+          <div className="rounded-[11px] border border-border-soft bg-surface/50 px-4 py-3">
+            <dt className="text-[11.5px] font-bold uppercase tracking-wider text-ink-muted">
+              Ambiente
+            </dt>
+            <dd className="text-[13.5px] font-medium text-ink mt-0.5">
+              {billing.environment === "production" ? "Produção" : "Sandbox"}
+            </dd>
+          </div>
+          <div className="rounded-[11px] border border-border-soft bg-surface/50 px-4 py-3">
+            <dt className="text-[11.5px] font-bold uppercase tracking-wider text-ink-muted">
+              Checkout
+            </dt>
+            <dd className="text-[13.5px] font-medium text-ink mt-0.5">
+              {checkoutEnabled ? "Habilitado" : "Pendente"}
+            </dd>
+          </div>
+        </dl>
+
         <p className="text-[11.5px] text-ink-muted mt-3 border-t border-border-soft pt-3">
-          Checkout oficial: links públicos do InfinitePay nos cards de planos. A liberação
-          de acesso só ocorre após confirmação real do pagamento (webhook + payment_check).
-          Nenhum valor de chave é exibido neste painel.
+          Checkout oficial: checkout hospedado do Asaas criado no servidor
+          (POST /v3/checkouts) a partir do plano escolhido. A liberação de acesso só
+          ocorre após a confirmação real do pagamento pelo webhook. Nenhum valor de
+          chave é exibido neste painel.
         </p>
       </SectionCard>
 
@@ -203,13 +251,15 @@ export default async function AdminSubscriptionsPage() {
                         <span className="inline-flex items-center gap-1 rounded-full bg-purple/10 px-2 py-0.5 text-[11.5px] font-medium text-purple">
                           Manual
                         </span>
-                      ) : s.accessSource === INFINITEPAY_SOURCE ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-success-soft px-2 py-0.5 text-[11.5px] font-medium text-success">
-                          InfinitePay
-                        </span>
                       ) : s.accessSource === "ASAAS" ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-success-soft px-2 py-0.5 text-[11.5px] font-medium text-success">
+                          Asaas
+                        </span>
+                      ) : s.accessSource === INFINITEPAY_SOURCE ? (
+                        // InfinitePay saiu dos fluxos ativos — a origem fica
+                        // registrada apenas para o histórico já existente.
                         <span className="inline-flex items-center gap-1 rounded-full bg-ink-muted/10 px-2 py-0.5 text-[11.5px] font-medium text-ink-soft">
-                          Asaas (legado)
+                          InfinitePay (histórico)
                         </span>
                       ) : (
                         <span className="text-[12px] text-ink-muted">—</span>

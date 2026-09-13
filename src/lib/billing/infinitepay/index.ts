@@ -1,7 +1,10 @@
 /**
  * INFINITEPAY — BARREL PÚBLICO (server-only)
  * ===========================================
- * Camada de integração com o InfinitePay (gateway oficial desde 2026-08-31).
+ * Camada de integração com o InfinitePay — HISTÓRICO, fora dos fluxos ativos.
+ * O GATEWAY OFICIAL é o ASAAS (`src/lib/billing/asaas/**`). Este módulo segue
+ * no repositório apenas para não perder eventos antigos e manter o histórico
+ * consistente com os registros do banco.
  * NENHUM destes módulos deve ser importado em client component — contêm
  * segredos do servidor.
  */

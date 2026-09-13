@@ -1,6 +1,5 @@
 import {
   ArrowRight,
-  TrendingUp,
   Target,
   Zap,
   TrendingDown,
@@ -56,6 +55,12 @@ export function Nav() {
               {l.label}
             </a>
           ))}
+          {/* Abaixo de 900px o botão "Entrar" da barra é escondido (`display:none`
+              em .lnd-nav-cta .lnd-btn-ghost). Sem este item o login ficava
+              inacessível no celular. Ele só aparece no menu dropdown. */}
+          <a className="lnd-only-mobile" href="/login?from=landing">
+            Entrar
+          </a>
         </nav>
 
         <div className="lnd-nav-cta">
@@ -193,15 +198,10 @@ function HeroMockup() {
           </div>
         </div>
 
-        <div className="lnd-float-chip lnd-fc-1">
-          <span className="lnd-ic" style={{ background: "var(--lnd-success)" }}>
-            <TrendingUp size={15} />
-          </span>
-          <span>
-            <small data-count="1284">0</small>
-            <span>seguidores</span>
-          </span>
-        </div>
+        {/* O chip flutuante "1.284 seguidores" (lnd-fc-1) foi removido — era
+            ESTE o card que o usuário mandou tirar, e não a seção seguinte da
+            landing. Os chips "score do perfil" (lnd-fc-2) e "alcance em Reels"
+            (lnd-fc-3) continuam, assim como o mockup principal do dashboard. */}
         <div className="lnd-float-chip lnd-fc-2">
           <span className="lnd-ic" style={{ background: "var(--lnd-grad)" }}>
             <Target size={15} />

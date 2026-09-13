@@ -337,7 +337,10 @@ export function PublishingClient({ initial }: PublishingClientProps) {
             description="Operações de publicação (agendar, publicar, cancelar, re-tentar) aparecerão aqui com status, tentativas e erros amigáveis."
           />
         ) : (
-          <div className="rounded-md bg-card border border-border-soft overflow-hidden">
+          // `overflow-x-auto` (era `overflow-hidden`): a tabela de logs tem 6
+          // colunas; em telas pequenas ela precisa ROLAR dentro do card em vez
+          // de empurrar o layout ou ser cortada.
+          <div className="rounded-md bg-card border border-border-soft overflow-x-auto">
             <table className="w-full text-left">
               <thead className="bg-surface/70">
                 <tr className="text-[11px] font-bold uppercase tracking-wider text-ink-muted">
@@ -356,7 +359,7 @@ export function PublishingClient({ initial }: PublishingClientProps) {
                     <td className="px-4 py-2.5">
                       <Badge size="xs" tone="neutral">{PLATFORM_LABEL[l.platform] ?? l.platform}</Badge>
                     </td>
-                    <td className="px-4 py-2.5 text-[12px] font-semibold text-ink">{l.operation}</td>
+                    <td className="px-4 py-2.5 text-[12px] font-semibold text-ink break-words">{l.operation}</td>
                     <td className="px-4 py-2.5">
                       <Badge size="xs" tone={l.status === "success" ? "success" : l.status === "error" ? "danger" : "neutral"}>
                         {l.status}

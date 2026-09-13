@@ -49,6 +49,23 @@ export function AppSidebar({
     setMobileOpen(false);
   }, [pathname]);
 
+  // Trava o scroll do fundo enquanto o menu mobile está aberto e permite
+  // fechar com Esc. Sem isso a página atrás continua rolando por baixo do
+  // overlay — o menu ficava "preso sobre a página".
+  React.useEffect(() => {
+    if (!mobileOpen) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = previous;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [mobileOpen]);
+
   const isActive = (href: string) =>
     href === "/dashboard"
       ? pathname === href

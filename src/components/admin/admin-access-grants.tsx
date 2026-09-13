@@ -18,9 +18,12 @@ export interface AccessGrantRow {
   createdAt: string;
 }
 
+// GATEWAY OFICIAL = ASAAS. O rótulo de origem acompanha isso: "Compra" para o
+// Asaas (fluxo ativo) e "InfinitePay (histórico)" para liberações antigas —
+// o registro antigo continua legível, mas sem sugerir gateway ativo.
 const ORIGIN_LABEL: Record<string, string> = {
-  INFINITEPAY: "InfinitePay",
-  ASAAS: "Compra (Asaas legado)",
+  ASAAS: "Compra (Asaas)",
+  INFINITEPAY: "InfinitePay (histórico)",
   ADMIN_MANUAL: "Liberação manual",
 };
 

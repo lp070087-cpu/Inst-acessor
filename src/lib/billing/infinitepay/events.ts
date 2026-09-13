@@ -5,8 +5,13 @@ import type { ParsedInfinitePayEvent } from "./webhook";
 import { sanitizeInfinitePayPayload } from "./webhook";
 
 /**
- * INFINITEPAY — PROCESSADOR DE EVENTOS (webhook)
- * ===============================================
+ * INFINITEPAY — PROCESSADOR DE EVENTOS (HISTÓRICO, fora dos fluxos ativos)
+ * =======================================================================
+ * O gateway oficial do Inst Acessor é o ASAAS (ver
+ * `src/lib/billing/asaas/checkout-order.ts`). Este processador permanece
+ * apenas para interpretar eventos já recebidos pelo webhook antigo e manter o
+ * histórico consistente — ele NÃO é acionado por nenhum checkout novo.
+ *
  * Aplica um evento confirmado do InfinitePay nos registros locais.
  *
  * Regras (fail-closed):

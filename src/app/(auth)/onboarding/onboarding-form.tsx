@@ -247,7 +247,7 @@ export function OnboardingForm() {
               </div>
             </div>
           )}
-          <div className="mt-2 flex items-center justify-between">
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
             <Button
               type="button"
               variant="ghost"
@@ -258,9 +258,9 @@ export function OnboardingForm() {
               Voltar
             </Button>
             {niche && niche !== "Outro" && (
-              <span className="text-[12px] text-ink-muted flex items-center gap-1">
-                <Check size={13} className="text-success" />
-                {niche} selecionado
+              <span className="text-[12px] text-ink-muted flex items-center gap-1 min-w-0">
+                <Check size={13} className="text-success flex-none" />
+                <span className="min-w-0 truncate">{niche} selecionado</span>
               </span>
             )}
           </div>
@@ -295,7 +295,7 @@ export function OnboardingForm() {
             placeholder="Moda masculina, receitas low carb, estética automotiva..."
             className={inputCls}
           />
-          <div className="mt-1 flex items-center justify-between">
+          <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
             <Button
               type="button"
               variant="ghost"
@@ -347,7 +347,7 @@ export function OnboardingForm() {
             </div>
           </div>
 
-          <div className="mt-1 flex items-center justify-between">
+          <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
             <Button
               type="button"
               variant="ghost"

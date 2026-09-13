@@ -20,6 +20,21 @@
 export const OFFICIAL_SITE_URL = "https://unitrixapp.com.br";
 export const OFFICIAL_SITE_DOMAIN = "unitrixapp.com.br";
 
+/**
+ * CNPJ da Unitrixapp exibido no rodapé da landing.
+ * ================================================
+ * Como definir: usar EXATAMENTE o número oficial (formato `00.000.000/0000-00`),
+ * vindo de uma variável de ambiente pública — nunca de um chute. Variável:
+ *
+ *     NEXT_PUBLIC_UNITRIXAPP_CNPJ=00.000.000/0000-00
+ *
+ * Enquanto não estiver configurada, o valor é `null` e o rodapé simplesmente
+ * NÃO mostra a linha de CNPJ — nenhum número é inventado ou reaproveitado de
+ * terceiros.
+ */
+export const UNITRIXAPP_CNPJ: string | null =
+  (process.env.NEXT_PUBLIC_UNITRIXAPP_CNPJ ?? "").trim() || null;
+
 function clean(url: string): string {
   return url.trim().replace(/\/+$/, "");
 }

@@ -71,6 +71,24 @@ export function buildExternalReference(email: string): string {
 }
 
 /**
+ * Lê o `asaasCustomerId` do comprador autenticado, quando existir.
+ * Best-effort: qualquer falha devolve `null` e o checkout segue criando o
+ * customer pelo e-mail — nunca bloqueia a compra por causa disso.
+ */
+async function readAsaasCustomerId(userId: string | null | undefined): Promise<string | null> {
+  if (!userId) return null;
+  try {
+    const user = (await bll.user.findUnique({
+      where: { id: userId },
+      select: { asaasCustomerId: true },
+    })) as unknown as { asaasCustomerId: string | null } | null;
+    return user?.asaasCustomerId ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Cria a ordem local (PENDING) e dispara o POST /v3/checkouts no Asaas.
  * `planId` é o id do plano (banco ou `plan:<slug>`); `planSlug` é resolvido
  * pelo id quando ausente. O comprador pode não ter User (`userId` ausente).
@@ -150,6 +168,12 @@ export async function startPublicCheckout(input: {
   })) as unknown as CheckoutOrder;
 
   // 5) Chama o checkout hospedado oficial (POST /v3/checkouts).
+  //    Se o comprador já é nosso User e já tem customer no Asaas, REUTILIZA —
+  //    evita criar um segundo customer para a mesma pessoa. Sem customerId,
+  //    enviamos `customerData` (nome/e-mail) para o Asaas criar o cliente.
+  //    Os dois campos são mutuamente exclusivos.
+  const asaasCustomerId = await readAsaasCustomerId(input.userId);
+
   let checkout: AsaasCheckoutResponse;
   try {
     checkout = await asaasClient.post<AsaasCheckoutResponse>(
@@ -158,6 +182,9 @@ export async function startPublicCheckout(input: {
         plan,
         externalReference,
         billingType: cfg.billingType,
+        asaasCustomerId,
+        buyerName: input.name ?? null,
+        buyerEmail: email,
       }),
       cfg
     );

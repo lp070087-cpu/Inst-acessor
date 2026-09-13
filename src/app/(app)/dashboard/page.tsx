@@ -5,6 +5,9 @@ import { Instagram, Music2 } from "lucide-react";
 import { requireOnboardedSession } from "@/lib/auth/guard";
 import { getDashboardInstagramData } from "@/lib/dashboard/instagram-data";
 import { getTikTokDashboardData } from "@/lib/dashboard/tiktok-data";
+import { getMediaProductionData } from "@/lib/dashboard/media-production";
+import { buildDeterministicInsights } from "@/lib/dashboard/insights";
+import { isAIConfigured } from "@/lib/ai";
 import { Badge } from "@/components/ui/badge";
 import { SyncMetricsButton } from "@/components/dashboard/sync-metrics-button";
 import { DashboardClient } from "@/components/dashboard/dashboard-client";
@@ -19,10 +22,20 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage() {
   const { session } = await requireOnboardedSession();
 
-  const [instagramData, tiktokData] = await Promise.all([
+  // Dados reais em paralelo. A camada de IA só é CONSULTADA (booleano) —
+  // nenhuma chamada é feita aqui, e nenhuma chave sai do servidor.
+  const [instagramData, tiktokData, mediaData, aiReady] = await Promise.all([
     getDashboardInstagramData(session.user.id),
     getTikTokDashboardData(session.user.id),
+    getMediaProductionData(session.user.id),
+    isAIConfigured(),
   ]);
+
+  // Média REAL de interações por publicação, alimentando as métricas rápidas
+  // e o Score. Sem publicações coletadas → permanece null (nunca 0).
+  instagramData.comparison.avgEngagement = mediaData.avgInteractionsPerMedia;
+
+  const insights = buildDeterministicInsights(instagramData, mediaData);
 
   const firstName = session.user.name?.trim().split(/\s+/)[0] ?? "";
   // Saudação ao usuário autenticado do Inst Acessor (nunca da conta social).
@@ -106,6 +119,9 @@ export default async function DashboardPage() {
         <DashboardClient
           instagramData={instagramData}
           tiktokData={tiktokData}
+          mediaData={mediaData}
+          insights={insights}
+          aiConfigured={aiReady}
           greeting={greeting}
         />
       </div>

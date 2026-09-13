@@ -79,16 +79,36 @@ export function asaasEnvironmentLabel(config = getAsaasConfig()): string {
 }
 
 /**
+ * Valida o FORMATO do `authToken` do webhook conforme a regra oficial do Asaas:
+ * 32 a 255 caracteres, sem espaços, e NUNCA igual à API Key.
+ * Retorna `null` quando o token não está configurado (não é "inválido", é
+ * "ausente" — quem trata isso é `webhookConfigured`).
+ * Nunca recebe/devolve o valor do token: só o veredito.
+ */
+export function asaasWebhookTokenIssue(
+  config = getAsaasConfig()
+): "ausente" | "formato_invalido" | "igual_api_key" | "ok" {
+  const token = config.webhookToken;
+  if (!token) return "ausente";
+  if (token.length < 32 || token.length > 255) return "formato_invalido";
+  if (/\s/.test(token)) return "formato_invalido";
+  if (config.apiKey && token === config.apiKey) return "igual_api_key";
+  return "ok";
+}
+
+/**
  * Status resumido para o painel admin — NUNCA revela valores.
  * - "nao_configurado"   → sem ASAAS_API_KEY.
  * - "configurado"       → com chave (sandbox ou produção conforme base URL).
  * - "webhook_configurado" → ASAAS_WEBHOOK_TOKEN presente.
+ * - `webhookTokenIssue` → veredito de FORMATO do token (nunca o valor).
  */
 export function asaasStatus(): {
   configured: boolean;
   environment: AsaasEnvironment | null;
   label: string;
   webhookConfigured: boolean;
+  webhookTokenIssue: "ausente" | "formato_invalido" | "igual_api_key" | "ok";
 } {
   const cfg = getAsaasConfig();
   const configured = isAsaasConfigured(cfg);
@@ -97,5 +117,6 @@ export function asaasStatus(): {
     environment: configured ? cfg.environment : null,
     label: configured ? asaasEnvironmentLabel(cfg) : "Não configurado",
     webhookConfigured: Boolean(cfg.webhookToken),
+    webhookTokenIssue: asaasWebhookTokenIssue(cfg),
   };
 }

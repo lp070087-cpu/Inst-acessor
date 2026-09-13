@@ -1,8 +1,9 @@
 /**
- * BILLING — BARREL PÚBLICO (Fase 6.5)
- * ====================================
+ * BILLING — BARREL PÚBLICO
+ * =========================
  * Camada de assinatura/planos desacoplada do gateway.
- * NENHUM gateway real é chamado nesta fase.
+ * GATEWAY OFICIAL: Asaas (checkout hospedado + webhook de confirmação).
+ * O InfinitePay permanece apenas como histórico — não exportado aqui.
  */
 
 export { bll } from "./db";

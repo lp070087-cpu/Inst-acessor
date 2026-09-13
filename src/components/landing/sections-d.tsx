@@ -1,4 +1,5 @@
 import { LogoMark } from "./sections-a";
+import { UNITRIXAPP_CNPJ } from "@/lib/config/site";
 import {
   ArrowRight,
   CheckCircle2,
@@ -450,7 +451,14 @@ export function Footer() {
             © <span data-year>2026</span> Inst Acessor. Todos os direitos reservados.
           </p>
           <p className="lnd-footer-credit">
-            Desenvolvido pela <span className="lnd-credit-unitrix">Unitrix</span>
+            Desenvolvido pela <span className="lnd-credit-unitrix">Unitrixapp</span>
+            {/* CNPJ — aparece SÓ quando o número existir. Não há CNPJ
+                cadastrado no projeto, então hoje nada é renderizado: nenhum
+                número é inventado nem reaproveitado de terceiros. Para exibir,
+                basta definir `NEXT_PUBLIC_UNITRIXAPP_CNPJ` (ver site.ts). */}
+            {UNITRIXAPP_CNPJ && (
+              <span className="lnd-credit-cnpj">CNPJ {UNITRIXAPP_CNPJ}</span>
+            )}
           </p>
         </div>
       </div>

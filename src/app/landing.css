@@ -317,6 +317,11 @@
   align-items: center;
   gap: 4px;
 }
+/* "Entrar" dentro do menu mobile — só existe no dropdown, nunca na barra
+   (onde o botão ghost equivalente já ocupa o lugar). */
+.lnd-nav-links .lnd-only-mobile {
+  display: none;
+}
 .lnd-nav-links a {
   font-size: 14.5px;
   font-weight: 500;
@@ -807,14 +812,9 @@
   color: var(--lnd-ink-3);
   line-height: 1.1;
 }
-.lnd-fc-1 {
-  top: -24px;
-  left: -34px;
-  animation-delay: 0.4s;
-}
-.lnd-fc-1 .lnd-ic {
-  background: var(--lnd-success);
-}
+/* .lnd-fc-1 (chip "1.284 seguidores") foi removido por pedido — o card
+   flutuante era o alvo da remoção, não a seção seguinte da landing.
+   .lnd-fc-2 e .lnd-fc-3 seguem ativos. */
 .lnd-fc-2 {
   top: 38%;
   right: -40px;
@@ -3336,13 +3336,28 @@
 }
 .lnd-footer-credit {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
 }
 .lnd-footer-credit .lnd-credit-unitrix {
-  font-weight: 600;
+  font-weight: 700;
   color: var(--lnd-ink-2);
   letter-spacing: 0.01em;
+}
+/* CNPJ — discreto: mesmo corpo do rodapé, tom mais suave e separado do
+   crédito por um ponto médio. Fica na mesma linha quando cabe; quebra
+   sozinho quando não (sem cortar texto e sem estourar a largura). */
+.lnd-footer-credit .lnd-credit-cnpj {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--lnd-ink-3);
+  white-space: nowrap;
+}
+.lnd-footer-credit .lnd-credit-cnpj::before {
+  content: "·";
+  margin-right: 6px;
+  color: var(--lnd-ink-3);
 }
 .lnd-footer-disclaimer {
   margin-top: 22px;
@@ -3586,6 +3601,9 @@
     padding: 13px 14px;
     font-size: 15.5px;
   }
+  .lnd-nav.lnd-open .lnd-nav-links .lnd-only-mobile {
+    display: block;
+  }
   .lnd-hero-grid { grid-template-columns: 1fr; }
   .lnd-hero-visual { max-width: 580px; margin-inline: auto; width: 100%; }
   .lnd-hero h1 { font-size: clamp(34px, 8vw, 48px); }
@@ -3598,7 +3616,6 @@
   .lnd-content-grid { grid-template-columns: 1fr; }
   .lnd-preview-wrap { grid-template-columns: 1fr; }
   .lnd-auto-grid { grid-template-columns: 1fr; }
-  .lnd-fc-1 { left: -10px; }
   .lnd-fc-2 { right: -10px; }
 }
 
@@ -3626,6 +3643,9 @@
   .lnd-footer-grid { grid-template-columns: 1fr 1fr; gap: 28px; }
   .lnd-cta-final h2 { font-size: 32px; }
   .lnd-footer-bottom { flex-direction: column; text-align: center; }
+  /* No empilhamento o crédito vira item de flex (blockificado): sem
+     `justify-content` o conteúdo ficaria colado à esquerda dentro da coluna. */
+  .lnd-footer-bottom .lnd-footer-credit { justify-content: center; row-gap: 4px; }
   .lnd-copy-actions { flex-direction: column; }
 }
 
@@ -3645,6 +3665,9 @@
 }
 
 @media (max-width: 400px) {
+  /* 16px lateral em telas estreitas: o padrão (20px) somado à marca + CTA +
+     burger deixava a barra de navegação no limite em 320–400px. */
+  .lnd-root { --lnd-gutter: 16px; }
   .lnd-logo { gap: 8px; font-size: 16.5px; }
   .lnd-logo-mark { width: 32px; height: 32px; border-radius: 10px; }
   .lnd-nav-cta .lnd-btn-sm { padding: 9px 14px; font-size: 13.5px; }

@@ -38,7 +38,7 @@ export default async function FirstAccessPage() {
   }
 
   return (
-    <div className="bg-card border border-border-soft rounded-xl shadow-lg p-8">
+    <div className="bg-card border border-border-soft rounded-xl shadow-lg p-6 sm:p-8">
       <div className="flex items-center gap-2 mb-1">
         <span className="w-1.5 h-1.5 rounded-full bg-brand-grad" />
         <span className="text-[12px] font-semibold uppercase tracking-wider text-ink-muted">

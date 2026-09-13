@@ -55,6 +55,9 @@ export interface AsaasPayment {
 // Subscription (assinatura)
 // ------------------------------------------------------------
 export type AsaasSubscriptionCycle = "MONTHLY" | "YEARLY";
+
+/** Tipo de cobrança do Checkout: avulsa ou recorrente. */
+export type AsaasCheckoutChargeType = "DETACHED" | "RECURRENT";
 export type AsaasSubscriptionStatusValue =
   | "ACTIVE"
   | "INACTIVE"
@@ -96,14 +99,33 @@ export interface AsaasSubscriptionCreated extends AsaasSubscription {
 // (cobrança/assinatura "crua"), o checkout devolve uma URL pública para o
 // cliente pagar — sem login no app.
 //
-// ⚠️ CONFIRMAÇÃO EXTERNA PENDENTE: a documentação oficial (docs.asaas.com) está
-// bloqueada no sandbox de desenvolvimento (egress allowlist), então os nomes
-// EXATOS dos campos de request/resposta abaixo foram montados de forma
-// CONSERVADORA com o vocabulário já provado no código (value em Reais float,
-// billingType PIX/BOLETO/CREDIT_CARD, cycle MONTHLY/YEARLY das subscriptions,
-// externalReference, dueDate YYYY-MM-DD). Antes de habilitar cobrança real, a
-// DONA deve conferir o contrato exato em docs.asaas.com/reference/criar-novo-checkout
-// e ajustar ESTE arquivo + `buildHostedCheckoutRequest` em hosted-checkout.ts.
+// Contrato conforme a documentação oficial atual do Asaas:
+//   - `customer`      → ID de customer Asaas JÁ existente (reaproveitamento).
+//   - `customerData`  → dados do cliente quando ele ainda NÃO existe no Asaas.
+//     Os dois são MUTUAMENTE EXCLUSIVOS: nunca enviar juntos.
+//   - `chargeTypes`   → ["DETACHED"] (cobrança avulsa) | ["RECURRENT"] (assinatura).
+//   - `billingTypes`  → formas de cobrança aceitas pelo checkout.
+//   - `subscription`  → configuração da recorrência (cycle/nextDueDate/endDate).
+//     O campo de ciclo é `subscription.cycle` — NÃO existe `subscriptionCycle`.
+
+/** Dados do cliente quando ele ainda não existe no Asaas. */
+export interface AsaasCustomerData {
+  name?: string;
+  email?: string;
+  cpfCnpj?: string;
+  [key: string]: unknown;
+}
+
+/** Configuração da assinatura recorrente dentro do checkout. */
+export interface AsaasCheckoutSubscription {
+  /** Ciclo da recorrência (MONTHLY | YEARLY). */
+  cycle: AsaasSubscriptionCycle;
+  /** Próximo vencimento (YYYY-MM-DD). */
+  nextDueDate: string;
+  /** Fim da recorrência (YYYY-MM-DD) — opcional. */
+  endDate?: string;
+}
+
 export interface AsaasCheckoutRequest {
   /** Nome exibido no checkout (Inst Acessor — <plano>). */
   name: string;
@@ -111,18 +133,38 @@ export interface AsaasCheckoutRequest {
   description?: string;
   /** Valor em Reais (float) — SEMPRE resolvido no servidor. */
   value: number;
-  /** Meio de cobrança default (PIX | BOLETO | CREDIT_CARD). */
-  billingType?: AsaasBillingTypeValue;
+  /**
+   * Tipo de cobrança do checkout:
+   *   - ["DETACHED"]  → pagamento avulso (plano semanal, ONE_TIME).
+   *   - ["RECURRENT"] → assinatura recorrente (planos mensal/anual).
+   */
+  chargeTypes: AsaasCheckoutChargeType[];
+  /**
+   * Formas de cobrança aceitas. Só as que o projeto já define
+   * (`ASAAS_BILLING_TYPE`) — nunca ampliamos o que a conta não suporta.
+   */
+  billingTypes?: AsaasBillingTypeValue[];
+  /**
+   * ID do customer Asaas JÁ existente (`User.asaasCustomerId`). Enviado quando
+   * o comprador já tem customer no Asaas, para o checkout REUTILIZÁ-LO em vez
+   * de criar outro — evita duplicidade por usuário.
+   * MUTUAMENTE EXCLUSIVO com `customerData`.
+   */
+  customer?: string;
+  /**
+   * Dados do cliente quando ele ainda NÃO existe no Asaas. NUNCA enviado
+   * junto com `customer`.
+   */
+  customerData?: AsaasCustomerData;
   /** Vencimento da 1ª cobrança (YYYY-MM-DD). */
   dueDate?: string;
   /** Referência única da ordem local (reconciliação do webhook). */
   externalReference?: string;
   /**
-   * Quando presente (MONTHLY | YEARLY), o checkout vira uma ASSINATURA
-   * recorrente no Asaas ao ser pago (plano mensal/anual). Plano semanal
-   * (ONE_TIME) NÃO envia este campo. Nome PENDENTE de confirmação na doc.
+   * Configuração da recorrência — presente SOMENTE em checkout recorrente.
+   * O ciclo vive em `subscription.cycle` (não em `subscriptionCycle`).
    */
-  subscriptionCycle?: "MONTHLY" | "YEARLY";
+  subscription?: AsaasCheckoutSubscription;
   /** URL para a qual o Asaas redireciona após o pagamento (nosso app). */
   redirectUrl?: string;
   [key: string]: unknown;
@@ -143,7 +185,7 @@ export interface AsaasCheckoutResponse {
 // ------------------------------------------------------------
 // Webhook — eventos CONFIRMADOS (não inventar nomes)
 // ------------------------------------------------------------
-// Eventos de assinatura confirmados no escopo oficial:
+// Eventos de assinatura confirmados na doc oficial:
 export const ASAAS_SUBSCRIPTION_EVENTS = [
   "SUBSCRIPTION_CREATED",
   "SUBSCRIPTION_UPDATED",
@@ -165,8 +207,24 @@ export const ASAAS_KNOWN_EVENTS = [
   "PAYMENT_OVERDUE",
   "PAYMENT_CANCELED",
   "PAYMENT_REFUNDED",
+  // Conclusão do Checkout (confirmado na doc oficial). NÃO libera acesso por
+  // conta própria: a liberação continua vindo de PAYMENT_CONFIRMED/
+  // PAYMENT_RECEIVED. Serve para reconciliar o status do CheckoutOrder.
+  "CHECKOUT_PAID",
 ] as const;
 export type AsaasKnownEvent = (typeof ASAAS_KNOWN_EVENTS)[number];
+
+/**
+ * Objeto `checkout` do webhook (eventos CHECKOUT_*).
+ * Usamos apenas `id` e `externalReference` — o suficiente para reconciliar o
+ * CheckoutOrder local. Nada além disso é assumido do payload do checkout.
+ */
+export interface AsaasCheckoutWebhook {
+  id?: string | null;
+  externalReference?: string | null;
+  status?: string | null;
+  [key: string]: unknown;
+}
 
 /** Payload do webhook Asaas (formato oficial). */
 export interface AsaasWebhookPayload {
@@ -174,6 +232,8 @@ export interface AsaasWebhookPayload {
   payment?: AsaasPayment | null;
   subscription?: AsaasSubscription | null;
   customer?: AsaasCustomer | null;
+  /** Presente em eventos de checkout (ex.: CHECKOUT_PAID). */
+  checkout?: AsaasCheckoutWebhook | null;
   /** Remetente / id do objeto quando não aninhado. */
   object?: string | null;
   id?: string | null;

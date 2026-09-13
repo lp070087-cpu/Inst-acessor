@@ -25,7 +25,7 @@ export default async function LoginPage({
   }
 
   return (
-    <div className="bg-card border border-border-soft rounded-xl shadow-lg p-8">
+    <div className="bg-card border border-border-soft rounded-xl shadow-lg p-6 sm:p-8">
       <h1 className="font-display text-[24px] font-bold text-ink">
         Bem-vindo de volta
       </h1>

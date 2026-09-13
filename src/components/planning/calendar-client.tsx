@@ -682,7 +682,11 @@ export function CalendarClient({ initial }: CalendarClientProps) {
                   <div
                     key={i}
                     className={cn(
-                      "min-h-[86px] rounded-md border p-1.5 flex flex-col gap-1",
+                      // `min-w-0 overflow-hidden`: as colunas da grade são
+                      // `minmax(0,1fr)` e encolhem, mas o item de grade tem
+                      // `min-width:auto` por padrão — um título longo vazava da
+                      // célula em vez de ser truncado, empurrando a página.
+                      "min-h-[86px] min-w-0 overflow-hidden rounded-md border p-1.5 flex flex-col gap-1",
                       cell.inMonth ? "bg-bg" : "bg-transparent opacity-40",
                       today && "ring-2 ring-purple/40"
                     )}

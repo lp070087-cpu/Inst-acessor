@@ -187,10 +187,12 @@ export default async function AdminHomePage() {
       >
         <div className="flex flex-col gap-2">
           {adminEmails.map((email) => (
-            <div key={email} className="flex items-center gap-2.5 rounded-[11px] border border-border-soft bg-surface/50 px-4 py-3">
+            // E-mail é um token sem espaços: sem `min-w-0` + `truncate` ele
+            // força a largura da linha e estoura em telas de 320px.
+            <div key={email} className="flex items-center gap-2.5 min-w-0 rounded-[11px] border border-border-soft bg-surface/50 px-4 py-3">
               <ShieldCheck size={16} className="text-purple flex-none" />
-              <span className="font-data text-[13.5px] text-ink">{email}</span>
-              <span className="ml-auto text-[12px] text-success font-medium">Autorizado</span>
+              <span className="font-data text-[13.5px] text-ink min-w-0 truncate">{email}</span>
+              <span className="ml-auto text-[12px] text-success font-medium flex-none">Autorizado</span>
             </div>
           ))}
         </div>

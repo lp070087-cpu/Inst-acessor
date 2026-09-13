@@ -388,9 +388,9 @@ export function AssinaturaClient({
             </div>
 
             {statusMessage(current, billingConfigured) && (
-              <div className="rounded-[10px] bg-surface px-4 py-3 flex items-center gap-2 text-[13px] text-ink">
-                <Info size={15} className="text-purple flex-none" />
-                {statusMessage(current, billingConfigured)}
+              <div className="rounded-[10px] bg-surface px-4 py-3 flex items-start gap-2 text-[13px] text-ink">
+                <Info size={15} className="text-purple flex-none mt-0.5" />
+                <span className="min-w-0 break-words">{statusMessage(current, billingConfigured)}</span>
               </div>
             )}
 

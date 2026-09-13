@@ -235,7 +235,9 @@ export function CheckoutForm({ plan, plans, authedEmail, authedName }: CheckoutF
       {/* Troca rápida de plano */}
       <div className="flex flex-col gap-1.5">
         <span className="text-[12.5px] font-semibold text-ink-soft">Trocar de plano</span>
-        <div className="grid grid-cols-3 gap-2">
+        {/* Colapsa para 1 coluna no celular: com 3 colunas fixas sobram ~56px
+            por card a 320px, menos que o min-content de "R$ 47,00". */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           {plans.map((p) => {
             const isSel = p.id === selectedId;
             return (
@@ -279,7 +281,7 @@ export function CheckoutForm({ plan, plans, authedEmail, authedName }: CheckoutF
           ) : (
             <Info size={15} className="flex-none" />
           )}
-          <span className="flex-1 min-w-[200px]">{notice.text}</span>
+          <span className="flex-1 min-w-0 break-words">{notice.text}</span>
           {notice.kind === "info" && notice.url && (
             <a
               href={notice.url}

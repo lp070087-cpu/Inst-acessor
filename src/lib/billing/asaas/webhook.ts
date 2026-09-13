@@ -59,18 +59,23 @@ export function parseAsaasWebhook(payload: unknown): ParsedAsaasEvent | null {
   const payment = raw.payment ?? null;
   const subscription = raw.subscription ?? null;
   const customer = raw.customer ?? null;
+  const checkout = raw.checkout ?? null;
 
   const externalCustomerId = str(
     customer?.id ?? payment?.customer ?? subscription?.customer ?? null
   );
   const externalSubscriptionId = str(subscription?.id ?? payment?.subscription ?? null);
   const externalPaymentId = str(payment?.id ?? null);
+  const externalCheckoutId = str(checkout?.id ?? null);
 
   // Determinístico: prioriza o id mais específico; fallback é proibido aqui
   // (sem eventId estável o evento não pode ser idempotente com segurança).
+  // `checkout` no fim da lista: cobre eventos CHECKOUT_* que não tenham
+  // payment/subscription aninhados.
   const eventId =
     externalPaymentId ??
     externalSubscriptionId ??
+    externalCheckoutId ??
     externalCustomerId ??
     null;
 

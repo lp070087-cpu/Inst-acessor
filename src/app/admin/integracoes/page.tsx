@@ -3,7 +3,7 @@ import { Plug } from "lucide-react";
 
 import { requireAdminSession } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
-import { infinitepayStatus } from "@/lib/billing/infinitepay/config";
+import { asaasStatus } from "@/lib/billing/asaas/config";
 import { SectionCard } from "@/components/ui/section-card";
 import { StatusBadge } from "@/components/ui/badge";
 
@@ -92,15 +92,10 @@ export default async function AdminIntegrationsPage() {
     },
   ];
 
-  // Status real do InfinitePay (nunca "conectado" sem prova).
-  const ipStatus = infinitepayStatus();
-  const infinitePayCard = {
-    name: "InfinitePay (Billing)",
-    description:
-      "Gateway oficial de pagamento. Checkout por links públicos por plano; confirmação via webhook + payment_check quando a chave estiver configurada.",
-    configured: ipStatus.configured,
-    webhookConfigured: ipStatus.webhookConfigured,
-  };
+  // Status real do Asaas (nunca "conectado" sem prova). Devolve apenas
+  // rótulos — ambiente ("Sandbox"/"Produção") e se o webhook está configurado.
+  // NUNCA expõe chave ou token.
+  const asaas = asaasStatus();
 
   return (
     <div className="flex flex-col gap-6">
@@ -117,17 +112,17 @@ export default async function AdminIntegrationsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {integracoes.map((it) => (
           <SectionCard key={it.name} title={it.name} description={it.description}>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <StatusBadge status={it.env === "configurado" ? "CONNECTED" : "DISCONNECTED"} />
-              <span className="text-[12.5px] text-ink-muted">
+              <span className="text-[12.5px] text-ink-muted min-w-0 break-words">
                 {it.env === "configurado" ? "Configurado no servidor" : "Não configurado"}
               </span>
             </div>
             {it.connections.length > 0 && (
               <div className="mt-4 flex flex-col gap-2">
                 {it.connections.map((c, i) => (
-                  <div key={i} className="flex items-center justify-between rounded-[11px] border border-border-soft bg-surface/50 px-4 py-2.5">
-                    <span className="text-[13px] font-medium text-ink">
+                  <div key={i} className="flex flex-wrap items-center justify-between gap-2 min-w-0 rounded-[11px] border border-border-soft bg-surface/50 px-4 py-2.5">
+                    <span className="text-[13px] font-medium text-ink min-w-0 truncate">
                       {c.username ?? "Conta"}
                     </span>
                     <StatusBadge status={c.status} />
@@ -138,24 +133,69 @@ export default async function AdminIntegrationsPage() {
           </SectionCard>
         ))}
 
-        {/* InfinitePay (Billing) — gateway oficial */}
+        {/* ASAAS (Billing) — gateway oficial */}
         <SectionCard
-          title={infinitePayCard.name}
-          description={infinitePayCard.description}
+          title="Asaas"
+          description="Gateway oficial de pagamento — checkout hospedado, cobranças e assinaturas."
         >
-          <div className="flex items-center justify-between">
-            <StatusBadge status={infinitePayCard.configured ? "CONNECTED" : "DISCONNECTED"} />
-            <span className="text-[12.5px] text-ink-muted">
-              {infinitePayCard.configured ? "Checkouts + confirmação" : "Checkouts prontos · webhook pendente"}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10.5px] font-bold uppercase tracking-wider text-purple bg-ai-soft rounded-pill px-2 py-0.5">
+              Gateway oficial
+            </span>
+            <StatusBadge status={asaas.configured ? "CONNECTED" : "DISCONNECTED"} />
+            <span className="text-[12.5px] text-ink-muted min-w-0 break-words">
+              {asaas.label}
             </span>
           </div>
+
+          <dl className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div className="rounded-[11px] border border-border-soft bg-surface/50 px-4 py-2.5">
+              <dt className="text-[11.5px] font-bold uppercase tracking-wider text-ink-muted">
+                API
+              </dt>
+              <dd className="text-[13px] font-medium text-ink mt-0.5">
+                {asaas.configured ? "Configurada" : "Não configurada"}
+              </dd>
+            </div>
+            <div className="rounded-[11px] border border-border-soft bg-surface/50 px-4 py-2.5">
+              <dt className="text-[11.5px] font-bold uppercase tracking-wider text-ink-muted">
+                Webhook
+              </dt>
+              <dd className="text-[13px] font-medium text-ink mt-0.5">
+                {asaas.webhookConfigured ? "Configurado" : "Não configurado"}
+              </dd>
+            </div>
+            <div className="rounded-[11px] border border-border-soft bg-surface/50 px-4 py-2.5">
+              <dt className="text-[11.5px] font-bold uppercase tracking-wider text-ink-muted">
+                Ambiente
+              </dt>
+              <dd className="text-[13px] font-medium text-ink mt-0.5">
+                {asaas.environment === "production" ? "Produção" : "Sandbox"}
+              </dd>
+            </div>
+            <div className="rounded-[11px] border border-border-soft bg-surface/50 px-4 py-2.5">
+              <dt className="text-[11.5px] font-bold uppercase tracking-wider text-ink-muted">
+                Checkout
+              </dt>
+              <dd className="text-[13px] font-medium text-ink mt-0.5">
+                {asaas.configured ? "Habilitado" : "Pendente"}
+              </dd>
+            </div>
+          </dl>
+
           <div className="mt-3 flex flex-col gap-1.5 text-[12.5px] text-ink-soft">
             <p>
-              Checkout: links públicos do InfinitePay nos cards de planos (sem chave).
+              Checkout: checkout hospedado do Asaas criado no servidor a partir do plano
+              escolhido (preço/duração sempre resolvidos no servidor — nunca pelo navegador).
             </p>
             <p>
-              Webhook: {infinitePayCard.webhookConfigured ? "configurado" : "aguardando configuração"} ·
-              confirmação server-side via payment_check.
+              A liberação de acesso só ocorre após a confirmação real do pagamento pelo
+              webhook. O retorno do checkout, sozinho, não libera nada.
+            </p>
+            <p>
+              Autenticação do webhook: header{" "}
+              <code className="font-data">asaas-access-token</code>, conferido no servidor
+              contra a variável de ambiente. O valor nunca é exibido aqui.
             </p>
           </div>
         </SectionCard>

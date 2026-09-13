@@ -308,7 +308,10 @@ export function PreviewSocial({ initialDrafts }: PreviewSocialProps) {
               Preview · {platformLabel} · {formatLabel}
             </div>
 
-            <div className="relative w-[300px] rounded-[40px] border-[10px] border-ink bg-ink shadow-brand-lg overflow-hidden">
+            {/* Largura fluida: era `w-[300px]` fixo e, somado ao `border-[10px]`,
+                o mockup media 320px — estourava a viewport em telas de 320/360px.
+                Com `w-full max-w-[300px]` ele encolhe dentro do container. */}
+            <div className="relative w-full max-w-[300px] rounded-[40px] border-[10px] border-ink bg-ink shadow-brand-lg overflow-hidden">
               {/* Notch */}
               <div className="absolute top-2 left-1/2 -translate-x-1/2 w-24 h-5 bg-ink rounded-full z-20" />
 

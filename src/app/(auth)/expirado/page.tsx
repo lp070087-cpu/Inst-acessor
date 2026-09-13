@@ -26,7 +26,7 @@ export default async function ExpiradoPage() {
   }
 
   return (
-    <div className="bg-card border border-border-soft rounded-xl shadow-lg p-8">
+    <div className="bg-card border border-border-soft rounded-xl shadow-lg p-6 sm:p-8">
       <div className="flex flex-col items-center text-center">
         <span className="grid w-16 h-16 place-items-center rounded-[22px] bg-danger/10 text-danger mb-4">
           <Clock size={30} strokeWidth={1.6} />

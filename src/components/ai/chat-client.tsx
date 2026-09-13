@@ -323,7 +323,11 @@ export function ChatClient({
               </span>
               <div
                 className={cn(
-                  "rounded-[14px] px-4 py-2.5 text-[13.5px] leading-relaxed",
+                  // `min-w-0 break-words`: filho de flex tem `min-width:auto` e
+                  // não encolhe abaixo do seu conteúdo. Como a bolha é limitada
+                  // a `max-w-[85%]`, uma palavra longa (URL, token) estourava a
+                  // largura em vez de quebrar.
+                  "min-w-0 break-words rounded-[14px] px-4 py-2.5 text-[13.5px] leading-relaxed",
                   m.role === "assistant"
                     ? "bg-surface/70 text-ink"
                     : "bg-brand-grad text-white"

@@ -189,8 +189,13 @@ function extractReference(parsed: ParsedAsaasEvent): string | null {
   const raw = parsed.raw as {
     payment?: { externalReference?: unknown } | null;
     subscription?: { externalReference?: unknown } | null;
+    checkout?: { externalReference?: unknown } | null;
   };
-  const ref = raw.payment?.externalReference ?? raw.subscription?.externalReference ?? null;
+  const ref =
+    raw.payment?.externalReference ??
+    raw.subscription?.externalReference ??
+    raw.checkout?.externalReference ??
+    null;
   return typeof ref === "string" && ref.trim().length > 0 ? ref.trim() : null;
 }
 
@@ -614,6 +619,27 @@ async function applyOrderLifecycle(
         return "applied";
       }
       return "noop";
+    }
+
+    case "CHECKOUT_PAID": {
+      // CONCLUSÃO DO CHECKOUT ≠ PAGAMENTO CONFIRMADO.
+      // A liberação de acesso vem de PAYMENT_CONFIRMED / PAYMENT_RECEIVED —
+      // este evento NÃO libera nada e NÃO marca a ordem como paga (isso
+      // liberaria duas vezes). Aqui só reconciliamos o STATUS do CheckoutOrder
+      // (registro de auditoria de que o checkout foi concluído).
+      if (order.status === "PAID") return "noop"; // já confirmado pelo pagamento
+      await bll.checkoutOrder.update({
+        where: { id: order.id },
+        data: {
+          audit: {
+            step: "checkout_paid",
+            at: new Date().toISOString(),
+            note: "Checkout concluído no Asaas — acesso ainda não liberado (aguarda pagamento confirmado).",
+            eventId: parsed.eventId,
+          },
+        },
+      });
+      return "applied";
     }
 
     default:

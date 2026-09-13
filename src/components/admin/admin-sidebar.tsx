@@ -3,7 +3,8 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, CreditCard, Plug, Cpu, Webhook, Menu, X, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, Users, CreditCard, Plug, Cpu, Webhook, Menu, X, ShieldCheck, LogOut } from "lucide-react";
+import { signOut } from "next-auth/react";
 import type { Session } from "next-auth";
 
 import { cn } from "@/lib/utils";
@@ -65,6 +66,22 @@ export function AdminSidebar({ user }: { user: Session["user"] }) {
     setMobileOpen(false);
   }, [pathname]);
 
+  // Trava o scroll do fundo enquanto o menu admin mobile está aberto e
+  // permite fechar com Esc — mesma correção do menu do app.
+  React.useEffect(() => {
+    if (!mobileOpen) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = previous;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [mobileOpen]);
+
   const isActive = (href: string) =>
     href === "/admin" ? pathname === href : pathname.startsWith(href);
 
@@ -114,13 +131,22 @@ export function AdminSidebar({ user }: { user: Session["user"] }) {
           <ShieldCheck size={19} strokeWidth={2} className="flex-none text-ink-soft" />
           <span className="text-[13.5px] text-ink-soft truncate">Voltar ao app</span>
         </Link>
-        <Link
-          href="/api/auth/signout"
-          className="flex items-center gap-3 rounded-[11px] px-3 py-2.5 transition-all duration-200 cursor-pointer hover:bg-danger-softMid"
+        {/* LOGOUT — era um `Link` para `/api/auth/signout`. O
+            `GET /api/auth/signout` do NextAuth devolve a PÁGINA HTML de
+            confirmação, então o clique nunca encerrava a sessão: levava a uma
+            tela intermediária e, com a sessão ainda válida, o middleware
+            devolvia o usuário para dentro da área logada. `signOut()` faz o
+            POST com CSRF, invalida o cookie e manda para /login. */}
+        <button
+          type="button"
+          onClick={() => {
+            void signOut({ callbackUrl: "/login" });
+          }}
+          className="w-full text-left flex items-center gap-3 rounded-[11px] px-3 py-2.5 transition-all duration-200 cursor-pointer hover:bg-danger-softMid"
         >
-          <ShieldCheck size={19} strokeWidth={2} className="flex-none text-danger" />
+          <LogOut size={19} strokeWidth={2} className="flex-none text-danger" />
           <span className="text-[13.5px] text-danger truncate">Sair</span>
-        </Link>
+        </button>
       </div>
     </nav>
   );

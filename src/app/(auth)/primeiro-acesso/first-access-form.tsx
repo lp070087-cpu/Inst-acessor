@@ -329,7 +329,7 @@ function FirstAccessFormInner() {
 
         {grant && (
           <div className="w-full rounded-[14px] border border-border bg-bg-ice/60 p-4 mt-2 text-left">
-            <div className="grid grid-cols-2 gap-3 text-[13px]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[13px]">
               <div>
                 <p className="text-ink-muted">Plano</p>
                 <p className="font-semibold text-ink mt-0.5">
@@ -404,7 +404,10 @@ function FirstAccessFormInner() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3 w-full mt-3">
+        {/* `flex-wrap`: o botão principal é `block` (= w-full) e o secundário
+            tem largura automática — lado a lado eles somavam 100% + ~100px e
+            estouravam a linha em telas de 320px. */}
+        <div className="flex flex-wrap items-center gap-3 w-full mt-3">
           {tourStep > 0 ? (
             <Button
               type="button"

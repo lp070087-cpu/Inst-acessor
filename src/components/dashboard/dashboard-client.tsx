@@ -8,10 +8,18 @@ import { TikTokMetricGrid } from "./tiktok-metric-grid";
 import { ConnectedAccountCard } from "@/components/integrations/connected-account-card";
 import type { DashboardInstagramData } from "@/lib/dashboard/instagram-data";
 import type { TikTokDashboardData } from "@/lib/dashboard/tiktok-data";
+import type { MediaProductionData } from "@/lib/dashboard/media-production";
+import type { DeterministicInsight } from "@/lib/dashboard/insights";
 
 interface DashboardClientProps {
   instagramData: DashboardInstagramData;
   tiktokData: TikTokDashboardData;
+  /** Mídia + produção real do usuário (blocos Reels/Stories/"Sua produção"). */
+  mediaData: MediaProductionData;
+  /** Observações derivadas apenas dos dados persistidos. */
+  insights: DeterministicInsight[];
+  /** A IA central está configurada? (booleano — nunca a chave). */
+  aiConfigured: boolean;
   /** Saudação ao usuário autenticado (ex.: "Olá, Lucas"). */
   greeting?: string | null;
 }
@@ -26,6 +34,9 @@ interface DashboardClientProps {
 export function DashboardClient({
   instagramData,
   tiktokData,
+  mediaData,
+  insights,
+  aiConfigured,
   greeting,
 }: DashboardClientProps) {
   const [platform, setPlatform] = useState<PlatformId>(() => {
@@ -53,7 +64,12 @@ export function DashboardClient({
       )}
 
       {platform === "instagram" ? (
-        <MetricGrid data={instagramData} />
+        <MetricGrid
+          data={instagramData}
+          media={mediaData}
+          insights={insights}
+          aiConfigured={aiConfigured}
+        />
       ) : (
         <TikTokMetricGrid data={tiktokData} />
       )}

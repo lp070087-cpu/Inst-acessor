@@ -182,8 +182,27 @@ export function LandingClient() {
     window.addEventListener("scroll", onScroll, { passive: true });
 
     const burger = nav?.querySelector<HTMLElement>(".lnd-nav-burger");
-    const onBurger = () => nav?.classList.toggle("lnd-open");
+    const onBurger = (e: Event) => {
+      e.stopPropagation();
+      nav?.classList.toggle("lnd-open");
+    };
     burger?.addEventListener("click", onBurger);
+
+    // Fecha o menu mobile ao clicar fora dele ou com Esc. Sem isso o dropdown
+    // ficava aberto por cima da página até o usuário acertar o X — era o
+    // "menu preso sobre a página" relatado. Note que NÃO travamos o scroll
+    // do body: o menu é um dropdown, não um overlay de tela cheia.
+    const onDocClick = (e: Event) => {
+      if (!nav?.classList.contains("lnd-open")) return;
+      const t = e.target as Node | null;
+      if (t && nav.contains(t)) return;
+      nav.classList.remove("lnd-open");
+    };
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") nav?.classList.remove("lnd-open");
+    };
+    document.addEventListener("click", onDocClick);
+    document.addEventListener("keydown", onEsc);
 
     // ------------------------------------------------------------
     // Scroll suave nas âncoras
@@ -672,6 +691,8 @@ export function LandingClient() {
       window.removeEventListener("scroll", onParallaxRaf);
       cancelAnimationFrame(rafId);
       burger?.removeEventListener("click", onBurger);
+      document.removeEventListener("click", onDocClick);
+      document.removeEventListener("keydown", onEsc);
       root.removeEventListener("click", onAnchor);
       root.removeEventListener("click", onTabs);
       root.removeEventListener("click", onCopyActions);

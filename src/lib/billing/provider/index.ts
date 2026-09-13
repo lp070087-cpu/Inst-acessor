@@ -5,14 +5,12 @@ import { asaasBillingAdapter } from "@/lib/billing/adapters/asaas";
 /**
  * PROVIDER SELECTOR — retorna o adapter de pagamento ativo.
  * ==========================================================
- * GATEWAY OFICIAL desde 2026-08-31: **InfinitePay** (checkout externo por
- * links públicos, conectados diretamente nos cards/CTAs — ver
- * `src/lib/billing/plans/catalog.ts` → `checkoutUrl`).
+ * GATEWAY OFICIAL: **Asaas** (checkout hospedado, criado no servidor a partir
+ * do plano — ver `src/lib/billing/asaas/checkout-order.ts`). O InfinitePay saiu
+ * dos fluxos ativos; seu módulo segue no repositório apenas como histórico.
  *
- * O Asaas é **LEGADO preservado**: este selector mantém o
- * `AsaasBillingAdapter` disponível apenas se `ASAAS_API_KEY` estiver
- * configurada (para referência/migração), mas NENHUMA cobrança nova Asaas
- * deve ser iniciada. Sem chave → adapter "none" (INTEGRATION_NOT_CONFIGURED).
+ * Este selector mantém o `AsaasBillingAdapter` ativo quando `ASAAS_API_KEY`
+ * está configurada. Sem chave → adapter "none" (INTEGRATION_NOT_CONFIGURED).
  * NENHUMA chamada HTTP é feita na seleção.
  */
 

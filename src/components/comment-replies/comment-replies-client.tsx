@@ -478,7 +478,7 @@ export function CommentRepliesClient({
       <Divider />
       <div className="flex items-start gap-3 rounded-md border border-border-soft bg-surface/40 px-4 py-3.5">
         <ShieldCheck size={18} className="text-success flex-none mt-0.5" />
-        <p className="text-[12.5px] text-ink-soft leading-relaxed">
+        <p className="text-[12.5px] text-ink-soft leading-relaxed min-w-0 break-words">
           O Inst Acessor nunca responde um comentário duas vezes e nunca publica nada
           automaticamente sem que a automação esteja ativa, o modo seja Automático e o
           comentário esteja em uma categoria segura. Preço, pagamento, pedido, saúde,

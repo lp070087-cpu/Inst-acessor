@@ -48,7 +48,7 @@ export function Dropdown({ trigger, items, align = "right", label }: DropdownPro
     <div
       role="menu"
       className={cn(
-        "absolute top-full mt-2 z-50 min-w-[200px] bg-card border border-border-soft rounded-md shadow-lg py-1.5 animate-[fade-slide_.25s_var(--ease-out)]",
+        "absolute top-full mt-2 z-50 min-w-[200px] max-w-[calc(100vw-2rem)] bg-card border border-border-soft rounded-md shadow-lg py-1.5 animate-[fade-slide_.25s_var(--ease-out)]",
         align === "right" ? "right-0" : "left-0"
       )}
     >

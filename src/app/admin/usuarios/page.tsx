@@ -87,7 +87,7 @@ export default async function AdminUsersPage() {
 
       <SectionCard
         title="Acessos liberados"
-        description={`${grants.length} liberações (mais recentes primeiro). Origem: compra (InfinitePay) ou liberação manual.`}
+        description={`${grants.length} liberações (mais recentes primeiro). Origem: compra (Asaas) ou liberação manual.`}
       >
         <AdminAccessGrantsTable
           grants={grants.map((g) => ({

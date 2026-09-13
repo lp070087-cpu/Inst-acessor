@@ -15,12 +15,12 @@ import type {
 /**
  * ASAAS — SERVIÇO DE NEGÓCIO (LEGADO preservado, server-only)
  * =============================================================
- * O Asaas deixou de ser o gateway oficial em 2026-08-31 (InfinitePay assumiu
- * via checkout por links públicos). Este serviço é MANTIDO apenas para
- * preservar a arquitetura e o histórico (banco/registros/webhook intactos) —
- * NÃO deve iniciar cobranças novas em produção.
+ * O Asaas é o GATEWAY OFICIAL. O fluxo público (landing → checkout hospedado →
+ * webhook → AccessGrant → primeiro acesso) vive em `checkout-order.ts`; este
+ * serviço é a via autenticada/direta (cobrança avulsa e assinatura via
+ * POST /payments e POST /subscriptions), usada pelo app e pela assinatura.
  *
- * REFERÊNCIA DO FLUXO LEGADO:
+ * REFERÊNCIA DO FLUXO:
  *   1. Resolve o plano SEMPRE no servidor (`getPlanById`) — o client envia
  *      apenas `planId`; NUNCA preço/duração vindos do browser.
  *   2. Garante o customer Asaas (busca pelo `User.asaasCustomerId`; cria se

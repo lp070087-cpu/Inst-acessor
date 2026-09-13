@@ -120,7 +120,7 @@ export default async function RetornoPage({
   const checkoutHref = `/checkout?plano=${encodeURIComponent(order.planSlug)}`;
 
   return (
-    <div className="bg-card border border-border-soft rounded-xl shadow-lg p-8">
+    <div className="bg-card border border-border-soft rounded-xl shadow-lg p-6 sm:p-8">
       <div className="flex items-center gap-2 mb-1">
         <span className="w-1.5 h-1.5 rounded-full bg-brand-grad" />
         <span className="text-[12px] font-semibold uppercase tracking-wider text-ink-muted">
@@ -153,7 +153,7 @@ export default async function RetornoPage({
 
         {/* Resumo neutro do pedido (sem valor/email para não vazar dados) */}
         <div className="w-full rounded-[14px] border border-border bg-bg-ice/60 p-4 mt-1 text-left">
-          <div className="grid grid-cols-2 gap-3 text-[13px]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[13px]">
             <div>
               <p className="text-ink-muted">Plano</p>
               <p className="font-semibold text-ink mt-0.5">{order.planName ?? "Inst Acessor"}</p>

@@ -16,10 +16,14 @@ export const runtime = "nodejs";
  *
  * Segurança (fail-closed):
  *   - Sem `ASAAS_WEBHOOK_TOKEN` → 503 (webhook não configurado; NÃO aceita nada).
- *   - Token validado por comparação constante (timingSafeEqual). Fontes aceitas
- *     (nesta ordem): header `asaas-access-token` (forma oficial do Asaas),
- *     `Authorization: Bearer`. NUNCA por query string (`?token=` não é aceito).
- *     Ausente/incorreto → 403.
+ *   - Token validado por comparação constante (`timingSafeEqual`) contra
+ *     `ASAAS_WEBHOOK_TOKEN`. Fonte oficial: header `asaas-access-token`, que é
+ *     onde o Asaas envia o `authToken` cadastrado no painel. Ausente/incorreto
+ *     → 403. NUNCA por query string (`?token=` não é aceito).
+ *   - O `authToken` do webhook NÃO é a API Key do Asaas. Ele deve ter entre
+ *     32 e 255 caracteres e não conter espaços, e o MESMO valor precisa existir
+ *     em Painel Asaas → Webhook → Token de autenticação e em
+ *     Vercel → `ASAAS_WEBHOOK_TOKEN`.
  *   - Rate limit por IP (proteção contra flood).
  *   - Idempotência: `eventId` único em `BillingEvent` — replays NÃO reprocessam.
  *   - NUNCA confia em `userId`/preço/plano do payload: a ordem é localizada pela
@@ -30,9 +34,8 @@ export const runtime = "nodejs";
  *     evento (payload sanitizado) e responde 200 rapidamente.
  *   - Payload persistido SEMPRE sanitizado (nunca tokens/secrets).
  *
- * Observação documentada: o Asaas autentica webhooks por TOKEN (header
- * `asaas-access-token`), não por assinatura HMAC de payload. O nome EXATO do
- * header/campo deve ser confirmado na documentação oficial ao habilitar.
+ * Observação documentada: o Asaas autentica webhooks por TOKEN compartilhado
+ * (header `asaas-access-token`), não por assinatura HMAC de payload.
  */
 
 function safeEqual(a: string, b: string): boolean {
@@ -42,14 +45,17 @@ function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(ab, bb);
 }
 
+/**
+ * Token do webhook — FONTE OFICIAL: header `asaas-access-token`.
+ * É o header que o Asaas envia, carregando o `authToken` cadastrado no painel.
+ * NÃO usamos a API Key como authToken e NÃO tratamos `Authorization: Bearer`
+ * como método principal. Buscar apenas neste header é o que mantém a validação
+ * estrita — qualquer outra via seria uma porta a mais sem necessidade.
+ * Token por QUERY STRING é proibido (vaza em logs/proxies).
+ */
 function extractToken(request: Request): string | null {
   const header = request.headers.get("asaas-access-token");
-  if (header) return header.trim();
-  const auth = request.headers.get("authorization");
-  if (auth && /^bearer\s+/i.test(auth)) return auth.replace(/^bearer\s+/i, "").trim();
-  // Token por QUERY STRING é proibido (vaza em logs/proxies). Fonte oficial:
-  // header `asaas-access-token` (ou Authorization: Bearer como fallback).
-  return null;
+  return header ? header.trim() : null;
 }
 
 export async function POST(request: Request) {

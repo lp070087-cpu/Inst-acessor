@@ -204,7 +204,9 @@ export function AdminAIClient({ initialStatus }: { initialStatus: AdminAIStatus 
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
+      {/* `flex-wrap`: badge + botão têm `whitespace-nowrap` na base e não
+          encolhem — lado a lado eles estouravam a linha em telas de 320px. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <Badge tone={status.aiConfigured ? "success" : "warning"} dot size="md">
           {status.aiConfigured
             ? `IA ativa — ${status.activeProvider === "openai" ? "OpenAI" : "Gemini"}`

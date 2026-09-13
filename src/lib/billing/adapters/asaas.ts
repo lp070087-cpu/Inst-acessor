@@ -8,12 +8,13 @@ import { getAsaasConfig, isAsaasConfigured } from "@/lib/billing/asaas/config";
 import { startAsaasCheckout, cancelAsaasSubscription } from "@/lib/billing/asaas/service";
 
 /**
- * ASAAS BILLING ADAPTER — LEGADO (descontinuado, preservado)
- * ==========================================================
- * O Asaas deixou de ser o gateway oficial em 2026-08-31 (o InfinitePay
- * assumiu, via checkout por links públicos). Este adapter é MANTIDO para
- * preservar a arquitetura e o histórico (banco/registros/webhook intactos),
- * mas NÃO deve iniciar cobranças novas.
+ * ASAAS BILLING ADAPTER — ATIVO (gateway oficial)
+ * ===============================================
+ * O Asaas É o gateway oficial. O fluxo público (landing → checkout hospedado
+ * → webhook → AccessGrant → primeiro acesso) vive em
+ * `src/lib/billing/asaas/checkout-order.ts`. Este adapter implementa a
+ * interface `BillingAdapter` sobre o mesmo serviço Asaas e é o retorno de
+ * `getBillingAdapter()` sempre que `ASAAS_API_KEY` existe.
  *
  * REFERÊNCIA DA ARQUITETURA LEGADA (docs/ESCOPO-OFICIAL.md §12):
  * - Sandbox: https://api-sandbox.asaas.com/v3
