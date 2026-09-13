@@ -29,6 +29,10 @@ model User {
   aiProfile              AIProfile?
   accessGrants           AccessGrant[]
   accounts               Account[]
+  commentReplyLogs       CommentReplyLog[]
+  commentRules           CommentAutomationRule[]
+  replyTemplates         ReplyTemplate[]
+  specialProfiles        SpecialProfileRule[]
   automationEvents       AutomationEvent[]
   automationExecutions   AutomationExecution[]
   automationRules        AutomationRule[]
@@ -150,6 +154,7 @@ model SocialConnection {
   igProfiles        InstagramProfile?
   user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   tiktokProfiles    TikTokProfile?
+  commentReplyLogs  CommentReplyLog[]
 
   @@unique([userId, platform])
   @@index([platform])
@@ -1080,6 +1085,148 @@ model CheckoutOrder {
   @@index([planSlug])
   @@index([status])
   @@index([userId])
+}
+
+// ============================================================
+// RESPOSTAS INTELIGENTES A COMENTÁRIOS (Instagram)
+// ------------------------------------------------------------
+// Reutiliza a SocialConnection já existente — NÃO cria conexão nova
+// nem OAuth próprio. O token continua no SocialConnection, cifrado.
+// 100% aditivo: nada aqui altera models existentes.
+// ============================================================
+
+/// Configuração da automação de respostas do usuário.
+model CommentAutomationRule {
+  id       String  @id @default(cuid())
+  userId   String
+  name     String
+  enabled  Boolean @default(false)
+  platform String  @default("instagram")
+
+  /// Alcance da regra: "all" | "post" | "reel" | "carousel" | "media"
+  targetType String  @default("all")
+  /// Quando targetType = "media", restringe a uma publicação específica.
+  mediaId    String?
+
+  /// MANUAL | APPROVAL | AUTO
+  replyMode        String  @default("MANUAL")
+  approvalRequired Boolean @default(true)
+
+  maxRepliesPerRun       Int @default(10)
+  maxRepliesPerHour      Int @default(20)
+  maxRepliesPerDay       Int @default(60)
+  minimumIntervalSeconds Int @default(30)
+
+  /// Pausa global desta automação (botão "Pausar Respostas Inteligentes").
+  paused Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  templates ReplyTemplate[]
+  logs      CommentReplyLog[]
+
+  @@index([userId, enabled])
+  @@map("comment_automation_rule")
+}
+
+/// Resposta exemplo/fixa cadastrada pelo usuário (referência de estilo).
+model ReplyTemplate {
+  id     String  @id @default(cuid())
+  userId String
+  ruleId String?
+
+  text String
+  /// Categoria sugerida: emoji | elogio | agradecimento | pergunta | outro
+  category String  @default("outro")
+  /// true  → usar EXATAMENTE este texto
+  /// false → usar como EXEMPLO de estilo para a IA variar
+  exactReply Boolean @default(false)
+  active     Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rule CommentAutomationRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+
+  @@index([userId, active])
+  @@map("reply_template")
+}
+
+/// Pessoa específica com tratamento próprio (prioridade máxima).
+model SpecialProfileRule {
+  id     String @id @default(cuid())
+  userId String
+
+  /// Sem "@", normalizado em minúsculas.
+  instagramUsername String
+  displayName       String?
+  category          String?
+
+  customInstructions String
+  /// Se preenchido, responde exatamente isto (ignora a IA).
+  fixedReply         String?
+  /// Se true, usa IA com as instruções; se false e houver fixedReply, só a fixa.
+  useAI              Boolean @default(true)
+
+  priority Int     @default(10)
+  active   Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, instagramUsername])
+  @@index([userId, active])
+  @@map("special_profile_rule")
+}
+
+/// Log/controle de cada comentário analisado. É a fonte de IDEMPOTÊNCIA:
+/// um comentário só pode ter UM registro em estado SENT por (userId, commentId).
+model CommentReplyLog {
+  id                 String @id @default(cuid())
+  userId             String
+  socialConnectionId String
+
+  mediaId String
+  /// Unique junto com mediaId — nunca responder duas vezes ao mesmo comentário.
+  commentId String
+
+  commenterUsername String
+  originalComment   String
+  /// Classificação do comentário (emoji | elogio | sensivel | spam | ...).
+  commentCategory   String?
+
+  generatedReply String?
+  finalReply     String?
+
+  /// PENDING | APPROVED | SENT | IGNORED | ERROR | SKIPPED
+  status String @default("PENDING")
+
+  /// Antes do envio: origem da sugestão (IA | TEMPLATE_FIXO | PERFIL_ESPECIAL | EMOJI).
+  /// Depois do envio: como foi enviada (MANUAL | AUTO) — é o que os filtros
+  /// "manuais"/"automáticos" do histórico consultam.
+  sourceRule String?
+
+  externalReplyId String?
+  errorCode       String?
+
+  createdAt  DateTime  @default(now())
+  approvedAt DateTime?
+  sentAt     DateTime?
+
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  socialConnection SocialConnection @relation(fields: [socialConnectionId], references: [id], onDelete: Cascade)
+  rule             CommentAutomationRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+  ruleId           String?
+
+  @@unique([mediaId, commentId])
+  @@index([userId, status])
+  @@index([userId, createdAt])
+  @@map("comment_reply_log")
 }
 
 enum Role {

@@ -1,8 +1,13 @@
 /**
  * Camada genérica de provider de IA — desacoplada.
- * Suporta OpenAI e Gemini via env. Sem mock:
- * se nenhuma API key estiver configurada, `aiConfigured()` retorna false
- * e a UI mostra "IA ainda não configurada".
+ *
+ * Suporta OpenAI e Gemini. Sem mock: se não houver IA configurada,
+ * `aiConfigured()` retorna false e a UI mostra "IA ainda não configurada".
+ *
+ * A resolução de "qual provider / qual chave / qual modelo" vive em
+ * `./runtime.ts`, que lê a configuração CENTRAL do Admin (SystemSetting
+ * cifrado) com fallback para env. Este arquivo define apenas o CONTRATO do
+ * provider — as funções concretas estão em `./index.ts`.
  *
  * ⚠️ Estas funções rodam APENAS no servidor (route handlers / lib).
  * NUNCA importar este módulo em componentes client com API keys.
@@ -29,11 +34,12 @@ export interface AIProvider {
   complete(opts: AICompletionOptions): Promise<string>;
 }
 
-/** Estado global "IA configurada?" — derivado apenas das env vars. */
-export function aiConfigured(): boolean {
-  return Boolean(
-    process.env.OPENAI_API_KEY ||
-      process.env.GEMINI_API_KEY ||
-      process.env.GOOGLE_API_KEY
-  );
-}
+/**
+ * NOTA: `aiConfigured()` e `getAIProvider()` saíram daqui.
+ *
+ * Elas agora vivem em `./index.ts` e são ASSÍNCRONAS, porque a configuração
+ * central do Admin está no banco (SystemSetting). Importe-as de `@/lib/ai`:
+ *
+ *   import { aiConfigured, getAIProvider } from "@/lib/ai";
+ *   const configured = await aiConfigured();
+ */

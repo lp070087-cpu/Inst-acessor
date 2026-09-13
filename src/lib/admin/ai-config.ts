@@ -1,5 +1,18 @@
 import { settings } from "@/lib/admin/settings-db";
 import { encryptToken, decryptToken } from "@/lib/crypto";
+import { invalidateRuntimeAICache } from "@/lib/ai/runtime";
+import {
+  AI_PROVIDER_KEY,
+  AI_OPENAI_KEY,
+  AI_OPENAI_MODEL,
+  AI_GEMINI_KEY,
+  AI_GEMINI_MODEL,
+  OPENAI_MODELS,
+  GEMINI_MODELS,
+  AI_OPENAI_DEFAULT_MODEL,
+  AI_GEMINI_DEFAULT_MODEL,
+  parseModel,
+} from "@/lib/ai/settings-keys";
 
 /**
  * ADMIN — Configuração central da IA (Fase 10)
@@ -29,17 +42,18 @@ import { encryptToken, decryptToken } from "@/lib/crypto";
  */
 
 // ------------------------------------------------------------
-// Chaves oficiais
+// Chaves oficiais — re-exportadas de `@/lib/ai/settings-keys`
+// (arquivo-folha compartilhado com o runtime, sem ciclo de importação)
 // ------------------------------------------------------------
-export const AI_PROVIDER_KEY = "ai.provider";
-export const AI_OPENAI_KEY = "ai.openai.key";
-export const AI_OPENAI_MODEL = "ai.openai.model";
-export const AI_GEMINI_KEY = "ai.gemini.key";
-export const AI_GEMINI_MODEL = "ai.gemini.model";
-
-/** Modelos oficiais (escolha fechada — sem strings livres). */
-export const OPENAI_MODELS = ["gpt-4o-mini", "gpt-4o"] as const;
-export const GEMINI_MODELS = ["gemini-1.5-flash", "gemini-1.5-pro"] as const;
+export {
+  AI_PROVIDER_KEY,
+  AI_OPENAI_KEY,
+  AI_OPENAI_MODEL,
+  AI_GEMINI_KEY,
+  AI_GEMINI_MODEL,
+  OPENAI_MODELS,
+  GEMINI_MODELS,
+};
 
 export type AIProviderName = "openai" | "gemini";
 export type AIModelChoice = "gpt-4o-mini" | "gpt-4o" | "gemini-1.5-flash" | "gemini-1.5-pro";
@@ -66,11 +80,6 @@ function maskKey(key: string): string {
   const head = clean.slice(0, 3);
   const tail = clean.slice(-4);
   return `${head}-••••••••••••${tail}`;
-}
-
-function parseModel<T extends string>(value: string | undefined, fallback: T, allowed: readonly T[]): T {
-  if (value && (allowed as readonly string[]).includes(value)) return value as T;
-  return fallback;
 }
 
 async function getSetting(key: string): Promise<string | null> {
@@ -122,7 +131,7 @@ export async function getAIAdminStatus(): Promise<{
   const openai: AIProviderStatus = {
     configured: openaiConfigured,
     provider: "openai",
-    model: parseModel(openaiModel ?? "", "gpt-4o-mini", OPENAI_MODELS),
+    model: parseModel(openaiModel, AI_OPENAI_DEFAULT_MODEL, OPENAI_MODELS),
     keyMask: openaiConfigured ? maskKey(openaiKey) : "",
     source: openaiKeyEnc ? "db" : openaiConfigured ? "env" : "db",
   };
@@ -130,7 +139,7 @@ export async function getAIAdminStatus(): Promise<{
   const gemini: AIProviderStatus = {
     configured: geminiConfigured,
     provider: "gemini",
-    model: parseModel(geminiModel ?? "", "gemini-1.5-flash", GEMINI_MODELS),
+    model: parseModel(geminiModel, AI_GEMINI_DEFAULT_MODEL, GEMINI_MODELS),
     keyMask: geminiConfigured ? maskKey(geminiKey) : "",
     source: geminiKeyEnc ? "db" : geminiConfigured ? "env" : "db",
   };
@@ -166,7 +175,11 @@ export async function saveAIProvider(input: SaveAIProviderInput): Promise<void> 
 
   // Valida o model contra a lista oficial.
   const allowed = provider === "openai" ? OPENAI_MODELS : GEMINI_MODELS;
-  const normalized = parseModel(model, provider === "openai" ? "gpt-4o-mini" : "gemini-1.5-flash", allowed);
+  const normalized = parseModel(
+    model,
+    provider === "openai" ? AI_OPENAI_DEFAULT_MODEL : AI_GEMINI_DEFAULT_MODEL,
+    allowed
+  );
 
   if (provider === "openai") {
     if (apiKey && apiKey.trim()) {
@@ -186,6 +199,9 @@ export async function saveAIProvider(input: SaveAIProviderInput): Promise<void> 
       await setSetting(AI_PROVIDER_KEY, "gemini");
     }
   }
+
+  // A configuração mudou → o runtime precisa reler (ver `@/lib/ai/runtime`).
+  invalidateRuntimeAICache();
 }
 
 export async function removeAIProvider(provider: AIProviderName): Promise<void> {
@@ -196,6 +212,7 @@ export async function removeAIProvider(provider: AIProviderName): Promise<void> 
     await removeSetting(AI_GEMINI_KEY);
     await removeSetting(AI_GEMINI_MODEL);
   }
+  invalidateRuntimeAICache();
 }
 
 /** Testa uma chave fazendo uma chamada mínima de baixo custo. */
@@ -254,26 +271,13 @@ export async function testAIProvider(input: {
 // ------------------------------------------------------------
 
 /**
- * Resolve a chave/modelo efetivos em runtime.
- * Retorna null se a IA não estiver configurada (nem DB nem env).
+ * O runtime da IA é resolvido em `@/lib/ai/runtime.ts` — FONTE ÚNICA usada por
+ * todas as ferramentas (IA Acessor, Gerador de Copy, Ideias) e também pelo
+ * painel admin. Re-exportado aqui para não quebrar quem já importava daqui.
+ *
+ * Não reimplemente esta função: uma segunda cópia foi exatamente o que causou
+ * a divergência em que o /admin/ia mostrava "ativa" e as ferramentas do cliente
+ * diziam "IA ainda não configurada".
  */
-export async function resolveRuntimeAI(): Promise<{
-  provider: AIProviderName;
-  apiKey: string;
-  model: string;
-} | null> {
-  const status = await getAIAdminStatus();
-  if (!status.activeProvider) return null;
-  if (status.activeProvider === "openai") {
-    const enc = await getSetting(AI_OPENAI_KEY);
-    const apiKey = enc
-      ? decryptToken(enc)
-      : process.env.OPENAI_API_KEY ?? "";
-    return { provider: "openai", apiKey, model: status.openai.model };
-  }
-  const enc = await getSetting(AI_GEMINI_KEY);
-  const apiKey = enc
-    ? decryptToken(enc)
-    : process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "";
-  return { provider: "gemini", apiKey, model: status.gemini.model };
-}
+export { resolveRuntimeAI } from "@/lib/ai/runtime";
+export type { RuntimeAIConfig } from "@/lib/ai/runtime";

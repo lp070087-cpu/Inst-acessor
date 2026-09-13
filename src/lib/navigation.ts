@@ -8,7 +8,7 @@ import {
   GraduationCap,
   BrainCircuit,
   Share2,
-  Megaphone,
+  MessageSquareHeart,
   BarChart3,
   CreditCard,
   User,
@@ -92,10 +92,10 @@ export const mainNav: NavItem[] = [
     description: "Conecte e gerencie suas contas",
   },
   {
-    label: "Gerador de Anúncios",
-    href: "/gerador-de-anuncios",
-    icon: Megaphone,
-    description: "Campanhas e anúncios",
+    label: "Respostas Inteligentes",
+    href: "/respostas-inteligentes",
+    icon: MessageSquareHeart,
+    description: "Responda comentários com IA",
   },
   {
     label: "Análise de Desempenho",

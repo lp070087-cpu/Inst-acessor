@@ -37,7 +37,7 @@ export async function generateIdeas(
   userId: string,
   params: { category: string; count: number }
 ): Promise<GeneratedIdea[]> {
-  const provider = getAIProvider();
+  const provider = await getAIProvider();
   if (!provider) throw new AIConfiguredError();
 
   const ctx = await buildUserContext(userId);

@@ -47,7 +47,7 @@ export const config = {
     "/rank/:path*",
     "/mentoria/:path*",
     "/redes-sociais/:path*",
-    "/gerador-de-anuncios/:path*",
+    "/respostas-inteligentes/:path*",
     "/analise-de-desempenho/:path*",
     "/assinatura/:path*",
     "/perfil/:path*",

@@ -6,6 +6,7 @@ import {
   removeAIProvider,
   testAIProvider,
 } from "@/lib/admin/ai-config";
+import { invalidateRuntimeAICache } from "@/lib/ai/runtime";
 import {
   saveAIProviderSchema,
   removeAIProviderSchema,
@@ -75,6 +76,9 @@ export async function POST(request: Request) {
         );
       }
       await saveAIProvider(parsed.data);
+      // A configuração mudou → o runtime (que alimenta IA Acessor, Gerador de
+      // Copy e Ideias) precisa reler do banco em vez de usar o cache curto.
+      invalidateRuntimeAICache();
       return NextResponse.json({ ok: true });
     }
 
@@ -84,6 +88,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Dados inválidos" }, { status: 400 });
       }
       await removeAIProvider(parsed.data.provider);
+      invalidateRuntimeAICache();
       return NextResponse.json({ ok: true });
     }
 
