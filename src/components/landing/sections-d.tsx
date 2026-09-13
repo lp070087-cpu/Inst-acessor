@@ -405,7 +405,7 @@ export function CtaFinal() {
 }
 
 const FOOTER_LINKS = [
-  { t: "Produto", links: [["Funcionalidades", "#ia"], ["Planos", "#planos"], ["FAQ", "#faq"]] },
+  { t: "Produto", links: [["Funcionalidades", "#dashboard"], ["Planos", "#planos"], ["FAQ", "#faq"]] },
   { t: "Plataforma", links: [["Entrar", "/login?from=landing"], ["Criar conta", "/cadastro"]] },
   { t: "Legal", links: [["Segurança", "#seguranca"], ["Termos de uso", "/termos"], ["Privacidade", "/privacidade"], ["Exclusão de dados", "/data-deletion"]] },
 ];

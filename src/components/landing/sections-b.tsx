@@ -19,11 +19,13 @@ import {
 } from "lucide-react";
 
 /* ============================================================
-   Bloco B — Score, IA, Diagnóstico, Estratégia, Nichos,
-   Calendário, Ideias, Gerador de Copy
+   Bloco B — Score, IA, Diagnóstico, Estratégia,
+   Nichos, Calendário, Ideias, Gerador de Copy
    Recriação fiel à apresentação aprovada (apresentacao/).
    A seção "Mentoria" (Direcionamento de quem entende de dados)
    foi removida no enxugamento da landing.
+   O "Dashboard" NÃO fica aqui — voltou para `sections-a.tsx`,
+   que é onde ele sempre morou.
    ============================================================ */
 
 const SCORE_PILLARS = [

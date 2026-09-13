@@ -3,7 +3,15 @@ import type { Metadata } from "next";
 import "./landing.css";
 
 import { LandingClient } from "@/components/landing/landing-client";
-import { Nav, Hero, Marquee, Problema, Solucao, ComoFunciona } from "@/components/landing/sections-a";
+import {
+  Nav,
+  Hero,
+  Marquee,
+  Problema,
+  Solucao,
+  ComoFunciona,
+  Dashboard,
+} from "@/components/landing/sections-a";
 import { IaAcessor, Diagnostico, Estrategia, GeradorCopy } from "@/components/landing/sections-b";
 import {
   Metas,
@@ -32,13 +40,18 @@ import {
  * ampliada com as seções da Fase 10.
  *
  * O QUE NÃO ESTÁ MAIS AQUI (removido a pedido — enxugamento da landing):
- *   • Dashboard            — bloco/mockup grande de métricas
  *   • Mentoria             — "Direcionamento de quem entende de dados"
  *   • PreviewSocial        — "Veja como vai ficar antes de publicar"
  *   • Timeline             — "Os momentos que marcaram sua evolução"
  *   • Diferencial          — "Mais do que métricas. Inteligência para agir."
  *   • CentralPublicacao    — "Publique com organização e segurança"
  *   • Bloco Antes/Depois   — "Números soltos, sem direção" (dentro de Problema)
+ *
+ * O Dashboard (bloco de métricas) foi REMOVIDO POR ENGANO no mesmo
+ * enxugamento e VOLTOU nesta rodada como 2ª seção — é a seção de fundo
+ * escuro com o gráfico de evolução de alcance. A implementação é a
+ * ORIGINAL (recuperada do histórico), de volta ao seu lugar em
+ * `sections-a.tsx`.
  *
  * As FUNCIONALIDADES correspondentes continuam intactas no aplicativo
  * (dashboard, preview social, publicação, rank, conquistas…). Apenas a
@@ -66,12 +79,16 @@ export default function HomePage() {
 
       <Hero />
 
-      <Marquee />
-
       {/* ============================================================
-          Ordem da página de venda — fluxo vertical contínuo.
-          As seções marcadas com ✂ foram removidas no enxugamento.
+          2ª SEÇÃO — DASHBOARD INTELIGENTE (fundo escuro).
+          É a seção escura com o GRÁFICO de evolução de alcance.
+          Voltou nesta rodada: tinha sido removida por engano junto
+          com o enxugamento. Posição conforme a apresentação aprovada
+          (`apresentacao/_parts/04-dashboard.html`).
           ============================================================ */}
+      <Dashboard />
+
+      <Marquee />
 
       {/* Diagnóstico */}
       <Diagnostico />

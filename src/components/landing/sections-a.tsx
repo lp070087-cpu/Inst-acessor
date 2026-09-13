@@ -9,6 +9,8 @@ import {
   EyeOff,
   Calendar,
   AlertTriangle,
+  ArrowUpRight,
+  ArrowDownRight,
 } from "lucide-react";
 
 /* ============================================================
@@ -29,7 +31,7 @@ export function LogoMark() {
 
 const NAV_LINKS = [
   { href: "#como-funciona", label: "Como funciona" },
-  { href: "#ia", label: "Funcionalidades" },
+  { href: "#dashboard", label: "Funcionalidades" },
   { href: "#ia", label: "Inteligência" },
   { href: "#estrategia", label: "Estratégia" },
   { href: "#seguranca", label: "Segurança" },
@@ -414,4 +416,209 @@ export function ComoFunciona() {
   );
 }
 
-export const SectionsA = [Nav, Hero, Marquee, Problema, Solucao, ComoFunciona];
+/* ============================================================
+   DASHBOARD INTELIGENTE — 2ª seção da página (fundo escuro)
+   ------------------------------------------------------------
+   É a seção de fundo escuro (`.lnd-console`) com o GRÁFICO de
+   evolução de alcance. Implementação ORIGINAL, recuperada do
+   histórico (o componente tinha sido removido por engano).
+   Não é reconstrução por aproximação: o código abaixo é o mesmo
+   que existia em `sections-a.tsx` antes do enxugamento.
+   ============================================================ */
+
+function ChartSvg() {
+  return (
+    <svg viewBox="0 0 560 180" className="lnd-chart-svg" role="img" aria-label="Gráfico de evolução de alcance">
+      <defs>
+        <linearGradient id="lndAreaGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#8B5CF6" stopOpacity="0.28" />
+          <stop offset="1" stopColor="#8B5CF6" stopOpacity="0" />
+        </linearGradient>
+        <linearGradient id="lndLineGrad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#F43F8E" />
+          <stop offset="0.5" stopColor="#A855F7" />
+          <stop offset="1" stopColor="#6366F1" />
+        </linearGradient>
+      </defs>
+      {/* Eixo Y à esquerda: valores de alcance alinhados às linhas de grade */}
+      {[
+        { y: 26, lbl: "192k" },
+        { y: 62, lbl: "156k" },
+        { y: 98, lbl: "120k" },
+        { y: 134, lbl: "84k" },
+        { y: 170, lbl: "48k" },
+      ].map(({ y, lbl }) => (
+        <g key={y}>
+          <line x1="42" y1={y} x2="552" y2={y} className="lnd-grid-line" />
+          <text x="8" y={y + 4} className="lnd-axis-txt" textAnchor="start">
+            {lbl}
+          </text>
+        </g>
+      ))}
+      {/* Eixo X discreto: período (dias da semana) */}
+      {[
+        { x: 127, lbl: "Seg" },
+        { x: 212, lbl: "Ter" },
+        { x: 297, lbl: "Qua" },
+        { x: 382, lbl: "Qui" },
+        { x: 467, lbl: "Sex" },
+        { x: 552, lbl: "Sáb" },
+      ].map(({ x, lbl }) => (
+        <text key={x} x={x} y="176" className="lnd-axis-txt" textAnchor="middle">
+          {lbl}
+        </text>
+      ))}
+      <path
+        d="M42,158 C82,152 128,145 172,134 C216,122 252,110 297,98 C342,86 384,72 427,62 C472,52 512,38 552,26 L552,172 L42,172 Z"
+        className="lnd-area"
+      />
+      <path
+        d="M42,158 C82,152 128,145 172,134 C216,122 252,110 297,98 C342,86 384,72 427,62 C472,52 512,38 552,26"
+        pathLength={1}
+        className="lnd-line"
+      />
+      {[
+        [172, 134],
+        [297, 98],
+        [427, 62],
+        [552, 26],
+      ].map(([x, y], i) => (
+        <circle key={i} cx={x} cy={y} r="4.5" className="lnd-dot" data-dot={i} />
+      ))}
+    </svg>
+  );
+}
+
+const KPIS: {
+  lbl: string;
+  val: number;
+  suffix: string;
+  trend: string;
+  dir: "up" | "down" | "warn";
+  sub: string;
+  decimals?: number;
+}[] = [
+  { lbl: "Seguidores", val: 12840, suffix: "", trend: "▲ 4,8%", dir: "up", sub: "+412 em 30 dias" },
+  { lbl: "Engajamento", val: 6.4, suffix: "%", trend: "▲ 1,2%", dir: "up", sub: "média do período", decimals: 1 },
+  { lbl: "Alcance", val: 86400, suffix: "", trend: "▲ 32%", dir: "up", sub: "últimos 30 dias" },
+  { lbl: "Visualizações", val: 129600, suffix: "", trend: "▲ 18%", dir: "up", sub: "total no mês" },
+  { lbl: "Reels", val: 2.1, suffix: "x", trend: "▲ 2,1x", dir: "up", sub: "desempenho vs média", decimals: 1 },
+  { lbl: "Stories", val: 3120, suffix: "", trend: "◆ 0,4%", dir: "warn", sub: "visualizações" },
+];
+
+type CompareRow = { name: string; val: string; delta: string; dir: "up" | "down" | "warn" };
+
+const COMPARE: { title: string; rows: CompareRow[] }[] = [
+  {
+    title: "Crescimento semanal",
+    rows: [
+      { name: "Semana atual", val: "+118", delta: "▲ 12%", dir: "up" },
+      { name: "Semana anterior", val: "+96", delta: "▲ 8%", dir: "up" },
+      { name: "Melhor dia", val: "Terça +34", delta: "◆ estável", dir: "warn" },
+      { name: "Ganhos", val: "+1.284", delta: "▲", dir: "up" },
+      { name: "Perdas", val: "-312", delta: "▼", dir: "down" },
+    ],
+  },
+  {
+    title: "Crescimento mensal",
+    rows: [
+      { name: "Este mês", val: "+412", delta: "▲ 18%", dir: "up" },
+      { name: "Mês anterior", val: "+348", delta: "▲ 9%", dir: "up" },
+      { name: "Salvamentos", val: "+2.1k", delta: "▲ 24%", dir: "up" },
+      { name: "Compartilhamentos", val: "+840", delta: "▲ 16%", dir: "up" },
+      { name: "Comparação 90d", val: "+38%", delta: "▲", dir: "up" },
+    ],
+  },
+];
+
+export function Dashboard() {
+  return (
+    <section className="lnd-section lnd-console" id="dashboard">
+      <span id="funcionalidades" className="lnd-anchor" aria-hidden="true" />
+      <div className="lnd-container">
+        <div className="lnd-section-head lnd-reveal">
+          <span className="lnd-eyebrow">Dashboard</span>
+          <h2 className="lnd-h2">
+            Seus números, lidos com <span className="lnd-grad">inteligência</span>
+          </h2>
+          <p className="lnd-lead">
+            O painel reúne tudo o que importa: KPIs, evolução de alcance e comparação entre
+            períodos — para você decidir com clareza.
+          </p>
+          <span className="lnd-demo-badge" style={{ marginTop: 14 }}>
+            Dados de demonstração
+          </span>
+        </div>
+
+        <div className="lnd-kpi-grid">
+          {KPIS.map((k, i) => (
+            <div className="lnd-kpi-card lnd-reveal" data-delay={String(i + 1)} key={k.lbl}>
+              <div className="lnd-k-top">
+                <span className="lnd-k-lbl">{k.lbl}</span>
+                <span className={`lnd-k-trend lnd-${k.dir}`}>
+                  {k.dir === "up" ? <ArrowUpRight /> : k.dir === "down" ? <ArrowDownRight /> : null}
+                  {k.trend}
+                </span>
+              </div>
+              <div className="lnd-k-num">
+                <b data-count={k.val} data-decimals={k.decimals ?? 0} data-suffix={k.suffix}>
+                  {k.decimals
+                    ? k.val.toFixed(k.decimals).replace(".", ",") + k.suffix
+                    : k.val.toLocaleString("pt-BR") + k.suffix}
+                </b>
+              </div>
+              <div className="lnd-k-sub">{k.sub}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="lnd-chart-card lnd-reveal" style={{ marginTop: 16 }}>
+          <div className="lnd-k-top">
+            <span className="lnd-k-lbl">Evolução de alcance</span>
+            <span className="lnd-k-trend lnd-up">
+              <ArrowUpRight />
+              32%
+            </span>
+          </div>
+          <ChartSvg />
+        </div>
+
+        <div className="lnd-compare-grid" style={{ marginTop: 18 }}>
+          {COMPARE.map((col, ci) => (
+            <div className="lnd-compare-card lnd-reveal" data-delay={String(ci + 1)} key={col.title}>
+              <h4>{col.title}</h4>
+              {col.rows.map((c) => (
+                <div className="lnd-compare-row" key={c.name}>
+                  <span className="lnd-c-name">{c.name}</span>
+                  <span className="lnd-c-val">{c.val}</span>
+                  <span className={`lnd-c-delta lnd-${c.dir}`}>{c.delta}</span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+
+        <div className="lnd-bench-strip lnd-reveal" style={{ marginTop: 18 }}>
+          <span className="lnd-bench-label">Benchmark do nicho</span>
+          <span className="lnd-bench-item">
+            <b>6,4%</b>
+            <span>seu engajamento</span>
+          </span>
+          <span className="lnd-bench-item">
+            <b>4,1%</b>
+            <span>média do nicho</span>
+          </span>
+          <span className="lnd-bench-item lnd-up">
+            <b>▲ 2,3 p.p.</b>
+            <span>acima da média</span>
+          </span>
+          <span className="lnd-bench-note">
+            Análise comparativa contextual — dados de demonstração.
+          </span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export const SectionsA = [Nav, Hero, Marquee, Problema, Solucao, ComoFunciona, Dashboard];
