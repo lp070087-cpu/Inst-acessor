@@ -5,15 +5,8 @@ import {
   ShieldCheck,
   Instagram,
   Music2,
-  Film,
-  Image,
-  Layers,
   Clock,
-  CalendarClock,
   Bot,
-  MessageCircle,
-  Send,
-  Repeat,
   Lock,
   KeyRound,
   Database,
@@ -21,180 +14,13 @@ import {
   Settings,
   ChevronDown,
   Workflow,
-  Rocket,
-  Play,
-  Bell,
-  Bookmark,
-  Heart,
   Info,
 } from "lucide-react";
 
 /* ============================================================
-   Bloco D — Preview Social, Central de Publicação, Automações,
-   Redes Sociais, Segurança, Planos, FAQ, CTA Final, Footer
+   Bloco D — Automações, Redes Sociais, Segurança, Planos, FAQ,
+   CTA Final, Footer
    ============================================================ */
-
-const PREVIEW_ITEMS = [
-  { ic: Film, t: "Visualize antes de publicar", d: "Veja como seu Reel, story ou carrossel aparece no feed real." },
-  { ic: Image, t: "Múltiplos formatos", d: "Carrossel, vídeo vertical, stories e fotos — tudo em preview fiel." },
-  { ic: Layers, t: "Monte a sequência", d: "Organize os slides e a ordem antes de agendar." },
-  { ic: CalendarClock, t: "Agende tudo", d: "Programe para vários dias e edite depois pelo calendário." },
-];
-
-export function PreviewSocial() {
-  return (
-    <section className="lnd-section">
-      <div className="lnd-container">
-        <div className="lnd-section-head lnd-center lnd-reveal">
-          <span className="lnd-eyebrow">Preview social</span>
-          <h2 className="lnd-h2">
-            Veja como vai ficar <span className="lnd-grad">antes de publicar</span>
-          </h2>
-          <p className="lnd-lead">
-            Crie, pré-visualize e agende o conteúdo com a cara do seu perfil — sem surpresa na hora
-            de ir ao ar.
-          </p>
-        </div>
-
-        <div className="lnd-preview-wrap">
-          <div className="lnd-preview-list">
-            {PREVIEW_ITEMS.map((p, i) => (
-              <div className="lnd-preview-item lnd-reveal" data-dir="left" data-delay={String(i + 1)} key={p.t}>
-                <span className="lnd-p-ic">
-                  <p.ic />
-                </span>
-                <span>
-                  <b>{p.t}</b>
-                  <span>{p.d}</span>
-                </span>
-              </div>
-            ))}
-          </div>
-
-          <div className="lnd-preview-phones lnd-reveal" data-dir="right">
-            <div className="lnd-phone lnd-phone-a" aria-hidden="true">
-              <div className="lnd-phone-screen">
-                <div className="lnd-phone-status">
-                  <span className="lnd-st-time">9:41</span>
-                  <span className="lnd-st-island" />
-                  <span className="lnd-st-icons">
-                    <i />
-                    <i />
-                    <i />
-                  </span>
-                </div>
-                <div className="lnd-phone-top">
-                  <span className="lnd-av">V</span>
-                  <span>
-                    <span className="lnd-uname">sua.marca</span>
-                    <span className="lnd-usub">Patrocinado · 21h</span>
-                  </span>
-                </div>
-                <div className="lnd-phone-media">
-                  <Play size={42} />
-                  <span className="lnd-vtag">Reel · 0:18</span>
-                </div>
-                <div className="lnd-phone-actions">
-                  <Heart size={19} />
-                  <MessageCircle size={19} />
-                  <Send size={19} />
-                  <Bookmark size={19} />
-                </div>
-                <div className="lnd-phone-likes">
-                  <b>12.408</b> curtidas
-                </div>
-                <div className="lnd-phone-caption">
-                  <b>sua.marca</b> Novo conteúdo no ar! 🔥 <span className="lnd-hl">#estrategia</span>{" "}
-                  <span className="lnd-hl">#instagram</span>
-                  <br />
-                  <span style={{ color: "var(--lnd-ink-3)", fontSize: 11 }}>há 2 horas · ver tradução</span>
-                </div>
-              </div>
-            </div>
-            <div className="lnd-phone lnd-phone-b" aria-hidden="true">
-              <div className="lnd-phone-screen">
-                <div className="lnd-phone-status">
-                  <span className="lnd-st-time">9:41</span>
-                  <span className="lnd-st-island" />
-                  <span className="lnd-st-icons">
-                    <i />
-                    <i />
-                    <i />
-                  </span>
-                </div>
-                <div className="lnd-phone-top">
-                  <span className="lnd-av">V</span>
-                  <span>
-                    <span className="lnd-uname">sua.marca</span>
-                    <span className="lnd-usub">Patrocinado · 21h</span>
-                  </span>
-                </div>
-                <div className="lnd-phone-media">
-                  <Play size={42} />
-                  <span className="lnd-vtag">Carrossel · 5 slides</span>
-                </div>
-                <div className="lnd-phone-actions">
-                  <Heart size={19} />
-                  <MessageCircle size={19} />
-                  <Send size={19} />
-                  <Bookmark size={19} />
-                </div>
-                <div className="lnd-phone-likes">
-                  <b>8.231</b> curtidas
-                </div>
-                <div className="lnd-phone-caption">
-                  <b>sua.marca</b> Os bastidores do novo lookbook ✨{" "}
-                  <span className="lnd-hl">#moda</span> <span className="lnd-hl">#lookbook</span>
-                  <br />
-                  <span style={{ color: "var(--lnd-ink-3)", fontSize: 11 }}>há 5 horas · ver tradução</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-const PUBLISHING_ITEMS = [
-  { ic: CalendarClock, t: "Agendamento", d: "Programe Reels, stories e carrosséis para o melhor horário." },
-  { ic: Rocket, t: "Publicação direta", d: "Publique com confirmação real do Instagram e TikTok conectados." },
-  { ic: Repeat, t: "Retry automático", d: "Se falhar, o sistema tenta novamente e registra o status." },
-  { ic: Bell, t: "Status em tempo real", d: "Acompanhe agendado, publicado ou com erro — tudo na central." },
-];
-
-export function CentralPublicacao() {
-  return (
-    <section className="lnd-section">
-      <div className="lnd-container">
-        <div className="lnd-section-head lnd-center lnd-reveal">
-          <span className="lnd-eyebrow">Central de publicação</span>
-          <h2 className="lnd-h2">
-            Publique com <span className="lnd-grad">organização e segurança</span>
-          </h2>
-          <p className="lnd-lead">
-            Uma central que gerencia agendamentos, fila de publicação e resultados — sem
-            improviso de última hora.
-          </p>
-        </div>
-
-        <div className="lnd-pipeline">
-          {PUBLISHING_ITEMS.map((p, i) => (
-            <div className="lnd-pipe-step lnd-reveal" data-delay={String((i % 2) + 1)} key={p.t}>
-              <span className="lnd-a-ic">
-                <p.ic />
-              </span>
-              <h3>{p.t}</h3>
-              <p>{p.d}</p>
-              <span className="lnd-status-pill lnd-ready">Disponível</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
 
 const AUTOMACOES_READY = [
   { t: "Growth Engine", d: "Sua rotina de crescimento em um só lugar: missão do dia, padrões, experimentos e score." },
@@ -578,8 +404,8 @@ export function CtaFinal() {
 }
 
 const FOOTER_LINKS = [
-  { t: "Produto", links: [["Funcionalidades", "#funcionalidades"], ["Planos", "#planos"], ["FAQ", "#faq"]] },
-  { t: "Plataforma", links: [["Entrar", "/login"], ["Criar conta", "/cadastro"]] },
+  { t: "Produto", links: [["Funcionalidades", "#ia"], ["Planos", "#planos"], ["FAQ", "#faq"]] },
+  { t: "Plataforma", links: [["Entrar", "/login?from=landing"], ["Criar conta", "/cadastro"]] },
   { t: "Legal", links: [["Segurança", "#seguranca"], ["Termos de uso", "/termos"], ["Privacidade", "/privacidade"], ["Exclusão de dados", "/data-deletion"]] },
 ];
 
@@ -632,4 +458,4 @@ export function Footer() {
   );
 }
 
-export const SectionsD = [PreviewSocial, CentralPublicacao, Automacoes, RedesSociais, Seguranca, Planos, Faq, CtaFinal, Footer];
+export const SectionsD = [Automacoes, RedesSociais, Seguranca, Planos, Faq, CtaFinal, Footer];

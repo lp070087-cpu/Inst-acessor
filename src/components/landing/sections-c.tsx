@@ -15,21 +15,12 @@ import {
   Film,
   Image,
   Layers,
-  Compass,
-  CheckCircle2,
-  Shield,
-  Calendar,
-  Link2,
   Gauge,
   PenLine,
   User,
   Share2,
-  TrendingDown,
-  Search,
-  X,
   History,
   Clock,
-  CircleCheck,
   Heart,
   MessageCircle,
   Send,
@@ -40,7 +31,7 @@ import { LogoMark } from "./sections-a";
 
 /* ============================================================
    Bloco C — Metas, XP, Rank, Conquistas, Badges,
-   Timeline, Análise de Conteúdos, Perfil, Histórico, Diferencial
+   Análise de Conteúdos, Perfil, Histórico
    Recriação fiel à apresentação aprovada (apresentacao/).
    ============================================================ */
 
@@ -409,92 +400,6 @@ export function Badges() {
             </div>
           ))}
         </div>
-      </div>
-    </section>
-  );
-}
-
-const TL_PANELS: { id: string; label: string; cards: { ic: typeof Trophy; t: string; val: string; date: string }[] }[] = [
-  {
-    id: "tl-hoje",
-    label: "Hoje",
-    cards: [
-      { ic: Search, t: "Melhor dia de alcance", val: "18,2k", date: "Hoje · Reel das 19h30" },
-      { ic: Gauge, t: "Melhor dia de engajamento", val: "8,9%", date: "Hoje · Stories + Reel" },
-      { ic: User, t: "Maior pico de seguidores", val: "+54", date: "Hoje · manhã" },
-      { ic: TrendingUp, t: "Maior ganho diário", val: "+96", date: "Hoje · 24h" },
-      { ic: TrendingDown, t: "Maior queda diária", val: "-18", date: "Hoje · madrugada" },
-    ],
-  },
-  {
-    id: "tl-7d",
-    label: "7d",
-    cards: [
-      { ic: Search, t: "Melhor dia de alcance", val: "42,6k", date: "Terça · Reel viral leve" },
-      { ic: Gauge, t: "Melhor dia de engajamento", val: "9,4%", date: "Terça · +212 comentários" },
-      { ic: User, t: "Maior pico de seguidores", val: "+118", date: "Terça · 19h30" },
-      { ic: TrendingUp, t: "Maior ganho diário", val: "+118", date: "Terça · pico semanal" },
-      { ic: TrendingDown, t: "Maior queda diária", val: "-31", date: "Domingo · sem publicação" },
-    ],
-  },
-  {
-    id: "tl-30d",
-    label: "30d",
-    cards: [
-      { ic: Search, t: "Melhor dia de alcance", val: "210k", date: "12/08 · Reel de maior alcance" },
-      { ic: Gauge, t: "Melhor dia de engajamento", val: "11,2%", date: "12/08 · carrossel salvamentos" },
-      { ic: User, t: "Maior pico de seguidores", val: "+412", date: "Semana do dia 12/08" },
-      { ic: TrendingUp, t: "Maior ganho diário", val: "+96", date: "12/08 · pico mensal" },
-      { ic: TrendingDown, t: "Maior queda diária", val: "-48", date: "02/08 · pós-pico de Reel" },
-    ],
-  },
-  {
-    id: "tl-90d",
-    label: "90d",
-    cards: [
-      { ic: Search, t: "Melhor dia de alcance", val: "312k", date: "23/06 · Reel de maior alcance" },
-      { ic: Gauge, t: "Melhor dia de engajamento", val: "13,1%", date: "23/06 · viral de Reel" },
-      { ic: User, t: "Maior pico de seguidores", val: "+1.284", date: "Jun · melhor semana" },
-      { ic: TrendingUp, t: "Maior ganho diário", val: "+340", date: "23/06 · pico trimestral" },
-      { ic: TrendingDown, t: "Maior queda diária", val: "-64", date: "28/06 · correção pós-viral" },
-    ],
-  },
-];
-
-export function Timeline() {
-  return (
-    <section className="lnd-section" id="timeline">
-      <div className="lnd-container">
-        <div className="lnd-section-head lnd-center lnd-reveal">
-          <span className="lnd-eyebrow">Timeline de crescimento</span>
-          <h2 className="lnd-h2">
-            Os momentos que <span className="lnd-grad">marcaram sua evolução.</span>
-          </h2>
-          <p className="lnd-lead">Destaques do seu histórico, com filtro por período.</p>
-        </div>
-
-        <div className="lnd-timeline-tabs lnd-reveal" data-tabs="tl-">
-          {TL_PANELS.map((p) => (
-            <button className="lnd-timeline-tab" data-tab-target={p.id} key={p.id}>
-              {p.label}
-            </button>
-          ))}
-        </div>
-
-        {TL_PANELS.map((p) => (
-          <div className="lnd-timeline-grid" id={p.id} data-tab-panel key={p.id}>
-            {p.cards.map((c, i) => (
-              <div className="lnd-tl-card lnd-reveal" data-delay={String(i + 1)} key={c.t}>
-                <span className="lnd-tl-ic">
-                  <c.ic size={20} />
-                </span>
-                <h3>{c.t}</h3>
-                <div className="lnd-tl-val">{c.val}</div>
-                <div className="lnd-tl-date">{c.date}</div>
-              </div>
-            ))}
-          </div>
-        ))}
       </div>
     </section>
   );
@@ -908,66 +813,4 @@ export function Historico() {
   );
 }
 
-export function Diferencial() {
-  return (
-    <section className="lnd-section" id="diferencial">
-      <div className="lnd-container">
-        <div className="lnd-section-head lnd-center lnd-reveal">
-          <span className="lnd-eyebrow">Diferencial</span>
-          <h2 className="lnd-h2">
-            Mais do que métricas. <span className="lnd-grad">Inteligência para agir.</span>
-          </h2>
-          <p className="lnd-lead">
-            Enquanto ferramentas tradicionais mostram números, o Inst Acessor entrega o caminho
-            completo até a ação.
-          </p>
-        </div>
-
-        <div className="lnd-diff-wrap">
-          <div className="lnd-diff-col lnd-diff-traditional lnd-reveal" data-dir="left">
-            <h3>Ferramentas tradicionais</h3>
-            {[
-              "Mostram números brutos",
-              "Sem diagnóstico",
-              "Sem plano de ação",
-              "Você precisa saber interpretar",
-              "Sem motivação de longo prazo",
-            ].map((t) => (
-              <div className="lnd-dt-item" key={t}>
-                <span className="lnd-ic lnd-bad">
-                  <X />
-                </span>
-                {t}
-              </div>
-            ))}
-          </div>
-
-          <div className="lnd-diff-col lnd-diff-acessor lnd-reveal" data-dir="right" data-delay="2">
-            <h3>
-              <span className="lnd-logo-mark">
-                <LogoMark />
-              </span>{" "}
-              Inst Acessor
-            </h3>
-            {[
-              "Dados organizados e legíveis",
-              "Diagnóstico claro por pilar",
-              "Estratégia e próximas ações",
-              "Oportunidades detectadas",
-              "Metas, XP e evolução",
-            ].map((t) => (
-              <div className="lnd-dt-item" key={t}>
-                <span className="lnd-ic">
-                  <CircleCheck />
-                </span>
-                {t}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-export const SectionsC = [Metas, Xp, Rank, Conquistas, Badges, Timeline, AnaliseConteudos, Perfil, Historico, Diferencial];
+export const SectionsC = [Metas, Xp, Rank, Conquistas, Badges, AnaliseConteudos, Perfil, Historico];

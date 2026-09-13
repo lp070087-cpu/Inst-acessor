@@ -5,8 +5,19 @@ export default withAuth(
   function middleware(req) {
     const token = req.nextauth.token;
 
-    // Se autenticado e tentando acessar páginas de auth, vai para o dashboard
-    if (token && req.nextUrl.pathname.startsWith("/login")) {
+    // LOGIN — usuário já autenticado que abre /login de propósito vai direto
+    // para o app. Isso é conveniente (o login não faz sentido para quem já tem
+    // sessão), MAS só pode acontecer quando a intenção é realmente entrar.
+    //
+    // O botão "Entrar" da LANDING aponta para `/login?from=landing`. Sem esta
+    // guarda, um visitante com sessão ainda válida no navegador clicava em
+    // "Entrar" e era jogado direto no dashboard, sem nunca ver a tela de login
+    // — exatamente o problema relatado. Com `from=landing` o redirect é
+    // suprimido e a tela de login é exibida de fato.
+    const isLogin = req.nextUrl.pathname.startsWith("/login");
+    const explicitLogin = req.nextUrl.searchParams.get("from") === "landing";
+
+    if (token && isLogin && !explicitLogin) {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
 

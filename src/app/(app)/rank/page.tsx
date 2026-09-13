@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Trophy } from "lucide-react";
 
 import { requireOnboardedSession } from "@/lib/auth/guard";
 import {
@@ -53,18 +52,10 @@ export default async function RankPage() {
   ]);
 
   return (
+    // O título "Rank" agora vive DENTRO da superfície dark premium, no
+    // RankClient — mantém a hierarquia coesa e evita a página branca acima
+    // do painel. O h1 continua sendo o único h1 da página.
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="font-display text-[26px] font-bold text-ink flex items-center gap-2.5">
-          <Trophy size={26} className="text-purple" />
-          Rank
-        </h1>
-        <p className="text-[13.5px] text-ink-soft mt-1">
-          Progressão por XP, metas estratégicas, conquistas e sua posição no ranking.
-          Tudo derivado de ações reais — nunca inventado.
-        </p>
-      </div>
-
       <RankClient
         initial={{
           progress: {

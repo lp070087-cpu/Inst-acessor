@@ -119,7 +119,7 @@ export function AppSidebar({
                 collapsed={collapsed}
               />
             ))}
-            <SidebarNavItem item={{ label: "Sair", href: "#", icon: LogOut, description: "Encerrar sessão" }} collapsed={collapsed} isSignOut />
+            <SidebarNavItem item={{ label: "Sair", href: "/login", icon: LogOut, description: "Encerrar sessão" }} collapsed={collapsed} isSignOut />
           </div>
         </nav>
 
@@ -176,7 +176,7 @@ export function AppSidebar({
                 {bottomNav.map((item) => (
                   <SidebarNavItem key={item.href} item={item} active={isActive(item.href)} />
                 ))}
-                <SidebarNavItem item={{ label: "Sair", href: "/api/auth/signout", icon: LogOut, description: "Encerrar sessão" }} isSignOut />
+                <SidebarNavItem item={{ label: "Sair", href: "/login", icon: LogOut, description: "Encerrar sessão" }} isSignOut />
               </div>
             </nav>
             <div className="p-4 border-t border-border-soft flex-none flex items-center gap-3">

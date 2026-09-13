@@ -3,37 +3,19 @@ import type { Metadata } from "next";
 import "./landing.css";
 
 import { LandingClient } from "@/components/landing/landing-client";
-import {
-  Nav,
-  Hero,
-  Marquee,
-  Problema,
-  Solucao,
-  ComoFunciona,
-  Dashboard,
-} from "@/components/landing/sections-a";
-import {
-  IaAcessor,
-  Diagnostico,
-  Estrategia,
-  GeradorCopy,
-  Mentoria,
-} from "@/components/landing/sections-b";
+import { Nav, Hero, Marquee, Problema, Solucao, ComoFunciona } from "@/components/landing/sections-a";
+import { IaAcessor, Diagnostico, Estrategia, GeradorCopy } from "@/components/landing/sections-b";
 import {
   Metas,
   Xp,
   Rank,
   Conquistas,
   Badges,
-  Timeline,
   AnaliseConteudos,
   Perfil,
   Historico,
-  Diferencial,
 } from "@/components/landing/sections-c";
 import {
-  PreviewSocial,
-  CentralPublicacao,
   Automacoes,
   RedesSociais,
   Seguranca,
@@ -46,11 +28,21 @@ import {
 /**
  * Página de venda oficial do Inst Acessor.
  *
- * Substitui a antiga página placeholder (que tinha apenas o HERO) pela
- * apresentação comercial completa, portada da apresentação aprovada
- * (`apresentacao/`) e ampliada com as seções exigidas na Fase 10:
- * Solução, Preview Social, Central de Publicação, Automações,
- * Redes Sociais, Planos e FAQ.
+ * Apresentação comercial portada da apresentação aprovada (`apresentacao/`) e
+ * ampliada com as seções da Fase 10.
+ *
+ * O QUE NÃO ESTÁ MAIS AQUI (removido a pedido — enxugamento da landing):
+ *   • Dashboard            — bloco/mockup grande de métricas
+ *   • Mentoria             — "Direcionamento de quem entende de dados"
+ *   • PreviewSocial        — "Veja como vai ficar antes de publicar"
+ *   • Timeline             — "Os momentos que marcaram sua evolução"
+ *   • Diferencial          — "Mais do que métricas. Inteligência para agir."
+ *   • CentralPublicacao    — "Publique com organização e segurança"
+ *   • Bloco Antes/Depois   — "Números soltos, sem direção" (dentro de Problema)
+ *
+ * As FUNCIONALIDADES correspondentes continuam intactas no aplicativo
+ * (dashboard, preview social, publicação, rank, conquistas…). Apenas a
+ * divulgação delas na página de venda foi retirada.
  *
  * Preserva a identidade visual aprovada: paleta, gradientes, tipografia,
  * animações e estilo premium. Dados simulados sempre rotulados.
@@ -59,7 +51,7 @@ import {
 export const metadata: Metadata = {
   title: "Inst Acessor — Inteligência para o crescimento do seu Instagram",
   description:
-    "Transforme dados do Instagram em decisões de crescimento. Dashboard, IA, calendário, automações e score — tudo em um só lugar.",
+    "Transforme dados do Instagram em decisões de crescimento. IA, estratégia, metas e XP — tudo em um só lugar.",
 };
 
 export default function HomePage() {
@@ -77,44 +69,25 @@ export default function HomePage() {
       <Marquee />
 
       {/* ============================================================
-          Ordem da página de venda (fonte de verdade: pasta da ordem)
-          Prints 01–10 → seções logo abaixo do Hero + letreiro.
-          Demais seções preservadas, em sequência comercial coerente.
+          Ordem da página de venda — fluxo vertical contínuo.
+          As seções marcadas com ✂ foram removidas no enxugamento.
           ============================================================ */}
 
-      {/* Print 01 — Dashboard */}
-      <Dashboard />
-
-      {/* Print 02 — Diagnóstico */}
+      {/* Diagnóstico */}
       <Diagnostico />
 
-      {/* Print 03 — Gerador de Copy */}
+      {/* Gerador de Copy */}
       <GeradorCopy />
 
-      {/* Print 04 — Mentoria */}
-      <Mentoria />
-
-      {/* Print 05 — XP */}
+      {/* XP */}
       <Xp />
 
-      {/* Print 06 — Rank */}
+      {/* Rank */}
       <Rank />
 
-      {/* Seções do storytelling — agora em fluxo VERTICAL normal.
-          As etapas Badges → Análise → Preview → Redes → Problema →
-          Solução → Como Funciona → IA → Estratégia (unificada com
-          os Alertas Inteligentes) → Metas seguem empilhadas, sem
-          pin/scroll horizontal.
-          (A seção de Score foi removida da página de vendas; a
-          funcionalidade /score continua no aplicativo. Nichos,
-          Calendário e Ideias também foram removidas da página de
-          vendas; as funcionalidades correspondentes continuam no
-          aplicativo.) */}
       <Badges />
 
       <AnaliseConteudos />
-
-      <PreviewSocial />
 
       <RedesSociais />
 
@@ -132,15 +105,9 @@ export default function HomePage() {
 
       <Conquistas />
 
-      <Timeline />
-
       <Perfil />
 
       <Historico />
-
-      <Diferencial />
-
-      <CentralPublicacao />
 
       <Automacoes />
 

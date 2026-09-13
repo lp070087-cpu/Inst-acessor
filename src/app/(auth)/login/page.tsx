@@ -8,9 +8,19 @@ export const metadata: Metadata = {
   description: "Acesse sua conta no Inst Acessor.",
 };
 
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams?: { from?: string };
+}) {
+  // Guarda equivalente à do middleware (defesa em profundidade): quando o
+  // usuário chega pelo botão "Entrar" da landing (`?from=landing`), a tela de
+  // login é SEMPRE exibida — mesmo que já exista sessão no navegador. Sem isso
+  // o servidor redirecionava para /dashboard e o login nunca aparecia.
+  const explicitLogin = searchParams?.from === "landing";
+
   const session = await getSession();
-  if (session?.user) {
+  if (session?.user && !explicitLogin) {
     redirect("/dashboard");
   }
 

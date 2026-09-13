@@ -16,7 +16,7 @@ import * as React from "react";
  *  - Anéis de score        `[data-ring]`
  *  - Nav fixa com fundo ao rolar + menu mobile
  *  - Scroll suave para âncoras
- *  - Abas `[data-tabs]` (Gerador de Copy, Timeline, Histórico)
+ *  - Abas `[data-tabs]` (Gerador de Copy, Histórico)
  *  - FAQ acordeão
  *  - Spotlight sutil que segue o cursor
  *  - Ano automático no rodapé
@@ -254,8 +254,8 @@ export function LandingClient() {
       const firstId = firstBtn?.dataset.tabTarget;
       if (firstBtn) firstBtn.classList.add("lnd-active");
       // Cada grupo de abas controla APENAS os painéis dentro do seu próprio
-      // container (Gerador de Copy, Timeline e Histórico são grupos
-      // independentes na página).
+      // container (Gerador de Copy e Histórico são grupos independentes
+      // na página).
       const container = tabs.closest<HTMLElement>(".lnd-copy-output") ?? tabs.parentElement;
       container?.querySelectorAll<HTMLElement>("[data-tab-panel]").forEach((p) => {
         p.style.display = p.id === firstId ? "" : "none";

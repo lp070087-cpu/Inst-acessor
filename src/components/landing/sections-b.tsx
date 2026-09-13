@@ -19,9 +19,11 @@ import {
 } from "lucide-react";
 
 /* ============================================================
-   Bloco B — Score, IA, Diagnóstico, Alertas, Estratégia,
-   Nichos, Calendário, Ideias, Gerador de Copy, Mentoria
+   Bloco B — Score, IA, Diagnóstico, Estratégia, Nichos,
+   Calendário, Ideias, Gerador de Copy
    Recriação fiel à apresentação aprovada (apresentacao/).
+   A seção "Mentoria" (Direcionamento de quem entende de dados)
+   foi removida no enxugamento da landing.
    ============================================================ */
 
 const SCORE_PILLARS = [
@@ -124,7 +126,7 @@ export function IaAcessor() {
   return (
     <section className="lnd-section" id="ia">
       <div className="lnd-container">
-        <div className="lnd-section-head lnd-reveal">
+        <div className="lnd-section-head lnd-center lnd-reveal">
           <span className="lnd-eyebrow">IA Acessor</span>
           <h2 className="lnd-h2">
             Sua <span className="lnd-grad">assistente de crescimento</span>
@@ -612,53 +614,4 @@ export function GeradorCopy() {
   );
 }
 
-const MENTORIAS = [
-  { cat: "Alcance", prob: "Reels perderam força", expl: "Ajuste de horários, frequência e ganchos de retenção.", action: "Testar novo cronograma de Reels por 2 semanas", pri: "high" },
-  { cat: "Engajamento", prob: "Poucos comentários", expl: "Chamadas para ação mais naturais e perguntas abertas.", action: "Aplicar CTA de comentário nas próximas legendas", pri: "med" },
-  { cat: "Posicionamento", prob: "Perfil sem foco", expl: "Definir tema central e linha editorial consistente.", action: "Redigir bio e temas fixos de conteúdo", pri: "med" },
-  { cat: "Conversão", prob: "Seguidores não compram", expl: "Trilha de conteúdo que aquece do interesse à venda.", action: "Criar sequência de conteúdo de autoridade", pri: "high" },
-  { cat: "Consistência", prob: "Rotina irregular", expl: "Calendário realista com blocos de criação.", action: "Montar rotina semanal de criação", pri: "low" },
-  { cat: "Novos formatos", prob: "Receio de sair da zona", expl: "Testes controlados com métricas de comparação.", action: "Publicar 2 formatos novos por mês", pri: "low" },
-];
-
-export function Mentoria() {
-  return (
-    <section className="lnd-section" id="mentoria">
-      <div className="lnd-container">
-        <div className="lnd-section-head lnd-center lnd-reveal">
-          <span className="lnd-eyebrow">Mentoria com IA</span>
-          <h2 className="lnd-h2">
-            Direcionamento de quem <span className="lnd-grad">entende de dados</span>
-          </h2>
-          <p className="lnd-lead">
-            A mentoria traduz os seus desafios em um plano concreto: o problema, a explicação e a
-            primeira ação a tomar.
-          </p>
-        </div>
-
-        <div className="lnd-mentor-grid">
-          {MENTORIAS.map((m, i) => (
-            <div className="lnd-m-card lnd-reveal" data-delay={String((i % 3) + 1)} key={m.cat}>
-              <div className="lnd-m-top">
-                <span className="lnd-m-cat">
-                  <b>{m.cat}</b>
-                </span>
-                <span className={`lnd-m-pri lnd-${m.pri}`}>
-                  {m.pri === "high" ? "Prioridade alta" : m.pri === "med" ? "Prioridade média" : "Prioridade baixa"}
-                </span>
-              </div>
-              <div className="lnd-m-problem">{m.prob}</div>
-              <p className="lnd-m-expl">{m.expl}</p>
-              <div className="lnd-m-action">
-                <b>→ </b>
-                {m.action}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-export const SectionsB = [Score, IaAcessor, Diagnostico, Estrategia, Nichos, Calendario, Ideias, GeradorCopy, Mentoria];
+export const SectionsB = [Score, IaAcessor, Diagnostico, Estrategia, Nichos, Calendario, Ideias, GeradorCopy];
