@@ -1,4 +1,4 @@
-import { encryptToken } from "@/lib/crypto";
+﻿import { encryptToken } from "@/lib/crypto";
 import {
   getRedirectUri,
   getMetaCredentials,
@@ -12,15 +12,15 @@ import { InstagramApiError, IntegrationConfigError } from "./errors";
 import type { InstagramTokenPayload } from "./types";
 
 /**
- * FLUXO OAUTH OFICIAL — INSTAGRAM BUSINESS LOGIN
+ * FLUXO OAUTH OFICIAL â€” INSTAGRAM BUSINESS LOGIN
  * ==============================================
- * O app Meta "Inst Acessor" usa o caso de uso "Gerenciar mensagens e conteúdo
- * no Instagram", cujo fluxo é o Instagram Business Login. Este arquivo NÃO usa
+ * O app Meta "Inst Acessor" usa o caso de uso "Gerenciar mensagens e conteÃºdo
+ * no Instagram", cujo fluxo Ã© o Instagram Business Login. Este arquivo NÃƒO usa
  * o dialog do Facebook nem `graph.facebook.com`.
  *
  * Etapas oficiais:
  *
- *   1) AUTORIZAÇÃO (navegador)
+ *   1) AUTORIZAÃ‡ÃƒO (navegador)
  *      GET https://www.instagram.com/oauth/authorize
  *          ?client_id=<INSTAGRAM_APP_ID>
  *          &redirect_uri=<INSTAGRAM_REDIRECT_URI>
@@ -28,30 +28,30 @@ import type { InstagramTokenPayload } from "./types";
  *          &scope=<scopes>
  *          &state=<state CSRF>
  *
- *   2) TROCA DO `code` (servidor) → token de CURTA duração (~1 hora)
+ *   2) TROCA DO `code` (servidor) â†’ token de CURTA duraÃ§Ã£o (~1 hora)
  *      POST https://api.instagram.com/oauth/access_token
  *           (application/x-www-form-urlencoded)
  *           client_id, client_secret, grant_type=authorization_code,
  *           redirect_uri, code
  *
- *   3) TOKEN DE LONGA DURAÇÃO (~60 dias) — passo OBRIGATÓRIO: o token da
- *      etapa 2 expira em ~1 hora e não serve para operar o app.
+ *   3) TOKEN DE LONGA DURAÃ‡ÃƒO (~60 dias) â€” passo OBRIGATÃ“RIO: o token da
+ *      etapa 2 expira em ~1 hora e nÃ£o serve para operar o app.
  *      GET https://graph.instagram.com/access_token
  *          ?grant_type=ig_exchange_token
  *          &client_secret=<app secret>
  *          &access_token=<token curto>
  *
- *   4) RENOVAÇÃO (ver `refreshLongLivedToken`) — o token longo pode ser
+ *   4) RENOVAÃ‡ÃƒO (ver `refreshLongLivedToken`) â€” o token longo pode ser
  *      renovado por mais ~60 dias, desde que tenha ao menos 24 horas de vida
- *      e ainda não tenha expirado.
+ *      e ainda nÃ£o tenha expirado.
  *      GET https://graph.instagram.com/refresh_access_token
  *          ?grant_type=ig_refresh_token
  *          &access_token=<token longo>
  *
- * Segurança:
+ * SeguranÃ§a:
  *   - state/CSRF preservado no passo 1 (validado no callback).
  *   - client_secret vai no BODY (nunca na query/URL).
- *   - Fail-closed: sem configuração, lança `IntegrationConfigError`.
+ *   - Fail-closed: sem configuraÃ§Ã£o, lanÃ§a `IntegrationConfigError`.
  */
 
 /** Scopes oficiais do Instagram Business Login usados pelo Inst Acessor. */
@@ -67,15 +67,15 @@ const DEFAULT_SCOPES = INSTAGRAM_DEFAULT_SCOPES.join(",");
 
 /**
  * Scopes efetivos.
- * `INSTAGRAM_SCOPES` continua sendo o OVERRIDE por variável de ambiente
- * (lista separada por vírgula). Quando ausente, usa os 5 scopes oficiais.
+ * `INSTAGRAM_SCOPES` continua sendo o OVERRIDE por variÃ¡vel de ambiente
+ * (lista separada por vÃ­rgula). Quando ausente, usa os 5 scopes oficiais.
  */
 export function getInstagramScopes(): string {
   const override = process.env.INSTAGRAM_SCOPES?.trim();
   return override && override.length > 0 ? override : DEFAULT_SCOPES;
 }
 
-/** URL oficial de autorização do Instagram Business Login. */
+/** URL oficial de autorizaÃ§Ã£o do Instagram Business Login. */
 export function buildAuthUrl(state: string): string {
   const { appId } = getMetaCredentials();
   const redirectUri = getRedirectUri();
@@ -95,7 +95,7 @@ export function buildAuthUrl(state: string): string {
 interface CodeExchangeResponse {
   access_token?: string;
   user_id?: string | number;
-  /** Versões recentes devolvem `permissions`; versões antigas, `scope`. */
+  /** VersÃµes recentes devolvem `permissions`; versÃµes antigas, `scope`. */
   permissions?: string;
   scope?: string;
   token_type?: string;
@@ -105,21 +105,21 @@ interface CodeExchangeResponse {
 }
 
 /**
- * Passo 2+3: troca o `code` por um token de LONGA duração.
+ * Passo 2+3: troca o `code` por um token de LONGA duraÃ§Ã£o.
  *
  * Faz a troca do code (`api.instagram.com`) e, em seguida, o exchange
- * obrigatório para long-lived (`graph.instagram.com`). O token devolvido é o
- * de ~60 dias — é ele que é persistido criptografado.
+ * obrigatÃ³rio para long-lived (`graph.instagram.com`). O token devolvido Ã© o
+ * de ~60 dias â€” Ã© ele que Ã© persistido criptografado.
  *
- * Se o exchange falhar, o token curto NÃO é devolvido: um token de 1 hora
- * gravado no banco produziria uma conexão que "conecta" e quebra minutos
+ * Se o exchange falhar, o token curto NÃƒO Ã© devolvido: um token de 1 hora
+ * gravado no banco produziria uma conexÃ£o que "conecta" e quebra minutos
  * depois. Fail-closed.
  */
 export async function exchangeCodeForToken(code: string): Promise<InstagramTokenPayload> {
   const { appId, appSecret } = getMetaCredentials();
   const redirectUri = getRedirectUri();
 
-  // ---- Passo 2: code → token curto ----
+  // ---- Passo 2: code â†’ token curto ----
   let short: CodeExchangeResponse;
   try {
     short = await postFormNoRetry<CodeExchangeResponse>(
@@ -135,7 +135,7 @@ export async function exchangeCodeForToken(code: string): Promise<InstagramToken
   } catch (error) {
     if (error instanceof IntegrationConfigError) throw error;
     throw new InstagramApiError(
-      "Erro de rede ao trocar o código pelo token do Instagram.",
+      "Erro de rede ao trocar o cÃ³digo pelo token do Instagram.",
       "NETWORK"
     );
   }
@@ -149,13 +149,13 @@ export async function exchangeCodeForToken(code: string): Promise<InstagramToken
     throw new InstagramApiError(detail, "TOKEN_EXCHANGE");
   }
 
-  // Scopes efetivamente concedidos (permissions é o nome atual).
+  // Scopes efetivamente concedidos (permissions Ã© o nome atual).
   const granted =
     (typeof short.permissions === "string" && short.permissions) ||
     (typeof short.scope === "string" && short.scope) ||
     getInstagramScopes();
 
-  // ---- Passo 3: token curto → token longo (~60 dias) ----
+  // ---- Passo 3: token curto â†’ token longo (~60 dias) ----
   const long = await exchangeForLongLivedToken(shortToken, appSecret);
 
   return {
@@ -179,8 +179,8 @@ export interface LongLivedTokenResult {
 }
 
 /**
- * Passo 3: troca um token curto por um de longa duração (~60 dias).
- * @throws Error quando a API recusa ou não devolve token.
+ * Passo 3: troca um token curto por um de longa duraÃ§Ã£o (~60 dias).
+ * @throws Error quando a API recusa ou nÃ£o devolve token.
  */
 export async function exchangeForLongLivedToken(
   shortLivedToken: string,
@@ -200,8 +200,9 @@ export async function exchangeForLongLivedToken(
 
   const token = typeof data.access_token === "string" ? data.access_token : "";
   if (!token) {
+    console.error("[instagram-oauth] long-lived exchange recusado", data.error ?? {});
     throw new InstagramApiError(
-      "O Instagram não devolveu o token de longa duração.",
+      "O Instagram nÃ£o devolveu o token de longa duraÃ§Ã£o.",
       "LONG_LIVED_EXCHANGE"
     );
   }
@@ -213,14 +214,14 @@ export async function exchangeForLongLivedToken(
 }
 
 /**
- * Passo 4: renova um token de longa duração por mais ~60 dias.
+ * Passo 4: renova um token de longa duraÃ§Ã£o por mais ~60 dias.
  *
  * Regras oficiais desta chamada:
- *   - só funciona para token com MAIS DE 24 HORAS de vida;
- *   - não funciona para token já expirado;
- *   - devolve um token NOVO (não estende o prazo do mesmo token).
+ *   - sÃ³ funciona para token com MAIS DE 24 HORAS de vida;
+ *   - nÃ£o funciona para token jÃ¡ expirado;
+ *   - devolve um token NOVO (nÃ£o estende o prazo do mesmo token).
  *
- * @throws Error quando a API recusa (ex.: token recém-emitido ou expirado).
+ * @throws Error quando a API recusa (ex.: token recÃ©m-emitido ou expirado).
  */
 export async function refreshLongLivedToken(
   longLivedToken: string
@@ -237,7 +238,7 @@ export async function refreshLongLivedToken(
   const token = typeof data.access_token === "string" ? data.access_token : "";
   if (!token) {
     throw new InstagramApiError(
-      "O Instagram não renovou o token de acesso.",
+      "O Instagram nÃ£o renovou o token de acesso.",
       "REFRESH_FAILED"
     );
   }
