@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Inst Acessor">
+  <!--
+    Ícone MASKABLE — Android recorta o quadrado em círculo/squircle/arredondado.
+    Por isso o fundo preenche TODA a tela (sem cantos arredondados) e a marca
+    fica dentro da "safe zone" (~80% central, raio 205px a partir do centro).
+  -->
+  <defs>
+    <linearGradient id="iaMaskGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#F43F8E"/>
+      <stop offset="45%" stop-color="#A855F7"/>
+      <stop offset="100%" stop-color="#6366F1"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#iaMaskGrad)"/>
+  <path d="M128 288l51.2-57.6 46.4 38.4 51.2-70.4 59.2 89.6" fill="none" stroke="#fff" stroke-width="28.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M128 352h256" fill="none" stroke="#fff" stroke-width="28.8" stroke-linecap="round"/>
+</svg>

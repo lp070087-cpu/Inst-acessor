@@ -37,6 +37,21 @@ interface InstagramActionsProps {
 const FLOW_STALE_MS = 10 * 60 * 1000;
 
 /**
+ * Tempo máximo do estado LOCAL de "Redirecionando...".
+ * Se a navegação OAuth não acontecer em 12s (rota /connect lenta, rede ruim,
+ * bloqueio do navegador), o botão volta ao normal sozinho. Sem isso o spinner
+ * local ficava girando para sempre — o bug relatado.
+ */
+const REDIRECT_GUARD_MS = 12_000;
+
+/**
+ * Tempo máximo de uma chamada de rede interna (disconnect/refresh).
+ * Sem isso, um fetch pendurado deixaria o botão desabilitado indefinidamente,
+ * inclusive depois de o usuário sair e voltar para a página.
+ */
+const FETCH_TIMEOUT_MS = 15_000;
+
+/**
  * Ações da página Redes Sociais.
  *
  * Conectado:
@@ -71,9 +86,23 @@ function InstagramActionsInner({
   // libera o botão para nunca travar em "Conectando...".
   React.useEffect(() => {
     if (!busy) return;
-    const t = setTimeout(() => setBusy(false), 10_000);
+    const t = setTimeout(() => setBusy(false), REDIRECT_GUARD_MS);
     return () => clearTimeout(t);
   }, [busy]);
+
+  // Volta do Instagram via cache de navegação (bfcache): o navegador pode
+  // restaurar a página exatamente como estava — com o spinner ligado —sem
+  // remontar o componente. Aqui o estado local é zerado e os dados são
+  // recalculados a partir do servidor.
+  React.useEffect(() => {
+    function onPageShow(e: PageTransitionEvent) {
+      if (!e.persisted) return;
+      setBusy(false);
+      router.refresh();
+    }
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, [router]);
 
   // Escape por tempo para o fluxo abandonado.
   //
@@ -129,7 +158,7 @@ function InstagramActionsInner({
   async function handleDisconnect() {
     setBusy(true);
     try {
-      const res = await fetch("/api/integrations/instagram/disconnect", {
+      const res = await fetchWithTimeout("/api/integrations/instagram/disconnect", {
         method: "POST",
       });
       const data = (await res.json()) as { ok?: boolean; error?: string };
@@ -141,6 +170,7 @@ function InstagramActionsInner({
     } catch {
       console.error("disconnect network error");
     } finally {
+      // Sempre libera o botão — sucesso, erro, timeout ou exceção.
       setBusy(false);
     }
   }
@@ -155,7 +185,9 @@ function InstagramActionsInner({
   async function handleRefreshMetrics() {
     setBusy(true);
     try {
-      const res = await fetch("/api/integrations/instagram/refresh", { method: "POST" });
+      const res = await fetchWithTimeout("/api/integrations/instagram/refresh", {
+        method: "POST",
+      });
       const data = (await res.json()) as { ok?: boolean; error?: string };
       if (data.ok) {
         router.refresh();
@@ -257,6 +289,35 @@ export function InstagramActions(props: InstagramActionsProps) {
       <InstagramActionsInner {...props} />
     </Suspense>
   );
+}
+
+/**
+ * `fetch` com prazo máximo. Uma requisição pendurada nunca mais deixa o botão
+ * desabilitado: ao estourar o tempo, o AbortController cancela e o `finally`
+ * do chamador libera o estado local.
+ *
+ * Só é usado em rotas internas do próprio app (disconnect/refresh) — o fluxo
+ * OAuth do Instagram não passa por aqui.
+ */
+async function fetchWithTimeout(
+  input: string,
+  init: RequestInit = {},
+  ms: number = FETCH_TIMEOUT_MS
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+      // Não reaproveitar resposta do cache HTTP do navegador: um GET
+      // cacheado resolvia na hora e o loading "sumia" sem refletir o
+      // estado real que o servidor acabou de gravar.
+      cache: "no-store",
+    });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function getErrorMessage(error: string | null): string | null {

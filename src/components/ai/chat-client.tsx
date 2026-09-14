@@ -231,14 +231,18 @@ export function ChatClient({
       {sidebarOpen && (
         <div className="lg:hidden fixed inset-0 z-[90] flex">
           <div className="absolute inset-0 bg-ink/40" onClick={() => setSidebarOpen(false)} />
-          <div className="relative z-10 w-72 max-w-[80vw] bg-card h-full p-4 shadow-lg">
-            <div className="flex items-center justify-between mb-3">
+          <div className="relative z-10 w-72 max-w-[80vw] bg-card h-full p-4 shadow-lg flex flex-col min-w-0">
+            <div className="flex items-center justify-between mb-3 flex-none">
               <span className="text-[13.5px] font-semibold text-ink">Conversas</span>
               <Button variant="ghost" size="xs" onClick={newConversation}>
                 <Plus size={14} /> Nova
               </Button>
             </div>
-            <div className="flex flex-col gap-1.5 overflow-y-auto max-h-[80vh]">
+            {/* `flex-1 min-h-0` em vez de `max-h-[80vh]`: o drawer já tem
+                altura total, então a lista precisa ocupar o espaço restante
+                e rolar dentro dele — 80vh somava com o cabeçalho e cortava
+                as últimas conversas em telas baixas. */}
+            <div className="flex flex-col gap-1.5 overflow-y-auto flex-1 min-h-0">
               {conversations.length === 0 && (
                 <p className="text-[13px] text-ink-muted px-2 py-3">Nenhuma conversa ainda.</p>
               )}
@@ -271,7 +275,10 @@ export function ChatClient({
       )}
 
       {/* Área do chat */}
-      <div className="flex flex-col gap-4">
+      {/* `min-w-0`: item de grid tem `min-width:auto` — uma resposta longa da
+          IA (ou um trecho sem espaços) empurrava a coluna e criava rolagem
+          horizontal na página. */}
+      <div className="flex flex-col gap-4 min-w-0">
         {/* Barra superior */}
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -291,7 +298,7 @@ export function ChatClient({
         </div>
 
         {/* Mensagens */}
-        <div className="flex flex-col gap-3 rounded-lg bg-card border border-border-soft shadow-xs p-4 min-h-[380px] max-h-[60vh] overflow-y-auto">
+        <div className="flex flex-col gap-3 rounded-lg bg-card border border-border-soft shadow-xs p-4 min-h-[320px] sm:min-h-[380px] max-h-[60vh] overflow-y-auto min-w-0">
           {messages.length === 0 && !loading && (
             <div className="flex-1 grid place-items-center">
               <EmptyState

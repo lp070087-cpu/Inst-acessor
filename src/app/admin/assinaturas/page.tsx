@@ -212,8 +212,8 @@ export default async function AdminSubscriptionsPage() {
         {subscriptions.length === 0 ? (
           <EmptyState icon={CreditCard} title="Nenhuma assinatura ainda" description="As assinaturas aparecerão aqui." />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-[13.5px]">
+          <div className="overflow-x-auto -mx-1 px-1">
+            <table className="w-full min-w-[900px] text-left text-[13.5px]">
               <thead>
                 <tr className="text-[11px] uppercase tracking-wider text-ink-muted border-b border-border-soft">
                   <th className="py-2.5 pr-4 font-semibold">Usuário</th>
@@ -299,8 +299,8 @@ export default async function AdminSubscriptionsPage() {
         {payments.length === 0 ? (
           <EmptyState icon={CreditCard} title="Nenhum pagamento ainda" description="Os pagamentos aparecerão aqui." />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-[13.5px]">
+          <div className="overflow-x-auto -mx-1 px-1">
+            <table className="w-full min-w-[760px] text-left text-[13.5px]">
               <thead>
                 <tr className="text-[11px] uppercase tracking-wider text-ink-muted border-b border-border-soft">
                   <th className="py-2.5 pr-4 font-semibold">Usuário</th>

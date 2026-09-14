@@ -668,7 +668,13 @@ export function CalendarClient({ initial }: CalendarClientProps) {
       ) : (
         <>
           {view === "month" && (
-            <div className="grid grid-cols-7 gap-1.5 bg-card border border-border-soft rounded-lg shadow-xs p-3">
+            // O mês é uma grade de 7 colunas — ela não pode "encolher" até
+            // virar 35px por célula no celular. Abaixo de ~560px de viewport a
+            // grade ganha uma largura mínima legível e ROLA dentro do próprio
+            // card (padrão de calendário em mobile), em vez de espremer as
+            // células ou empurrar a página inteira para os lados.
+            <div className="overflow-x-auto -mx-1 px-1">
+            <div className="grid grid-cols-7 gap-1.5 bg-card border border-border-soft rounded-lg shadow-xs p-2 sm:p-3 min-w-[520px]">
               {["D", "S", "T", "Q", "Q", "S", "S"].map((d, i) => (
                 <div key={i} className="text-center text-[11px] font-bold uppercase tracking-wider text-ink-muted py-1">
                   {d}
@@ -711,6 +717,7 @@ export function CalendarClient({ initial }: CalendarClientProps) {
                   </div>
                 );
               })}
+            </div>
             </div>
           )}
 

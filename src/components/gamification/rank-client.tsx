@@ -452,7 +452,7 @@ function RnkRing({
           cy={size / 2}
           r={r}
           fill="none"
-          stroke="rgba(255,255,255,.085)"
+          stroke="rgba(17,19,24,.08)"
           strokeWidth={stroke}
         />
         <circle
@@ -571,38 +571,155 @@ function RnkSectionHead({
 
 const RANK_CSS = `
 .rnk-wrap{
-  --rnk-card:linear-gradient(158deg, rgba(255,255,255,.055) 0%, rgba(255,255,255,.016) 100%);
-  --rnk-card-flat:rgba(255,255,255,.032);
-  --rnk-border:rgba(255,255,255,.085);
-  --rnk-border-strong:rgba(255,255,255,.15);
-  --rnk-ink:#F3F5F9;
-  --rnk-soft:#A8B0C0;
-  --rnk-muted:#6F7889;
-  --rnk-green:#34D399;
-  --rnk-green-soft:rgba(52,211,153,.12);
-  --rnk-amber:#FBBF24;
+  /* ============================================================
+     RANK — SUPERFÍCIE CLARA (padrão do app)
+     ------------------------------------------------------------
+     O Rank tinha uma superfície dark premium (fundo #0A0B10 + grade
+     + 3 radiais de cor) ocupando quase toda a área de conteúdo.
+     Voltou para o padrão do app: fundo claro, cards do sistema,
+     bordas suaves — igual às demais telas. O gradiente rosa/roxo
+     continua, mas SÓ nos destaques (botão primário, barra, chip de
+     nível, ícones ativos), nunca como fundo geral.
+     Os tokens abaixo eram literais "de vidro escuro" e agora apontam
+     para os tokens reais do tema em globals.css.
+     ============================================================ */
+  --rnk-card:var(--card);
+  --rnk-card-flat:var(--card);
+  --rnk-border:var(--border-soft);
+  --rnk-border-strong:var(--border);
+  --rnk-ink:var(--ink);
+  --rnk-soft:var(--ink-2);
+  --rnk-muted:var(--ink-3);
+  --rnk-green:#10B981;
+  --rnk-green-soft:rgba(16,185,129,.12);
+  --rnk-amber:#F59E0B;
   --rnk-grad:linear-gradient(115deg,#F43F8E 0%,#A855F7 48%,#6366F1 100%);
   position:relative;
-  isolation:isolate;
-  overflow:hidden;
-  border-radius:26px;
-  padding:clamp(14px,2.2vw,26px);
   color:var(--rnk-ink);
-  background:
-    radial-gradient(940px 440px at 10% -8%, rgba(139,92,246,.22), transparent 62%),
-    radial-gradient(760px 380px at 94% 2%, rgba(52,211,153,.10), transparent 64%),
-    radial-gradient(700px 460px at 48% 112%, rgba(244,63,142,.11), transparent 62%),
-    #0A0B10;
 }
 .rnk-wrap *{box-sizing:border-box}
-.rnk-wrap::after{
-  content:"";position:absolute;inset:0;pointer-events:none;z-index:-1;
-  background-image:linear-gradient(rgba(255,255,255,.028) 1px, transparent 1px),
-                   linear-gradient(90deg, rgba(255,255,255,.028) 1px, transparent 1px);
-  background-size:52px 52px;
-  mask-image:radial-gradient(760px 520px at 50% 0%, #000 0%, transparent 78%);
-  -webkit-mask-image:radial-gradient(760px 520px at 50% 0%, #000 0%, transparent 78%);
+
+/* ------------------------------------------------------------
+   Ajustes de contraste: tudo que era literal "de vidro escuro"
+   (branco translúcido, #fff, #C4B5FD, #A8B0C0) vira token claro.
+   Os seletores têm especificidade 0,2,0 e por isso vencem as
+   regras de classe única definidas mais abaixo no arquivo.
+   ------------------------------------------------------------ */
+.rnk-wrap .rnk-card,
+.rnk-wrap .rnk-lvl,
+.rnk-wrap .rnk-hl,
+.rnk-wrap .rnk-strip-item,
+.rnk-wrap .rnk-pod,
+.rnk-wrap .rnk-sum-item,
+.rnk-wrap .rnk-meta,
+.rnk-wrap .rnk-pp-stat,
+.rnk-wrap .rnk-ach{
+  background:var(--card);
+  border:1px solid var(--border-soft);
+  box-shadow:0 1px 2px rgba(17,19,24,.04);
 }
+.rnk-wrap .rnk-card{box-shadow:0 1px 2px rgba(17,19,24,.05),0 4px 12px rgba(17,19,24,.04)}
+.rnk-wrap .rnk-pod:hover,
+.rnk-wrap .rnk-lvl:hover{border-color:var(--border)}
+.rnk-wrap .rnk-pod-1{
+  background:linear-gradient(165deg, rgba(245,158,11,.10), rgba(255,255,255,0) 62%);
+  border-color:rgba(245,158,11,.30);
+}
+.rnk-wrap .rnk-lvl-now{
+  background:linear-gradient(158deg, rgba(244,63,142,.07), rgba(139,92,246,.06) 55%, rgba(99,102,241,.07));
+  border-color:rgba(168,85,247,.30);
+}
+.rnk-wrap .rnk-meta-done{
+  background:linear-gradient(158deg, rgba(16,185,129,.08), rgba(255,255,255,0) 62%);
+  border-color:rgba(16,185,129,.28);
+}
+.rnk-wrap .rnk-ach-on{
+  background:linear-gradient(158deg, rgba(139,92,246,.08), rgba(255,255,255,0) 60%);
+  border-color:rgba(139,92,246,.28);
+}
+.rnk-wrap .rnk-row-me{
+  background:linear-gradient(90deg, rgba(244,63,142,.07), rgba(139,92,246,.055) 55%, transparent);
+}
+.rnk-wrap .rnk-next{
+  background:linear-gradient(115deg, rgba(244,63,142,.07), rgba(168,85,247,.06) 48%, rgba(99,102,241,.07));
+  border:1px solid rgba(168,85,247,.24);
+}
+/* Números e títulos: de #fff para a tinta do tema */
+.rnk-wrap .rnk-pagehead-title,
+.rnk-wrap .rnk-pos-val,
+.rnk-wrap .rnk-next-val,
+.rnk-wrap .rnk-lvl-n,
+.rnk-wrap .rnk-hl-val,
+.rnk-wrap .rnk-hl-val-sm,
+.rnk-wrap .rnk-strip-val,
+.rnk-wrap .rnk-pod-name,
+.rnk-wrap .rnk-sum-val,
+.rnk-wrap .rnk-meta-title,
+.rnk-wrap .rnk-meta-val,
+.rnk-wrap .rnk-streak-num,
+.rnk-wrap .rnk-pp-stat-val,
+.rnk-wrap .rnk-ach-title,
+.rnk-wrap .rnk-ring-val{ color:var(--ink) }
+/* Blocos de ícone: de vidro branco para superfície clara */
+.rnk-wrap .rnk-lvl-badge,
+.rnk-wrap .rnk-hl-ic,
+.rnk-wrap .rnk-pod-crown,
+.rnk-wrap .rnk-ach-ic,
+.rnk-wrap .rnk-empty-ic{
+  background:var(--surface);
+  border-color:var(--border-soft);
+  color:var(--ink-2);
+}
+.rnk-wrap .rnk-pod-2 .rnk-pod-crown{background:var(--surface);color:var(--ink-2);border-color:var(--border-soft)}
+/* Ícones acentuados: lilás-claro (feito para vidro escuro) → roxo da marca */
+.rnk-wrap .rnk-strip-ic{background:var(--ai-soft);color:var(--purple)}
+.rnk-wrap .rnk-log-ic{background:var(--ai-soft);color:var(--purple)}
+.rnk-wrap .rnk-h3-ic{background:var(--ai-soft);color:var(--purple)}
+.rnk-wrap .rnk-chip-brand{background:var(--ai-soft);border-color:rgba(139,92,246,.28);color:var(--purple)}
+.rnk-wrap .rnk-tier-desafio{background:var(--ai-soft);border-color:rgba(139,92,246,.28);color:var(--purple)}
+.rnk-wrap .rnk-tier-prata{background:var(--surface);border-color:var(--border);color:var(--ink-2)}
+.rnk-wrap .rnk-avatar{border-color:var(--border)}
+/* Controles */
+.rnk-wrap .rnk-tabs{background:var(--surface);border-color:var(--border-soft)}
+.rnk-wrap .rnk-tab:hover{color:var(--ink);background:#fff}
+.rnk-wrap .rnk-btn-outline{background:#fff;border-color:var(--border);color:var(--ink)}
+.rnk-wrap .rnk-btn-outline:hover:not(:disabled){background:var(--surface)}
+.rnk-wrap .rnk-btn-ghost:hover:not(:disabled){background:var(--surface);color:var(--ink)}
+.rnk-wrap .rnk-btn-soft{background:var(--surface);color:var(--ink-2);border-color:var(--border-soft)}
+.rnk-wrap .rnk-btn-soft:hover:not(:disabled){color:var(--ink)}
+.rnk-wrap .rnk-btn:focus-visible{outline-color:var(--purple)}
+.rnk-wrap .rnk-tab:focus-visible{outline-color:var(--purple)}
+.rnk-wrap .rnk-bar{background:var(--surface)}
+.rnk-wrap .rnk-bar-muted{background:#D0D4DB}
+.rnk-wrap .rnk-chip{background:var(--surface);border-color:var(--border-soft);color:var(--ink-2)}
+.rnk-wrap .rnk-you{background:var(--rnk-grad);color:#fff;border-color:transparent}
+.rnk-wrap .rnk-chart-empty{border-color:var(--border);background:var(--bg)}
+.rnk-wrap .rnk-empty-ic{border-style:dashed}
+.rnk-wrap .rnk-divider{background:var(--border-soft)}
+.rnk-wrap .rnk-rows > * + *{border-top-color:var(--border-soft)}
+.rnk-wrap .rnk-footnote{color:var(--ink-3)}
+.rnk-wrap .rnk-link{color:var(--ink-2)}
+
+/* ---------- modal: volta ao padrão claro do app ---------- */
+.rnk-overlay .rnk-dialog{
+  background:#fff;
+  border:1px solid var(--border-soft);
+  box-shadow:0 24px 56px rgba(17,19,24,.10);
+  color:var(--ink);
+}
+.rnk-overlay .rnk-label{color:var(--ink-2)}
+.rnk-overlay .rnk-input{
+  border-color:var(--border);
+  background:#fff;
+  color:var(--ink);
+}
+.rnk-overlay .rnk-input::placeholder{color:var(--ink-3)}
+.rnk-overlay .rnk-input:focus{border-color:rgba(139,92,246,.55);box-shadow:0 0 0 3px rgba(139,92,246,.14)}
+.rnk-overlay .rnk-pill{background:var(--surface);border-color:var(--border-soft);color:var(--ink-2)}
+.rnk-overlay .rnk-pill:hover{background:#fff;color:var(--ink)}
+.rnk-overlay .rnk-pill-on{background:var(--ai-soft);border-color:rgba(139,92,246,.45);color:var(--purple)}
+.rnk-overlay .rnk-backdrop{background:rgba(17,19,24,.42)}
+
 .rnk-stack{display:flex;flex-direction:column;gap:16px}
 .rnk-grid-2{display:grid;gap:16px;grid-template-columns:repeat(2,minmax(0,1fr))}
 .rnk-grid-3{display:grid;gap:14px;grid-template-columns:repeat(3,minmax(0,1fr))}
@@ -628,6 +745,8 @@ const RANK_CSS = `
   background:var(--rnk-grad);color:#fff;box-shadow:0 10px 28px rgba(168,85,247,.3);
 }
 .rnk-pagehead-sub{font-size:13.5px;color:var(--rnk-soft);margin:0;line-height:1.6;max-width:76ch}
+.rnk-link{text-decoration:none}
+.rnk-link:hover{text-decoration:underline}
 .rnk-h2{font-family:var(--font-display,inherit);font-size:clamp(18px,2.2vw,22px);font-weight:800;letter-spacing:-.02em;color:var(--rnk-ink);margin:0}
 .rnk-h3{display:flex;align-items:center;gap:9px;font-family:var(--font-display,inherit);font-size:15px;font-weight:700;color:var(--rnk-ink);margin:0}
 .rnk-h3-ic{width:26px;height:26px;border-radius:9px;display:grid;place-items:center;flex:none;background:rgba(139,92,246,.16);color:#C4B5FD}
@@ -896,41 +1015,41 @@ const RANK_CSS = `
 .rnk-log-xp{font-family:var(--font-data,ui-monospace,monospace);font-size:14px;font-weight:800;color:var(--rnk-green);flex:none}
 .rnk-footnote{display:flex;align-items:flex-start;gap:8px;font-size:12px;color:var(--rnk-muted);margin:0;padding:0 2px;line-height:1.6}
 
-/* ---------- modal (dark) ---------- */
+/* ---------- modal (padrão claro do app) ---------- */
 .rnk-overlay{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:16px}
-.rnk-backdrop{position:absolute;inset:0;background:rgba(3,4,8,.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.rnk-backdrop{position:absolute;inset:0;background:rgba(17,19,24,.42);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
 .rnk-dialog{
   position:relative;z-index:1;width:100%;max-width:520px;max-height:calc(100vh - 32px);
   overflow-y:auto;
-  border-radius:22px;border:1px solid rgba(255,255,255,.12);
-  background:linear-gradient(158deg, #14161F 0%, #0C0E14 100%);
-  box-shadow:0 30px 90px rgba(0,0,0,.6);
+  border-radius:22px;border:1px solid var(--border-soft);
+  background:var(--card);
+  box-shadow:0 24px 56px rgba(17,19,24,.10);
   padding:clamp(16px,2.4vw,24px);
-  color:#F3F5F9;
+  color:var(--ink);
   animation:rnk-pop .26s cubic-bezier(.22,1,.36,1);
 }
 @keyframes rnk-pop{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
 .rnk-dialog-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:18px}
 .rnk-field{display:flex;flex-direction:column;gap:7px;margin-bottom:14px}
-.rnk-label{font-size:12.5px;font-weight:700;color:#A8B0C0}
+.rnk-label{font-size:12.5px;font-weight:700;color:var(--ink-2)}
 .rnk-input{
   width:100%;border-radius:12px;
-  border:1px solid rgba(255,255,255,.12);
-  background:rgba(255,255,255,.045);
-  padding:11px 14px;font-size:14px;color:#F3F5F9;outline:none;
+  border:1px solid var(--border);
+  background:var(--card);
+  padding:11px 14px;font-size:14px;color:var(--ink);outline:none;
   transition:border-color .18s ease,box-shadow .18s ease;
 }
-.rnk-input::placeholder{color:#6F7889}
-.rnk-input:focus{border-color:rgba(168,85,247,.55);box-shadow:0 0 0 3px rgba(168,85,247,.14)}
+.rnk-input::placeholder{color:var(--ink-3)}
+.rnk-input:focus{border-color:rgba(139,92,246,.55);box-shadow:0 0 0 3px rgba(139,92,246,.14)}
 .rnk-pills{display:flex;gap:8px;flex-wrap:wrap}
 .rnk-pill{
   padding:7px 14px;border-radius:999px;cursor:pointer;
-  border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);
-  color:#A8B0C0;font-size:12.5px;font-weight:700;
+  border:1px solid var(--border-soft);background:var(--surface);
+  color:var(--ink-2);font-size:12.5px;font-weight:700;
   transition:background .18s ease,color .18s ease,border-color .18s ease;
 }
-.rnk-pill:hover{color:#F3F5F9;background:rgba(255,255,255,.08)}
-.rnk-pill-on{background:rgba(139,92,246,.2);border-color:rgba(139,92,246,.45);color:#C4B5FD}
+.rnk-pill:hover{color:var(--ink);background:var(--card)}
+.rnk-pill-on{background:var(--ai-soft);border-color:rgba(139,92,246,.45);color:var(--purple)}
 .rnk-dialog-foot{display:flex;align-items:center;justify-content:flex-end;gap:9px;margin-top:20px}
 .rnk-grid-form{display:grid;gap:12px;grid-template-columns:repeat(2,minmax(0,1fr))}
 
@@ -950,7 +1069,6 @@ const RANK_CSS = `
 }
 @media(max-width:640px){
   .rnk-grid-form{grid-template-columns:1fr}
-  .rnk-wrap{border-radius:20px;padding:13px}
   .rnk-grid-3,.rnk-grid-4{grid-template-columns:1fr}
   .rnk-strip{grid-template-columns:repeat(2,minmax(0,1fr))}
   .rnk-pp-stats{grid-template-columns:1fr}
@@ -1009,22 +1127,85 @@ export function RankClient({ initial }: RankClientProps) {
     }
   }
 
+  /**
+   * BOTÃO 1 — "Copiar link do perfil".
+   * Ação ÚNICA e previsível: copia a URL pública `/p/[slug]` e confirma por
+   * toast. Não abre nada, não navega, não redireciona.
+   */
+  async function handleCopyProfileLink() {
+    if (!publicProfileUrl) {
+      toast("Defina um nome de usuário no Perfil para gerar o link público.", "error");
+      return;
+    }
+    await copyText(publicProfileUrl, "Link do perfil copiado!");
+  }
+
+  /**
+   * BOTÃO 2 — "Compartilhar evolução".
+   *
+   * DIFERENÇA REAL em relação ao botão 1 ("Copiar link do perfil"):
+   *   • Botão 1 → só copia a URL permanente do perfil público. Nada mais.
+   *   • Botão 2 → monta um RESUMO da evolução atual (nível, XP, posição no
+   *     ranking, conquistas desbloqueadas) e entrega esse resumo + o link
+   *     para o compartilhamento NATIVO do sistema (Web Share API), que é
+   *     onde o usuário escolhe WhatsApp, Instagram, e-mail etc.
+   *
+   * Todos os números vêm do estado real já carregado (`progress`, `summary`,
+   * `achievements`). Nenhum dado privado entra no texto: nada de e-mail, id
+   * interno, token ou métrica de conta — apenas a evolução pública.
+   *
+   * Se o navegador não oferecer `navigator.share` (a maioria dos desktops),
+   * cai num fallback que copia o MESMO resumo + link — com mensagem própria,
+   * para não ser confundido com o botão 1.
+   */
   async function handleShareEvolution() {
+    const url = publicProfileUrl ?? (typeof window !== "undefined" ? window.location.href : "");
+
+    // ---- Resumo da evolução (somente dados públicos do próprio usuário) ----
+    const unlocked = achievements.filter((a) => a.unlocked).length;
+    const rankPart =
+      summary.position !== null && summary.totalUsers > 0
+        ? ` · #${summary.position} de ${summary.totalUsers} no ranking`
+        : "";
+    const achPart =
+      unlocked > 0
+        ? ` · ${unlocked} conquista${unlocked === 1 ? "" : "s"} desbloqueada${unlocked === 1 ? "" : "s"}`
+        : "";
+
+    const text =
+      `Minha evolução no Inst Acessor:\n` +
+      `• Nível ${progress.level} com ${progress.xp} XP${rankPart}${achPart}`;
+
     const shareData = {
-      title: "Inst Acessor — Minha evolução",
-      text: `Estou no nível ${progress.level} com ${progress.xp} XP no Inst Acessor!`,
-      url: publicProfileUrl ?? window.location.href,
+      title: "Veja minha evolução no Inst Acessor",
+      text,
+      url,
     };
-    try {
-      if (typeof navigator !== "undefined" && "share" in navigator) {
+
+    const canShare =
+      typeof navigator !== "undefined" && typeof navigator.share === "function";
+
+    if (canShare) {
+      try {
         await navigator.share(shareData);
         return;
+      } catch (err) {
+        // AbortError = o usuário fechou a folha de compartilhamento de
+        // propósito. Não é falha: não cai no fallback nem mostra erro.
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        // Qualquer outro erro (permissão, política do navegador) → fallback.
       }
-    } catch {
-      // usuário cancelou — cai no fallback
     }
-    if (publicProfileUrl) await copyText(publicProfileUrl, "Link copiado!");
-    else await copyText(window.location.href, "Link copiado!");
+
+    // Fallback (desktop sem Web Share API): copia o RESUMO + link, não só o
+    // link — senão o botão 2 ficaria idêntico ao botão 1. A mensagem diz
+    // explicitamente que foram copiados o resumo E o link.
+    const payload = url ? `${text}\n\n${url}` : text;
+    if (!url) {
+      await copyText(text, "Resumo da sua evolução copiado.");
+      return;
+    }
+    await copyText(payload, "Resumo da evolução + link copiados para você enviar.");
   }
 
   // Sub-aba de conquistas (visíveis vs. todas)
@@ -1163,7 +1344,7 @@ export function RankClient({ initial }: RankClientProps) {
             totalCount={totalCount}
             achievements={achievements}
             publicProfileUrl={publicProfileUrl}
-            onCopyLink={(u) => copyText(u, "Link do perfil copiado!")}
+            onCopyLink={() => handleCopyProfileLink()}
             onShare={() => handleShareEvolution()}
           />
         )}
@@ -1271,7 +1452,7 @@ function RankHero({
       <div className="rnk-hero-r">
         <span className="rnk-eyebrow">Posição no ranking</span>
         <div className="rnk-pos">
-          <Medal size={22} style={{ color: "#C4B5FD" }} />
+          <Medal size={22} style={{ color: "var(--purple)" }} />
           <span className="rnk-pos-val">
             {summary.position !== null ? `#${summary.position}` : "—"}
           </span>
@@ -1386,7 +1567,7 @@ function ProximaMeta({ progress }: { progress: ProgressData }) {
             {remaining > 0 ? `Faltam ${formatXp(remaining)} XP` : "Nível alcançado"}
           </p>
           <p className="rnk-next-sub">
-            Para chegar ao <b style={{ color: "#F3F5F9" }}>Nível {progress.level + 1}</b>
+            Para chegar ao <b style={{ color: "var(--ink)" }}>Nível {progress.level + 1}</b>
           </p>
         </div>
       </div>
@@ -1750,7 +1931,7 @@ function DisplayNameCard({
           <p className="rnk-eyebrow" style={{ marginBottom: 6 }}>
             Nome exibido
           </p>
-          <p style={{ fontFamily: "var(--font-display,inherit)", fontSize: 17, fontWeight: 800, color: "#fff", margin: 0 }}>
+          <p style={{ fontFamily: "var(--font-display,inherit)", fontSize: 17, fontWeight: 800, color: "var(--ink)", margin: 0 }}>
             {displayName?.value ?? "Usuário"}
           </p>
           {displayName?.source === "instagram" && displayName?.storedSource === "instagram" ? (
@@ -1852,7 +2033,7 @@ function PerfilPublicoView({
   totalCount: number;
   achievements: AchievementData[];
   publicProfileUrl: string | null;
-  onCopyLink: (url: string) => void;
+  onCopyLink: () => void;
   onShare: () => void;
 }) {
   const name = profilePublic?.name ?? "Usuário";
@@ -1901,7 +2082,7 @@ function PerfilPublicoView({
                 alignItems: "center",
                 gap: 6,
                 fontSize: 12.5,
-                color: ig ? "#C4B5FD" : "#6F7889",
+                color: ig ? "var(--purple)" : "var(--ink-3)",
                 margin: 0,
               }}
             >
@@ -1930,8 +2111,8 @@ function PerfilPublicoView({
           style={{
             borderRadius: 16,
             padding: 14,
-            background: "rgba(255,255,255,.032)",
-            border: "1px solid rgba(255,255,255,.085)",
+            background: "var(--surface)",
+            border: "1px solid var(--border-soft)",
             display: "flex",
             flexDirection: "column",
             gap: 9,
@@ -1949,7 +2130,7 @@ function PerfilPublicoView({
           {stats.map((s) => (
             <div key={s.label} className="rnk-pp-stat">
               <span className="rnk-pp-stat-label">
-                <s.icon size={13} style={{ color: "#C4B5FD" }} />
+                <s.icon size={13} style={{ color: "var(--purple)" }} />
                 {s.label}
               </span>
               <p className={cn("rnk-pp-stat-val", s.value === null && "rnk-pp-stat-val-empty")}>
@@ -1963,11 +2144,17 @@ function PerfilPublicoView({
           <RnkBtn
             size="sm"
             disabled={!publicProfileUrl}
-            onClick={() => publicProfileUrl && onCopyLink(publicProfileUrl)}
+            onClick={() => onCopyLink()}
+            title="Copia o link do seu perfil público"
           >
             <CopyIcon size={15} /> Copiar link do perfil
           </RnkBtn>
-          <RnkBtn variant="outline" size="sm" onClick={onShare}>
+          <RnkBtn
+            variant="outline"
+            size="sm"
+            onClick={onShare}
+            title="Compartilha a sua evolução nas redes ou por mensagem"
+          >
             <Share2 size={15} /> Compartilhar evolução
           </RnkBtn>
         </div>
@@ -1989,7 +2176,7 @@ function PerfilPublicoView({
                   <TierIcon tier={badge.tier} size={17} />
                 </span>
                 <div style={{ display: "flex", flexDirection: "column", gap: 5, minWidth: 0 }}>
-                  <span style={{ fontSize: 13.5, fontWeight: 700, color: "#fff" }}>{badge.title}</span>
+                  <span style={{ fontSize: 13.5, fontWeight: 700, color: "var(--ink)" }}>{badge.title}</span>
                   <span className={tierCardClass(badge.tier)}>
                     <TierIcon tier={badge.tier} size={11} />
                     {TIER_LABEL[badge.tier] ?? badge.tier}
@@ -2013,7 +2200,7 @@ function PerfilPublicoView({
                   <TierIcon tier={trophy.tier} size={17} />
                 </span>
                 <div style={{ display: "flex", flexDirection: "column", gap: 5, minWidth: 0 }}>
-                  <span style={{ fontSize: 13.5, fontWeight: 700, color: "#fff" }}>{trophy.title}</span>
+                  <span style={{ fontSize: 13.5, fontWeight: 700, color: "var(--ink)" }}>{trophy.title}</span>
                   <span className={tierCardClass(trophy.tier)}>
                     <TierIcon tier={trophy.tier} size={11} />
                     {TIER_LABEL[trophy.tier] ?? trophy.tier}
@@ -2032,11 +2219,26 @@ function PerfilPublicoView({
           <RnkSectionHead icon={Globe} title="Link público" />
           <div style={{ marginTop: 10 }}>
             {publicProfileUrl ? (
-              <p className="rnk-link">{publicProfileUrl}</p>
+              <>
+                {/* O link é ABRÍVEL: quem copiar/compartilhar leva para a rota
+                    pública real `/p/[slug]`, que abre sem login. */}
+                <a
+                  className="rnk-link"
+                  href={publicProfileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Abrir o meu perfil público"
+                >
+                  {publicProfileUrl}
+                </a>
+                <p className="rnk-hint" style={{ margin: "6px 0 0" }}>
+                  Qualquer pessoa com este link vê a sua evolução pública — sem precisar de login.
+                </p>
+              </>
             ) : (
               <p className="rnk-hint" style={{ margin: 0 }}>
                 Seu perfil público fica em{" "}
-                <span style={{ fontWeight: 700, color: "#A8B0C0" }}>/p/[usuário]</span>. Conecte o
+                <span style={{ fontWeight: 700, color: "var(--ink-2)" }}>/p/[usuário]</span>. Conecte o
                 Instagram ou defina um nome de usuário para ativar.
               </p>
             )}
@@ -2081,7 +2283,7 @@ function EvolutionSvg({ points }: { points: EvolutionPoint[] }) {
       : `${linePath} L${x(values.length - 1).toFixed(1)},${H - PAD.bottom} L${x(0).toFixed(1)},${H - PAD.bottom} Z`;
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img" aria-label="Evolução do XP">
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-full h-auto" role="img" aria-label="Evolução do XP">
       <defs>
         <linearGradient id="xpArea" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#A855F7" stopOpacity="0.34" />
@@ -2103,7 +2305,7 @@ function EvolutionSvg({ points }: { points: EvolutionPoint[] }) {
               x2={W - PAD.right}
               y1={gy}
               y2={gy}
-              stroke="rgba(255,255,255,.075)"
+              stroke="rgba(17,19,24,.075)"
               strokeDasharray="4 4"
             />
             <text x={PAD.left - 8} y={gy + 3} textAnchor="end" fontSize="10.5" fill="#6F7889">
@@ -2124,16 +2326,16 @@ function EvolutionSvg({ points }: { points: EvolutionPoint[] }) {
       />
 
       {values.length === 1 ? (
-        <circle cx={x(0)} cy={y(values[0])} r="5" fill="#F43F8E" stroke="#0A0B10" strokeWidth="2" />
+        <circle cx={x(0)} cy={y(values[0])} r="5" fill="#F43F8E" stroke="#FFFFFF" strokeWidth="2" />
       ) : (
         <>
-          <circle cx={x(0)} cy={y(values[0])} r="4" fill="#0A0B10" stroke="#A855F7" strokeWidth="2" />
+          <circle cx={x(0)} cy={y(values[0])} r="4" fill="#FFFFFF" stroke="#A855F7" strokeWidth="2" />
           <circle
             cx={x(values.length - 1)}
             cy={y(values[values.length - 1])}
             r="4.5"
             fill="#F43F8E"
-            stroke="#0A0B10"
+            stroke="#FFFFFF"
             strokeWidth="2"
           />
         </>
@@ -2240,9 +2442,9 @@ function RankingView({ entries, me }: { entries: RankingEntry[]; me: SummaryData
       </div>
 
       <p className="rnk-footnote">
-        <Trophy size={14} style={{ flex: "none", marginTop: 2, color: "#C4B5FD" }} />
+        <Trophy size={14} style={{ flex: "none", marginTop: 2, color: "var(--purple)" }} />
         Posição atual:{" "}
-        <b style={{ color: "#A8B0C0" }}>
+        <b style={{ color: "var(--ink-2)" }}>
           {me.position !== null ? `#${me.position}` : "fora do ranking"}
         </b>{" "}
         de {me.totalUsers} {me.totalUsers === 1 ? "usuário" : "usuários"}. O ranking é calculado
@@ -2424,7 +2626,7 @@ function ResumoMetas({ momentum }: { momentum: MomentumData | null }) {
         <span className="rnk-sum-label">Próxima recompensa</span>
         {proximoMarco ? (
           <>
-            <span className="rnk-sum-val rnk-sum-val-sm" style={{ color: "#34D399" }}>
+            <span className="rnk-sum-val rnk-sum-val-sm" style={{ color: "var(--rnk-green)" }}>
               +{proximoMarco.xp} XP
             </span>
             <span className="rnk-sum-sub">
@@ -2434,7 +2636,7 @@ function ResumoMetas({ momentum }: { momentum: MomentumData | null }) {
           </>
         ) : (
           <>
-            <span className="rnk-sum-val rnk-sum-val-sm" style={{ color: "#34D399" }}>
+            <span className="rnk-sum-val rnk-sum-val-sm" style={{ color: "var(--rnk-green)" }}>
               Sequência máxima
             </span>
             <span className="rnk-sum-sub">
@@ -2448,7 +2650,7 @@ function ResumoMetas({ momentum }: { momentum: MomentumData | null }) {
         <span className="rnk-sum-label">Tempo restante</span>
         {tempoRestante ? (
           <>
-            <span className="rnk-sum-val rnk-sum-val-sm" style={{ color: "#FBBF24" }}>
+            <span className="rnk-sum-val rnk-sum-val-sm" style={{ color: "var(--rnk-amber)" }}>
               {tempoRestante}
             </span>
             <span className="rnk-sum-sub">
@@ -3189,7 +3391,7 @@ function ConquistasView({
                     <TierIcon tier={a.tier} size={11} />
                     {TIER_LABEL[a.tier] ?? a.tier}
                   </span>
-                  <span style={{ fontSize: 11.5, color: "#6F7889" }}>
+                  <span style={{ fontSize: 11.5, color: "var(--ink-3)" }}>
                     {a.progress} / {a.threshold} {a.unit}
                   </span>
                 </div>
@@ -3267,7 +3469,7 @@ function HistoricoView({ xpLogs }: { xpLogs: XpLogData[] }) {
       )}
 
       <p className="rnk-footnote">
-        <BarChart3 size={14} style={{ flex: "none", marginTop: 2, color: "#C4B5FD" }} />
+        <BarChart3 size={14} style={{ flex: "none", marginTop: 2, color: "var(--purple)" }} />
         A progressão recompensa comportamentos que contribuem para crescimento: consistência,
         executar recomendações, testar conteúdos e acompanhar resultados.
       </p>

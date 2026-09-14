@@ -1,7 +1,5 @@
 import {
   ArrowRight,
-  Target,
-  Zap,
   TrendingDown,
   BarChart3,
   Clock,
@@ -89,146 +87,19 @@ export function Nav() {
   );
 }
 
-function HeroMockup() {
-  return (
-    <div className="lnd-hero-visual lnd-reveal" data-dir="right" data-delay="2">
-      <div className="lnd-hero-visual-inner" data-parallax="0.12">
-        <div className="lnd-dash-mock">
-          <div className="lnd-dash-topbar">
-            <div className="lnd-dots" aria-hidden="true">
-              <i />
-              <i />
-              <i />
-            </div>
-            <div className="lnd-url">
-              <span>app.instacessor.com.br</span>
-            </div>
-            <div className="lnd-dots" aria-hidden="true" style={{ visibility: "hidden" }}>
-              <i />
-            </div>
-          </div>
-          <div className="lnd-dash-body">
-            <div className="lnd-dash-left">
-              <div className="lnd-dash-card lnd-dash-stats">
-                <div>
-                  <div className="lnd-lbl">
-                    Seguidores
-                    <span className="lnd-up">▲ 4,8%</span>
-                  </div>
-                  <div className="lnd-num">
-                    <span data-count="12840">0</span> <small>seguidores</small>
-                  </div>
-                </div>
-                <div>
-                  <div className="lnd-lbl">Engajamento</div>
-                  <div className="lnd-num">
-                    <span data-count="6.4" data-decimals="1">
-                      0
-                    </span>
-                    <small>%</small>
-                  </div>
-                </div>
-              </div>
-              <div className="lnd-dash-card lnd-dash-chart">
-                <div className="lnd-lbl">
-                  Alcance — últimos 12 dias
-                  <span className="lnd-up">▲ 32%</span>
-                </div>
-                <div className="lnd-chart-bars" aria-hidden="true">
-                  <i />
-                  <i />
-                  <i />
-                  <i />
-                  <i />
-                  <i />
-                  <i />
-                  <i />
-                  <i />
-                  <i />
-                  <i />
-                  <i />
-                </div>
-              </div>
-            </div>
-            <div className="lnd-dash-right">
-              <div className="lnd-dash-card lnd-score-ring-wrap">
-                <span className="lnd-ring-cap">Score do perfil</span>
-                <svg viewBox="0 0 80 80" width="96" height="96" className="lnd-ring-svg" aria-hidden="true">
-                  <circle cx="40" cy="40" r="34" fill="none" stroke="var(--lnd-surface)" strokeWidth="9" />
-                  <circle
-                    className="lnd-ring-progress"
-                    cx="40"
-                    cy="40"
-                    r="34"
-                    fill="none"
-                    stroke="url(#lndMiniGrad)"
-                    strokeWidth="9"
-                    strokeLinecap="round"
-                    strokeDasharray="213.6"
-                    strokeDashoffset="213.6"
-                    data-ring="84"
-                    data-circ="213.6"
-                  />
-                  <defs>
-                    <linearGradient id="lndMiniGrad" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0" stopColor="#F43F8E" />
-                      <stop offset="0.5" stopColor="#A855F7" />
-                      <stop offset="1" stopColor="#6366F1" />
-                    </linearGradient>
-                  </defs>
-                </svg>
-                <b className="lnd-ring-num">
-                  <span className="lnd-ring-num-val" data-count="84">0</span>
-                  <span className="lnd-ring-num-slash">/100</span>
-                </b>
-              </div>
-              <div className="lnd-dash-card lnd-score-pill-list">
-                <div className="lnd-score-pill">
-                  <span>Engajamento</span>
-                  <b>74</b>
-                </div>
-                <div className="lnd-score-pill">
-                  <span>Crescimento</span>
-                  <b>88</b>
-                </div>
-                <div className="lnd-score-pill">
-                  <span>Alcance</span>
-                  <b>91</b>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* O chip flutuante "1.284 seguidores" (lnd-fc-1) foi removido — era
-            ESTE o card que o usuário mandou tirar, e não a seção seguinte da
-            landing. Os chips "score do perfil" (lnd-fc-2) e "alcance em Reels"
-            (lnd-fc-3) continuam, assim como o mockup principal do dashboard. */}
-        <div className="lnd-float-chip lnd-fc-2">
-          <span className="lnd-ic" style={{ background: "var(--lnd-grad)" }}>
-            <Target size={15} />
-          </span>
-          <span>
-            <small data-count="92">0</small>
-            <span>score do perfil</span>
-          </span>
-        </div>
-        <div className="lnd-float-chip lnd-fc-3">
-          <span className="lnd-ic" style={{ background: "linear-gradient(135deg,#a855f7,#6366f1)" }}>
-            <Zap size={15} />
-          </span>
-          <span>
-            <small data-count="2" data-suffix="x">
-              0
-            </small>
-            <span>alcance em Reels</span>
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
+/**
+ * Hero da landing — sem o mockup de dashboard do lado direito.
+ *
+ * O card grande de métricas (12.840 seguidores, engajamento, gráfico de
+ * alcance, anel de score 84/100 e os chips de score/alcance) foi REMOVIDO
+ * nesta rodada. Sem ele, o Hero não faz mais sentido como grid de 2 colunas:
+ * virou UMA coluna centralizada (`lnd-hero-grid lnd-hero-centered`), com o
+ * conteúdo textual (kicker, título, subtítulo, CTAs e a faixa de confiança)
+ * centralizado e com largura de leitura confortável.
+ *
+ * A seção escura com o GRÁFICO de evolução de alcance NÃO é isto — aquela
+ * é o componente `Dashboard`, que fica logo abaixo do Hero.
+ */
 export function Hero() {
   return (
     <section className="lnd-hero" id="hero">
@@ -238,7 +109,7 @@ export function Hero() {
         <div className="lnd-orb lnd-orb-2" />
         <div className="lnd-orb lnd-orb-3" />
       </div>
-      <div className="lnd-container lnd-hero-grid">
+      <div className="lnd-container lnd-hero-grid lnd-hero-centered">
         <div className="lnd-hero-copy">
           <div className="lnd-hero-kicker lnd-reveal">
             <span className="lnd-pulse" aria-hidden="true" />
@@ -280,7 +151,6 @@ export function Hero() {
             </p>
           </div>
         </div>
-        <HeroMockup />
       </div>
     </section>
   );

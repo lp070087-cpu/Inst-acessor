@@ -63,6 +63,10 @@ export {
   type DisplayNameSource,
 } from "./display-name";
 export {
+  loadPublicProfile,
+  normalizePublicSlug,
+} from "./public-profile";
+export {
   getRitmoState,
   recomputeRitmo,
   computeStreak,

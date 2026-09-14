@@ -302,8 +302,8 @@ export default async function AdminWebhooksPage() {
                 <p className="text-[12px] text-ink-muted">Pendentes / ignorados</p>
               </div>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-[13.5px]">
+            <div className="overflow-x-auto -mx-1 px-1">
+              <table className="w-full min-w-[820px] text-left text-[13.5px]">
                 <thead>
                   <tr className="text-[11px] uppercase tracking-wider text-ink-muted border-b border-border-soft">
                     <th className="py-2.5 pr-4 font-semibold">Tipo</th>

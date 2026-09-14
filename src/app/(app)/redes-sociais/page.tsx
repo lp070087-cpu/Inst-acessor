@@ -81,6 +81,9 @@ export default async function RedesSociaisPage() {
   const instagramConnectingSince =
     instagramStatus === "CONNECTING" ? (instagram?.updatedAt?.toISOString() ?? null) : null;
 
+  const tiktokConnectingSince =
+    tiktokStatus === "CONNECTING" ? (tiktok?.updatedAt?.toISOString() ?? null) : null;
+
   const cards: PlatformConnection[] = [
     {
       platform: "instagram",
@@ -192,6 +195,7 @@ export default async function RedesSociaisPage() {
                 <TikTokActions
                   connected={tiktokConnected}
                   status={tiktokStatus}
+                  connectingSince={tiktokConnectingSince}
                 />
               )}
             </div>

@@ -145,12 +145,21 @@ export async function startPublicCheckout(input: {
   const externalReference = buildExternalReference(email);
 
   // 4) Cria a ordem local em PENDING ANTES da chamada externa (reconciliação).
+  //    `planId` é uma FK opcional. Quando `getPlanById` cai no FALLBACK do
+  //    catálogo em memória (banco indisponível no momento da resolução), o id
+  //    devolvido é `plan:<slug>` — que NÃO existe na tabela `Plan`. Gravar isso
+  //    violaria a FK e derrubaria o checkout com um 500. Nesse caso enviamos
+  //    `null` (a coluna aceita nulo) e seguimos: o `planSlug`/`planName`/
+  //    `expectedAmountCents` já carregam tudo o que a ordem precisa para
+  //    reconciliar no webhook.
+  const planIdForOrder = plan.id.startsWith("plan:") ? null : plan.id;
+
   const order = (await bll.checkoutOrder.create({
     data: {
       email,
       name: input.name ?? null,
       userId: input.userId ?? null,
-      planId: plan.id,
+      planId: planIdForOrder,
       planSlug: plan.slug,
       planName: plan.name,
       expectedAmountCents: plan.priceCents,
@@ -164,6 +173,10 @@ export async function startPublicCheckout(input: {
       externalSubscriptionId: null,
       paidAt: null,
       audit: { step: "order_created", at: new Date().toISOString() },
+      // `id` e `updatedAt` NÃO são informados de propósito: são gerados pelo
+      // Prisma (`@default(cuid())` e `@updatedAt` no schema). Enviá-los aqui
+      // como `undefined` era o que disparava o PrismaClientValidationError
+      // no fluxo público do checkout.
     },
   })) as unknown as CheckoutOrder;
 

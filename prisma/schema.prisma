@@ -1057,7 +1057,14 @@ model SystemSetting {
 }
 
 model CheckoutOrder {
-  id                     String    @id
+  // `@default(cuid())` — CAUSA DO ERRO 500 EM PRODUÇÃO (POST /api/billing/checkout).
+  // Este era o ÚNICO model do schema sem default de id. O fluxo público cria a
+  // ordem com `bll.checkoutOrder.create()` sem informar `id`, e o Prisma exige
+  // o campo obrigatório na entrada → PrismaClientValidationError ANTES de o
+  // checkout do Asaas ser chamado. O Postgres já tem a coluna como
+  // `TEXT NOT NULL` e o valor é gerado no CLIENTE (cuid), então esta correção
+  // NÃO exige migration nem altera nada no banco.
+  id                     String    @id @default(cuid())
   email                  String
   name                   String?
   userId                 String?
@@ -1074,7 +1081,12 @@ model CheckoutOrder {
   externalPaymentId      String?
   externalSubscriptionId String?
   createdAt              DateTime  @default(now())
-  updatedAt              DateTime
+  // `@updatedAt` — SEGUNDA metade do mesmo erro 500. Este era o único model do
+  // schema cujo `updatedAt` não tinha `@updatedAt`; a coluna no Postgres é
+  // `NOT NULL` e sem default no banco, então o Prisma também exigia esse campo
+  // na entrada do create (e não o preenchia sozinho nos updates). É diretiva
+  // de CLIENTE: não altera a coluna nem exige migration.
+  updatedAt              DateTime  @updatedAt
   paidAt                 DateTime?
   audit                  Json?
   Plan                   Plan?     @relation(fields: [planId], references: [id])

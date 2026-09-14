@@ -433,6 +433,36 @@
   gap: clamp(40px, 5vw, 72px);
   align-items: center;
 }
+/* ------------------------------------------------------------
+   Hero centralizado (rodada do pacote final).
+   O mockup de dashboard que ocupava a 2ª coluna foi removido, então
+   o grid de 2 colunas ficou sem par: a coluna textual passou a ser a
+   ÚNICA e é centralizada, com largura de leitura confortável.
+   Não é um grid novo — é a MESMA .lnd-hero-grid com uma coluna só.
+   ------------------------------------------------------------ */
+.lnd-hero-grid.lnd-hero-centered {
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  gap: 0;
+}
+.lnd-hero-grid.lnd-hero-centered .lnd-hero-copy {
+  width: 100%;
+  max-width: 860px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-inline: auto;
+}
+.lnd-hero-grid.lnd-hero-centered .lnd-hero-sub {
+  max-width: 62ch;
+}
+.lnd-hero-grid.lnd-hero-centered .lnd-hero-ctas {
+  justify-content: center;
+}
+.lnd-hero-grid.lnd-hero-centered .lnd-hero-trust {
+  justify-content: center;
+}
 .lnd-hero-kicker {
   display: inline-flex;
   align-items: center;
@@ -3606,6 +3636,8 @@
   }
   .lnd-hero-grid { grid-template-columns: 1fr; }
   .lnd-hero-visual { max-width: 580px; margin-inline: auto; width: 100%; }
+  .lnd-hero-centered .lnd-hero-copy { max-width: 100%; }
+  .lnd-hero-centered .lnd-hero-sub { max-width: 100%; }
   .lnd-hero h1 { font-size: clamp(34px, 8vw, 48px); }
   .lnd-score-wrap { grid-template-columns: 1fr; }
   .lnd-ai-wrap { grid-template-columns: 1fr; }
@@ -3617,6 +3649,16 @@
   .lnd-preview-wrap { grid-template-columns: 1fr; }
   .lnd-auto-grid { grid-template-columns: 1fr; }
   .lnd-fc-2 { right: -10px; }
+}
+
+/* ---------- TABLET — planos em 2 colunas ----------
+   Sem este degrau, três planos ficavam espremidos numa única linha em
+   telas de 641–1080px (iPad retrato) e só quebravam aos 1080px. */
+@media (max-width: 1080px) {
+  .lnd-plans-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: 100%;
+  }
 }
 
 @media (max-width: 640px) {
@@ -3647,6 +3689,107 @@
      `justify-content` o conteúdo ficaria colado à esquerda dentro da coluna. */
   .lnd-footer-bottom .lnd-footer-credit { justify-content: center; row-gap: 4px; }
   .lnd-copy-actions { flex-direction: column; }
+
+  /* ---------- 320–430px: causas reais de rolagem horizontal ----------
+     Correções de layout de verdade — sem zoom, sem transform:scale e sem
+     esconder o problema com overflow-x:hidden. Cada regra abaixo remove
+     um elemento que forçava largura maior que a tela. */
+
+  /* Blocos editoriais (problema): o "✕" ocupa 30px fixos e o texto
+     precisa poder encolher e quebrar em vez de empurrar a linha. */
+  .lnd-problem-row {
+    grid-template-columns: 26px minmax(0, 1fr);
+    gap: 12px;
+  }
+  .lnd-problem-row b {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  /* Linhas de diagnóstico: a barra tem coluna própria; nenhum item pode
+     ter largura mínima rígida em telas estreitas. */
+  .lnd-diag-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .lnd-diag-row .lnd-diag-lbl {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    min-width: 0;
+  }
+  .lnd-diag-row small {
+    min-width: 0;
+  }
+  .lnd-diag-row .lnd-diag-cap {
+    max-width: 100%;
+    white-space: normal;
+  }
+
+  /* Tabela de nichos: duas colunas de texto podem quebrar palavra. */
+  .lnd-niche-th,
+  .lnd-niche-tr {
+    padding: 12px 14px;
+    gap: 10px;
+  }
+  .lnd-niche-th > *,
+  .lnd-niche-tr > * {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  /* Comparativo (KPIs do console): rótulo com reticências, valor alinhado
+     à direita — os mínimos de 62/64px empurravam a linha. */
+  .lnd-compare-row .lnd-c-name {
+    min-width: 0;
+  }
+  .lnd-compare-row .lnd-c-val {
+    min-width: 0;
+  }
+  .lnd-compare-row .lnd-c-delta {
+    min-width: 56px;
+  }
+
+  /* Rótulo de plano e preço nunca estouram o card. */
+  .lnd-plan-card {
+    padding: 26px 20px;
+  }
+  .lnd-plan-price {
+    overflow-wrap: anywhere;
+  }
+
+  /* FAQ: o número não pode empurrar a pergunta para fora. */
+  .lnd-faq-num {
+    min-width: 18px;
+    padding-right: 7px;
+  }
+
+  /* Texto longo (URLs, e-mails, nomes de conta) quebra em vez de vazar. */
+  .lnd-footer-brand p,
+  .lnd-footer-col a,
+  .lnd-cta-final p {
+    overflow-wrap: anywhere;
+  }
+}
+
+/* ---------- 360–320px: últimos ajustes de aperto ---------- */
+@media (max-width: 380px) {
+  /* Botões principais viram largura cheia: nada de dois CTAs espremidos
+     lado a lado numa tela de 320px. */
+  .lnd-cta-final .lnd-ctas {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .lnd-cta-final .lnd-ctas .lnd-btn {
+    width: 100%;
+  }
+  .lnd-footer-grid {
+    gap: 22px;
+  }
+  .lnd-hero-trust {
+    gap: 12px;
+  }
+  .lnd-hero-trust p {
+    font-size: 12.5px;
+  }
 }
 
 /* ---------- LOGO/NOME lado a lado em telas estreitas ----------
@@ -3726,6 +3869,8 @@
     opacity: 1;
     transform: none;
   }
+  /* O mockup do Hero saiu nesta rodada; as regras seguem valendo para os
+     chips flutuantes que restaram em outras seções. */
   .lnd-float-chip,
   .lnd-dash-mock,
   .lnd-hero-visual-inner {
@@ -3779,6 +3924,15 @@
 .lnd-hero-copy {
   position: relative;
   z-index: 1;
+}
+/* No Hero centralizado, a coluna de copy ocupa o palco sozinha. As regras
+   do grid centralizado vivem junto de `.lnd-hero-grid`; aqui garantimos
+   apenas que o conteúdo interno acompanhe o alinhamento ao centro. */
+.lnd-hero-centered .lnd-hero-title {
+  text-align: center;
+}
+.lnd-hero-centered .lnd-hero-kicker {
+  margin-inline: auto;
 }
 .lnd-hero-visual-inner {
   position: relative;

@@ -17,9 +17,7 @@ import {
   Metas,
   Xp,
   Rank,
-  Conquistas,
   Badges,
-  AnaliseConteudos,
   Perfil,
   Historico,
 } from "@/components/landing/sections-c";
@@ -46,6 +44,12 @@ import {
  *   • Diferencial          — "Mais do que métricas. Inteligência para agir."
  *   • CentralPublicacao    — "Publique com organização e segurança"
  *   • Bloco Antes/Depois   — "Números soltos, sem direção" (dentro de Problema)
+ *
+ * Removidas nesta rodada (PARTE 1 do pacote final de ajustes):
+ *   • Conquistas           — "Cada marco vira uma conquista."
+ *   • AnaliseConteudos     — "Veja o que funciona — e repita"
+ * Os componentes continuam EXPORTADOS em `sections-c.tsx` (nada foi apagado
+ * do arquivo), apenas não são mais renderizados na página.
  *
  * O Dashboard (bloco de métricas) foi REMOVIDO POR ENGANO no mesmo
  * enxugamento e VOLTOU nesta rodada como 2ª seção — é a seção de fundo
@@ -104,8 +108,6 @@ export default function HomePage() {
 
       <Badges />
 
-      <AnaliseConteudos />
-
       <RedesSociais />
 
       <Problema />
@@ -119,8 +121,6 @@ export default function HomePage() {
       <Estrategia />
 
       <Metas />
-
-      <Conquistas />
 
       <Perfil />
 

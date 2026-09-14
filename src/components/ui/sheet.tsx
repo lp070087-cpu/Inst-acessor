@@ -18,7 +18,9 @@ interface SheetProps {
 const sideClass = {
   left: "inset-y-0 left-0 h-full w-full max-w-sm",
   right: "inset-y-0 right-0 h-full w-full max-w-sm",
-  bottom: "inset-x-0 bottom-0 max-h-[85vh]",
+  // `dvh` em vez de `vh`: no iOS a barra do Safari muda a altura útil e
+  // `vh` deixa o rodapé do drawer escondido atrás dela.
+  bottom: "inset-x-0 bottom-0 max-h-[85dvh]",
 };
 
 /**
@@ -74,7 +76,7 @@ export function Sheet({
             </IconButton>
           </div>
         )}
-        <div className="flex-1 overflow-y-auto">{children}</div>
+        <div className="flex-1 overflow-y-auto min-w-0">{children}</div>
       </div>
     </div>,
     document.body

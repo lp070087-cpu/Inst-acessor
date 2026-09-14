@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Sora, Plus_Jakarta_Sans, Space_Grotesk } from "next/font/google";
 
 import { ToastProvider } from "@/components/ui/toast";
+import { ServiceWorkerRegistrar } from "@/components/pwa/service-worker-registrar";
 import "./globals.css";
 
 const sora = Sora({
@@ -30,8 +31,24 @@ export const metadata: Metadata = {
   },
   description:
     "O Inst Acessor analisa seu perfil, acompanha sua evolução e transforma métricas do Instagram em estratégias práticas para crescer de forma inteligente.",
+  applicationName: "Inst Acessor",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "Inst Acessor",
+    // "default" mantém a barra de status legível sobre o fundo claro do app.
+    statusBarStyle: "default",
+  },
   icons: {
-    icon: "/favicon.svg",
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/icons/icon-192.svg", sizes: "192x192", type: "image/svg+xml" },
+      { url: "/icons/icon-512.svg", sizes: "512x512", type: "image/svg+xml" },
+    ],
+    // iOS/iPadOS não leem o manifest: dependem deste link para o ícone da
+    // Tela de Início. O SVG funciona em iOS 16+; versões antigas caem no
+    // favicon padrão, sem quebrar a instalação.
+    apple: [{ url: "/icons/icon-192.svg", type: "image/svg+xml" }],
   },
 };
 
@@ -42,10 +59,22 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR">
+      <head>
+        {/* theme-color: barra do navegador / barra de status do PWA instalado
+            acompanham o roxo da marca. Mesmo valor do manifest. */}
+        <meta name="theme-color" content="#8B5CF6" />
+        {/* Instalação em tela cheia no iOS (o manifest não cobre iOS). */}
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-title" content="Inst Acessor" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+      </head>
       <body
         className={`${sora.variable} ${plusJakarta.variable} ${spaceGrotesk.variable}`}
       >
         <ToastProvider>{children}</ToastProvider>
+        {/* Registra o service worker (só em produção/https). Não renderiza nada. */}
+        <ServiceWorkerRegistrar />
       </body>
     </html>
   );

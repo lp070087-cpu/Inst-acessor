@@ -39,7 +39,7 @@ export function EvolutionChart({ points, metric }: EvolutionChartProps) {
 
   if (values.length < 2) {
     return (
-      <div className="h-56 rounded-[16px] bg-surface/40 border border-dashed border-[#D0D4DB] flex items-center justify-center">
+      <div className="h-56 rounded-[16px] bg-surface/40 border border-dashed border-[#D0D4DB] flex items-center justify-center px-4 text-center">
         <p className="text-[13px] text-ink-soft">
           Ainda não há pontos suficientes para este gráfico.
         </p>
@@ -93,9 +93,13 @@ export function EvolutionChart({ points, metric }: EvolutionChartProps) {
         </span>
       </div>
 
+      {/* O SVG escala pelo viewBox. `max-w-full` + `h-auto` impedem que ele
+          force a largura do container: em coluna flex/grid, um SVG com
+          largura implícita grande é uma das causas clássicas de rolagem
+          horizontal. Aqui ele apenas encolhe junto com a tela. */}
       <svg
         viewBox={`0 0 ${W} ${H}`}
-        className="w-full h-auto rounded-[16px]"
+        className="w-full max-w-full h-auto rounded-[16px]"
         role="img"
         aria-label="Gráfico de evolução"
       >

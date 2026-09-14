@@ -341,7 +341,7 @@ export function PublishingClient({ initial }: PublishingClientProps) {
           // colunas; em telas pequenas ela precisa ROLAR dentro do card em vez
           // de empurrar o layout ou ser cortada.
           <div className="rounded-md bg-card border border-border-soft overflow-x-auto">
-            <table className="w-full text-left">
+            <table className="w-full min-w-[720px] text-left">
               <thead className="bg-surface/70">
                 <tr className="text-[11px] font-bold uppercase tracking-wider text-ink-muted">
                   <th className="px-4 py-2.5">Quando</th>

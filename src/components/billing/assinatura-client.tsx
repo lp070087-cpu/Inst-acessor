@@ -223,9 +223,35 @@ export function AssinaturaClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ planId: plan.id }),
       });
-      const data = await res.json();
-      if (!res.ok && data.status !== "INTEGRATION_NOT_CONFIGURED") {
-        toast(data.error ?? "Erro ao iniciar o checkout.", "error");
+
+      // Um erro 500 do servidor devolve a PÁGINA de erro (HTML), não JSON.
+      // Ler como texto e só então tentar o parse evita que `res.json()` lance
+      // e esconda a causa, deixando o usuário com um aviso genérico.
+      const rawBody = await res.text();
+      let data: {
+        error?: string;
+        status?: string;
+        checkout?: { checkoutUrl?: string | null; subscriptionId?: string | null };
+      } | null = null;
+      try {
+        data = rawBody ? JSON.parse(rawBody) : null;
+      } catch {
+        data = null;
+      }
+
+      if (!res.ok) {
+        toast(
+          data?.error ?? "Não foi possível iniciar o checkout. Tente novamente.",
+          "error"
+        );
+        return;
+      }
+
+      // Resposta 200 porém SEM corpo JSON (vazio, ou não-JSON): não dá para
+      // saber o estado da compra. Trata como falha em vez de seguir e exibir
+      // um checkout que não existe. Depois desta guarda `data` é não-nulo.
+      if (!data) {
+        toast("Não foi possível iniciar o checkout. Tente novamente.", "error");
         return;
       }
 
@@ -587,9 +613,13 @@ export function AssinaturaClient({
 
 function InfoCell({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="rounded-[10px] border border-border-soft bg-bg-ice px-3.5 py-2.5 flex flex-col gap-0.5">
-      <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">{label}</span>
-      <div className="text-[13px] text-ink font-medium">{value}</div>
+    // `min-w-0` é obrigatório aqui: em grid/flex o item tem `min-width:auto`,
+    // então um rótulo longo (ex.: "Pagamento confirmado em") empurra a coluna
+    // e estoura o cartão em telas de 320px. Com `min-w-0` + `break-words` o
+    // texto quebra dentro da célula em vez de alargar o layout.
+    <div className="rounded-[10px] border border-border-soft bg-bg-ice px-3 sm:px-3.5 py-2.5 flex flex-col gap-0.5 min-w-0">
+      <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted break-words">{label}</span>
+      <div className="text-[13px] text-ink font-medium break-words">{value}</div>
     </div>
   );
 }

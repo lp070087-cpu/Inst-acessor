@@ -67,8 +67,13 @@ export default async function AppLayout({
     <ToastProvider>
       <div className="min-h-screen bg-bg">
         <AppSidebar user={session.user} isAdmin={isAdmin} />
-        <main className="lg:pl-72 min-h-screen flex flex-col">
-          <div className="flex-1 px-5 sm:px-8 lg:px-10 py-8 max-w-[1400px] mx-auto w-full">
+        <main className="lg:pl-72 min-h-screen flex flex-col min-w-0">
+          {/* `min-w-0` é o que permite os filhos encolherem: em flex, o
+              item herda `min-width:auto` e qualquer conteúdo largo (tabela,
+              gráfico, texto sem quebra) força a coluna a crescer e a página
+              inteira a rolar na horizontal. Com `min-w-0` a largura fica
+              limitada ao container e o filho é quem resolve o excesso. */}
+          <div className="flex-1 min-w-0 px-5 sm:px-8 lg:px-10 py-8 max-w-[1400px] mx-auto w-full">
             {children}
           </div>
         </main>

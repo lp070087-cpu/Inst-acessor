@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192" role="img" aria-label="Inst Acessor">
+  <defs>
+    <linearGradient id="iaGrad192" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#F43F8E"/>
+      <stop offset="45%" stop-color="#A855F7"/>
+      <stop offset="100%" stop-color="#6366F1"/>
+    </linearGradient>
+  </defs>
+  <rect width="192" height="192" rx="42" fill="url(#iaGrad192)"/>
+  <path d="M32 104l25.6-32 24 19.2L108 56l36 56" fill="none" stroke="#fff" stroke-width="14.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M32 136h128" fill="none" stroke="#fff" stroke-width="14.4" stroke-linecap="round"/>
+</svg>

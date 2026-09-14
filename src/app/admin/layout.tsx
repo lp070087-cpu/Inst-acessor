@@ -21,8 +21,11 @@ export default async function AdminLayout({
     <ToastProvider>
       <div className="min-h-screen bg-bg">
         <AdminSidebar user={session.user} />
-        <main className="lg:pl-64 min-h-screen flex flex-col">
-          <div className="flex-1 px-5 sm:px-8 lg:px-10 py-8 max-w-[1400px] mx-auto w-full">
+        {/* `min-w-0`: filho flex tem `min-width:auto` por padrão — sem isso,
+            uma tabela larga em /admin/assinaturas força a rolagem horizontal
+            da PÁGINA inteira em vez de rolar dentro do próprio card. */}
+        <main className="lg:pl-64 min-h-screen flex flex-col min-w-0">
+          <div className="flex-1 min-w-0 px-5 sm:px-8 lg:px-10 py-8 max-w-[1400px] mx-auto w-full">
             {children}
           </div>
         </main>

@@ -92,8 +92,10 @@ export function AdminAccessGrantsTable({ grants: initial }: { grants: AccessGran
           description="As liberações de acesso aparecerão aqui."
         />
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-[13.5px]">
+        <div className="overflow-x-auto -mx-1 px-1">
+          {/* min-w garante que as 6 colunas não sejam esmagadas: abaixo disso
+              a tabela ROLA dentro do card em vez de quebrar o layout. */}
+          <table className="w-full min-w-[820px] text-left text-[13.5px]">
             <thead>
               <tr className="text-[11px] uppercase tracking-wider text-ink-muted border-b border-border-soft">
                 <th className="py-2.5 pr-4 font-semibold">E-mail</th>

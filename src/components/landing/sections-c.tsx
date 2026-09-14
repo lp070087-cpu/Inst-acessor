@@ -272,7 +272,7 @@ export function Rank() {
                 <span>Compartilhe sua evolução</span>
               </div>
             </a>
-            <a href="#conquistas" className="lnd-rank-menu-item lnd-rm-2">
+            <a href="#badges" className="lnd-rank-menu-item lnd-rm-2">
               <span className="lnd-rm-ic">
                 <Award />
               </span>
@@ -281,7 +281,7 @@ export function Rank() {
                 <span>Seus marcos principais</span>
               </div>
             </a>
-            <a href="#conquistas" className="lnd-rank-menu-item lnd-rm-3">
+            <a href="#badges" className="lnd-rank-menu-item lnd-rm-3">
               <span className="lnd-rm-ic">
                 <Gem />
               </span>

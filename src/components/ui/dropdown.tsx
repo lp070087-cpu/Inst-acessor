@@ -48,7 +48,11 @@ export function Dropdown({ trigger, items, align = "right", label }: DropdownPro
     <div
       role="menu"
       className={cn(
-        "absolute top-full mt-2 z-50 min-w-[200px] max-w-[calc(100vw-2rem)] bg-card border border-border-soft rounded-md shadow-lg py-1.5 animate-[fade-slide_.25s_var(--ease-out)]",
+        // `min-w-[min(200px,calc(100vw-2rem))]`: o menu abria com 200px fixos
+        // mesmo com a viewport menor que isso (320px de tela estreita com o
+        // menu alinhado à direita) — a largura mínima agora nunca ultrapassa
+        // o que cabe na tela.
+        "absolute top-full mt-2 z-50 min-w-[min(200px,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] bg-card border border-border-soft rounded-md shadow-lg py-1.5 animate-[fade-slide_.25s_var(--ease-out)]",
         align === "right" ? "right-0" : "left-0"
       )}
     >

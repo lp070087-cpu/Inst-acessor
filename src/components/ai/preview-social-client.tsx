@@ -315,7 +315,10 @@ export function PreviewSocial({ initialDrafts }: PreviewSocialProps) {
               {/* Notch */}
               <div className="absolute top-2 left-1/2 -translate-x-1/2 w-24 h-5 bg-ink rounded-full z-20" />
 
-              <div className="relative h-[540px] bg-bg-ice flex flex-col">
+              {/* Altura responsiva: 540px fixos eram altos demais em telas
+                  baixas (celular na horizontal, ~360px de altura útil). A
+                  área de mídia é `flex-1`, então ela se ajusta sozinha. */}
+              <div className="relative h-[440px] sm:h-[540px] bg-bg-ice flex flex-col">
                 {/* Header do perfil */}
                 <div className="flex items-center gap-2.5 px-4 pt-9 pb-2">
                   <span className="w-8 h-8 rounded-full bg-brand-grad grid place-items-center text-[11px] font-bold text-white">

@@ -20,7 +20,30 @@ type ConnectionStatus = "CONNECTED" | "CONNECTING" | "DISCONNECTED" | "ERROR";
 interface TikTokActionsProps {
   connected: boolean;
   status: ConnectionStatus;
+  /**
+   * Quando o fluxo OAuth foi iniciado (updatedAt da conexão em CONNECTING).
+   * Usado APENAS para liberar o botão quando o TikTok não devolve o usuário ao
+   * nosso callback (ex.: erro/exigência exibidos dentro do próprio TikTok).
+   */
+  connectingSince?: string | null;
 }
+
+/**
+ * Tempo máximo que o botão aceita ficar em "Conectando..." sem o usuário
+ * voltar. Alinhado à validade do `state` (10 min) — depois disso o fluxo é
+ * considerado abandonado e o usuário pode tentar de novo.
+ */
+const FLOW_STALE_MS = 10 * 60 * 1000;
+
+/**
+ * Tempo máximo do estado LOCAL de "Redirecionando...". Se a navegação OAuth
+ * não acontecer em 12s, o botão volta ao normal sozinho — é o que impede o
+ * spinner infinito relatado.
+ */
+const REDIRECT_GUARD_MS = 12_000;
+
+/** Prazo máximo de uma chamada interna (disconnect/refresh). */
+const FETCH_TIMEOUT_MS = 15_000;
 
 /**
  * Ações da página Redes Sociais para o TikTok.
@@ -34,7 +57,11 @@ interface TikTokActionsProps {
  * Não conectado:
  *  - Conectar TikTok
  */
-function TikTokActionsInner({ connected, status }: TikTokActionsProps) {
+function TikTokActionsInner({
+  connected,
+  status,
+  connectingSince,
+}: TikTokActionsProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -43,7 +70,42 @@ function TikTokActionsInner({ connected, status }: TikTokActionsProps) {
   const error = searchParams?.get("error");
   const connectedOk = searchParams?.get("connected") === "true";
 
-  const connecting = status === "CONNECTING";
+  // Timeout de segurança do estado LOCAL: se o clique não virar navegação
+  // OAuth (rota lenta, rede ruim, bloqueio), o botão volta ao normal.
+  React.useEffect(() => {
+    if (!busy) return;
+    const t = setTimeout(() => setBusy(false), REDIRECT_GUARD_MS);
+    return () => clearTimeout(t);
+  }, [busy]);
+
+  // Volta do TikTok via bfcache: o navegador restaura a página como estava
+  // (spinner ligado) sem remontar o componente. Zera o estado local e
+  // recalcula tudo a partir do servidor.
+  React.useEffect(() => {
+    function onPageShow(e: PageTransitionEvent) {
+      if (!e.persisted) return;
+      setBusy(false);
+      router.refresh();
+    }
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, [router]);
+
+  // Escape por tempo para fluxo abandonado — mesmo tratamento do Instagram.
+  const [now, setNow] = React.useState(() => Date.now());
+  const startedAt = connectingSince ? Date.parse(connectingSince) : NaN;
+  const flowStale =
+    status === "CONNECTING" &&
+    (!Number.isFinite(startedAt) || now - startedAt > FLOW_STALE_MS);
+
+  React.useEffect(() => {
+    if (status !== "CONNECTING") return;
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, [status]);
+
+  const connecting = status === "CONNECTING" && !error && !flowStale;
+  const flowAbandoned = status === "CONNECTING" && flowStale && !error;
 
   React.useEffect(() => {
     // Feedback de sucesso/erro vindo do callback (query params controlados).
@@ -60,13 +122,17 @@ function TikTokActionsInner({ connected, status }: TikTokActionsProps) {
 
   function handleConnect() {
     setBusy(true);
-    window.location.assign("/api/integrations/tiktok/connect");
+    // Mesmo feedback imediato do Instagram: "Redirecionando..." antes da
+    // navegação OAuth (o primeiro clique pode levar alguns instantes).
+    setTimeout(() => {
+      window.location.assign("/api/integrations/tiktok/connect");
+    }, 150);
   }
 
   async function handleDisconnect() {
     setBusy(true);
     try {
-      const res = await fetch("/api/integrations/tiktok/disconnect", {
+      const res = await fetchWithTimeout("/api/integrations/tiktok/disconnect", {
         method: "POST",
       });
       const data = (await res.json()) as { ok?: boolean; error?: string };
@@ -90,7 +156,7 @@ function TikTokActionsInner({ connected, status }: TikTokActionsProps) {
   async function handleRefreshMetrics() {
     setBusy(true);
     try {
-      const res = await fetch("/api/integrations/tiktok/refresh", { method: "POST" });
+      const res = await fetchWithTimeout("/api/integrations/tiktok/refresh", { method: "POST" });
       const data = (await res.json()) as { ok?: boolean; error?: string };
       if (data.ok) {
         router.refresh();
@@ -152,6 +218,11 @@ function TikTokActionsInner({ connected, status }: TikTokActionsProps) {
                 <RefreshCw size={16} className="animate-spin" />
                 Conectando...
               </>
+            ) : busy ? (
+              <>
+                <RefreshCw size={16} className="animate-spin" />
+                Redirecionando...
+              </>
             ) : (
               <>
                 <Link2 size={16} />
@@ -163,6 +234,15 @@ function TikTokActionsInner({ connected, status }: TikTokActionsProps) {
             <p className="inline-flex items-center gap-1.5 text-[13px] text-success font-medium">
               <CheckCircle2 size={15} />
               TikTok conectado com sucesso!
+            </p>
+          )}
+          {flowAbandoned && (
+            <p className="inline-flex items-start gap-1.5 text-[13px] text-ink-soft">
+              <AlertTriangle size={15} className="text-warn flex-none mt-0.5" />
+              <span>
+                A conexão anterior não foi concluída. Volte aqui e tente
+                novamente para autorizar o acesso.
+              </span>
             </p>
           )}
         </div>
@@ -178,6 +258,31 @@ export function TikTokActions(props: TikTokActionsProps) {
       <TikTokActionsInner {...props} />
     </Suspense>
   );
+}
+
+/**
+ * `fetch` com prazo máximo — sem ele, uma requisição pendurada deixaria o
+ * botão desabilitado indefinidamente. Ao estourar, o AbortController cancela e
+ * o `finally` do chamador libera o estado local. Não toca no fluxo OAuth.
+ */
+async function fetchWithTimeout(
+  input: string,
+  init: RequestInit = {},
+  ms: number = FETCH_TIMEOUT_MS
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+      // Sem cache HTTP: uma resposta cacheada resolvia instantaneamente
+      // e o estado exibido não refletia o que o servidor acabou de gravar.
+      cache: "no-store",
+    });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function getErrorMessage(error: string | null): string | null {
