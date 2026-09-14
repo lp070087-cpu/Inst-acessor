@@ -126,6 +126,24 @@ export interface AsaasCheckoutSubscription {
   endDate?: string;
 }
 
+/**
+ * Item discriminado do checkout (POST /v3/checkouts).
+ * A documentação atual do Asaas exige o campo `items` — sem ele a API responde
+ * 400 ("O campo 'items' é obrigatório"). O `value` é em REAIS (float), NUNCA em
+ * centavos, e é SEMPRE resolvido no servidor a partir do catálogo.
+ */
+export interface AsaasCheckoutItem {
+  /** Nome do item (ex.: "Inst Acessor — Inst acessor Semanal"). */
+  name: string;
+  /** Descrição curta do item. */
+  description?: string;
+  /** Quantidade — sempre 1 (uma unidade de acesso). */
+  quantity?: number;
+  /** Valor unitário em Reais (float). */
+  value: number;
+  [key: string]: unknown;
+}
+
 export interface AsaasCheckoutRequest {
   /** Nome exibido no checkout (Inst Acessor — <plano>). */
   name: string;
@@ -167,6 +185,11 @@ export interface AsaasCheckoutRequest {
   subscription?: AsaasCheckoutSubscription;
   /** URL para a qual o Asaas redireciona após o pagamento (nosso app). */
   redirectUrl?: string;
+  /**
+   * Itens do checkout (campo OBRIGATÓRIO na doc atual do Asaas). Sempre um único
+   * item, com `quantity: 1` e `value` em Reais (float) — resolvido no servidor.
+   */
+  items?: AsaasCheckoutItem[];
   [key: string]: unknown;
 }
 

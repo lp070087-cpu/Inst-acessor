@@ -24,6 +24,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import {
   annualVsMonthly,
   formatBRL,
+  LANDING_PLAN_FEATURES,
   planBillingLabel,
   planPriceSuffix,
   planShortName,
@@ -527,9 +528,7 @@ export function AssinaturaClient({
                   </div>
                   {annualCompare && (
                     <p className="text-[11.5px] text-ink-soft break-words">
-                      ≈ {formatBRL(annualCompare.perMonthCents)}/mês · 12×{" "}
-                      {formatBRL(annualCompare.twelveMonthsCents)} · economia{" "}
-                      {formatBRL(annualCompare.savingsCents)}
+                      ≈ {formatBRL(annualCompare.perMonthCents)}/mês
                     </p>
                   )}
                   {plan.description && (
@@ -540,7 +539,9 @@ export function AssinaturaClient({
                 </div>
 
                 <ul className="flex flex-col gap-1.5 flex-1">
-                  {plan.features.slice(0, 8).map((f) => (
+                  {/* MESMA lista de benefícios da landing — fonte única
+                      (LANDING_PLAN_FEATURES). Nada é duplicado à mão. */}
+                  {LANDING_PLAN_FEATURES.map((f) => (
                     <li key={f} className="flex items-start gap-2 text-[12.5px] text-ink">
                       <Check size={14} className="text-success flex-none mt-0.5" />
                       {f}

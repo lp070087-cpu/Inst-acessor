@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 import { bll, type CheckoutOrder } from "@/lib/billing/db";
 import { getPlanById } from "@/lib/billing/plans";
 import { normalizeEmail } from "@/lib/first-access/core";
-import { asaasClient } from "./client";
+import { asaasClient, AsaasHttpError } from "./client";
 import { getAsaasConfig } from "./config";
 import { buildHostedCheckoutRequest, extractCheckoutUrl } from "./hosted-checkout";
 import type { AsaasCheckoutResponse } from "./types";
@@ -219,7 +219,13 @@ export async function startPublicCheckout(input: {
     } catch {
       /* segue */
     }
-    console.error("[asaas-checkout-order] falha ao criar checkout no Asaas", err);
+    // Log técnico SANITIZADO: apenas status/código/mensagem do erro conhecido
+    // da API — nunca o corpo completo nem qualquer segredo (API key, token).
+    const errStatus = err instanceof AsaasHttpError ? err.status : null;
+    const errCode = err instanceof AsaasHttpError ? err.code : null;
+    console.error(
+      `[asaas-checkout-order] falha ao criar checkout no Asaas status=${errStatus ?? "-"} code=${errCode ?? "-"}`
+    );
     return {
       ok: false,
       status: "CONFIGURED",

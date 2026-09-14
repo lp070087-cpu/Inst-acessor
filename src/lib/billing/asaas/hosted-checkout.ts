@@ -64,12 +64,19 @@ export function buildHostedCheckoutRequest(input: {
   const baseUrl = getAppBaseUrl();
   const recurring = plan.type === "RECURRING" && Boolean(plan.billingInterval);
 
+  const name = `Inst Acessor — ${plan.name}`;
+  const description = recurring
+    ? `Assinatura ${plan.billingInterval === "YEAR" ? "anual" : "mensal"} Inst Acessor`
+    : `Acesso de ${plan.durationDays ?? 7} dias ao Inst Acessor`;
+
   const request: AsaasCheckoutRequest = {
-    name: `Inst Acessor — ${plan.name}`,
-    description: recurring
-      ? `Assinatura ${plan.billingInterval === "YEAR" ? "anual" : "mensal"} Inst Acessor`
-      : `Acesso de ${plan.durationDays ?? 7} dias ao Inst Acessor`,
+    name,
+    description,
     value,
+    // A documentação atual do Asaas exige `items` (campo obrigatório). É um
+    // único item — a unidade de acesso deste plano — com `quantity: 1` e o
+    // `value` em REAIS (já convertido de centavos exatamente uma vez, acima).
+    items: [{ name, description, quantity: 1, value }],
     // Avulso vs recorrente é o que define o tipo de cobrança do checkout.
     chargeTypes: [recurring ? "RECURRENT" : "DETACHED"],
     // Apenas a forma definida pelo servidor (nunca ampliamos as aceitas).
