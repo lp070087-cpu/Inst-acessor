@@ -83,6 +83,12 @@ export default function HomePage() {
 
       <Hero />
 
+      {/* Faixa animada de capacidades (Marquee) — fica entre o fim do Hero
+          e o início da 2ª seção, conforme a apresentação aprovada
+          (`apresentacao/index.html`: "Marquee de capacidades" logo após o
+          Hero e antes da seção seguinte). */}
+      <Marquee />
+
       {/* ============================================================
           2ª SEÇÃO — DASHBOARD INTELIGENTE (fundo escuro).
           É a seção escura com o GRÁFICO de evolução de alcance.
@@ -91,8 +97,6 @@ export default function HomePage() {
           (`apresentacao/_parts/04-dashboard.html`).
           ============================================================ */}
       <Dashboard />
-
-      <Marquee />
 
       {/* Diagnóstico */}
       <Diagnostico />
