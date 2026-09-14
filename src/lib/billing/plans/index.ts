@@ -23,6 +23,21 @@ import { PLAN_CATALOG, type PlanSlug } from "./catalog";
 
 export { PLAN_CATALOG, type PlanSlug } from "./catalog";
 
+// Apresentação dos planos (valor formatado, periodicidade, nome curto) — módulo
+// PURO, sem Prisma. Componentes de cliente importam de `@/lib/billing/plans/display`
+// diretamente; aqui só reexportamos para os consumidores de servidor.
+export {
+  formatBRL,
+  planBillingLabel,
+  planLandingPeriod,
+  planPeriodLabel,
+  planPriceSuffix,
+  planShortName,
+  annualVsMonthly,
+  LANDING_PLAN_FEATURES,
+  type PlanShape,
+} from "./display";
+
 /** Dados de exibição/negócio de um plano (independentes do banco). */
 export interface PlanView {
   id: string;

@@ -21,6 +21,13 @@ import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import {
+  annualVsMonthly,
+  formatBRL,
+  planBillingLabel,
+  planPriceSuffix,
+  planShortName,
+} from "@/lib/billing/plans/display";
 import { cn } from "@/lib/utils";
 
 /**
@@ -160,13 +167,6 @@ function statusMessage(
   }
 }
 
-function formatBRL(cents: number): string {
-  return (cents / 100).toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  });
-}
-
 function formatDate(iso: string | null): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString("pt-BR", {
@@ -187,11 +187,13 @@ function formatFullDate(iso: string | null): string {
   });
 }
 
+/**
+ * Rótulo do tipo de cobrança de uma assinatura. A REGRA vive em
+ * `planBillingLabel` (módulo de apresentação dos planos) para não haver uma
+ * segunda redação de "Pagamento único"/"Mensal (recorrente)" neste arquivo.
+ */
 function billingLabelText(s: SubscriptionView): string {
-  if (s.billingType !== "RECURRING") return "Pagamento único";
-  if (s.billingInterval === "MONTH") return "Mensal (recorrente)";
-  if (s.billingInterval === "YEAR") return "Anual (recorrente)";
-  return "Recorrente";
+  return planBillingLabel({ type: s.billingType, billingInterval: s.billingInterval });
 }
 
 export function AssinaturaClient({
@@ -259,7 +261,7 @@ export function AssinaturaClient({
         // Estado controlado — nenhuma cobrança real foi feita.
         setNotice({
           kind: "warn",
-          text: `${plan.name} — ${formatBRL(plan.priceCents)}. Pagamento online em configuração. Nenhuma cobrança foi feita.`,
+          text: `${planShortName(plan)} — ${formatBRL(plan.priceCents)}. Pagamento online em configuração. Nenhuma cobrança foi feita.`,
         });
         toast("Pagamento online em configuração.");
         return;
@@ -271,7 +273,7 @@ export function AssinaturaClient({
       setCheckoutUrl(url);
       setNotice({
         kind: "info",
-        text: `${plan.name} — ${formatBRL(plan.priceCents)}. Checkout iniciado. Seu acesso é liberado assim que o pagamento for confirmado.`,
+        text: `${planShortName(plan)} — ${formatBRL(plan.priceCents)}. Checkout iniciado. Seu acesso é liberado assim que o pagamento for confirmado.`,
       });
       toast(url ? "Checkout criado. Finalize o pagamento." : "Checkout criado. Aguardando pagamento.");
 
@@ -469,6 +471,14 @@ export function AssinaturaClient({
             const isFeatured = plan.badge === "MAIS_ESCOLHIDO";
             const isBest = plan.badge === "MELHOR_CUSTO_BENEFICIO";
             const isCurrent = current?.planId === plan.id;
+            // Comparativo do anual contra 12 meses do mensal, calculado a
+            // partir dos PREÇOS REAIS desta lista — nada de constantes
+            // numéricas escritas aqui (antes eram 54700/7700 literais).
+            const annualCompare =
+              plan.type === "RECURRING" && plan.billingInterval === "YEAR"
+                ? annualVsMonthly(plans)
+                : null;
+            const priceSuffix = planPriceSuffix(plan);
             return (
               <div
                 key={plan.id}
@@ -495,28 +505,37 @@ export function AssinaturaClient({
                 )}
 
                 <div className="flex flex-col gap-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-display text-[16px] font-semibold text-ink">{plan.name}</h3>
-                    {isCurrent && <Badge tone="success" size="xs">Atual</Badge>}
+                  <div className="flex flex-wrap items-center gap-2 min-w-0">
+                    <h3 className="font-display text-[16px] font-semibold text-ink min-w-0 break-words">
+                      {planShortName(plan)}
+                    </h3>
+                    {isCurrent && (
+                      <Badge tone="success" size="xs">
+                        Atual
+                      </Badge>
+                    )}
                   </div>
-                  <div className="flex items-baseline gap-1.5">
+                  <div className="flex items-baseline flex-wrap gap-x-1.5 gap-y-0">
                     <span className="font-display text-[30px] font-bold text-ink">
                       {formatBRL(plan.priceCents)}
                     </span>
+                    {/* "único" para o plano de pagamento único — mesma regra
+                        do checkout, sem repetir a cadeia de ifs aqui. */}
                     <span className="text-[12.5px] text-ink-soft">
-                      {plan.billingInterval === "MONTH" && "/mês"}
-                      {plan.billingInterval === "YEAR" && "/ano"}
-                      {plan.type === "ONE_TIME" && "/semana"}
+                      {priceSuffix || "único"}
                     </span>
                   </div>
-                  {plan.slug === "anual" && (
-                    <p className="text-[11.5px] text-ink-soft">
-                      ≈ {formatBRL(54700 / 12)}/mês · 12× {formatBRL(7700 * 12)} · economia{" "}
-                      {formatBRL(7700 * 12 - 54700)}
+                  {annualCompare && (
+                    <p className="text-[11.5px] text-ink-soft break-words">
+                      ≈ {formatBRL(annualCompare.perMonthCents)}/mês · 12×{" "}
+                      {formatBRL(annualCompare.twelveMonthsCents)} · economia{" "}
+                      {formatBRL(annualCompare.savingsCents)}
                     </p>
                   )}
                   {plan.description && (
-                    <p className="text-[12.5px] text-ink-soft leading-snug mt-0.5">{plan.description}</p>
+                    <p className="text-[12.5px] text-ink-soft leading-snug mt-0.5 break-words">
+                      {plan.description}
+                    </p>
                   )}
                 </div>
 

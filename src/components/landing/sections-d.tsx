@@ -1,6 +1,13 @@
 import { LogoMark } from "./sections-a";
 import { UNITRIXAPP_CNPJ } from "@/lib/config/site";
 import {
+  PLAN_CATALOG,
+  formatBRL,
+  planLandingPeriod,
+  planShortName,
+  LANDING_PLAN_FEATURES,
+} from "@/lib/billing/plans/display";
+import {
   ArrowRight,
   CheckCircle2,
   ShieldCheck,
@@ -222,52 +229,23 @@ export function Seguranca() {
 
 // Todos os 3 planos liberam AS MESMAS funcionalidades — sem plano "básico",
 // sem recurso "exclusivo" de um período. A diferença entre eles é apenas o
-// período e o valor. A lista abaixo é intencionalmente idêntica nos 3 cards.
-const ALL_FEATURES = [
-  "Instagram + TikTok conectados",
-  "Dashboard com Score de crescimento",
-  "IA Acessor + Cérebro Estratégico",
-  "Diagnóstico + Central de Ideias",
-  "Gerador de Copy + Preview Social",
-  "Calendário + Planejamento",
-  "Mentoria + Análise de desempenho",
-  "Rank com XP, Metas e Conquistas",
-];
+// período e o valor, por isso a lista de benefícios é a mesma nos 3 cards e
+// vive em `@/lib/billing/plans/display` (LANDING_PLAN_FEATURES), junto das
+// demais regras de apresentação.
+//
+// PREÇO, NOME, DESCRIÇÃO E PERIODICIDADE DOS CARDS VÊM DO CATÁLOGO OFICIAL
+// (`PLAN_CATALOG`) — a mesma fonte que o checkout server-side usa para cobrar.
+// Nenhum valor é escrito aqui: mudar o preço no catálogo reflete na landing.
+// O selo "Mais escolhido" é derivado do `badge` do catálogo, não de um slug.
 
-const PLANS = [
-  {
-    name: "Semanal",
-    priceLabel: "R$ 27,00",
-    period: "por semana",
-    desc: "Acesso completo por 7 dias para conhecer a plataforma sem limite de funcionalidades.",
-    feats: ALL_FEATURES,
-    cta: "Assinar semanal",
-    href: "/checkout?plano=semanal",
-    featured: false,
-  },
-  {
-    name: "Mensal",
-    priceLabel: "R$ 77,00",
-    period: "por mês",
-    desc: "Todas as funcionalidades liberadas, com renovação simples quando quiser.",
-    feats: ALL_FEATURES,
-    cta: "Assinar mensal",
-    href: "/checkout?plano=mensal",
-    featured: true,
-  },
-  {
-    name: "Anual",
-    priceLabel: "R$ 547,00",
-    period: "por ano",
-    desc: "O melhor custo-benefício: todas as funcionalidades por 12 meses.",
-    feats: ALL_FEATURES,
-    cta: "Assinar anual",
-    href: "/checkout?plano=anual",
-    featured: false,
-  },
-];
+/** Ordem de exibição na landing: do menor para o maior período. */
+const LANDING_PLAN_ORDER = ["semanal", "mensal", "anual"] as const;
 
 export function Planos() {
+  const plans = LANDING_PLAN_ORDER.map((slug) =>
+    PLAN_CATALOG.find((p) => p.slug === slug && p.active)
+  ).filter((p): p is (typeof PLAN_CATALOG)[number] => Boolean(p));
+
   return (
     <section className="lnd-section" id="planos">
       <div className="lnd-container">
@@ -282,29 +260,40 @@ export function Planos() {
         </div>
 
         <div className="lnd-plans-grid">
-          {PLANS.map((p, i) => (
-            <div className={`lnd-plan-card${p.featured ? " lnd-featured lnd-glowbox" : ""} lnd-reveal`} data-delay={String(i + 1)} key={p.name}>
-              {p.featured && <span className="lnd-plan-badge">Mais escolhido</span>}
-              <span className="lnd-plan-name">{p.name}</span>
-              <div className="lnd-plan-price">
-                <b>{p.priceLabel}</b>
-                <span>{p.period}</span>
+          {plans.map((p, i) => {
+            const shortName = planShortName(p);
+            const featured = p.badge === "MAIS_ESCOLHIDO";
+            return (
+              <div
+                className={`lnd-plan-card${featured ? " lnd-featured lnd-glowbox" : ""} lnd-reveal`}
+                data-delay={String(i + 1)}
+                key={p.slug}
+              >
+                {featured && <span className="lnd-plan-badge">Mais escolhido</span>}
+                <span className="lnd-plan-name">{shortName}</span>
+                <div className="lnd-plan-price">
+                  <b>{formatBRL(p.priceCents)}</b>
+                  <span>{planLandingPeriod(p)}</span>
+                </div>
+                <p className="lnd-plan-desc">{p.description}</p>
+                <ul className="lnd-plan-feats">
+                  {LANDING_PLAN_FEATURES.map((f) => (
+                    <li key={f}>
+                      <CheckCircle2 size={16} />
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+                <a
+                  className={`lnd-btn lnd-btn-block ${featured ? "lnd-btn-primary" : "lnd-btn-ghost"} lnd-plan-cta`}
+                  href={`/checkout?plano=${encodeURIComponent(p.slug)}`}
+                >
+                  Assinar {shortName.toLowerCase()}
+                  <ArrowRight />
+                </a>
               </div>
-              <p className="lnd-plan-desc">{p.desc}</p>
-              <ul className="lnd-plan-feats">
-                {p.feats.map((f) => (
-                  <li key={f}>
-                    <CheckCircle2 size={16} />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <a className={`lnd-btn lnd-btn-block ${p.featured ? "lnd-btn-primary" : "lnd-btn-ghost"} lnd-plan-cta`} href={p.href}>
-                {p.cta}
-                <ArrowRight />
-              </a>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>

@@ -3,7 +3,12 @@ import { notFound } from "next/navigation";
 import { ShieldCheck, Sparkles } from "lucide-react";
 
 import { getSession } from "@/lib/auth/config";
-import { getPlanById, getPlanBySlug, listPlans } from "@/lib/billing/plans";
+import {
+  getPlanById,
+  getPlanBySlug,
+  listPlans,
+  planShortName,
+} from "@/lib/billing/plans";
 import { CheckoutForm } from "./checkout-form";
 
 export const metadata: Metadata = {
@@ -22,9 +27,15 @@ export const dynamic = "force-dynamic";
  * oficial). Preço/duração/ciclo nunca vêm do navegador. O formulário abre o
  * checkout hospedado do Asaas (POST /v3/checkouts) em nova aba.
  *
- * Comprador já autenticado → sessão é a fonte de verdade (e-mail/nome).
- * Comprador anônimo → informa nome (opcional) + e-mail (obrigatório); o
- * e-mail vira a identidade que recebe o AccessGrant após pagamento validado.
+ * Dois cenários, decididos AQUI no servidor (fonte única):
+ *
+ *   A) COM sessão válida → e-mail/nome vêm da sessão (fonte de verdade) e o
+ *      formulário informa que a compra será vinculada àquela conta.
+ *   B) SEM sessão → NENHUM e-mail é exibido e nenhuma frase de "compra
+ *      vinculada à sua conta" aparece. O visitante informa o e-mail que
+ *      receberá o acesso (identidade do AccessGrant após pagamento validado).
+ *      A lista de planos alternativos é esvaziada de propósito para que o
+ *      formulário nem sequer possa cair no ramo autenticado.
  *
  * Shell visual próprio (src/app/checkout/layout.tsx), FORA do route group
  * autenticado e FORA do matcher do middleware — página pública.
@@ -47,6 +58,14 @@ export default async function CheckoutPage({
   if (!plan || !plan.active) notFound();
 
   const isAuthed = Boolean(authedEmail);
+  const planShort = planShortName(plan);
+
+  // "Compra vinculada à conta" só pode existir quando existe conta AQUI, AGORA.
+  // Para isso ser estrutural (e não depender de o formulário lembrar de checar
+  // `authedEmail` em cada ramo), o seletor de planos é esvaziado quando não há
+  // sessão: o Cenário B passa a ter um único caminho de UI possível, sempre
+  // com o campo de e-mail visível e vazio.
+  const activePlans = isAuthed ? plans : [];
 
   return (
     <div className="bg-card border border-border-soft rounded-xl shadow-lg p-6 sm:p-8">
@@ -58,7 +77,7 @@ export default async function CheckoutPage({
       </div>
       <h1 className="font-display text-[24px] font-bold text-ink">
         {isAuthed ? "Assinar" : "Criar acesso"} —{" "}
-        {plan.name.replace(/^Inst acessor\s*/i, "")}
+        {planShort}
       </h1>
       <p className="text-[13.5px] text-ink-soft mt-1.5">
         {isAuthed
@@ -69,7 +88,7 @@ export default async function CheckoutPage({
       <div className="mt-7">
         <CheckoutForm
           plan={plan}
-          plans={plans}
+          activePlans={activePlans}
           authedEmail={authedEmail}
           authedName={authedName}
         />

@@ -18,6 +18,12 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
+import {
+  formatBRL,
+  planPeriodLabel,
+  planPriceSuffix,
+  planShortName,
+} from "@/lib/billing/plans/display";
 import { cn } from "@/lib/utils";
 
 /**
@@ -54,24 +60,18 @@ interface PlanView {
 
 interface CheckoutFormProps {
   plan: PlanView;
-  plans: PlanView[];
+  /**
+   * Planos que o seletor "Trocar de plano" pode oferecer.
+   *
+   * Chega VAZIO quando não há sessão válida. Sem o seletor, o e-mail que o
+   * visitante digitar é o único caminho possível para a compra e para o
+   * acesso — não há como trocar de plano e acabar usando outra identidade por
+   * engano.
+   */
+  activePlans: PlanView[];
   /** Comprador já autenticado? Se sim, o servidor usa a sessão como fonte de verdade. */
   authedEmail: string | null;
   authedName: string | null;
-}
-
-function formatBRL(cents: number): string {
-  return (cents / 100).toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  });
-}
-
-function periodLabel(plan: PlanView): string {
-  if (plan.type !== "RECURRING") return "pagamento único · acesso de 7 dias";
-  if (plan.billingInterval === "YEAR") return "cobrança anual · acesso por 12 meses";
-  if (plan.billingInterval === "MONTH") return "cobrança mensal recorrente";
-  return "recorrente";
 }
 
 type NoticeState =
@@ -81,32 +81,58 @@ type NoticeState =
   | { kind: "error"; text: string }
   | null;
 
-export function CheckoutForm({ plan, plans, authedEmail, authedName }: CheckoutFormProps) {
+export function CheckoutForm({
+  plan,
+  activePlans,
+  authedEmail,
+  authedName,
+}: CheckoutFormProps) {
   const { toast } = useToast();
 
   const [selectedId, setSelectedId] = React.useState<string>(plan.id);
   const [name, setName] = React.useState(authedName ?? "");
+  // O e-mail do formulário NUNCA é pré-preenchido a partir de outra origem que
+  // não seja a sessão ATUAL verificada no servidor. Não há persistência local
+  // (nem localStorage/sessionStorage) e nenhum efeito hidrata este campo depois
+  // — assim um visitante anônimo não vê o e-mail de uma conta que não é dele.
   const [email, setEmail] = React.useState(authedEmail ?? "");
   const [loading, setLoading] = React.useState(false);
   const [notice, setNotice] = React.useState<NoticeState>(null);
 
-  const selected = plans.find((p) => p.id === selectedId) ?? plan;
+  // O seletor só troca entre os planos que o usuário pode escolher AQUI.
+  // Sem sessão `activePlans` é vazio, então cai sempre em `plan` — exatamente o
+  // plano que veio da landing.
+  const selected = activePlans.find((p) => p.id === selectedId) ?? plan;
 
   async function continueToPayment(e: React.FormEvent) {
     e.preventDefault();
     setNotice(null);
 
-    if (!email.trim()) {
-      setNotice({ kind: "error", text: "Informe seu e-mail para continuar. É com ele que seu acesso será liberado." });
+    // Guarda de consistência: só é possível chegar aqui sem e-mail quando a
+    // sessão não foi confirmada pelo servidor. Não seguimos com uma identidade
+    // desconhecida.
+    if (!authedEmail && !email.trim()) {
+      setNotice({
+        kind: "error",
+        text: "Informe seu e-mail para continuar. É com ele que seu acesso será liberado.",
+      });
       return;
     }
 
     setLoading(true);
     try {
+      // `email` SÓ é enviado quando não há sessão (Cenário B). Com sessão, o
+      // servidor usa a identidade da sessão como fonte de verdade e ignora
+      // qualquer e-mail vindo do navegador — nunca sobrescrevemos a conta de
+      // quem já está logado.
       const res = await fetch("/api/billing/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId: selected.id, name: name.trim() || null, email: email.trim() }),
+        body: JSON.stringify({
+          planId: selected.id,
+          name: name.trim() || null,
+          ...(authedEmail ? {} : { email: email.trim() }),
+        }),
       });
       const data = await res.json();
 
@@ -114,7 +140,7 @@ export function CheckoutForm({ plan, plans, authedEmail, authedName }: CheckoutF
         // Estado controlado — nenhuma cobrança foi feita.
         setNotice({
           kind: "warn",
-          text: `${selected.name} — ${formatBRL(selected.priceCents)}. Pagamento online em configuração. Nenhuma cobrança foi feita.`,
+          text: `${planShortName(selected)} — ${formatBRL(selected.priceCents)}. Pagamento online em configuração. Nenhuma cobrança foi feita.`,
         });
         toast("Pagamento online em configuração.");
         return;
@@ -154,21 +180,17 @@ export function CheckoutForm({ plan, plans, authedEmail, authedName }: CheckoutF
           <CreditCard size={20} strokeWidth={1.9} />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="font-display text-[16px] font-bold text-ink leading-tight truncate">
-            {selected.name}
+          <p className="font-display text-[16px] font-bold text-ink leading-tight break-words">
+            {planShortName(selected)}
           </p>
-          <p className="text-[12px] text-ink-soft">{periodLabel(selected)}</p>
+          <p className="text-[12px] text-ink-soft break-words">{planPeriodLabel(selected)}</p>
         </div>
         <div className="text-right shrink-0">
           <p className="font-display text-[19px] font-bold text-ink leading-none">
             {formatBRL(selected.priceCents)}
           </p>
           <p className="text-[11px] text-ink-muted mt-0.5">
-            {selected.type === "RECURRING"
-              ? selected.billingInterval === "YEAR"
-                ? "/ano"
-                : "/mês"
-              : "único"}
+            {planPriceSuffix(selected) || "único"}
           </p>
         </div>
       </div>
@@ -180,11 +202,19 @@ export function CheckoutForm({ plan, plans, authedEmail, authedName }: CheckoutF
           </span>
           <div className="min-w-0">
             <p className="text-[12.5px] text-ink-soft">Compra vinculada à sua conta</p>
-            <p className="text-[14px] font-semibold text-ink truncate">{authedEmail}</p>
+            <p className="text-[14px] font-semibold text-ink break-all">{authedEmail}</p>
+            <p className="text-[11.5px] text-ink-muted mt-0.5">
+              Sua assinatura será atualizada nesta mesma conta — você não precisa
+              informar e-mail.
+            </p>
           </div>
         </div>
       ) : (
         <>
+          {/* CENÁRIO B — VISITANTE SEM SESSÃO.
+              O formulário pede o e-mail que receberá o acesso e mostra, em
+              texto, exatamente com que identidade a compra está sendo feita.
+              Nada é herdado de sessão anterior: o campo começa vazio. */}
           <div className="flex flex-col gap-1.5">
             <label htmlFor="checkout-name" className="text-[13px] font-semibold text-ink">
               Seu nome <span className="text-ink-muted font-normal">(opcional)</span>
@@ -196,27 +226,32 @@ export function CheckoutForm({ plan, plans, authedEmail, authedName }: CheckoutF
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Como podemos te chamar?"
-              className="h-12 rounded-[12px] border border-border bg-bg-ice px-4 text-[14.5px] text-ink placeholder:text-ink-muted focus:border-purple/50 focus:ring-2 focus:ring-purple/20 focus:outline-none transition-shadow"
+              className="h-12 w-full min-w-0 rounded-[12px] border border-border bg-bg-ice px-4 text-[14.5px] text-ink placeholder:text-ink-muted focus:border-purple/50 focus:ring-2 focus:ring-purple/20 focus:outline-none transition-shadow"
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
               <label htmlFor="checkout-email" className="text-[13px] font-semibold text-ink">
-                E-mail
+                Seu e-mail <span className="text-ink-muted font-normal">(obrigatório)</span>
               </label>
               <span className="text-[11.5px] text-ink-muted">onde seu acesso será liberado</span>
             </div>
             <input
               id="checkout-email"
               type="email"
+              inputMode="email"
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="voce@email.com"
-              className="h-12 rounded-[12px] border border-border bg-bg-ice px-4 text-[14.5px] text-ink placeholder:text-ink-muted focus:border-purple/50 focus:ring-2 focus:ring-purple/20 focus:outline-none transition-shadow"
+              placeholder="seuemail@exemplo.com"
+              className="h-12 w-full min-w-0 rounded-[12px] border border-border bg-bg-ice px-4 text-[14.5px] text-ink placeholder:text-ink-muted focus:border-purple/50 focus:ring-2 focus:ring-purple/20 focus:outline-none transition-shadow"
               required
             />
+            <p className="text-[11.5px] text-ink-muted leading-relaxed min-w-0 break-words">
+              É com este e-mail que você vai ativar seu acesso depois do pagamento —
+              não é preciso ter conta antes.
+            </p>
           </div>
         </>
       )}
@@ -232,38 +267,47 @@ export function CheckoutForm({ plan, plans, authedEmail, authedName }: CheckoutF
         </div>
       )}
 
-      {/* Troca rápida de plano */}
-      <div className="flex flex-col gap-1.5">
-        <span className="text-[12.5px] font-semibold text-ink-soft">Trocar de plano</span>
-        {/* Colapsa para 1 coluna no celular: com 3 colunas fixas sobram ~56px
-            por card a 320px, menos que o min-content de "R$ 47,00". */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          {plans.map((p) => {
-            const isSel = p.id === selectedId;
-            return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => setSelectedId(p.id)}
-                className={cn(
-                  "flex flex-col items-start gap-0.5 rounded-[12px] border px-3 py-2.5 text-left transition-all duration-200 cursor-pointer",
-                  isSel
-                    ? "border-purple/60 bg-purple/5 ring-1 ring-purple/20"
-                    : "border-border bg-bg-ice/50 hover:border-purple/30"
-                )}
-              >
-                <span className="flex items-center gap-1 text-[12.5px] font-semibold text-ink">
-                  {p.slug === "mensal" && <Zap size={12} className="text-purple" />}
-                  {p.slug === "anual" && <Crown size={12} className="text-purple" />}
-                  {p.slug === "semanal" && <CalendarClock size={12} className="text-purple" />}
-                  {p.name.replace(/^Inst acessor\s*/i, "")}
-                </span>
-                <span className="text-[12px] font-bold text-ink-soft">{formatBRL(p.priceCents)}</span>
-              </button>
-            );
-          })}
+      {/* Troca rápida de plano — só existe quando há uma sessão verificada.
+          Sem sessão (Cenário B) o visitante confirma o plano escolhido na
+          landing; o seletor some para que o e-mail digitado seja a única
+          identidade possível desta compra. */}
+      {activePlans.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[12.5px] font-semibold text-ink-soft">Trocar de plano</span>
+          {/* Colapsa para 1 coluna no celular: com 3 colunas fixas sobram ~56px
+              por card a 320px, menos que o min-content de "R$ 47,00". */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            {activePlans.map((p) => {
+              const isSel = p.id === selectedId;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setSelectedId(p.id)}
+                  className={cn(
+                    "flex flex-col items-start gap-0.5 rounded-[12px] border px-3 py-2.5 text-left transition-all duration-200 cursor-pointer min-w-0",
+                    isSel
+                      ? "border-purple/60 bg-purple/5 ring-1 ring-purple/20"
+                      : "border-border bg-bg-ice/50 hover:border-purple/30"
+                  )}
+                >
+                  <span className="flex items-center gap-1 text-[12.5px] font-semibold text-ink min-w-0">
+                    {p.slug === "mensal" && <Zap size={12} className="text-purple flex-none" />}
+                    {p.slug === "anual" && <Crown size={12} className="text-purple flex-none" />}
+                    {p.slug === "semanal" && (
+                      <CalendarClock size={12} className="text-purple flex-none" />
+                    )}
+                    <span className="truncate">{planShortName(p)}</span>
+                  </span>
+                  <span className="text-[12px] font-bold text-ink-soft">
+                    {formatBRL(p.priceCents)}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       {notice && (
         <div
@@ -320,14 +364,28 @@ export function CheckoutForm({ plan, plans, authedEmail, authedName }: CheckoutF
         </a>
       </p>
 
-      {/* Checklist silencioso para transparência */}
+      {/* Checklist silencioso para transparência. Reflete o plano realmente
+          selecionado: o semanal é pagamento único e não tem renovação para
+          cancelar; prometer cancelamento ali seria informação incorreta. */}
       <ul className="flex flex-col gap-1 text-[11.5px] text-ink-muted mt-1">
-        <li className="flex items-center gap-1.5">
-          <Check size={12} className="text-success" /> Sem renovação automática sem o seu aval
-        </li>
-        <li className="flex items-center gap-1.5">
-          <Check size={12} className="text-success" /> Cancele quando quiser
-        </li>
+        {selected.type === "RECURRING" ? (
+          <>
+            <li className="flex items-center gap-1.5">
+              <Check size={12} className="text-success flex-none" /> Sem renovação automática sem o seu aval
+            </li>
+            <li className="flex items-center gap-1.5">
+              <Check size={12} className="text-success flex-none" /> Cancele quando quiser
+            </li>
+          </>
+        ) : (
+          <li className="flex items-start gap-1.5">
+            <Check size={12} className="text-success flex-none mt-0.5" />
+            <span className="min-w-0 break-words">
+              Pagamento único de {formatBRL(selected.priceCents)} — sem renovação
+              automática e sem cobrança recorrente.
+            </span>
+          </li>
+        )}
       </ul>
     </form>
   );
