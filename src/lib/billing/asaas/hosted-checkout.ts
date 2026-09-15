@@ -59,8 +59,8 @@ export function buildHostedCheckoutRequest(input: {
   buyerEmail?: string | null;
   /** CPF/CNPJ — somente dígitos (normalizado pelo servidor). */
   buyerCpfCnpj?: string | null;
-  /** Telefone/WhatsApp — E.164 (normalizado pelo servidor). */
-  buyerPhoneNumber?: string | null;
+  /** Telefone/WhatsApp — DDD + número, somente dígitos (normalizado no servidor). */
+  buyerPhone?: string | null;
   /** Endereço (rua/avenida, sem número). */
   buyerAddress?: string | null;
   /** Número do endereço. */
@@ -132,7 +132,7 @@ export function buildHostedCheckoutRequest(input: {
     const email = (input.buyerEmail ?? "").trim();
     const name = (input.buyerName ?? "").trim();
     const cpfCnpj = (input.buyerCpfCnpj ?? "").trim();
-    const phoneNumber = (input.buyerPhoneNumber ?? "").trim();
+    const phone = (input.buyerPhone ?? "").trim();
     const address = (input.buyerAddress ?? "").trim();
     const addressNumber = (input.buyerAddressNumber ?? "").trim();
     const postalCode = (input.buyerPostalCode ?? "").trim();
@@ -145,7 +145,7 @@ export function buildHostedCheckoutRequest(input: {
         // Dados obrigatórios do comprador (checkout hospedado do Asaas).
         // Todos já chegam normalizados do servidor — nunca inventados aqui.
         ...(cpfCnpj ? { cpfCnpj } : {}),
-        ...(phoneNumber ? { phoneNumber } : {}),
+        ...(phone ? { phone } : {}),
         ...(address ? { address } : {}),
         ...(addressNumber ? { addressNumber } : {}),
         ...(postalCode ? { postalCode } : {}),

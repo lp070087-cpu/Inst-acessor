@@ -28,7 +28,8 @@ import { cn } from "@/lib/utils";
 
 // ------------------------------------------------------------
 // Máscaras de entrada (somente exibição — o valor enviado ao
-// servidor é SEMPRE normalizado para dígitos/E.164 no backend).
+// servidor é SEMPRE normalizado para DDD+número, sem prefixo 55,
+// no backend — formato esperado pelo checkout do Asaas).
 // ------------------------------------------------------------
 
 function digitsOnly(value: string): string {
@@ -336,7 +337,7 @@ export function CheckoutForm({
           {/* Dados obrigatórios do comprador (checkout hospedado do Asaas).
               Layout premium e compacto: pares em grade no desktop, empilhados
               no mobile. Valores exibidos sem normalização inesperada — a
-              normalização (dígitos/E.164) acontece só no servidor. */}
+              normalização (DDD+número, sem prefixo 55) acontece só no servidor. */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
               <label htmlFor="checkout-cpfcnpj" className="text-[13px] font-semibold text-ink">

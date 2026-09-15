@@ -57,7 +57,7 @@ export async function POST(request: Request) {
   let buyer:
     | {
         cpfCnpj?: string | null;
-        phoneNumber?: string | null;
+        phone?: string | null;
         address?: string | null;
         addressNumber?: string | null;
         postalCode?: string | null;
@@ -101,7 +101,7 @@ export async function POST(request: Request) {
 
     buyer = {
       cpfCnpj: parsed.data.cpfCnpj ?? null,
-      phoneNumber: parsed.data.phone ?? null,
+      phone: parsed.data.phone ?? null,
       address: parsed.data.address ?? null,
       addressNumber: parsed.data.addressNumber ?? null,
       postalCode: parsed.data.postalCode ?? null,

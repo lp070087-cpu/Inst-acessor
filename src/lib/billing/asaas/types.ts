@@ -114,8 +114,8 @@ export interface AsaasCustomerData {
   email?: string;
   /** CPF ou CNPJ — SOMENTE dígitos (sem pontuação). */
   cpfCnpj?: string;
-  /** Telefone/WhatsApp — E.164 (ex.: 5511999999999). */
-  phoneNumber?: string;
+  /** Telefone/WhatsApp — DDD + número, somente dígitos (ex.: 11999999999). */
+  phone?: string;
   /** Nome da rua/avenida (sem número). */
   address?: string;
   /** Número do endereço. */

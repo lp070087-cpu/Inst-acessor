@@ -102,7 +102,7 @@ export async function startPublicCheckout(input: {
   /** Dados obrigatórios do comprador (checkout hospedado). Normalizados. */
   buyer?: {
     cpfCnpj?: string | null;
-    phoneNumber?: string | null;
+    phone?: string | null;
     address?: string | null;
     addressNumber?: string | null;
     postalCode?: string | null;
@@ -208,7 +208,7 @@ export async function startPublicCheckout(input: {
         buyerName: input.name ?? null,
         buyerEmail: email,
         buyerCpfCnpj: input.buyer?.cpfCnpj ?? null,
-        buyerPhoneNumber: input.buyer?.phoneNumber ?? null,
+        buyerPhone: input.buyer?.phone ?? null,
         buyerAddress: input.buyer?.address ?? null,
         buyerAddressNumber: input.buyer?.addressNumber ?? null,
         buyerPostalCode: input.buyer?.postalCode ?? null,
