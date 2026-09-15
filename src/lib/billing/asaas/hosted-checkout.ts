@@ -64,10 +64,26 @@ export function buildHostedCheckoutRequest(input: {
   const baseUrl = getAppBaseUrl();
   const recurring = plan.type === "RECURRING" && Boolean(plan.billingInterval);
 
-  const name = `Inst Acessor — ${plan.name}`;
+  // `name` curto e estável (limite do Asaas: 30 caracteres). O `plan.name` real
+  // não cabe no limite — usamos rótulos fixos por tipo de plano:
+  //   Semanal = "Inst Acessor - Semanal" (22) | Mensal = "Inst Acessor - Mensal"
+  //   (22) | Anual = "Inst Acessor - Anual" (21). Descrição continua detalhada.
+  const shortLabel = recurring
+    ? plan.billingInterval === "YEAR"
+      ? "Anual"
+      : "Mensal"
+    : "Semanal";
+  const name = `Inst Acessor - ${shortLabel}`; // ≤ 30 caracteres.
   const description = recurring
     ? `Assinatura ${plan.billingInterval === "YEAR" ? "anual" : "mensal"} Inst Acessor`
     : `Acesso de ${plan.durationDays ?? 7} dias ao Inst Acessor`;
+
+  // URL de retorno do CLIENTE (nosso app), sempre preservando a referência da
+  // ordem. O `status` diferencia apenas o desfecho visual — NUNCA prova
+  // pagamento (a confirmação vem exclusivamente do webhook).
+  const ref = encodeURIComponent(input.externalReference);
+  const retorno = (status: "sucesso" | "cancelado" | "expirado") =>
+    `${baseUrl}/checkout/retorno?status=${status}&referencia=${ref}`;
 
   const request: AsaasCheckoutRequest = {
     name,
@@ -82,8 +98,17 @@ export function buildHostedCheckoutRequest(input: {
     // Apenas a forma definida pelo servidor (nunca ampliamos as aceitas).
     billingTypes: [input.billingType],
     dueDate,
+    // Expiração conservadora do checkout hospedado (limite: 10–1440 min).
+    minutesToExpire: 60,
     externalReference: input.externalReference,
-    redirectUrl: `${baseUrl}/checkout/retorno?referencia=${encodeURIComponent(input.externalReference)}`,
+    redirectUrl: retorno("sucesso"),
+    // Callback obrigatório na doc atual do Asaas — as 3 URLs de retorno do
+    // CLIENTE. NÃO é o webhook (fluxo separado, intacto).
+    callback: {
+      successUrl: retorno("sucesso"),
+      cancelUrl: retorno("cancelado"),
+      expiredUrl: retorno("expirado"),
+    },
   };
 
   // Customer: REUTILIZA o existente OU envia os dados para criar um novo.

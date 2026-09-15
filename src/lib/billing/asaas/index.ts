@@ -37,6 +37,7 @@ export type {
   AsaasCheckoutChargeType,
   AsaasCheckoutSubscription,
   AsaasCheckoutItem,
+  AsaasCheckoutCallback,
   AsaasCustomerData,
   AsaasCheckoutWebhook,
   AsaasBillingTypeValue,

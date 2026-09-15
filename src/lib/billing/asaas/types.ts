@@ -144,6 +144,24 @@ export interface AsaasCheckoutItem {
   [key: string]: unknown;
 }
 
+/**
+ * Callback do checkout hospedado — para onde o Asaas redireciona o CLIENTE.
+ * NÃO confundir com o webhook (notificação server-to-server que libera o
+ * acesso); o webhook é um fluxo separado e fica intacto. O callback apenas
+ * leva o comprador de volta ao app em cada desfecho — NUNCA confirma pagamento.
+ */
+export interface AsaasCheckoutCallback {
+  /** URL quando o pagamento é concluído. */
+  successUrl: string;
+  /** URL quando o comprador cancela o checkout. */
+  cancelUrl: string;
+  /** URL quando o checkout expira. */
+  expiredUrl: string;
+  /** Redirecionamento automático após o pagamento (opcional). */
+  autoRedirect?: boolean;
+  [key: string]: unknown;
+}
+
 export interface AsaasCheckoutRequest {
   /** Nome exibido no checkout (Inst Acessor — <plano>). */
   name: string;
@@ -176,6 +194,8 @@ export interface AsaasCheckoutRequest {
   customerData?: AsaasCustomerData;
   /** Vencimento da 1ª cobrança (YYYY-MM-DD). */
   dueDate?: string;
+  /** Expiração do checkout em minutos (10–1440). */
+  minutesToExpire?: number;
   /** Referência única da ordem local (reconciliação do webhook). */
   externalReference?: string;
   /**
@@ -185,6 +205,11 @@ export interface AsaasCheckoutRequest {
   subscription?: AsaasCheckoutSubscription;
   /** URL para a qual o Asaas redireciona após o pagamento (nosso app). */
   redirectUrl?: string;
+  /**
+   * Callback do checkout (campo OBRIGATÓRIO na doc atual do Asaas) — define
+   * para onde o CLIENTE volta depois de pagar (`successUrl`). Não é o webhook.
+   */
+  callback?: AsaasCheckoutCallback;
   /**
    * Itens do checkout (campo OBRIGATÓRIO na doc atual do Asaas). Sempre um único
    * item, com `quantity: 1` e `value` em Reais (float) — resolvido no servidor.

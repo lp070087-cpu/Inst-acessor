@@ -123,10 +123,16 @@ async function request<T>(opts: AsaasRequestOptions): Promise<T> {
     }
 
     if (!res.ok) {
-      // NUNCA loga o corpo completo — apenas código/mensagem sanitizados.
+      // NUNCA loga o corpo completo — apenas código/descrição sanitizados
+      // (sem API key, token, cookies ou headers de auth).
       const err = new AsaasHttpError(res.status, body);
+      const errDetails = err.errors
+        .map((e) => `${e.code ?? "-"}: ${e.description ?? ""}`)
+        .join(" | ");
       console.error(
-        `[asaas] http ${res.status} ${opts.method ?? "GET"} ${opts.path} code=${err.code ?? "-"}`
+        `[asaas] http ${res.status} ${opts.method ?? "GET"} ${opts.path} code=${err.code ?? "-"}${
+          errDetails ? ` errors=[${errDetails}]` : ""
+        }`
       );
       throw err;
     }
