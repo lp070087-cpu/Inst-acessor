@@ -108,7 +108,7 @@ export function buildHostedCheckoutRequest(input: {
     // Avulso vs recorrente Ã© o que define o tipo de cobranÃ§a do checkout.
     chargeTypes: [recurring ? "RECURRENT" : "DETACHED"],
     // Apenas a forma definida pelo servidor (nunca ampliamos as aceitas).
-    billingTypes: ["PIX", "CREDIT_CARD"],
+    billingTypes: recurring ? ["CREDIT_CARD"] : ["PIX", "CREDIT_CARD"],
     dueDate,
     // ExpiraÃ§Ã£o conservadora do checkout hospedado (limite: 10â€“1440 min).
     minutesToExpire: 60,
@@ -176,6 +176,8 @@ export function extractCheckoutUrl(
   if (!url || typeof url !== "string" || url.trim().length === 0) return null;
   return url.trim();
 }
+
+
 
 
 
