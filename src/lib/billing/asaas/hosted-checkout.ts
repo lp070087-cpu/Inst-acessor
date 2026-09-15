@@ -57,6 +57,18 @@ export function buildHostedCheckoutRequest(input: {
   buyerName?: string | null;
   /** E-mail do comprador — usado em `customerData` quando não há customer. */
   buyerEmail?: string | null;
+  /** CPF/CNPJ — somente dígitos (normalizado pelo servidor). */
+  buyerCpfCnpj?: string | null;
+  /** Telefone/WhatsApp — E.164 (normalizado pelo servidor). */
+  buyerPhoneNumber?: string | null;
+  /** Endereço (rua/avenida, sem número). */
+  buyerAddress?: string | null;
+  /** Número do endereço. */
+  buyerAddressNumber?: string | null;
+  /** CEP — somente dígitos. */
+  buyerPostalCode?: string | null;
+  /** Bairro. */
+  buyerProvince?: string | null;
 }): AsaasCheckoutRequest {
   const { plan } = input;
   const value = plan.priceCents / 100; // Asaas espera Reais (float).
@@ -119,11 +131,25 @@ export function buildHostedCheckoutRequest(input: {
   } else {
     const email = (input.buyerEmail ?? "").trim();
     const name = (input.buyerName ?? "").trim();
+    const cpfCnpj = (input.buyerCpfCnpj ?? "").trim();
+    const phoneNumber = (input.buyerPhoneNumber ?? "").trim();
+    const address = (input.buyerAddress ?? "").trim();
+    const addressNumber = (input.buyerAddressNumber ?? "").trim();
+    const postalCode = (input.buyerPostalCode ?? "").trim();
+    const province = (input.buyerProvince ?? "").trim();
     // `customerData` só faz sentido com pelo menos um dado identificador.
     if (email || name) {
       request.customerData = {
         ...(name ? { name } : {}),
         ...(email ? { email } : {}),
+        // Dados obrigatórios do comprador (checkout hospedado do Asaas).
+        // Todos já chegam normalizados do servidor — nunca inventados aqui.
+        ...(cpfCnpj ? { cpfCnpj } : {}),
+        ...(phoneNumber ? { phoneNumber } : {}),
+        ...(address ? { address } : {}),
+        ...(addressNumber ? { addressNumber } : {}),
+        ...(postalCode ? { postalCode } : {}),
+        ...(province ? { province } : {}),
       };
     }
   }

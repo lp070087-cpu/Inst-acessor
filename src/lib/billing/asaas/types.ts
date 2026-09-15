@@ -112,7 +112,18 @@ export interface AsaasSubscriptionCreated extends AsaasSubscription {
 export interface AsaasCustomerData {
   name?: string;
   email?: string;
+  /** CPF ou CNPJ — SOMENTE dígitos (sem pontuação). */
   cpfCnpj?: string;
+  /** Telefone/WhatsApp — E.164 (ex.: 5511999999999). */
+  phoneNumber?: string;
+  /** Nome da rua/avenida (sem número). */
+  address?: string;
+  /** Número do endereço. */
+  addressNumber?: string;
+  /** CEP — SOMENTE dígitos (8 caracteres). */
+  postalCode?: string;
+  /** Bairro. */
+  province?: string;
   [key: string]: unknown;
 }
 

@@ -12,10 +12,24 @@ export const checkoutStartSchema = z.object({
   planId: z.string().min(1, "Plano é obrigatório"),
 });
 
+/** Remove pontuação e mantém somente dígitos (CPF/CNPJ, CEP, telefone). */
+function digitsOnly(value: string): string {
+  return value.replace(/\D+/g, "");
+}
+
+/** Telefone em E.164: "+" + dígitos. País default 55 (Brasil). */
+function normalizePhone(value: string): string {
+  const digits = digitsOnly(value);
+  if (!digits) return "";
+  return `55${digits}`;
+}
+
 /**
  * Checkout PÚBLICO (buyer sem conta): aceita `planId` OU `planSlug`.
  * `email`/`name` são usados quando o comprador NÃO está autenticado.
- * O preço/duração/ciclo são SEMPRE resolvidos no servidor — nunca do body.
+ * Os dados de cobrança (CPF/CNPJ, telefone, endereço) são exigidos APENAS do
+ * comprador anônimo — o checkout hospedado do Asaas exige esses campos para
+ * criar o cliente. O preço/duração/ciclo são SEMPRE resolvidos no servidor.
  */
 export const publicCheckoutSchema = z
   .object({
@@ -23,6 +37,12 @@ export const publicCheckoutSchema = z
     planSlug: planSlugSchema.optional(),
     name: z.string().trim().max(160).optional().nullable(),
     email: z.string().trim().email().optional(),
+    cpfCnpj: z.string().trim().optional(),
+    phone: z.string().trim().optional(),
+    postalCode: z.string().trim().optional(),
+    address: z.string().trim().optional(),
+    addressNumber: z.string().trim().optional(),
+    province: z.string().trim().optional(),
   })
   .superRefine((value, ctx) => {
     if (!value.planId && !value.planSlug) {
@@ -31,6 +51,13 @@ export const publicCheckoutSchema = z
         message: "Informe o plano (planId ou planSlug).",
       });
     }
+  })
+  .transform((value) => {
+    const out = { ...value };
+    if (out.cpfCnpj) out.cpfCnpj = digitsOnly(out.cpfCnpj);
+    if (out.postalCode) out.postalCode = digitsOnly(out.postalCode);
+    if (out.phone) out.phone = normalizePhone(out.phone);
+    return out;
   });
 
 export const cancelRenewalSchema = z.object({

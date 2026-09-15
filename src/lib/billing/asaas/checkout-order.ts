@@ -99,6 +99,15 @@ export async function startPublicCheckout(input: {
   planId: string;
   /** User id apenas se o comprador já for um User nosso (opcional). */
   userId?: string | null;
+  /** Dados obrigatórios do comprador (checkout hospedado). Normalizados. */
+  buyer?: {
+    cpfCnpj?: string | null;
+    phoneNumber?: string | null;
+    address?: string | null;
+    addressNumber?: string | null;
+    postalCode?: string | null;
+    province?: string | null;
+  } | null;
 }): Promise<PublicCheckoutResult> {
   const cfg = getAsaasConfig();
   const email = normalizeEmail(input.email) ?? "";
@@ -198,6 +207,12 @@ export async function startPublicCheckout(input: {
         asaasCustomerId,
         buyerName: input.name ?? null,
         buyerEmail: email,
+        buyerCpfCnpj: input.buyer?.cpfCnpj ?? null,
+        buyerPhoneNumber: input.buyer?.phoneNumber ?? null,
+        buyerAddress: input.buyer?.address ?? null,
+        buyerAddressNumber: input.buyer?.addressNumber ?? null,
+        buyerPostalCode: input.buyer?.postalCode ?? null,
+        buyerProvince: input.buyer?.province ?? null,
       }),
       cfg
     );

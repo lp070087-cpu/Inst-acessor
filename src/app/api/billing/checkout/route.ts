@@ -53,6 +53,18 @@ export async function POST(request: Request) {
   let userName: string | null = null;
   let userId: string | null = null;
 
+  // Dados do comprador (somente fluxo anônimo). Normalizados pelo schema.
+  let buyer:
+    | {
+        cpfCnpj?: string | null;
+        phoneNumber?: string | null;
+        address?: string | null;
+        addressNumber?: string | null;
+        postalCode?: string | null;
+        province?: string | null;
+      }
+    | null = null;
+
   if (session?.user?.id && session.user.email) {
     userId = session.user.id;
     userEmail = session.user.email;
@@ -67,6 +79,34 @@ export async function POST(request: Request) {
     }
     userEmail = normalized;
     userName = parsed.data.name ?? null;
+
+    // Dados obrigatórios do comprador para o checkout hospedado do Asaas.
+    // Validação apenas de preenchimento — os valores já vêm normalizados do
+    // schema e NUNCA são logados.
+    const requiredBuyerFields: Array<{ value: string | undefined; label: string }> = [
+      { value: parsed.data.cpfCnpj, label: "CPF ou CNPJ" },
+      { value: parsed.data.phone, label: "Telefone" },
+      { value: parsed.data.postalCode, label: "CEP" },
+      { value: parsed.data.address, label: "Endereço" },
+      { value: parsed.data.addressNumber, label: "Número" },
+      { value: parsed.data.province, label: "Bairro" },
+    ];
+    const missing = requiredBuyerFields.find((f) => !f.value?.trim());
+    if (missing) {
+      return NextResponse.json(
+        { error: `Informe ${missing.label} para concluir o pagamento.` },
+        { status: 400 }
+      );
+    }
+
+    buyer = {
+      cpfCnpj: parsed.data.cpfCnpj ?? null,
+      phoneNumber: parsed.data.phone ?? null,
+      address: parsed.data.address ?? null,
+      addressNumber: parsed.data.addressNumber ?? null,
+      postalCode: parsed.data.postalCode ?? null,
+      province: parsed.data.province ?? null,
+    };
   }
 
   // 2) Plano SEMPRE resolvido no servidor (id do banco ou `plan:<slug>`).
@@ -91,6 +131,7 @@ export async function POST(request: Request) {
     name: userName,
     planId: plan.id,
     userId,
+    buyer,
   });
 
   if (!result.ok) {

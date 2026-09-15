@@ -26,6 +26,48 @@ import {
 } from "@/lib/billing/plans/display";
 import { cn } from "@/lib/utils";
 
+// ------------------------------------------------------------
+// Máscaras de entrada (somente exibição — o valor enviado ao
+// servidor é SEMPRE normalizado para dígitos/E.164 no backend).
+// ------------------------------------------------------------
+
+function digitsOnly(value: string): string {
+  return value.replace(/\D+/g, "");
+}
+
+/** CPF (11) ou CNPJ (14) — máscara aplicada conforme o tamanho. */
+function maskCpfCnpj(value: string): string {
+  const d = digitsOnly(value).slice(0, 14);
+  if (d.length <= 11) {
+    return d
+      .replace(/(\d{3})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+  }
+  return d
+    .replace(/^(\d{2})(\d)/, "$1.$2")
+    .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
+    .replace(/\.(\d{3})(\d)/, ".$1/$2")
+    .replace(/(\d{4})(\d{1,2})$/, "$1-$2");
+}
+
+/** Telefone/WhatsApp com DDD — (11) 99999-9999. */
+function maskPhone(value: string): string {
+  const d = digitsOnly(value).slice(0, 11);
+  if (d.length === 0) return "";
+  if (d.length <= 2) return `(${d}`;
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+}
+
+/** CEP — 00000-000. */
+function maskCep(value: string): string {
+  const d = digitsOnly(value).slice(0, 8);
+  if (d.length <= 5) return d;
+  return `${d.slice(0, 5)}-${d.slice(5)}`;
+}
+
 /**
  * CHECKOUT PÚBLICO — FORMULÁRIO (Asaas / checkout hospedado)
  * ==========================================================
@@ -96,6 +138,12 @@ export function CheckoutForm({
   // (nem localStorage/sessionStorage) e nenhum efeito hidrata este campo depois
   // — assim um visitante anônimo não vê o e-mail de uma conta que não é dele.
   const [email, setEmail] = React.useState(authedEmail ?? "");
+  const [cpfCnpj, setCpfCnpj] = React.useState("");
+  const [phone, setPhone] = React.useState("");
+  const [postalCode, setPostalCode] = React.useState("");
+  const [address, setAddress] = React.useState("");
+  const [addressNumber, setAddressNumber] = React.useState("");
+  const [province, setProvince] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [notice, setNotice] = React.useState<NoticeState>(null);
 
@@ -119,19 +167,50 @@ export function CheckoutForm({
       return;
     }
 
+    // Dados obrigatórios do comprador (apenas fluxo anônimo) — validação de
+    // preenchimento espelhando o servidor. Nada é logado.
+    if (!authedEmail) {
+      const requiredBuyer: Array<{ value: string; label: string }> = [
+        { value: cpfCnpj, label: "CPF ou CNPJ" },
+        { value: phone, label: "Telefone" },
+        { value: postalCode, label: "CEP" },
+        { value: address, label: "Endereço" },
+        { value: addressNumber, label: "Número" },
+        { value: province, label: "Bairro" },
+      ];
+      const missing = requiredBuyer.find((f) => !f.value.trim());
+      if (missing) {
+        setNotice({
+          kind: "error",
+          text: `Informe ${missing.label} para concluir o pagamento.`,
+        });
+        return;
+      }
+    }
+
     setLoading(true);
     try {
-      // `email` SÓ é enviado quando não há sessão (Cenário B). Com sessão, o
-      // servidor usa a identidade da sessão como fonte de verdade e ignora
-      // qualquer e-mail vindo do navegador — nunca sobrescrevemos a conta de
-      // quem já está logado.
+      // `email` e os dados do comprador SÓ são enviados quando não há sessão
+      // (Cenário B). Com sessão, o servidor usa a identidade da sessão como
+      // fonte de verdade e ignora qualquer dado vindo do navegador — nunca
+      // sobrescrevemos a conta de quem já está logado.
       const res = await fetch("/api/billing/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           planId: selected.id,
           name: name.trim() || null,
-          ...(authedEmail ? {} : { email: email.trim() }),
+          ...(authedEmail
+            ? {}
+            : {
+                email: email.trim(),
+                cpfCnpj: cpfCnpj.trim(),
+                phone: phone.trim(),
+                postalCode: postalCode.trim(),
+                address: address.trim(),
+                addressNumber: addressNumber.trim(),
+                province: province.trim(),
+              }),
         }),
       });
       const data = await res.json();
@@ -252,6 +331,108 @@ export function CheckoutForm({
               É com este e-mail que você vai ativar seu acesso depois do pagamento —
               não é preciso ter conta antes.
             </p>
+          </div>
+
+          {/* Dados obrigatórios do comprador (checkout hospedado do Asaas).
+              Layout premium e compacto: pares em grade no desktop, empilhados
+              no mobile. Valores exibidos sem normalização inesperada — a
+              normalização (dígitos/E.164) acontece só no servidor. */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="checkout-cpfcnpj" className="text-[13px] font-semibold text-ink">
+                CPF ou CNPJ <span className="text-ink-muted font-normal">(obrigatório)</span>
+              </label>
+              <input
+                id="checkout-cpfcnpj"
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                value={cpfCnpj}
+                onChange={(e) => setCpfCnpj(maskCpfCnpj(e.target.value))}
+                placeholder="000.000.000-00"
+                className="h-12 w-full min-w-0 rounded-[12px] border border-border bg-bg-ice px-4 text-[14.5px] text-ink placeholder:text-ink-muted focus:border-purple/50 focus:ring-2 focus:ring-purple/20 focus:outline-none transition-shadow"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="checkout-phone" className="text-[13px] font-semibold text-ink">
+                Telefone / WhatsApp <span className="text-ink-muted font-normal">(obrigatório)</span>
+              </label>
+              <input
+                id="checkout-phone"
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                value={phone}
+                onChange={(e) => setPhone(maskPhone(e.target.value))}
+                placeholder="(11) 99999-9999"
+                className="h-12 w-full min-w-0 rounded-[12px] border border-border bg-bg-ice px-4 text-[14.5px] text-ink placeholder:text-ink-muted focus:border-purple/50 focus:ring-2 focus:ring-purple/20 focus:outline-none transition-shadow"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="checkout-cep" className="text-[13px] font-semibold text-ink">
+              CEP <span className="text-ink-muted font-normal">(obrigatório)</span>
+            </label>
+            <input
+              id="checkout-cep"
+              type="text"
+              inputMode="numeric"
+              autoComplete="postal-code"
+              value={postalCode}
+              onChange={(e) => setPostalCode(maskCep(e.target.value))}
+              placeholder="00000-000"
+              className="h-12 w-full min-w-0 rounded-[12px] border border-border bg-bg-ice px-4 text-[14.5px] text-ink placeholder:text-ink-muted focus:border-purple/50 focus:ring-2 focus:ring-purple/20 focus:outline-none transition-shadow"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_120px] gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="checkout-address" className="text-[13px] font-semibold text-ink">
+                Endereço <span className="text-ink-muted font-normal">(obrigatório)</span>
+              </label>
+              <input
+                id="checkout-address"
+                type="text"
+                autoComplete="street-address"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="Rua / Avenida"
+                className="h-12 w-full min-w-0 rounded-[12px] border border-border bg-bg-ice px-4 text-[14.5px] text-ink placeholder:text-ink-muted focus:border-purple/50 focus:ring-2 focus:ring-purple/20 focus:outline-none transition-shadow"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="checkout-address-number" className="text-[13px] font-semibold text-ink">
+                Número <span className="text-ink-muted font-normal">(obrigatório)</span>
+              </label>
+              <input
+                id="checkout-address-number"
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                value={addressNumber}
+                onChange={(e) => setAddressNumber(e.target.value)}
+                placeholder="123"
+                className="h-12 w-full min-w-0 rounded-[12px] border border-border bg-bg-ice px-4 text-[14.5px] text-ink placeholder:text-ink-muted focus:border-purple/50 focus:ring-2 focus:ring-purple/20 focus:outline-none transition-shadow"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="checkout-province" className="text-[13px] font-semibold text-ink">
+              Bairro <span className="text-ink-muted font-normal">(obrigatório)</span>
+            </label>
+            <input
+              id="checkout-province"
+              type="text"
+              autoComplete="off"
+              value={province}
+              onChange={(e) => setProvince(e.target.value)}
+              placeholder="Seu bairro"
+              className="h-12 w-full min-w-0 rounded-[12px] border border-border bg-bg-ice px-4 text-[14.5px] text-ink placeholder:text-ink-muted focus:border-purple/50 focus:ring-2 focus:ring-purple/20 focus:outline-none transition-shadow"
+            />
           </div>
         </>
       )}
