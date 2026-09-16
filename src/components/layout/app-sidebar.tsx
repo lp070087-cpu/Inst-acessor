@@ -18,11 +18,24 @@ const STORAGE_KEY = "inst-acessor:sidebar-collapsed";
 export function AppSidebar({
   user,
   isAdmin = false,
+  account,
 }: {
   user: Session["user"];
   /** Autorizado como admin exclusivo (decidido no servidor). */
   isAdmin?: boolean;
+  /**
+   * Identidade REAL da conta, lida do banco pelo layout.
+   *
+   * Por que não usar `user.name`/`user.image` direto da sessão: a sessão é JWT,
+   * então nome e foto são congelados no momento do login. Depois de editar o
+   * perfil, a sidebar continuaria mostrando o valor antigo até o usuário sair e
+   * entrar de novo. Estes campos vêm do banco a cada renderização.
+   */
+  account?: { name: string | null; avatar: string | null };
 }) {
+  // O banco manda; a sessão é só o fallback de compatibilidade.
+  const displayName = account ? account.name : user?.name ?? null;
+  const displayAvatar = account ? account.avatar : user?.image ?? null;
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const [collapsed, setCollapsed] = React.useState(false);
@@ -74,7 +87,13 @@ export function AppSidebar({
   return (
     <>
       {/* Barra superior mobile/tablet */}
-      <header className="sticky top-0 z-40 flex items-center justify-between h-16 px-4 bg-bg-ice/80 backdrop-blur-md border-b border-border-soft lg:hidden">
+      {/* BLOCO 5 — safe area: no iPhone com notch/Dynamic Island o `env()`
+          devolve a altura da faixa, então `padding-top` cresce e o conteúdo
+          sai de baixo do recorte. `max(0px, env(...))` mantém zero de padding
+          em navegadores que NÃO têm safe area (o `env()` resolve para 0) —
+          nada de faixa vazia no Android/desktop. O `h-16` virou `min-h-16`
+          justamente para a caixa poder crescer. */}
+      <header className="sticky top-0 z-40 flex items-center justify-between min-h-16 px-4 pt-[max(0px,env(safe-area-inset-top))] bg-bg-ice/80 backdrop-blur-md border-b border-border-soft lg:hidden">
         <Link href="/dashboard" aria-label="Inst Acessor — início">
           <AppLogo />
         </Link>
@@ -143,17 +162,17 @@ export function AppSidebar({
         <div className="p-4 border-t border-border-soft flex-none">
           {collapsed ? (
             <div className="flex justify-center">
-              <Avatar name={user?.name} src={user?.image} size="sm" />
+              <Avatar name={displayName} src={displayAvatar} size="sm" />
             </div>
           ) : (
             <Link
               href="/perfil"
               className="flex items-center gap-3 rounded-[12px] p-2 hover:bg-surface transition-colors"
             >
-              <Avatar name={user?.name} src={user?.image} size="sm" />
-              <div className="min-w-0">
+              <Avatar name={displayName} src={displayAvatar} size="sm" />
+              <div className="min-w-0 flex-1">
                 <p className="text-[13.5px] font-semibold text-ink truncate">
-                  {user?.name ?? "Minha conta"}
+                  {displayName ?? "Minha conta"}
                 </p>
                 <p className="text-[11.5px] text-ink-muted truncate">
                   {user?.email}
@@ -172,7 +191,10 @@ export function AppSidebar({
             onClick={() => setMobileOpen(false)}
             aria-hidden
           />
-          <aside className="absolute inset-y-0 left-0 w-[85%] max-w-[320px] bg-card border-r border-border-soft shadow-lg flex flex-col animate-[fade-slide_.3s_var(--ease-out)]">
+          {/* BLOCO 5 — safe area também aqui: no iPhone o drawer encosta nas
+              bordas superior e inferior da tela, e o último item do menu ("Sair")
+              ficava sob a barra de gestos. `env()` é 0 nos outros navegadores. */}
+          <aside className="absolute inset-y-0 left-0 w-[85%] max-w-[320px] bg-card border-r border-border-soft shadow-lg flex flex-col pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] animate-[fade-slide_.3s_var(--ease-out)]">
             <div className="flex items-center justify-between h-16 px-5 border-b border-border-soft flex-none">
               <AppLogo />
               <IconButton label="Fechar menu" onClick={() => setMobileOpen(false)}>
@@ -196,11 +218,14 @@ export function AppSidebar({
                 <SidebarNavItem item={{ label: "Sair", href: "/login", icon: LogOut, description: "Encerrar sessão" }} isSignOut />
               </div>
             </nav>
-            <div className="p-4 border-t border-border-soft flex-none flex items-center gap-3">
-              <Avatar name={user?.name} src={user?.image} size="sm" />
-              <div className="min-w-0">
+            <div className="p-4 border-t border-border-soft flex-none flex items-center gap-3 min-w-0">
+              <Avatar name={displayName} src={displayAvatar} size="sm" />
+              <div className="min-w-0 flex-1">
+                {/* BLOCO 5 — e-mail longo: `truncate` já corta com reticências,
+                    mas sem `min-w-0 flex-1` na coluna o texto longo empurrava a
+                    largura do drawer em vez de encolher. */}
                 <p className="text-[13.5px] font-semibold text-ink truncate">
-                  {user?.name ?? "Minha conta"}
+                  {displayName ?? "Minha conta"}
                 </p>
                 <p className="text-[11.5px] text-ink-muted truncate">
                   {user?.email}

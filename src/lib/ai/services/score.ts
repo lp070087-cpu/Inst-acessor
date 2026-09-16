@@ -1,20 +1,72 @@
 import { ai } from "@/lib/ai/db";
 import { getDashboardInstagramData } from "@/lib/dashboard/instagram-data";
 import { getTikTokDashboardData } from "@/lib/dashboard/tiktok-data";
+import { getMediaProductionData } from "@/lib/dashboard/media-production";
 import { GROWTH_SCORE_V1 } from "@/lib/knowledge";
 
 /**
  * Score Inteligente (0–100) — FÓRMULA OFICIAL growth-score-v1.
  *
- * Regra oficial (Módulo 19, conteúdo da DONA):
+ * Pesos oficiais (docs/KNOWLEDGE-ENGINE.md, Módulo 19):
  *   30% Engajamento · 25% Crescimento · 25% Alcance · 20% Consistência.
  *
- * - Explicável: cada pilar mostra valor e peso.
- * - Métrica indisponível NUNCA vira 0: o peso é redistribuído entre os
- *   pilares disponíveis e a cobertura (%) é documentada no resultado.
- * - Versionável: `version = "growth-score-v1"`.
- * - A nota é resumo da saúde, não gamificação vazia.
+ * O QUE MUDOU (e por quê)
+ * -----------------------
+ * O Score reportava ~60/100 com 20% de cobertura. A causa não era o cálculo da
+ * média: era (a) o pilar "Consistência" ter uma fórmula que devolvia uma nota
+ * ALTA pelo simples fato de existir um segundo registro, e (b) a cobertura ser
+ * medida em PESO, de modo que um único pilar pequeno já a fazia parecer cheia.
+ *
+ * Agora:
+ *   - o Score Geral só é publicado quando há EVIDÊNCIA MÍNIMA (ver abaixo);
+ *   - a cobertura mede QUANTOS dos pilares têm evidência, não quanto peso eles
+ *     somam;
+ *   - nenhum pilar recebe nota por ausência — ausência vira "sem dados".
+ *
+ * REGRA DE OURO: ausência de dado NÃO é desempenho positivo e NÃO é nota zero.
+ * Ausência é NÃO AVALIADO.
+ *
+ * Versionamento: os PESOS continuam sendo `growth-score-v1`. As funções de
+ * normalização abaixo são heurísticas determinísticas e explicáveis (escalas
+ * lineares com teto documentado) — não são estatística inferencial.
  */
+
+// ------------------------------------------------------------
+// Critério mínimo de evidência
+// ------------------------------------------------------------
+
+/**
+ * Quantos dos 4 pilares oficiais precisam ter dado real para publicar o Score.
+ *
+ * 3 de 4. Com 3 pilares o número já é sustentado por evidência majoritária; com
+ * 2 ou menos, o resultado seria dominado por um único fator e viraria uma nota
+ * com aparência de avaliação completa. Este limiar junto com a cobertura mínima
+ * (abaixo) elimina exatamente o caso que gerava o "60 com 20%".
+ */
+export const MIN_PILLARS_MEASURED = 3;
+
+/** Cobertura mínima (%) dos pilares para publicar o Score Geral. */
+export const MIN_MEASURABILITY = 60;
+
+/**
+ * Sem pelo menos 2 sincronizações não existe NENHUMA dimensão temporal, e dois
+ * dos quatro pilares (Crescimento e Consistência) são temporais por definição.
+ * Por isso o Score Geral não é publicado com um único snapshot.
+ */
+export const MIN_SNAPSHOTS_FOR_OVERALL = 2;
+
+// ------------------------------------------------------------
+// Tetos das escalas (explícitos, determinísticos)
+// ------------------------------------------------------------
+
+/** Interações (curtidas + comentários) por publicação consideradas nota 100. */
+const ENGAGEMENT_TARGET = 500;
+/** Variação percentual de seguidores considerada nota 100. */
+const GROWTH_TARGET_PCT = 50;
+/** Alcance (soma de 7 dias) considerado nota 100. */
+const REACH_TARGET = 100_000;
+/** Sincronizações necessárias para a Consistência chegar a 100. */
+const CONSISTENCY_FULL_SNAPSHOTS = 12;
 
 export interface ScorePillar {
   key: string;
@@ -35,14 +87,23 @@ export interface ScoreFactors {
 
 export interface ScoreResult {
   platform: "instagram" | "tiktok";
+  /** null = Score Geral NÃO publicado por falta de evidência mínima. */
   overall: number | null;
   pillars: ScorePillar[];
   factors: ScoreFactors;
   /** Identificador da fórmula (versionável). */
   version: string;
   source: string;
-  /** % dos dados cobertos pelos pilares disponíveis (0–100). */
+  /** % dos pilares oficiais COM evidência (0–100). Não é peso: é contagem. */
   coverage: number | null;
+  /** Quantos dos 4 pilares oficiais têm dado real. */
+  measuredPillars: number;
+  /** Total de pilares oficiais considerados. */
+  totalPillars: number;
+  /** O Score Geral está publicado? Quando false, `reason` explica. */
+  scoreAvailable: boolean;
+  /** Motivo legível quando o Score Geral não é publicado. */
+  reason: string | null;
   /** Pesos aplicados (growth-score-v1). */
   weighting: { engagement: number; growth: number; reach: number; consistency: number };
 }
@@ -51,11 +112,13 @@ export type Platform = "instagram" | "tiktok";
 
 interface SignalSource {
   followers: number | null;
+  /** Média REAL de curtidas + comentários por publicação coletada. */
   engagement: number | null;
   reach: number | null;
   media: number | null;
   snapshotCount: number;
   hasTwoPoints: boolean;
+  /** Variação % de seguidores em relação à sincronização anterior. */
   periodGrowthPct: number | null;
 }
 
@@ -68,15 +131,21 @@ async function signalsForPlatform(
   platform: Platform
 ): Promise<SignalSource> {
   if (platform === "instagram") {
-    const d = await getDashboardInstagramData(userId);
+    // Mesma camada de dados usada pelo Dashboard — as duas telas NÃO podem
+    // discordar sobre a mesma métrica.
+    const [d, media] = await Promise.all([
+      getDashboardInstagramData(userId),
+      getMediaProductionData(userId),
+    ]);
     return {
       followers: d.followersCount ?? null,
       engagement: d.cards.engagement.value ?? null,
-      reach: d.cards.reach.value ?? null,
+      reach: d.cards.reach7d.value ?? d.cards.reach.value ?? null,
       media: d.mediaCount ?? null,
       snapshotCount: d.snapshotCount,
       hasTwoPoints: d.snapshotCount >= 2,
-      periodGrowthPct: d.comparison.monthlyGrowth ?? null,
+      // Variação desde a sincronização anterior (o Dashboard usa a mesma).
+      periodGrowthPct: d.cards.followers.changePercent ?? null,
     };
   }
 
@@ -88,7 +157,7 @@ async function signalsForPlatform(
     media: d.videoCount ?? null,
     snapshotCount: d.snapshotCount,
     hasTwoPoints: d.snapshotCount >= 2,
-    periodGrowthPct: d.comparison.monthlyGrowth ?? null,
+    periodGrowthPct: d.cards.followers.changePercent ?? null,
   };
 }
 
@@ -100,38 +169,56 @@ function clamp01(v: number): number {
   return Math.min(1, Math.max(0, v));
 }
 
-/** Normaliza crescimento mensal % em 0..1 (teto +100% considerado excelente). */
+/**
+ * Crescimento: variação % de seguidores desde a sincronização anterior.
+ *
+ * `null` sem duas medições — um único registro NÃO é crescimento estável nem
+ * 0%. Também respeita o caso de base zero (que não tem variação relativa).
+ */
 function growthScore(pct: number | null): number | null {
-  if (pct == null) return null;
-  return Math.round(clamp01(pct / 100) * 100);
+  if (pct == null || !Number.isFinite(pct)) return null;
+  return Math.round(clamp01(pct / GROWTH_TARGET_PCT) * 100);
 }
 
-/** Normaliza engajamento bruto em 0..1 (teto 10% do followers como referência relativa). */
-function engagementScore(
-  followers: number | null,
-  engagement: number | null
-): number | null {
-  if (followers == null || followers === 0 || engagement == null) return null;
-  const rate = engagement / followers;
-  return Math.round(clamp01(rate / 0.1) * 100); // 10% = nota 100
+/**
+ * Engajamento: média REAL de interações por publicação.
+ *
+ * Exige a média medida — não presume curtidas nem comentários ausentes como 0.
+ */
+function engagementScore(engagement: number | null): number | null {
+  if (engagement == null || !Number.isFinite(engagement)) return null;
+  return Math.round(clamp01(engagement / ENGAGEMENT_TARGET) * 100);
 }
 
-/** Alcance relativo à base de seguidores. */
-function reachScore(followers: number | null, reach: number | null): number | null {
-  if (followers == null || followers === 0 || reach == null) return null;
-  const rate = reach / followers;
-  return Math.round(clamp01(rate / 2) * 100); // 2x base = nota 100
+/**
+ * Alcance: valor absoluto medido, na MESMA escala do card do Dashboard.
+ * NÃO é inferido a partir dos seguidores.
+ */
+function reachScore(reach: number | null): number | null {
+  if (reach == null || !Number.isFinite(reach)) return null;
+  return Math.round(clamp01(reach / REACH_TARGET) * 100);
 }
 
-/** Consistência: frequência de sincronização + volume de dados. */
+/**
+ * Consistência: profundidade REAL do histórico de sincronizações.
+ *
+ * A fórmula é uma rampa baixa e longa (piso 20, satura em 12 sincronizações).
+ * Uma conta recém-sincronizada com 2 registros tira 25 — não uma nota alta
+ * pelo simples fato de o segundo registro existir.
+ */
 function consistencyScore(signal: SignalSource): number | null {
   if (signal.snapshotCount < 2) return null;
-  return Math.min(50 + signal.snapshotCount * 5, 100);
+  const ramp = Math.min(signal.snapshotCount, CONSISTENCY_FULL_SNAPSHOTS) - 2;
+  const span = CONSISTENCY_FULL_SNAPSHOTS - 2;
+  return Math.round(20 + (ramp / span) * 80);
 }
 
-/** Frequência: publicações quando disponíveis (complementar, não pesa). */
+/**
+ * Frequência: publicações já coletadas da conta (complementar, não pesa).
+ * Usa o `mediaCount` real — não uma janela temporal que não temos.
+ */
 function frequencyScore(signal: SignalSource): number | null {
-  if (signal.media == null || signal.media === 0) return null;
+  if (signal.media == null || signal.media <= 0) return null;
   return Math.round(clamp01(signal.media / 30) * 100);
 }
 
@@ -155,7 +242,7 @@ export async function computeScore(userId: string, platform: Platform): Promise<
     {
       key: "engagement",
       label: "Engajamento",
-      value: engagementScore(signal.followers, signal.engagement),
+      value: engagementScore(signal.engagement),
       available: signal.engagement != null,
       weight: W.engagement,
       complementary: false,
@@ -171,7 +258,7 @@ export async function computeScore(userId: string, platform: Platform): Promise<
     {
       key: "reach",
       label: "Alcance",
-      value: reachScore(signal.followers, signal.reach),
+      value: reachScore(signal.reach),
       available: signal.reach != null,
       weight: W.reach,
       complementary: false,
@@ -203,21 +290,39 @@ export async function computeScore(userId: string, platform: Platform): Promise<
     },
   ];
 
-  // Pilares oficiais disponíveis (não complementares)
-  const weighted = pillars.filter((p) => !p.complementary);
-  const available = weighted.filter((p) => p.available);
+  const official = pillars.filter((p) => !p.complementary);
+  // "Medido" exige valor E disponibilidade: um pilar disponível sem valor não
+  // pode contar como evidência.
+  const measured = official.filter((p) => p.available && p.value != null);
 
-  // Cobertura: soma dos pesos dos pilares oficiais disponíveis / 100
-  const totalWeight = weighted.reduce((acc, p) => acc + p.weight, 0); // deve ser 100
-  const coveredWeight = available.reduce((acc, p) => acc + p.weight, 0);
+  // Cobertura = QUANTOS pilares oficiais têm evidência, não quanto peso somam.
+  // É isso que impede um único pilar pequeno de "encher" a cobertura.
   const coverage =
-    available.length > 0 ? Math.round((coveredWeight / totalWeight) * 100) : null;
+    official.length > 0 ? Math.round((measured.length / official.length) * 100) : null;
 
-  // Overall = média ponderada dos pilares disponíveis (redistribuição de peso)
+  // ---- Critério mínimo de evidência ----
+  let reason: string | null = null;
+  if (signal.snapshotCount < MIN_SNAPSHOTS_FOR_OVERALL) {
+    reason =
+      "Sincronize mais dados para gerar uma avaliação confiável. Com um único registro não existe dimensão temporal.";
+  } else if (measured.length < MIN_PILLARS_MEASURED) {
+    reason = `Score ainda não disponível: apenas ${measured.length} de ${official.length} pilares têm dados. São necessários ao menos ${MIN_PILLARS_MEASURED}.`;
+  } else if (coverage != null && coverage < MIN_MEASURABILITY) {
+    reason = `Score ainda não disponível: cobertura de ${coverage}%. São necessários ao menos ${MIN_MEASURABILITY}%.`;
+  }
+
+  const scoreAvailable = reason == null;
+
+  // Overall = média ponderada dos pilares MEDIDOS, com peso redistribuído.
+  // Só é calculado quando há evidência suficiente; caso contrário permanece
+  // null (a UI mostra "Score ainda não disponível" — nunca um número enganoso).
   let overall: number | null = null;
-  if (available.length > 0) {
-    const sum = available.reduce((acc, p) => acc + (p.value ?? 0) * p.weight, 0);
-    overall = Math.round(sum / coveredWeight);
+  if (scoreAvailable) {
+    const coveredWeight = measured.reduce((acc, p) => acc + p.weight, 0);
+    if (coveredWeight > 0) {
+      const sum = measured.reduce((acc, p) => acc + (p.value ?? 0) * p.weight, 0);
+      overall = Math.round(sum / coveredWeight);
+    }
   }
 
   const factors: ScoreFactors = {
@@ -226,24 +331,21 @@ export async function computeScore(userId: string, platform: Platform): Promise<
     unavailable: [],
   };
 
+  const UNAVAILABLE_TEXT: Record<string, string> = {
+    growth: "Crescimento: dados insuficientes para calcular",
+    engagement: "Engajamento: sem dados de engajamento",
+    reach: "Alcance: sem dados de alcance",
+    consistency: "Consistência: precisa de mais sincronizações",
+    frequency: "Frequência: sem dados de publicações",
+    content: "Desempenho: precisa de histórico",
+  };
+
   for (const p of pillars) {
-    if (!p.available) {
-      factors.unavailable.push(
-        p.key === "growth"
-          ? "Crescimento: dados insuficientes para calcular"
-          : p.key === "engagement"
-            ? "Engajamento: sem dados de engajamento"
-            : p.key === "reach"
-              ? "Alcance: sem dados de alcance"
-              : p.key === "consistency"
-                ? "Consistência: precisa de mais sincronizações"
-                : p.key === "frequency"
-                  ? "Frequência: sem dados de publicações"
-                  : "Desempenho: precisa de histórico"
-      );
+    if (!p.available || p.value == null) {
+      factors.unavailable.push(UNAVAILABLE_TEXT[p.key] ?? `${p.label}: sem dados`);
       continue;
     }
-    const v = p.value ?? 0;
+    const v = p.value;
     if (v >= 70) factors.positive.push(`${p.label} (${v})`);
     else if (v <= 35) factors.attention.push(`${p.label} (${v})`);
   }
@@ -256,6 +358,10 @@ export async function computeScore(userId: string, platform: Platform): Promise<
     version: W.version,
     source: `${platform}-snapshots`,
     coverage,
+    measuredPillars: measured.length,
+    totalPillars: official.length,
+    scoreAvailable,
+    reason,
     weighting: {
       engagement: W.engagement,
       growth: W.growth,
@@ -270,7 +376,9 @@ export async function computeScore(userId: string, platform: Platform): Promise<
 // ------------------------------------------------------------
 
 export async function persistScore(userId: string, result: ScoreResult) {
-  if (result.overall == null) return null;
+  // Nunca registra um Score Geral inválido no histórico: sem evidência mínima
+  // não existe número para gravar, e um histórico falso não pode ser criado.
+  if (result.overall == null || !result.scoreAvailable) return null;
 
   const score = await ai.score.create({
     data: {

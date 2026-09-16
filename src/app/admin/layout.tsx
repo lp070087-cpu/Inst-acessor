@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { requireAdminSession } from "@/lib/auth/guard";
+import { prisma } from "@/lib/db";
 import { ToastProvider } from "@/components/ui/toast";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
 
@@ -17,10 +18,20 @@ export default async function AdminLayout({
 }) {
   const { session } = await requireAdminSession();
 
+  // Identidade real do admin para o rodapé da sidebar (a sessão é JWT e
+  // congelaria nome/foto no login — ver AppSidebar).
+  const account = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { name: true, profile: { select: { avatar: true } } },
+  });
+
   return (
     <ToastProvider>
       <div className="min-h-screen bg-bg">
-        <AdminSidebar user={session.user} />
+        <AdminSidebar
+          user={session.user}
+          account={{ name: account?.name ?? null, avatar: account?.profile?.avatar ?? null }}
+        />
         {/* `min-w-0`: filho flex tem `min-width:auto` por padrão — sem isso,
             uma tabela larga em /admin/assinaturas força a rolagem horizontal
             da PÁGINA inteira em vez de rolar dentro do próprio card. */}

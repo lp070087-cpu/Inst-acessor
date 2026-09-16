@@ -112,12 +112,19 @@ export function buildDeterministicInsights(
     });
   }
 
-  // 5) Vídeos publicados (o que dá para afirmar sem distinguir Reels).
+  // 5) Vídeos publicados. Só fala em "Reels" quando TODAS as mídias de vídeo
+  // têm `media_product_type` — se a classificação é parcial, o texto diz
+  // "vídeos", que é o que a contagem realmente prova.
   if (media.reels.count != null && media.reels.count > 0) {
+    const classified = media.reels.distinguishesReels && media.reels.reelsCount != null;
     out.push({
       key: "video_media",
-      text: `Foram publicados ${formatNumber(media.reels.count)} vídeos até agora.`,
-      evidence: "Mídias com tipo VIDEO lidas na integração",
+      text: classified
+        ? `Foram publicados ${formatNumber(media.reels.count)} vídeos até agora, ${formatNumber(media.reels.reelsCount!)} deles como Reels.`
+        : `Foram publicados ${formatNumber(media.reels.count)} vídeos até agora.`,
+      evidence: classified
+        ? "Mídias com tipo VIDEO e media_product_type lidos na integração"
+        : "Mídias com tipo VIDEO lidas na integração",
       tone: "neutral",
     });
   }

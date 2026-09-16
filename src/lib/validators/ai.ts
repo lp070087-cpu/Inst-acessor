@@ -25,6 +25,11 @@ export type ChatCreateInput = z.infer<typeof chatCreateSchema>;
 // Gerador de Copy
 // ------------------------------------------------------------
 export const copyPlatformSchema = z.enum(["instagram", "tiktok"]);
+/**
+ * Formatos de texto do motor. `post` e `feed` são os nomes usados pelo Preview
+ * Social para o mesmo formato que o motor chama de `legenda` — aceitos aqui
+ * para que o Preview reutilize ESTA rota, sem criar uma segunda implementação.
+ */
 export const copyFormatSchema = z.enum([
   "legenda",
   "reel",
@@ -35,6 +40,8 @@ export const copyFormatSchema = z.enum([
   "headline",
   "bio",
   "anuncio",
+  "post",
+  "feed",
 ]);
 export const copyToneSchema = z.enum([
   "casual",

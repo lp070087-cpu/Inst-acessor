@@ -39,6 +39,13 @@ interface ScoreResult {
   version: string | number;
   source: string;
   coverage?: number | null;
+  /** Quantos pilares oficiais têm evidência real. */
+  measuredPillars?: number;
+  totalPillars?: number;
+  /** false → o Score Geral não é publicado (evidência insuficiente). */
+  scoreAvailable?: boolean;
+  /** Motivo legível quando o Score Geral não é publicado. */
+  reason?: string | null;
   weighting?: { engagement: number; growth: number; reach: number; consistency: number };
 }
 
@@ -133,16 +140,22 @@ export function ScoreClient({ initial }: ScoreClientProps) {
         return;
       }
       setScore(data.score);
-      if (data.persisted) {
+      // `persisted` só é true quando o servidor conseguiu gravar. Um Score
+      // Geral nulo NUNCA entra no histórico — nada é fabricado aqui.
+      if (data.persisted && data.score?.overall != null) {
         const item: HistoryItem = {
           id: `h-${Date.now()}`,
-          overall: data.score?.overall ?? 0,
+          overall: data.score.overall,
           createdAt: new Date().toISOString(),
         };
         setHistory((prev) => [item, ...prev]);
         toast("Score registrado no histórico!");
       } else {
-        toast("Sem dados suficientes para registrar o Score.");
+        toast(
+          data.score?.reason ??
+            "Score ainda não disponível: sem evidência suficiente para uma avaliação confiável.",
+          "error"
+        );
       }
     } catch {
       toast("Não foi possível salvar.", "error");
@@ -153,6 +166,13 @@ export function ScoreClient({ initial }: ScoreClientProps) {
 
   const isConnected =
     score != null && (score.pillars.some((p) => p.available) || (score.overall ?? null) != null);
+
+  // Score publicado? `scoreAvailable` é explícito; o fallback cobre payloads
+  // antigos (sem o campo) para não esconder um Score que já era válido.
+  const scoreAvailable =
+    score != null && (score.scoreAvailable ?? (score.overall ?? null) != null);
+  const canPersist = scoreAvailable;
+  const measured = score?.measuredPillars ?? score?.pillars.filter((p) => p.available).length ?? 0;
 
   return (
     <div className="flex flex-col gap-5">
@@ -198,23 +218,53 @@ export function ScoreClient({ initial }: ScoreClientProps) {
           {/* Score geral + pilares */}
           <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-5">
             <div className="rounded-[14px] bg-card border border-border-soft shadow-xs p-6 flex flex-col items-center justify-center gap-2">
-              <CircularProgress
-                value={score.overall ?? 0}
-                size={176}
-                label="Score Geral"
-                sublabel={
-                  score.overall == null
-                    ? "Indisponível"
-                    : `${score.overall >= 70 ? "Bom" : score.overall >= 40 ? "Em desenvolvimento" : "Precisa de atenção"}`
+              {scoreAvailable ? (
+                <CircularProgress
+                  value={score.overall ?? 0}
+                  size={176}
+                  label="Score Geral"
+                  sublabel={`${(score.overall ?? 0) >= 70 ? "Bom" : (score.overall ?? 0) >= 40 ? "Em desenvolvimento" : "Precisa de atenção"}`}
+                />
+              ) : (
+                /* Sem evidência mínima NÃO existe nota. Mostrar um anel vazio
+                   com "0" seria afirmar desempenho péssimo a partir de ausência. */
+                <div className="w-[176px] h-[176px] rounded-full border-[10px] border-dashed border-border grid place-items-center text-center px-6">
+                  <div>
+                    <div className="font-display text-[15px] font-bold text-ink leading-tight">
+                      Score ainda não disponível
+                    </div>
+                    <div className="text-[11.5px] text-ink-muted mt-1">
+                      Evidência insuficiente
+                    </div>
+                  </div>
+                </div>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={persist}
+                disabled={persisting || !canPersist}
+                className="gap-2"
+                title={
+                  canPersist
+                    ? undefined
+                    : "Registre quando houver evidência suficiente para uma avaliação confiável."
                 }
-              />
-              <Button variant="outline" size="sm" onClick={persist} disabled={persisting} className="gap-2">
+              >
                 {persisting ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
                 Registrar no histórico
               </Button>
               {score.coverage != null && (
                 <span className="text-[11.5px] text-ink-muted text-center">
                   Cobertura dos dados: {score.coverage}%
+                  {score.totalPillars
+                    ? ` · ${measured} de ${score.totalPillars} pilares com dados`
+                    : ""}
+                </span>
+              )}
+              {!canPersist && score.reason && (
+                <span className="text-[11.5px] text-ink-muted text-center max-w-[30ch] leading-snug">
+                  {score.reason}
                 </span>
               )}
             </div>
@@ -224,33 +274,29 @@ export function ScoreClient({ initial }: ScoreClientProps) {
                 <div
                   key={p.key}
                   className={cn(
-                    "rounded-[14px] bg-card border border-border-soft shadow-xs p-4 flex flex-col gap-1.5",
+                    "rounded-[14px] bg-card border border-border-soft shadow-xs p-4 flex flex-col gap-1.5 min-w-0",
                     !p.available && "opacity-70"
                   )}
                 >
-                  <span className="text-[12px] font-semibold text-ink-soft">{p.label}</span>
+                  {/* BLOCO 5 — o rótulo do pilar vem do motor de score e pode
+                      ser uma palavra longa. Em 320px o card da grade de 2
+                      colunas tem ~130px: `break-words` evita que ele empurre
+                      a coluna. */}
+                  <span className="text-[12px] font-semibold text-ink-soft break-words">{p.label}</span>
                   <span className="font-display text-[24px] font-bold text-ink">
-                    {p.available ? p.value : "—"}
+                    {p.available && p.value != null ? p.value : "—"}
                   </span>
-                  {p.available ? (
+                  {p.available && p.value != null ? (
                     <span
                       className={cn(
                         "text-[11.5px] font-bold",
-                        (p.value ?? 0) >= 70
-                          ? "text-success"
-                          : (p.value ?? 0) <= 35
-                            ? "text-danger"
-                            : "text-warn"
+                        p.value >= 70 ? "text-success" : p.value <= 35 ? "text-danger" : "text-warn"
                       )}
                     >
-                      {(p.value ?? 0) >= 70
-                        ? "Bom"
-                        : (p.value ?? 0) <= 35
-                          ? "Atenção"
-                          : "Em desenvolvimento"}
+                      {p.value >= 70 ? "Bom" : p.value <= 35 ? "Atenção" : "Em desenvolvimento"}
                     </span>
                   ) : (
-                    <span className="text-[11.5px] text-ink-muted">Sem dados</span>
+                    <span className="text-[11.5px] text-ink-muted">Dados insuficientes</span>
                   )}
                 </div>
               ))}

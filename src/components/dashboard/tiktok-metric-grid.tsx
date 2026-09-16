@@ -7,6 +7,7 @@ import {
   Heart,
   Clapperboard,
   TrendingUp,
+  AlertTriangle,
   Award,
   Activity,
 } from "lucide-react";
@@ -15,6 +16,7 @@ import { MetricCard } from "@/components/ui/metric-card";
 import { Tabs } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/ui/empty-state";
 import { EvolutionChart } from "@/components/dashboard/evolution-chart";
+import { describeSync } from "@/lib/dashboard/freshness";
 import type { TikTokDashboardData } from "@/lib/dashboard/tiktok-data";
 
 const EVOLUTION_TABS = [
@@ -42,6 +44,8 @@ export function TikTokMetricGrid({ data }: { data: TikTokDashboardData }) {
   const [metric, setMetric] = useState<(typeof EVOLUTION_METRICS)[number]["id"]>(
     "followersCount"
   );
+  // Frescor da última sincronização real (null → "nunca sincronizou").
+  const sync = describeSync(lastSyncAt);
 
   const period = (tab as "7d" | "30d" | "90d") in evolution ? (tab as "7d" | "30d" | "90d") : "7d";
   const activeMetric = EVOLUTION_METRICS.find((m) => m.id === metric) ?? EVOLUTION_METRICS[0];
@@ -223,7 +227,11 @@ export function TikTokMetricGrid({ data }: { data: TikTokDashboardData }) {
         </div>
 
         {connected && points.length > 0 ? (
-          <EvolutionChart points={points} metric={activeMetric.id} />
+          <EvolutionChart
+            points={points}
+            metric={activeMetric.id}
+            metricLabel={activeMetric.label.toLowerCase()}
+          />
         ) : (
           <div className="h-56 rounded-[16px] bg-surface/40 border border-dashed border-[#D0D4DB] flex items-center justify-center">
             <EmptyState
@@ -239,13 +247,24 @@ export function TikTokMetricGrid({ data }: { data: TikTokDashboardData }) {
           </div>
         )}
 
-        {connected && lastSyncAt && (
-          <p className="mt-4 text-[12px] text-ink-muted">
-            Última sincronização:{" "}
-            {new Intl.DateTimeFormat("pt-BR", {
-              dateStyle: "short",
-              timeStyle: "short",
-            }).format(new Date(lastSyncAt))}
+        {connected && (
+          <p className="mt-4 text-[12px] text-ink-muted flex items-center gap-x-2 gap-y-1 flex-wrap">
+            <span>
+              {sync.known
+                ? `${sync.label}${sync.detail ? ` · ${sync.detail}` : ""}`
+                : "Nenhuma sincronização de dados registrada ainda."}
+            </span>
+            {sync.stale && (
+              <span className="inline-flex items-center gap-1 text-warn font-semibold">
+                <AlertTriangle size={13} className="flex-none" />
+                Dados desatualizados
+              </span>
+            )}
+            {points.length > 0 && (
+              <span className="text-ink-muted">
+                · {points.length} {points.length === 1 ? "registro" : "registros"} no período
+              </span>
+            )}
           </p>
         )}
       </div>

@@ -266,7 +266,8 @@ export function CheckoutForm({
           <p className="text-[12px] text-ink-soft break-words">{planPeriodLabel(selected)}</p>
         </div>
         <div className="text-right shrink-0">
-          <p className="font-display text-[19px] font-bold text-ink leading-none">
+          {/* BLOCO 5 — preço atômico: não quebra entre o símbolo e o número. */}
+          <p className="font-display text-[19px] font-bold text-ink leading-none whitespace-nowrap">
             {formatBRL(selected.priceCents)}
           </p>
           <p className="text-[11px] text-ink-muted mt-0.5">
@@ -481,7 +482,7 @@ export function CheckoutForm({
                     )}
                     <span className="truncate">{planShortName(p)}</span>
                   </span>
-                  <span className="text-[12px] font-bold text-ink-soft">
+                  <span className="text-[12px] font-bold text-ink-soft whitespace-nowrap">
                     {formatBRL(p.priceCents)}
                   </span>
                 </button>

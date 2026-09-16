@@ -10,10 +10,13 @@ import {
   Loader2,
   Bot,
   User,
+  Copy as CopyIcon,
+  Check,
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { MarkdownLite } from "@/components/ui/markdown-lite";
 import { cn } from "@/lib/utils";
 
 export interface ChatMessageDTO {
@@ -63,6 +66,7 @@ export function ChatClient({
   const [input, setInput] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
+  const [copiedId, setCopiedId] = React.useState<string | null>(null);
   const endRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
@@ -122,6 +126,18 @@ export function ChatClient({
       toast("Não foi possível conectar com a IA.", "error");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function copyMessage(id: string, content: string) {
+    try {
+      await navigator.clipboard.writeText(content);
+      // Guarda o ID da mensagem (não o texto): a confirmação é comparada com
+      // `m.id` no render, então guardar o conteúdo nunca acenderia o "Copiada".
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch {
+      toast("Não foi possível copiar.", "error");
     }
   }
 
@@ -280,18 +296,28 @@ export function ChatClient({
           horizontal na página. */}
       <div className="flex flex-col gap-4 min-w-0">
         {/* Barra superior */}
+        {/* BLOCO 5 — o título vem do nome da conversa, que é gerado pelo
+            usuário/IA e pode ser longo. Sem `min-w-0` na coluna de texto, esse
+            título empurrava o botão "Conversas" (e a própria página) para além
+            da tela. `min-w-0` deixa o título quebrar, o botão fica `flex-none`
+            com o rótulo escondido só no espaço mais apertado. */}
         <div className="flex items-center justify-between gap-3">
-          <div>
+          <div className="min-w-0 flex-1">
             <h2 className="font-display text-[17px] font-bold text-ink">
               IA Acessor
             </h2>
-            <p className="text-[13px] text-ink-soft">
+            <p className="text-[13px] text-ink-soft break-words">
               {activeId
                 ? conversations.find((c) => c.id === activeId)?.title ?? "Conversa"
                 : "Converse com a IA sobre seu perfil"}
             </p>
           </div>
-          <Button variant="ghost" size="sm" className="lg:hidden" onClick={() => setSidebarOpen(true)}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="lg:hidden flex-none"
+            onClick={() => setSidebarOpen(true)}
+          >
             <MessageSquare size={16} />
             Conversas
           </Button>
@@ -314,7 +340,7 @@ export function ChatClient({
             <div
               key={m.id}
               className={cn(
-                "flex items-start gap-2.5 max-w-[85%]",
+                "group flex items-start gap-2.5 max-w-[85%]",
                 m.role === "assistant" ? "" : "self-end flex-row-reverse"
               )}
             >
@@ -328,19 +354,38 @@ export function ChatClient({
               >
                 {m.role === "assistant" ? <Bot size={15} /> : <User size={15} />}
               </span>
-              <div
-                className={cn(
-                  // `min-w-0 break-words`: filho de flex tem `min-width:auto` e
-                  // não encolhe abaixo do seu conteúdo. Como a bolha é limitada
-                  // a `max-w-[85%]`, uma palavra longa (URL, token) estourava a
-                  // largura em vez de quebrar.
-                  "min-w-0 break-words rounded-[14px] px-4 py-2.5 text-[13.5px] leading-relaxed",
-                  m.role === "assistant"
-                    ? "bg-surface/70 text-ink"
-                    : "bg-brand-grad text-white"
+              <div className="min-w-0 flex flex-col items-start gap-1">
+                <div
+                  className={cn(
+                    // `min-w-0 break-words`: filho de flex tem `min-width:auto` e
+                    // não encolhe abaixo do seu conteúdo. Como a bolha é limitada
+                    // a `max-w-[85%]`, uma palavra longa (URL, token) estourava a
+                    // largura em vez de quebrar.
+                    "min-w-0 break-words rounded-[14px] px-4 py-2.5 text-[13.5px] leading-relaxed",
+                    m.role === "assistant"
+                      ? "bg-surface/70 text-ink"
+                      : "bg-brand-grad text-white"
+                  )}
+                >
+                  {m.role === "assistant" ? (
+                    // A resposta chega em Markdown. Renderizar como elementos
+                    // React (nunca HTML) evita o `**negrito**` literal na tela
+                    // sem abrir caminho para injeção.
+                    <MarkdownLite content={m.content} />
+                  ) : (
+                    <span className="whitespace-pre-wrap">{m.content}</span>
+                  )}
+                </div>
+                {m.role === "assistant" && m.content.trim().length > 0 && (
+                  <button
+                    onClick={() => copyMessage(m.id, m.content)}
+                    className="opacity-0 group-hover:opacity-100 focus:opacity-100 text-[11.5px] font-semibold text-ink-muted hover:text-purple transition-opacity cursor-pointer flex items-center gap-1 px-1"
+                    aria-label="Copiar resposta"
+                  >
+                    {copiedId === m.id ? <Check size={12} /> : <CopyIcon size={12} />}
+                    {copiedId === m.id ? "Copiada" : "Copiar"}
+                  </button>
                 )}
-              >
-                {m.content}
               </div>
             </div>
           ))}
@@ -359,12 +404,17 @@ export function ChatClient({
         </div>
 
         {/* Input */}
+        {/* BLOCO 5 — `min-w-0` no textarea: um campo de texto é um item de flex
+            com `min-width: auto`, ou seja, a sua largura mínima era
+            `size` (o atributo HTML, ~20 caracteres) e não zero. Em 320/360px
+            isso somado ao botão "Enviar" ultrapassava a largura do card. Também
+            ajustamos o padding no celular para o par caber sem apertar. */}
         <form
           onSubmit={(e) => {
             e.preventDefault();
             send(input);
           }}
-          className="flex items-end gap-2.5"
+          className="flex items-end gap-2.5 pb-[env(safe-area-inset-bottom)]"
         >
           <textarea
             value={input}
@@ -377,11 +427,15 @@ export function ChatClient({
             }}
             rows={2}
             placeholder="Escreva sua mensagem..."
-            className="flex-1 resize-none rounded-[12px] border border-border bg-bg-ice px-4 py-3 text-[14px] text-ink placeholder:text-ink-muted focus:border-purple/50 focus:ring-2 focus:ring-purple/20 focus:outline-none transition-shadow"
+            className="flex-1 min-w-0 resize-none rounded-[12px] border border-border bg-bg-ice px-3 sm:px-4 py-3 text-[14px] text-ink placeholder:text-ink-muted focus:border-purple/50 focus:ring-2 focus:ring-purple/20 focus:outline-none transition-shadow"
           />
-          <Button type="submit" disabled={loading || !input.trim()} className="gap-2">
+          <Button
+            type="submit"
+            disabled={loading || !input.trim()}
+            className="gap-2 flex-none px-3 sm:px-4"
+          >
             {loading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-            Enviar
+            <span className="hidden sm:inline">Enviar</span>
           </Button>
         </form>
       </div>

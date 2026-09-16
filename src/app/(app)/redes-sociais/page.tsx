@@ -3,6 +3,7 @@ import { Instagram, Music2, ShieldCheck, Info } from "lucide-react";
 
 import { requireOnboardedSession } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
+import { effectiveConnectionStatus } from "@/lib/integrations/connection-status";
 import { StatusBadge } from "@/components/ui/badge";
 import { Divider } from "@/components/ui/divider";
 import { InstagramActions } from "@/components/integrations/instagram-actions";
@@ -65,13 +66,10 @@ export default async function RedesSociaisPage() {
   const hasActiveInstagramFlow = oauthStates.some((s) => s.provider === "instagram");
   const hasActiveTikTokFlow = oauthStates.some((s) => s.provider === "tiktok");
 
-  const effectiveStatus = (status: string | null | undefined, hasActiveFlow: boolean) => {
-    if (status === "CONNECTING" && !hasActiveFlow) return "DISCONNECTED";
-    return (status ?? "DISCONNECTED") as "CONNECTED" | "CONNECTING" | "DISCONNECTED" | "ERROR";
-  };
-
-  const instagramStatus = effectiveStatus(instagram?.status, hasActiveInstagramFlow);
-  const tiktokStatus = effectiveStatus(tiktok?.status, hasActiveTikTokFlow);
+  // A regra vive em `@/lib/integrations/connection-status` — compartilhada com
+  // /configuracoes para as duas telas nunca discordarem do estado real.
+  const instagramStatus = effectiveConnectionStatus(instagram?.status, hasActiveInstagramFlow);
+  const tiktokStatus = effectiveConnectionStatus(tiktok?.status, hasActiveTikTokFlow);
 
   const instagramConnected = instagramStatus === "CONNECTED";
   const tiktokConnected = tiktokStatus === "CONNECTED";

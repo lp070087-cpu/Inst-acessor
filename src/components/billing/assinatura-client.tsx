@@ -517,7 +517,14 @@ export function AssinaturaClient({
                     )}
                   </div>
                   <div className="flex items-baseline flex-wrap gap-x-1.5 gap-y-0">
-                    <span className="font-display text-[30px] font-bold text-ink">
+                    {/* BLOCO 5 — o preço é atômico.
+                        Sem `whitespace-nowrap` o valor formatado ("R$ 547,00")
+                        podia quebrar no espaço entre o símbolo e o número,
+                        produzindo "R$" numa linha e "547,00" na seguinte em
+                        cards estreitos. `flex-wrap` continua no container para
+                        o sufixo ("/mês") descer quando faltar espaço, mas o
+                        NÚMERO nunca se divide. */}
+                    <span className="font-display text-[30px] font-bold text-ink whitespace-nowrap">
                       {formatBRL(plan.priceCents)}
                     </span>
                     {/* "único" para o plano de pagamento único — mesma regra

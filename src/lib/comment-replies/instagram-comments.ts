@@ -153,30 +153,61 @@ export async function listEligibleMedia(userId: string): Promise<EligibleMedia[]
     where: { userId },
     orderBy: [{ timestamp: "desc" }, { createdAt: "desc" }],
     take: 50,
+    include: { _count: { select: { comments: true } } },
   });
 
-  return rows.map((row) => {
-    const media = row as unknown as {
-      igMediaId: string;
-      mediaType: string | null;
-      caption: string | null;
-      thumbnailUrl: string | null;
-      mediaUrl: string | null;
-      permalink: string | null;
-      timestamp: Date | null;
-      commentsCount: number | null;
-    };
-    return {
-      id: media.igMediaId,
-      mediaType: media.mediaType ?? "IMAGE",
-      mediaProductType: null,
-      caption: media.caption,
-      thumbnailUrl: media.thumbnailUrl ?? media.mediaUrl,
-      permalink: media.permalink,
-      timestamp: media.timestamp ? media.timestamp.toISOString() : null,
-      commentsCount: media.commentsCount,
-    };
+  return rows.map((row) => ({
+    id: row.igMediaId,
+    mediaType: row.mediaType ?? "IMAGE",
+    // `mediaProductType` é usado como pista de formato (Reel/Feed). Só é
+    // preenchido quando a API informa — sem valor não inventamos "FEED".
+    mediaProductType: row.mediaProductType ?? null,
+    caption: row.caption,
+    thumbnailUrl: row.thumbnailUrl ?? row.mediaUrl,
+    permalink: row.permalink,
+    timestamp: row.timestamp ? row.timestamp.toISOString() : null,
+    commentsCount: row.commentsCount,
+    // Quantos comentários REAIS temos sincronizados para esta publicação.
+    syncedCommentsCount: row._count.comments,
+  }));
+}
+
+/**
+ * Comentários REAIS já sincronizados de uma publicação, lidos do banco.
+ *
+ * Antes desta função a única forma de a tela ver comentários era chamar a API
+ * na hora (`listComments`) — o que falha quando o app não tem o escopo
+ * aprovado. Aqui devolvemos o que foi de fato sincronizado; a API continua
+ * sendo usada apenas no momento de responder.
+ */
+export async function listStoredComments(
+  userId: string,
+  igMediaId: string
+): Promise<EligibleComment[]> {
+  const media = await prisma.instagramMedia.findFirst({
+    where: { userId, igMediaId },
+    select: { id: true },
   });
+  if (!media) return [];
+
+  const rows = await prisma.instagramComment.findMany({
+    where: { userId, mediaId: media.id },
+    orderBy: [{ timestamp: "desc" }, { createdAt: "desc" }],
+    take: 200,
+  });
+
+  return rows.map((row) => ({
+    commentId: row.igCommentId,
+    mediaId: igMediaId,
+    username: row.authorUsername ?? "",
+    text: row.text ?? "",
+    timestamp: row.timestamp ? row.timestamp.toISOString() : null,
+  }));
+}
+
+/** Quantos comentários reais existem sincronizados para o usuário. */
+export async function countStoredComments(userId: string): Promise<number> {
+  return prisma.instagramComment.count({ where: { userId } });
 }
 
 interface IgCommentNode {

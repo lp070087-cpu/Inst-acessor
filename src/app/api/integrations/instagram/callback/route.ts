@@ -191,7 +191,10 @@ export async function GET(request: Request) {
         tokenEncrypted: encrypted,
         tokenExpiresAt: expiresAt,
         scopes: tokenData.scopes,
-        lastSyncAt: new Date(),
+        // NÃO marcamos `lastSyncAt` aqui: conectar não é sincronizar. Antes
+        // este campo era preenchido no OAuth, o que (a) mostrava "sincronizado
+        // agora" sem nenhum dado e (b) bloqueava o primeiro sync real pelo
+        // cooldown de 60s.
       },
       update: {
         externalAccountId: account.id,
@@ -201,12 +204,11 @@ export async function GET(request: Request) {
         tokenEncrypted: encrypted,
         tokenExpiresAt: expiresAt,
         scopes: tokenData.scopes,
-        lastSyncAt: new Date(),
       },
     });
 
-    // Perfil mÃ­nimo jÃ¡ na conexÃ£o: garante avatar/nome reais no Dashboard e em
-    // /redes-sociais ANTES da primeira sincronizaÃ§Ã£o. Campos ausentes ficam null
+    // Perfil mínimo já na conexão: garante avatar/nome reais no Dashboard e em
+    // /redes-sociais ANTES da primeira sincronização. Campos ausentes ficam null
     // (a UI usa fallback). Os valores completos chegam depois, via /sync.
     try {
       await prisma.instagramProfile.upsert({
@@ -226,12 +228,12 @@ export async function GET(request: Request) {
         },
       });
     } catch (profileErr) {
-      // NÃ£o invalida a conexÃ£o: o perfil Ã© recriado na prÃ³xima sincronizaÃ§Ã£o.
+      // Não invalida a conexão: o perfil é recriado na próxima sincronização.
       console.error("[instagram-callback] falha ao persistir perfil", profileErr);
     }
 
     console.info(
-      `[instagram-callback] conexÃ£o criada/atualizada para user=${userId} (${account.username})`
+      `[instagram-callback] conexão criada/atualizada para user=${userId} (${account.username})`
     );
   } catch (err) {
     console.error("[instagram-callback] falha ao persistir conexÃ£o", err);

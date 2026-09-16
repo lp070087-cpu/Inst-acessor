@@ -75,7 +75,10 @@ export interface EligibleMedia {
   thumbnailUrl?: string | null;
   permalink?: string | null;
   timestamp?: string | null;
+  /** `comments_count` informado pela API — null quando não informado. */
   commentsCount?: number | null;
+  /** Comentários REAIS já persistidos no banco para esta publicação. */
+  syncedCommentsCount?: number;
 }
 
 /** Comentário lido da API. */

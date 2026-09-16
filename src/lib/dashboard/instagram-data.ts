@@ -159,8 +159,19 @@ export async function getDashboardInstagramData(
     orderBy: { updatedAt: "desc" },
   });
 
+  // CAUSA RAIZ DOS VALORES ABSURDOS NO GRÁFICO
+  // ------------------------------------------
+  // A leitura era `where: { userId }` puro. Como `InstagramProfile.igAccountId`
+  // é único mas o USER pode ter trocado de conta (ou o sync antigo de outra
+  // conta ficou no banco), a série misturava snapshots de PERFIS DIFERENTES:
+  // seguidores de uma conta ao lado de alcance/visualizações de outra, em
+  // ordens de grandeza incompatíveis. Plotado junto, isso produzia um eixo Y
+  // com valores absurdos.
+  //
+  // Agora a série é escopada ao PERFIL ATUAL. Se por algum motivo não houver
+  // perfil, cai para a conexão atual (nunca para "tudo do usuário").
   const snapshots = await prisma.instagramSnapshot.findMany({
-    where: { userId },
+    where: profile ? { userId, profileId: profile.id } : { userId },
     orderBy: { capturedAt: "asc" },
   });
 
@@ -196,22 +207,38 @@ export async function getDashboardInstagramData(
       ? prev7dValues.reduce((a, b) => a + b, 0)
       : null;
 
+  // CAUSA RAIZ DO "SEGUIDORES: —" COM O DADO EXISTINDO NO BANCO
+  // -------------------------------------------------------
+  // `InstagramProfile.followersCount` / `mediaCount` são gravados na
+  // sincronização JUNTO com o snapshot, mas são colunas SEPARADAS. Quando o
+  // snapshot mais recente não trouxe o número (a API do Instagram já devolveu
+  // métrica de perfil vazia em algumas coletas), o card lia só
+  // `latest?.followersCount` → null → "—" no Dashboard, embora o perfil real
+  // tivesse o valor. O caminho do Rank (`getRankSocialSummary`) e o campo
+  // `followersCount` logo abaixo JÁ faziam o fallback para o perfil — os cards
+  // ficaram de fora dessa correção.
+  //
+  // Regra (Etapa U): se o dado existe no perfil, RESTAURAR a leitura.
+  // Se não existe em nenhuma fonte, continua null → "—". Nunca zero inventado.
+  const followersValue = latest?.followersCount ?? profile?.followersCount ?? null;
+  const mediaValue = latest?.mediaCount ?? profile?.mediaCount ?? null;
+
   const data: DashboardInstagramData = {
     ...empty,
     username: profile?.username ?? connection.username ?? null,
     // Foto e nome vêm do InstagramProfile (gravados na sincronização).
     displayName: profile?.name ?? null,
     avatarUrl: profile?.profilePictureUrl ?? null,
-    followersCount: latest?.followersCount ?? profile?.followersCount ?? null,
-    mediaCount: latest?.mediaCount ?? profile?.mediaCount ?? null,
+    followersCount: followersValue,
+    mediaCount: mediaValue,
     lastSyncAt: connection.lastSyncAt ?? null,
     snapshotCount: snapshots.length,
     cards: {
       followers: {
         label: "Seguidores",
-        value: latest?.followersCount ?? null,
-        changePercent: safePct(latest?.followersCount, previous?.followersCount),
-        available: latest?.followersCount != null,
+        value: followersValue,
+        changePercent: safePct(followersValue, previous?.followersCount),
+        available: followersValue != null,
       },
       engagement: {
         label: "Engajamento",
@@ -246,9 +273,9 @@ export async function getDashboardInstagramData(
       },
       media: {
         label: "Publicações",
-        value: latest?.mediaCount ?? null,
-        changePercent: safePct(latest?.mediaCount, previous?.mediaCount),
-        available: latest?.mediaCount != null,
+        value: mediaValue,
+        changePercent: safePct(mediaValue, previous?.mediaCount),
+        available: mediaValue != null,
       },
     },
     reach7dDays: reach7dValues.length,
@@ -272,6 +299,10 @@ function mapEvolution(snapshots: {
   profileViews?: number | null;
   mediaCount?: number | null;
 }[]): EvolutionPoint[] {
+  // Nenhum ponto é fabricado e nenhum snapshot é descartado por estar vazio:
+  // a série tem exatamente os snapshots REAIS da janela, cada um com o seu
+  // timestamp. Métrica ausente permanece null (o gráfico não desenha o ponto,
+  // mas a linha do tempo continua correta).
   return snapshots.map((s) => ({
     label: new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit" }).format(s.capturedAt),
     capturedAt: s.capturedAt.toISOString(),

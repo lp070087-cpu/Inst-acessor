@@ -251,33 +251,47 @@ export function IdeasClient({ aiConfigured, initialIdeas }: IdeasClientProps) {
                     key={idx}
                     className="rounded-[12px] border border-border-soft bg-bg-ice p-4 flex flex-col gap-2"
                   >
+                    {/* BLOCO 5 — o texto NÃO disputa largura com o botão.
+                        Sem `min-w-0` + `flex-1` na coluna de texto, um título
+                        ou uma palavra longa (URL, hashtag) forçava a coluna a
+                        crescer (em flex o item herda `min-width: auto`) e o
+                        botão "Salvar" era empurrado para fora do card. Com
+                        `min-w-0` a coluna encolhe, o texto quebra e o botão
+                        mantém o seu lugar. */}
                     <div className="flex items-start justify-between gap-3">
-                      <div className="flex flex-col gap-1">
-                        <span className="text-[13.5px] font-bold text-ink">{idea.title}</span>
+                      <div className="flex flex-col gap-1 min-w-0 flex-1">
+                        <span className="text-[13.5px] font-bold text-ink break-words">
+                          {idea.title}
+                        </span>
                         <div className="flex flex-wrap gap-1.5">
                           {idea.format && (
-                            <span className="text-[11px] font-semibold text-purple bg-ai-soft rounded-pill px-2 py-0.5">
+                            <span className="text-[11px] font-semibold text-purple bg-ai-soft rounded-pill px-2 py-0.5 break-words">
                               {idea.format}
                             </span>
                           )}
                           {idea.objective && (
-                            <span className="text-[11px] font-semibold text-ink-soft bg-surface rounded-pill px-2 py-0.5">
+                            <span className="text-[11px] font-semibold text-ink-soft bg-surface rounded-pill px-2 py-0.5 break-words">
                               {idea.objective}
                             </span>
                           )}
                         </div>
                         {idea.context && (
-                          <p className="text-[12.5px] text-ink-soft leading-relaxed">
+                          <p className="text-[12.5px] text-ink-soft leading-relaxed break-words">
                             {idea.context}
                           </p>
                         )}
                         {idea.rationale && (
-                          <p className="text-[12px] text-purple leading-relaxed bg-ai-soft rounded-[8px] px-2.5 py-1.5">
+                          <p className="text-[12px] text-purple leading-relaxed bg-ai-soft rounded-[8px] px-2.5 py-1.5 break-words">
                             Por que esta ideia: {idea.rationale}
                           </p>
                         )}
                       </div>
-                      <Button variant="outline" size="sm" onClick={() => handleSave(idea)}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleSave(idea)}
+                        className="flex-none"
+                      >
                         <Save size={14} /> Salvar
                       </Button>
                     </div>
@@ -304,7 +318,7 @@ export function IdeasClient({ aiConfigured, initialIdeas }: IdeasClientProps) {
                   className="rounded-[12px] border border-border-soft bg-bg-ice p-4 flex flex-col gap-2"
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <div className="flex flex-col gap-1">
+                    <div className="flex flex-col gap-1 min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
                           {idea.platform}
@@ -324,14 +338,16 @@ export function IdeasClient({ aiConfigured, initialIdeas }: IdeasClientProps) {
                           {STATUS_LABEL[idea.status] ?? idea.status}
                         </span>
                       </div>
-                      <span className="text-[14px] font-bold text-ink">{idea.title}</span>
+                      <span className="text-[14px] font-bold text-ink break-words">
+                        {idea.title}
+                      </span>
                       {idea.context && (
-                        <p className="text-[12.5px] text-ink-soft leading-relaxed">
+                        <p className="text-[12.5px] text-ink-soft leading-relaxed break-words">
                           {idea.context}
                         </p>
                       )}
                       {idea.rationale && (
-                        <p className="text-[12px] text-purple leading-relaxed bg-ai-soft rounded-[8px] px-2.5 py-1.5">
+                        <p className="text-[12px] text-purple leading-relaxed bg-ai-soft rounded-[8px] px-2.5 py-1.5 break-words">
                           Por que esta ideia: {idea.rationale}
                         </p>
                       )}

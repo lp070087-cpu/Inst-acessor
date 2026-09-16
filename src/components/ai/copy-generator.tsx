@@ -318,7 +318,13 @@ export function CopyGenerator({ aiConfigured, initialSaved }: CopyGeneratorProps
 
             {result ? (
               <>
-                <div className="flex-1 rounded-[12px] bg-surface/50 border border-border-soft p-4 whitespace-pre-wrap text-[14px] leading-relaxed text-ink min-h-[220px]">
+                {/* BLOCO 5 — a copy gerada é texto livre: pode conter URL,
+                    hashtag longa ou palavra sem espaço quebrável.
+                    `whitespace-pre-wrap` preserva as linhas, mas não quebra
+                    uma palavra comprida, e o bloco é filho de um flex com
+                    `min-width: auto`. `min-w-0 break-words` resolve nos dois
+                    eixos sem mexer no conteúdo. */}
+                <div className="flex-1 min-w-0 rounded-[12px] bg-surface/50 border border-border-soft p-4 whitespace-pre-wrap break-words text-[14px] leading-relaxed text-ink min-h-[220px]">
                   {result}
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -388,7 +394,7 @@ export function CopyGenerator({ aiConfigured, initialSaved }: CopyGeneratorProps
                       </button>
                     </div>
                   </div>
-                  <p className="text-[13.5px] text-ink whitespace-pre-wrap line-clamp-4">{c.content}</p>
+                  <p className="text-[13.5px] text-ink whitespace-pre-wrap break-words line-clamp-4">{c.content}</p>
                 </div>
               ))}
             </div>

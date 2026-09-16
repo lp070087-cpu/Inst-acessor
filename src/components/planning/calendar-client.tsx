@@ -1577,7 +1577,7 @@ function ContentDetailModal({
               </div>
             ) : (
               <p className="text-[12.5px] text-ink-soft">
-                Nenhuma copy associada. Associe no campo acima (Ideia/Copy) ou use o Gerador de Copy.
+                Nenhuma copy associada. Associe no campo acima (Ideia/Copy) ou gere uma no Preview Social.
               </p>
             )}
 

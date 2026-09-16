@@ -45,10 +45,17 @@ export default async function AppLayout({
     redirect("/primeiro-acesso");
   }
 
-  // Garante que o onboarding foi concluído antes de entrar no app
+  // Garante que o onboarding foi concluído antes de entrar no app.
+  // A mesma consulta traz a identidade REAL da conta (nome + foto) para a
+  // sidebar: a sessão é JWT e congela esses valores no login, então uma edição
+  // no Perfil não apareceria aqui sem sair e entrar de novo.
   const profile = await prisma.userProfile.findUnique({
     where: { userId: session.user.id },
-    select: { onboardingCompleted: true },
+    select: {
+      onboardingCompleted: true,
+      avatar: true,
+      user: { select: { name: true } },
+    },
   });
 
   if (!profile?.onboardingCompleted) {
@@ -66,7 +73,11 @@ export default async function AppLayout({
   return (
     <ToastProvider>
       <div className="min-h-screen bg-bg">
-        <AppSidebar user={session.user} isAdmin={isAdmin} />
+        <AppSidebar
+          user={session.user}
+          isAdmin={isAdmin}
+          account={{ name: profile?.user?.name ?? null, avatar: profile?.avatar ?? null }}
+        />
         <main className="lg:pl-72 min-h-screen flex flex-col min-w-0">
           {/* `min-w-0` é o que permite os filhos encolherem: em flex, o
               item herda `min-width:auto` e qualquer conteúdo largo (tabela,

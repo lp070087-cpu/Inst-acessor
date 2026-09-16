@@ -1,76 +1,120 @@
 import type { Metadata } from "next";
+
 import { requireOnboardedSession } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
-import { Avatar } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Divider } from "@/components/ui/divider";
+import { getAccountData } from "@/lib/profile/account";
+import { describeSync } from "@/lib/dashboard/freshness";
+import { PerfilClient } from "@/components/account/perfil-client";
+import type { PerfilConnection } from "@/components/account/perfil-client";
 
 export const metadata: Metadata = {
   title: "Perfil",
-  description: "Seus dados e preferências.",
+  description: "Seus dados e preferências de conta.",
 };
 
+export const dynamic = "force-dynamic";
+
+/**
+ * PERFIL — dados da conta do Inst Acessor.
+ *
+ * Esta tela edita a CONTA. O conhecimento estratégico (tom de voz, padrões
+ * observados, formatos preferidos) continua em `/perfil-de-inteligencia`, que
+ * lê a MESMA fonte quando o assunto é nicho/subnicho/objetivo — aqui não existe
+ * uma segunda versão desses campos.
+ *
+ * Antes desta versão a tela lia `session.user.name`/`session.user.image`. A
+ * sessão é JWT: esses valores são congelados no login, então uma edição só
+ * apareceria depois de sair e entrar de novo. Por isso os dados vêm do BANCO.
+ */
 export default async function PerfilPage() {
-  const { session, profile } = await requireOnboardedSession();
+  const { session } = await requireOnboardedSession();
+  const userId = session.user.id;
+
+  const [account, userRow, igConnection, ttConnection, igProfile, ttProfile] =
+    await Promise.all([
+      getAccountData(userId),
+      prisma.user.findUnique({ where: { id: userId }, select: { passwordHash: true } }),
+      prisma.socialConnection.findFirst({
+        where: { userId, platform: "instagram" },
+        select: { status: true, username: true, lastSyncAt: true },
+      }),
+      prisma.socialConnection.findFirst({
+        where: { userId, platform: "tiktok" },
+        select: { status: true, username: true, lastSyncAt: true },
+      }),
+      // Avatares das contas CONECTADAS — nunca copiados para a conta do app.
+      prisma.instagramProfile.findFirst({
+        where: { userId },
+        orderBy: { updatedAt: "desc" },
+        select: { profilePictureUrl: true },
+      }),
+      prisma.tikTokProfile.findFirst({
+        where: { userId },
+        orderBy: { updatedAt: "desc" },
+        select: { avatarUrl: true },
+      }),
+    ]);
+
+  if (!account) {
+    // Sessão válida sem linha de usuário: estado de erro real, não inventamos
+    // uma conta vazia no lugar.
+    return (
+      <div className="flex flex-col gap-3">
+        <h1 className="font-display text-[26px] font-bold text-ink">Perfil</h1>
+        <p className="text-[13.5px] text-ink-soft">
+          Não foi possível carregar os dados da sua conta agora. Atualize a página
+          para tentar novamente.
+        </p>
+      </div>
+    );
+  }
+
+  const connections: PerfilConnection[] = [
+    {
+      platform: "instagram",
+      connected: igConnection?.status === "CONNECTED",
+      username: igConnection?.username ?? null,
+      avatarUrl: igProfile?.profilePictureUrl ?? null,
+      syncLabel: igConnection?.lastSyncAt ? describeSync(igConnection.lastSyncAt).label : null,
+      syncStale: describeSync(igConnection?.lastSyncAt ?? null).stale,
+    },
+    {
+      platform: "tiktok",
+      connected: ttConnection?.status === "CONNECTED",
+      username: ttConnection?.username ?? null,
+      avatarUrl: ttProfile?.avatarUrl ?? null,
+      syncLabel: ttConnection?.lastSyncAt ? describeSync(ttConnection.lastSyncAt).label : null,
+      syncStale: describeSync(ttConnection?.lastSyncAt ?? null).stale,
+    },
+  ];
 
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-1">
         <h1 className="font-display text-[26px] font-bold text-ink">Perfil</h1>
         <p className="text-[13.5px] text-ink-soft">
-          Seus dados e preferências de conta.
+          Sua foto, seus dados e a segurança da sua conta.
         </p>
       </div>
 
-      <div className="bg-card border border-border-soft rounded-lg shadow-xs p-6">
-        <div className="flex items-center gap-4">
-          <Avatar name={session.user.name} src={session.user.image} size="lg" />
-          <div>
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <h2 className="font-display text-[18px] font-bold text-ink">
-                {session.user.name ?? "Sem nome"}
-              </h2>
-              <Badge tone="brand">Inst Acessor</Badge>
-            </div>
-            <p className="text-[13px] text-ink-soft">{session.user.email}</p>
-          </div>
-        </div>
-
-        <Divider className="my-6" label="Perfil" />
-
-        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-          <div>
-            <dt className="text-[12px] font-semibold uppercase tracking-wider text-ink-muted">
-              Objetivo
-            </dt>
-            <dd className="text-[14.5px] text-ink mt-1">
-              {profile?.objective ?? "—"}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-[12px] font-semibold uppercase tracking-wider text-ink-muted">
-              Nicho
-            </dt>
-            <dd className="text-[14.5px] text-ink mt-1">{profile?.niche ?? "—"}</dd>
-          </div>
-          <div>
-            <dt className="text-[12px] font-semibold uppercase tracking-wider text-ink-muted">
-              Subnicho
-            </dt>
-            <dd className="text-[14.5px] text-ink mt-1">
-              {profile?.subNiche ?? "—"}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-[12px] font-semibold uppercase tracking-wider text-ink-muted">
-              Usuário
-            </dt>
-            <dd className="text-[14.5px] text-ink mt-1">
-              {profile?.username ?? "—"}
-            </dd>
-          </div>
-        </dl>
-      </div>
+      <PerfilClient
+        account={{
+          name: account.name,
+          email: account.email,
+          avatar: account.avatar,
+          displayName: account.displayName,
+          username: account.username,
+          niche: account.niche,
+          subNiche: account.subNiche,
+          objective: account.objective,
+          createdAt: account.createdAt.toISOString(),
+        }}
+        connections={connections}
+        hasPassword={Boolean(userRow?.passwordHash)}
+        // WEBP fica desligado enquanto o reencode do canvas não for garantido em
+        // todos os navegadores suportados.
+        acceptsWebp={false}
+      />
     </div>
   );
 }

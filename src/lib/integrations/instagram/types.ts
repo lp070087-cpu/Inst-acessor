@@ -41,6 +41,8 @@ export interface InstagramAccountInsights {
 export interface InstagramMediaNode {
   id: string;
   media_type?: "IMAGE" | "VIDEO" | "CAROUSEL_ALBUM" | "REEL" | "STORY";
+  /** FEED | REELS | STORY | AD — quando a API informar. */
+  media_product_type?: string | null;
   permalink?: string;
   caption?: string;
   timestamp?: string;
@@ -48,6 +50,20 @@ export interface InstagramMediaNode {
   comments_count?: number;
   media_url?: string;
   thumbnail_url?: string;
+}
+
+/** Comentário REAL normalizado para persistência (nunca inventado). */
+export interface InstagramCommentData {
+  /** ID externo da Meta — chave de idempotência. */
+  id: string;
+  authorUsername?: string | null;
+  authorId?: string | null;
+  text?: string | null;
+  timestamp?: Date | null;
+  /** true quando quem comentou é a própria conta conectada. */
+  isOwn?: boolean;
+  /** Quantidade de respostas existentes neste comentário, quando informada. */
+  repliesCount?: number | null;
 }
 
 export interface InstagramMediaMetricNode {
@@ -81,6 +97,7 @@ export interface InstagramSyncData {
   medias: {
     id: string;
     mediaType?: string | null;
+    mediaProductType?: string | null;
     permalink?: string | null;
     caption?: string | null;
     timestamp?: Date | null;
@@ -89,7 +106,22 @@ export interface InstagramSyncData {
     mediaUrl?: string | null;
     thumbnailUrl?: string | null;
     metrics?: InstagramMediaMetricNode | null;
+    /** `null` → comentários NÃO foram lidos (escopo/permissão). Array vazio → lidos e não havia. */
+    comments?: InstagramCommentData[] | null;
+    /** true somente quando a leitura de comentários desta publicação funcionou. */
+    commentsSynced?: boolean;
   }[];
+  /**
+   * Capacidade REAL de leitura de comentários nesta execução:
+   *   - `true`  → lemos comentários com sucesso (array vazio = nenhum comentário);
+   *   - `false` → a Meta recusou (normalmente `instagram_business_manage_comments`
+   *     sem acesso avançado);
+   *   - `null`  → não houve o que ler (nenhuma publicação sincronizada).
+   * A UI usa isso para dizer "indisponível" em vez de "0 comentários".
+   */
+  commentsAvailable?: boolean | null;
+  /** Código do erro da Meta quando `commentsAvailable` é false. */
+  commentsErrorCode?: string | null;
 }
 
 /** Resumo retornado pelo sync (seguro — nunca tokens). */
@@ -107,5 +139,9 @@ export interface InstagramSyncSummary {
     profileViews?: number | null;
   };
   mediaSynced: number;
+  /** Quantos comentários REAIS foram persistidos/atualizados nesta execução. */
+  commentsSynced: number;
+  /** Ver a nota de `InstagramSyncData.commentsAvailable` (tristate). */
+  commentsAvailable: boolean | null;
   snapshotId: string;
 }

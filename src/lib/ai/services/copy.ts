@@ -36,6 +36,47 @@ const FORMAT_LABEL: Record<string, string> = {
   anuncio: "anúncio",
 };
 
+/**
+ * DIRETRIZES POR FORMATO
+ * ----------------------
+ * O formato muda o que é uma boa copy. Sem esta separação, o motor devolvia
+ * uma legenda longa de feed para um Story — formatos diferentes têm extensão,
+ * tom e função diferentes.
+ *
+ * Estas diretrizes são de ESTRUTURA (o que cabe no formato), não de tendência:
+ * nada aqui afirma o que está "em alta", porque o sistema não mede isso.
+ */
+const FORMAT_GUIDE: Record<string, string> = {
+  legenda:
+    "Formato POST de feed: legenda que sustenta a imagem. Gancho na primeira linha (o feed corta depois de ~2 linhas), desenvolvimento curto e um fechamento com convite à interação. Não escreva roteiro.",
+  reel:
+    "Formato REEL: legenda curta de apoio ao vídeo + uma ideia de gancho falado nos primeiros 2 segundos. A legenda NÃO deve descrever o vídeo inteiro — o vídeo faz isso. Sugira também o texto de abertura na tela.",
+  story:
+    "Formato STORY: texto CURTO para aparecer sobre a tela, lido em 3–5 segundos. Uma ideia por Story, frases curtas, no máximo 2–3 linhas. NÃO é legenda de feed: nada de parágrafo longo. Termine com uma pergunta ou enquete quando fizer sentido.",
+  carrossel:
+    "Formato CARROSSEL: legenda de apoio + sugestão de divisão dos slides (uma ideia por slide, na ordem, incluindo a capa). A primeira linha da legenda precisa funcionar como gancho.",
+  tiktok:
+    "Formato TIKTOK: roteiro curto com gancho nos primeiros segundos, desenvolvimento e fechamento. Linguagem falada, natural, sem formalidade de legenda de feed.",
+  cta: "Formato CTA: uma chamada direta e específica, sem rodeio. Diga exatamente o que a pessoa deve fazer.",
+  headline: "Formato HEADLINE: uma manchete curta e específica. Deve prender em uma leitura.",
+  bio: "Formato BIO: texto de apresentação do perfil, curto, com o que a conta faz e para quem.",
+  anuncio: "Formato ANÚNCIO: texto persuasivo com dor/desejo, benefício e chamada para ação.",
+};
+
+/**
+ * Normaliza o vocabulário de formato do Preview Social para o do motor.
+ *
+ * O Preview usa `post | reel | story | carrossel` (formatos de plataforma); o
+ * motor usa `legenda | reel | story | carrossel | tiktok | ...` (formatos de
+ * texto). A tradução acontece AQUI, para que o Preview reutilize a MESMA rota
+ * e o mesmo serviço, sem duplicar implementação.
+ */
+export function normalizeFormat(platform: string, format: string): string {
+  const f = (format ?? "").toLowerCase();
+  if (f === "post" || f === "feed") return platform === "tiktok" ? "tiktok" : "legenda";
+  return f;
+}
+
 const SIZE_GUIDE: Record<string, string> = {
   curto: "máximo 1-2 frases (se aplicável)",
   medio: "texto equilibrado, ~3-5 frases",
@@ -50,7 +91,10 @@ export async function generateCopy(
   if (!provider) throw new AIConfiguredError();
 
   const ctx = await buildUserContext(userId);
-  const formatLabel = FORMAT_LABEL[params.format] ?? params.format;
+  // Aceita tanto o vocabulário do motor quanto o do Preview Social.
+  const format = normalizeFormat(params.platform, params.format);
+  const formatLabel = FORMAT_LABEL[format] ?? format;
+  const formatGuide = FORMAT_GUIDE[format] ?? "";
 
   // Conhecimento oficial aplicável: regras de gancho, retenção e copy.
   const hookRules = getRulesByCategory("conteudo").filter(
@@ -77,6 +121,7 @@ export async function generateCopy(
 
   const userPrompt = [
     `Gere um(a) ${formatLabel} para ${params.platform}.`,
+    formatGuide,
     params.objective ? `Objetivo: ${params.objective}.` : "",
     params.audience ? `Público-alvo: ${params.audience}.` : "",
     params.tone ? `Tom: ${params.tone}.` : "",

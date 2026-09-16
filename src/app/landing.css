@@ -7147,3 +7147,223 @@
     padding: 13px 14px;
   }
 }
+
+/* ============================================================
+   BLOCO 5 — RESPONSIVIDADE 320–430px (correções de causa)
+   ------------------------------------------------------------
+   Estes blocos ficam NO FIM do arquivo de propósito. As media queries
+   declaradas antes (640px / 480px / 400px / 360px) chegam DEPOIS do
+   breakpoint de 1080px, portanto vencem a cascata dele. Isso está certo
+   para o que elas corrigem, mas duas delas desfaziam o empilhamento dos
+   cards de plano em telas pequenas — o que só pode ser resolvido depois
+   delas, aqui.
+   Sem `overflow-x: hidden` escondendo o problema. Sem mexer em copy,
+   preços, slugs, links de checkout ou identidade visual.
+   ============================================================ */
+
+/* ---------- 1. PREÇO NUNCA QUEBRA ----------
+   Causa raiz: `.lnd-plan-price { overflow-wrap: anywhere }` (declarado no
+   bloco de 640px) permite quebra DENTRO do preço formatado. Com o card
+   estreito, "R$ 27,00" virava "R$ 2" / "7,00" e "R$ 77,00" virava
+   "R$" / "77,00". O preço é um bloco atômico: não quebra entre dígitos.
+   `.lnd-plan-price` é flex com `align-items: baseline`, então o período
+   continua alinhado à base do número (trocar para coluna + `flex-end`
+   capitalizaria o primeiro dígito do período). */
+.lnd-plan-price,
+.lnd-plan-price b,
+.lnd-plan-price span {
+  overflow-wrap: normal;
+  word-break: keep-all;
+}
+.lnd-plan-price b {
+  white-space: nowrap;
+}
+.lnd-plan-price span {
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  /* ---------- 2. CARDS DE PLANO: UM POR LINHA ----------
+     Causa raiz do "Semanal + Mensal lado a lado" no celular: o arquivo
+     declara `.lnd-plans-grid { grid-template-columns: 1fr }` aos 1080px e,
+     num SEGUNDO bloco de 1080px mais abaixo, `repeat(2, minmax(0,1fr))`.
+     O segundo sobrescreve o primeiro, então qualquer tela ≤1080px — 320px
+     inclusive — voltava a ter duas colunas. Aqui o empilhamento é
+     restabelecido para o mobile, um card por linha e centralizado. */
+  .lnd-plans-grid {
+    grid-template-columns: 1fr;
+    max-width: 420px;
+    margin-inline: auto;
+    gap: 22px;
+  }
+  .lnd-plan-card {
+    padding: 30px 20px 26px;
+  }
+  /* O selo "Mais escolhido" é posicionado no centro da borda superior
+     (-13px). Em card de largura total ele permanece centrado e dentro
+     dos limites — aqui só se ajusta a escala da pílula. */
+  .lnd-plan-badge {
+    font-size: 10px;
+    padding: 5px 12px;
+  }
+  /* CTA do plano: ocupa a largura do card e pode encolher/quebrar o
+     rótulo ("Assinar semanal" + seta) sem vazar. */
+  .lnd-plan-cta {
+    width: 100%;
+    min-width: 0;
+    flex-wrap: wrap;
+    justify-content: center;
+    text-align: center;
+  }
+  .lnd-plan-desc,
+  .lnd-plan-feats li,
+  .lnd-plan-name {
+    overflow-wrap: anywhere;
+  }
+
+  /* ---------- 3. BOTÕES: RÓTULO LONGO NÃO ESTOURA ----------
+     Rede de proteção usada por landing inteira: o botão pode encolher e,
+     em último caso, quebrar o rótulo em vez de empurrar a viewport. */
+  .lnd-btn {
+    max-width: 100%;
+    min-width: 0;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .lnd-btn svg {
+    flex: none;
+  }
+
+  /* ---------- 4. DIAGNÓSTICO: O STATUS NUNCA SAI DO CARD ----------
+     No desktop a linha tem 4 colunas: rótulo · barra · "62/100" · status.
+     Abaixo de 640px já havia um rearranjo em 2 colunas, mas a ordem
+     resultante era `rótulo | 62/100` / `barra ocupando as 2 colunas` /
+     `status` — a barra caía numa terceira linha e o status descia sozinho,
+     deixando o chip fora da área do card.
+     Aqui a linha passa a ter exatamente 2 linhas e 2 colunas:
+       linha 1 → rótulo (esquerda) · score "62/100" (direita)
+       linha 2 → barra (esquerda) · status (direita)
+     Cada item é posicionado explicitamente, portanto nenhum deles pode
+     escapar da grade. O escopo `#diagnostico` garante que só esta seção
+     seja afetada (a regra genérica de 640px continua valendo para o resto). */
+  #diagnostico .lnd-diag-list {
+    max-width: 100%;
+  }
+  #diagnostico .lnd-diag-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 12px;
+    padding: 12px 4px;
+  }
+  #diagnostico .lnd-diag-row .lnd-diag-lbl {
+    grid-area: 1 / 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  #diagnostico .lnd-diag-row small {
+    grid-area: 1 / 2;
+    justify-self: end;
+    white-space: nowrap;
+    min-width: 0;
+  }
+  #diagnostico .lnd-diag-row .lnd-diag-track {
+    grid-area: 2 / 1;
+    min-width: 0;
+  }
+  #diagnostico .lnd-diag-row .lnd-diag-cap {
+    grid-area: 2 / 2;
+    justify-self: end;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    padding: 4px 9px;
+  }
+
+  /* ---------- 5. ESTRATÉGIA (Alertas + Plano de ação) ----------
+     Cabeçalhos, alertas e movimentos: o bloco de texto precisa poder
+     encolher e quebrar palavra longa, em vez de empurrar o chip de tempo
+     ou o texto para fora da coluna. */
+  .lnd-strategy-col-head {
+    align-items: flex-start;
+  }
+  .lnd-strategy-col-head div {
+    min-width: 0;
+  }
+  .lnd-strategy-col-head b,
+  .lnd-strategy-col-head span:not(.lnd-sc-icon) {
+    overflow-wrap: anywhere;
+  }
+  .lnd-strategy-unified .lnd-a-body {
+    min-width: 0;
+  }
+  .lnd-strategy-unified .lnd-a-body b,
+  .lnd-strategy-unified .lnd-a-body p {
+    overflow-wrap: anywhere;
+  }
+  .lnd-strategy-unified .lnd-move-body b,
+  .lnd-strategy-unified .lnd-move-body p {
+    overflow-wrap: anywhere;
+  }
+  /* Anel do score e legenda do conector: escala reduzida para o card de
+     largura total, mantendo o número legível. */
+  .lnd-strategy-unified .lnd-strategy-score {
+    gap: 8px 14px;
+  }
+  .lnd-strategy-unified .lnd-ring-svg {
+    width: 78px;
+    height: 78px;
+  }
+  .lnd-strategy-unified .lnd-gauge-num b {
+    font-size: 26px;
+  }
+  .lnd-flow-label {
+    font-size: 10px;
+    padding: 4px 9px;
+  }
+  .lnd-strategy-unified .lnd-reco-items {
+    flex-wrap: wrap;
+  }
+}
+
+/* ---------- 6. 320–400px: aperto final ----------
+   Abaixo de 400px o gutter já cai para 16px. Restam ajustes pontuais para
+   o preço continuar inteiro e o chip de status caber com folga. */
+@media (max-width: 400px) {
+  .lnd-plan-card {
+    padding: 28px 16px 24px;
+  }
+  /* Com 16px de padding no card, "R$ 547,00" + "/ano" ainda caberia em
+     34px, mas a redução do mínimo do clamp dá margem confortável e mantém
+     os três preços visualmente iguais entre si. */
+  .lnd-plan-price b {
+    font-size: clamp(30px, 10.5vw, 34px);
+  }
+  #diagnostico .lnd-diag-row .lnd-diag-cap {
+    font-size: 9.5px;
+    letter-spacing: 0.05em;
+    padding: 4px 8px;
+  }
+  .lnd-strategy-unified .lnd-ring-svg {
+    width: 70px;
+    height: 70px;
+  }
+}
+
+/* ---------- 7. MENU MOBILE DA LANDING: NÃO FICA PRESO ----------
+   O dropdown já abre/fecha por clique no hambúrguer, clique fora, Esc e
+   navegação de âncora (landing-client). Faltavam dois limites de caixa:
+   1. altura — em telas baixas (320×568, paisagem) a lista de 8 links +
+      "Entrar" podia passar da viewport e o último item ficava inalcançável.
+      `max-height` + `overflow-y: auto` fazem o PRÓPRIO menu rolar, sem
+      deixar a página por baixo rolar junto e sem gerar scroll horizontal
+      (o menu é `left: 0; right: 0` dentro de `.lnd-nav`, limitado à tela).
+   2. safe area — o último item não pode cair sob a barra de gestos do
+      iPhone. `env()` é 0 fora de aparelhos com recorte, então a soma não
+      acrescenta faixa vazia nos demais navegadores. */
+@media (max-width: 900px) {
+  .lnd-nav.lnd-open .lnd-nav-links {
+    max-height: calc(100dvh - var(--lnd-nav-h));
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+  }
+}

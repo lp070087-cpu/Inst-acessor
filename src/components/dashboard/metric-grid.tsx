@@ -6,11 +6,10 @@ import {
   Heart,
   Radar,
   Play,
-  Clapperboard,
-  Eye,
   TrendingUp,
   TrendingDown,
   Activity,
+  AlertTriangle,
   Award,
   Film,
   CircleDashed,
@@ -21,6 +20,7 @@ import { MetricCard } from "@/components/ui/metric-card";
 import { Tabs } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/ui/empty-state";
 import { EvolutionChart } from "@/components/dashboard/evolution-chart";
+import { describeSync } from "@/lib/dashboard/freshness";
 import { DashboardInsights } from "@/components/dashboard/dashboard-insights";
 import { ProductionBlock } from "@/components/dashboard/production-block";
 import type { DashboardInstagramData } from "@/lib/dashboard/instagram-data";
@@ -73,6 +73,11 @@ export function MetricGrid({ data, media, insights, aiConfigured }: MetricGridPr
   const period = (tab as "7d" | "30d" | "90d") in evolution ? (tab as "7d" | "30d" | "90d") : "7d";
   const activeMetric = EVOLUTION_METRICS.find((m) => m.id === metric) ?? EVOLUTION_METRICS[0];
   const points = evolution[period] ?? [];
+
+  // Score Geral com o critério mínimo aplicado (null = não publicar).
+  const dashboardScore = connected ? computeScore(data, media) : null;
+  // Frescor da última sincronização real (null → "nunca sincronizou").
+  const sync = describeSync(lastSyncAt);
 
   /** Hint de um card com dado real: mostra a variação, senão explica a espera. */
   function hintFor(card: { changePercent: number | null }, fallback = "Aguardando dados do Instagram."): string {
@@ -184,14 +189,18 @@ export function MetricGrid({ data, media, insights, aiConfigured }: MetricGridPr
     },
     {
       key: "reels",
-      label: "Vídeos publicados",
+      // O rótulo só afirma "Reels" quando a Meta classificou TODAS as mídias
+      // de vídeo (`media_product_type`); senão "Vídeos", que é o fato provado.
+      label: media.reels.distinguishesReels ? "Reels" : "Vídeos publicados",
       icon: Film,
       value: media.reels.count != null ? formatCompact(media.reels.count) : "—",
       hint:
         media.reels.count != null
-          ? media.reels.videoViews != null
-            ? `${formatCompact(media.reels.videoViews)} views nos vídeos`
-            : "Views dos vídeos ainda não retornadas pela API."
+          ? media.reels.distinguishesReels && media.reels.reelsCount != null
+            ? `${formatCompact(media.reels.reelsCount)} Reels · ${formatCompact(media.reels.count)} vídeos no total`
+            : media.reels.videoViews != null
+              ? `${formatCompact(media.reels.videoViews)} views nos vídeos`
+              : "Views dos vídeos ainda não retornadas pela API."
           : !connected
             ? "Conecte seu Instagram para liberar esta métrica."
             : "Aguardando dados do Instagram.",
@@ -373,10 +382,10 @@ export function MetricGrid({ data, media, insights, aiConfigured }: MetricGridPr
           <div className="flex items-center justify-center rounded-[16px] bg-surface/50 border border-border-soft py-6">
             <div className="text-center">
               <div className="font-data font-bold text-[clamp(36px,5vw,52px)] leading-none tracking-tight text-ink">
-                {connected ? computeScore(data, media) : "—"}
-                <span className="text-ink-muted text-[.55em] font-medium">
-                  /100
-                </span>
+                {connected && dashboardScore != null ? dashboardScore : "—"}
+                {connected && dashboardScore != null && (
+                  <span className="text-ink-muted text-[.55em] font-medium">/100</span>
+                )}
               </div>
               <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted mt-1">
                 Score Geral
@@ -385,10 +394,10 @@ export function MetricGrid({ data, media, insights, aiConfigured }: MetricGridPr
           </div>
 
           {[
-            { label: "Engajamento", value: scoreComponent(data, media, "engagement"), tone: "brand" },
-            { label: "Crescimento", value: scoreComponent(data, media, "growth"), tone: "green" },
-            { label: "Alcance", value: scoreComponent(data, media, "reach"), tone: "blue" },
-            { label: "Consistência", value: scoreComponent(data, media, "consistency"), tone: "magenta" },
+            { label: "Engajamento", value: scoreComponent(data, media, "engagement") },
+            { label: "Crescimento", value: scoreComponent(data, media, "growth") },
+            { label: "Alcance", value: scoreComponent(data, media, "reach") },
+            { label: "Consistência", value: scoreComponent(data, media, "consistency") },
           ].map((p) => (
             <div
               key={p.label}
@@ -400,15 +409,31 @@ export function MetricGrid({ data, media, insights, aiConfigured }: MetricGridPr
                 </span>
               </div>
               <div className="font-data font-bold text-[22px] text-ink">{p.value.value}</div>
-              <div className="mt-3 h-[8px] rounded-pill bg-surface overflow-hidden">
-                <div
-                  className={`h-full rounded-pill transition-all duration-500 ${p.value.barClass}`}
-                  style={{ width: p.value.value === "—" ? "0%" : `${p.value.value}%` }}
-                />
-              </div>
+              {/* Sem evidência o pilar diz "Dados insuficientes" — não uma nota
+                  baixa, que sugeriria desempenho ruim a partir de ausência. */}
+              {p.value.value === "—" ? (
+                <span className="text-[11.5px] text-ink-muted mt-1">
+                  Dados insuficientes
+                </span>
+              ) : (
+                <div className="mt-3 h-[8px] rounded-pill bg-surface overflow-hidden">
+                  <div
+                    className={`h-full rounded-pill transition-all duration-500 ${p.value.barClass}`}
+                    style={{ width: `${p.value.value}%` }}
+                  />
+                </div>
+              )}
             </div>
           ))}
         </div>
+
+        {connected && dashboardScore == null && (
+          <p className="mt-5 text-[12.5px] text-ink-muted">
+            Score ainda não disponível. São necessárias ao menos{" "}
+            {MIN_SNAPSHOTS_FOR_OVERALL} sincronizações e {MIN_PILLARS_MEASURED} dos 4 pilares
+            com dados reais — sincronize mais dados para gerar uma avaliação confiável.
+          </p>
+        )}
 
         {!connected && (
           <p className="mt-5 text-[12.5px] text-ink-muted">
@@ -450,8 +475,15 @@ export function MetricGrid({ data, media, insights, aiConfigured }: MetricGridPr
           ))}
         </div>
 
+        {/* O gráfico decide sozinho entre valor único, "sem dados" e série real.
+            `points` são SOMENTE os snapshots reais da janela — nenhum dia é
+            fabricado para preencher o período. */}
         {connected && points.length > 0 ? (
-          <EvolutionChart points={points} metric={activeMetric.id} />
+          <EvolutionChart
+            points={points}
+            metric={activeMetric.id}
+            metricLabel={activeMetric.label.toLowerCase()}
+          />
         ) : (
           <div className="h-56 rounded-[16px] bg-surface/40 border border-dashed border-[#D0D4DB] flex items-center justify-center">
             <EmptyState
@@ -467,13 +499,24 @@ export function MetricGrid({ data, media, insights, aiConfigured }: MetricGridPr
           </div>
         )}
 
-        {connected && lastSyncAt && (
-          <p className="mt-4 text-[12px] text-ink-muted">
-            Última sincronização:{" "}
-            {new Intl.DateTimeFormat("pt-BR", {
-              dateStyle: "short",
-              timeStyle: "short",
-            }).format(new Date(lastSyncAt))}
+        {connected && (
+          <p className="mt-4 text-[12px] text-ink-muted flex items-center gap-x-2 gap-y-1 flex-wrap">
+            <span>
+              {sync.known
+                ? `${sync.label}${sync.detail ? ` · ${sync.detail}` : ""}`
+                : "Nenhuma sincronização de dados registrada ainda."}
+            </span>
+            {sync.stale && (
+              <span className="inline-flex items-center gap-1 text-warn font-semibold">
+                <AlertTriangle size={13} className="flex-none" />
+                Dados desatualizados
+              </span>
+            )}
+            {points.length > 0 && (
+              <span className="text-ink-muted">
+                · {points.length} {points.length === 1 ? "registro" : "registros"} no período
+              </span>
+            )}
           </p>
         )}
       </div>
@@ -540,18 +583,37 @@ function formatDate(iso: string): string {
   );
 }
 
-/** Score geral (0–100) — derivado apenas de dados reais; nunca inventado. */
-function computeScore(data: DashboardInstagramData, media: MediaProductionData): number {
-  const parts: number[] = [];
-  if (data.cards.followers.value != null) parts.push(normalize01(data.cards.followers.value) * 100);
+/**
+ * Critério mínimo para publicar o Score Geral — MESMO limiar de
+ * `src/lib/ai/services/score.ts`. As duas telas não podem discordar sobre a
+ * mesma métrica, então a regra é replicada aqui em vez de reescrita.
+ */
+const MIN_PILLARS_MEASURED = 3;
+const MIN_SNAPSHOTS_FOR_OVERALL = 2;
+
+/**
+ * Score geral (0–100) — derivado apenas de dados reais; nunca inventado.
+ *
+ * `null` quando não há evidência mínima: com poucos pilares medidos o número
+ * seria dominado por um fator só e aparentaria uma avaliação completa.
+ */
+function computeScore(
+  data: DashboardInstagramData,
+  media: MediaProductionData
+): number | null {
+  if (data.snapshotCount < MIN_SNAPSHOTS_FOR_OVERALL) return null;
+
+  const measured: number[] = [];
+  if (data.cards.followers.value != null) measured.push(normalize01(data.cards.followers.value) * 100);
   if (media.avgInteractionsPerMedia != null)
-    parts.push(clamp01(media.avgInteractionsPerMedia / 500) * 100);
-  if (data.cards.reach7d.value != null) parts.push(normalize01(data.cards.reach7d.value) * 100);
+    measured.push(clamp01(media.avgInteractionsPerMedia / 500) * 100);
+  if (data.cards.reach7d.value != null) measured.push(normalize01(data.cards.reach7d.value) * 100);
   if (data.comparison.monthlyGrowth != null)
-    parts.push(clamp01(data.comparison.monthlyGrowth / 50) * 100);
-  if (data.snapshotCount >= 2) parts.push(70 + Math.min(data.snapshotCount * 3, 30));
-  if (parts.length === 0) return 0;
-  return Math.round(parts.reduce((a, b) => a + b, 0) / parts.length);
+    measured.push(clamp01(data.comparison.monthlyGrowth / 50) * 100);
+  if (data.snapshotCount >= 2) measured.push(consistencyScore(data.snapshotCount));
+
+  if (measured.length < MIN_PILLARS_MEASURED) return null;
+  return Math.round(measured.reduce((a, b) => a + b, 0) / measured.length);
 }
 
 /** normaliza 0..valor em escala 0..1 com teto de 100k para seguidores. */
@@ -561,6 +623,16 @@ function normalize01(v: number): number {
 
 function clamp01(v: number): number {
   return Math.min(1, Math.max(0, v));
+}
+
+/**
+ * Consistência: rampa baixa e longa (piso 20, satura em 12 sincronizações).
+ * Mesma fórmula do Score Inteligente — dois registros NÃO podem render nota
+ * alta pelo simples fato de o segundo existir.
+ */
+function consistencyScore(snapshotCount: number): number {
+  const ramp = Math.min(snapshotCount, 12) - 2;
+  return Math.round(20 + (ramp / 10) * 80);
 }
 
 function scoreComponent(
@@ -578,17 +650,17 @@ function scoreComponent(
           ? Math.round(clamp01(media.avgInteractionsPerMedia / 500) * 100)
           : null;
       case "growth":
-        return data.comparison.monthlyGrowth != null
-          ? Math.round(clamp01(data.comparison.monthlyGrowth / 50) * 100)
+        // Mesma base do Score Inteligente: variação desde a sincronização
+        // anterior. Sem dois pontos não existe crescimento — só "—".
+        return data.cards.followers.changePercent != null
+          ? Math.round(clamp01(data.cards.followers.changePercent / 50) * 100)
           : null;
       case "reach":
         return data.cards.reach7d.value != null
           ? Math.round(clamp01(data.cards.reach7d.value / 100_000) * 100)
           : null;
       case "consistency":
-        return data.snapshotCount >= 2
-          ? Math.min(70 + data.snapshotCount * 3, 100)
-          : null;
+        return data.snapshotCount >= 2 ? consistencyScore(data.snapshotCount) : null;
     }
   })();
 

@@ -268,7 +268,7 @@ function buildRecommendation(
         oQue: "Otimizar o perfil (bio, destaques, capa) para conversão",
         porQue: "O perfil é a página de destino de todo conteúdo — sem otimização, seguidores não viram clientes.",
         evidencia: evidence,
-        como: "Use o Gerador de Copy para reescrever a bio com objetivo claro, CTA e prova social.",
+        como: "Use o Preview Social para reescrever a bio com objetivo claro, CTA e prova social.",
         quando: "Esta semana.",
         resultadoEsperado: "Perfil converte mais visitantes em seguidores/clientes.",
         metrica: "Conversão de visitas em seguidores (quando disponível).",

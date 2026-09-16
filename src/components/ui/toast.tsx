@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import * as React from "react";
 import { createPortal } from "react-dom";
@@ -58,7 +58,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {children}
       {mounted &&
         createPortal(
-          <div className="fixed bottom-5 right-5 z-[120] flex flex-col gap-2.5 max-w-sm w-[calc(100vw-2.5rem)] sm:w-auto">
+          <div className="fixed bottom-5 right-5 z-[120] flex flex-col gap-2.5 max-w-sm w-[calc(100vw-2.5rem)] sm:w-auto mb-[env(safe-area-inset-bottom)]">
             {items.map((t) => {
               const cfg = toneConfig[t.tone];
               const Icon = cfg.icon;
@@ -72,7 +72,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                   )}
                 >
                   <Icon size={19} className={cn("flex-none mt-0.5", cfg.iconCls)} />
-                  <p className="text-[13.5px] text-ink flex-1 leading-snug">{t.message}</p>
+                  <p className="text-[13.5px] text-ink flex-1 min-w-0 break-words leading-snug">{t.message}</p>
                   <button
                     onClick={() => remove(t.id)}
                     aria-label="Fechar"
@@ -89,3 +89,4 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     </ToastContext.Provider>
   );
 }
+

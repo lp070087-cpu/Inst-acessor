@@ -1,7 +1,6 @@
 import {
   LayoutDashboard,
   Sparkles,
-  PenSquare,
   Lightbulb,
   Eye,
   Trophy,
@@ -44,22 +43,19 @@ export const mainNav: NavItem[] = [
     description: "Sua mentoria com IA",
   },
   {
-    label: "Gerador de Copy",
-    href: "/gerador-de-copy",
-    icon: PenSquare,
-    description: "Legendas prontas em segundos",
-  },
-  {
     label: "Ideias",
     href: "/ideias",
     icon: Lightbulb,
     description: "Inspiração para conteúdos",
   },
   {
+    // "Gerador de Copy" foi incorporado aqui: gerar, editar, visualizar e
+    // salvar acontecem na mesma tela. O módulo deixou de ser um item próprio
+    // da navegação, não de existir.
     label: "Preview Social",
     href: "/preview-social",
     icon: Eye,
-    description: "Como seu perfil aparece",
+    description: "Crie, visualize e salve seus posts",
   },
   {
     label: "Rank",

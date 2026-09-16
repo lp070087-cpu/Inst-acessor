@@ -19,6 +19,10 @@ export interface TikTokEvolutionPoint {
   followersCount?: number | null;
   videoCount?: number | null;
   likesCount?: number | null;
+  /** Visualizações acumuladas da conta (coluna real do snapshot). */
+  viewsCount?: number | null;
+  /** Visitas ao perfil (coluna real do snapshot). */
+  profileViews?: number | null;
 }
 
 export interface TikTokDashboardData {
@@ -112,8 +116,11 @@ export async function getTikTokDashboardData(
     orderBy: { updatedAt: "desc" },
   });
 
+  // Mesma correção aplicada ao Instagram: a série é escopada ao PERFIL atual.
+  // `where: { userId }` puro misturava snapshots de perfis diferentes na mesma
+  // linha do tempo, produzindo um eixo Y sem escala coerente.
   const snapshots = await prisma.tikTokSnapshot.findMany({
-    where: { userId },
+    where: profile ? { userId, profileId: profile.id } : { userId },
     orderBy: { capturedAt: "asc" },
   });
 
@@ -125,40 +132,51 @@ export async function getTikTokDashboardData(
   const recent30d = snapshots.filter((s) => s.capturedAt.getTime() >= now - 30 * 864e5);
   const recent90d = snapshots.filter((s) => s.capturedAt.getTime() >= now - 90 * 864e5);
 
+  // Mesma correção do Instagram: os contadores vivem TAMBÉM em `TikTokProfile`
+  // como colunas próprias. Quando o snapshot mais recente não trouxe o número,
+  // o card mostrava "—" mesmo com o dado existindo no perfil sincronizado.
+  // O fallback para o perfil JÁ existia em `followersCount`/`videoCount` logo
+  // abaixo (e no caminho do Rank) — os cards eram os únicos fora da regra.
+  // Dado ausente em TODAS as fontes continua null → "—", nunca zero inventado.
+  const followersValue = latest?.followersCount ?? profile?.followersCount ?? null;
+  const followingValue = latest?.followingCount ?? profile?.followingCount ?? null;
+  const likesValue = latest?.likesCount ?? profile?.likesCount ?? null;
+  const videosValue = latest?.videoCount ?? profile?.videoCount ?? null;
+
   const data: TikTokDashboardData = {
     ...empty,
     username: profile?.username ?? connection.username ?? null,
     // Foto e nome vêm do TikTokProfile (gravados na sincronização).
     displayName: profile?.displayName ?? null,
     avatarUrl: profile?.avatarUrl ?? null,
-    followersCount: latest?.followersCount ?? profile?.followersCount ?? null,
-    videoCount: latest?.videoCount ?? profile?.videoCount ?? null,
+    followersCount: followersValue,
+    videoCount: videosValue,
     lastSyncAt: connection.lastSyncAt ?? null,
     snapshotCount: snapshots.length,
     cards: {
       followers: {
         label: "Seguidores",
-        value: latest?.followersCount ?? null,
-        changePercent: safePct(latest?.followersCount, previous?.followersCount),
-        available: latest?.followersCount != null,
+        value: followersValue,
+        changePercent: safePct(followersValue, previous?.followersCount),
+        available: followersValue != null,
       },
       following: {
         label: "Seguindo",
-        value: latest?.followingCount ?? null,
-        changePercent: safePct(latest?.followingCount, previous?.followingCount),
-        available: latest?.followingCount != null,
+        value: followingValue,
+        changePercent: safePct(followingValue, previous?.followingCount),
+        available: followingValue != null,
       },
       likes: {
         label: "Curtidas",
-        value: latest?.likesCount ?? null,
-        changePercent: safePct(latest?.likesCount, previous?.likesCount),
-        available: latest?.likesCount != null,
+        value: likesValue,
+        changePercent: safePct(likesValue, previous?.likesCount),
+        available: likesValue != null,
       },
       videos: {
         label: "Vídeos",
-        value: latest?.videoCount ?? null,
-        changePercent: safePct(latest?.videoCount, previous?.videoCount),
-        available: latest?.videoCount != null,
+        value: videosValue,
+        changePercent: safePct(videosValue, previous?.videoCount),
+        available: videosValue != null,
       },
     },
     evolution: {
@@ -179,6 +197,8 @@ function mapEvolution(
     followersCount?: number | null;
     videoCount?: number | null;
     likesCount?: number | null;
+    viewsCount?: number | null;
+    profileViews?: number | null;
   }[]
 ): TikTokEvolutionPoint[] {
   return snapshots.map((s) => ({
@@ -189,6 +209,10 @@ function mapEvolution(
     followersCount: s.followersCount ?? null,
     videoCount: s.videoCount ?? null,
     likesCount: s.likesCount ?? null,
+    // Colunas que JÁ existiam no snapshot e não estavam sendo mapeadas para o
+    // gráfico — ou seja, dado real no banco que a interface não mostrava.
+    viewsCount: s.viewsCount ?? null,
+    profileViews: s.profileViews ?? null,
   }));
 }
 

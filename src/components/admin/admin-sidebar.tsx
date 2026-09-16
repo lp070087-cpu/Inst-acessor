@@ -58,9 +58,19 @@ const adminNav: AdminNavItem[] = [
   },
 ];
 
-export function AdminSidebar({ user }: { user: Session["user"] }) {
+export function AdminSidebar({
+  user,
+  account,
+}: {
+  user: Session["user"];
+  /** Identidade real da conta, lida do banco (a sessão JWT congela nome/foto). */
+  account?: { name: string | null; avatar: string | null };
+}) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = React.useState(false);
+
+  const displayName = account ? account.name : user?.name ?? null;
+  const displayAvatar = account ? account.avatar : user?.image ?? null;
 
   React.useEffect(() => {
     setMobileOpen(false);
@@ -154,7 +164,9 @@ export function AdminSidebar({ user }: { user: Session["user"] }) {
   return (
     <>
       {/* Barra superior mobile */}
-      <header className="sticky top-0 z-40 flex items-center justify-between h-16 px-4 bg-bg-ice/80 backdrop-blur-md border-b border-border-soft lg:hidden">
+      {/* BLOCO 5 — mesma proteção de safe area da sidebar do app: o `env()`
+          só devolve valor em telas com recorte; fora delas é 0. */}
+      <header className="sticky top-0 z-40 flex items-center justify-between min-h-16 px-4 pt-[max(0px,env(safe-area-inset-top))] bg-bg-ice/80 backdrop-blur-md border-b border-border-soft lg:hidden">
         <Link href="/admin" aria-label="Inst Acessor — administração">
           <AppLogo />
         </Link>
@@ -172,10 +184,10 @@ export function AdminSidebar({ user }: { user: Session["user"] }) {
         </div>
         {nav}
         <div className="p-4 border-t border-border-soft flex-none flex items-center gap-3">
-          <Avatar name={user?.name} src={user?.image} size="sm" />
-          <div className="min-w-0">
+          <Avatar name={displayName} src={displayAvatar} size="sm" />
+          <div className="min-w-0 flex-1">
             <p className="text-[13.5px] font-semibold text-ink truncate">
-              {user?.name ?? "Admin"}
+              {displayName ?? "Admin"}
             </p>
             <p className="text-[11.5px] text-ink-muted truncate">{user?.email}</p>
           </div>
@@ -190,7 +202,7 @@ export function AdminSidebar({ user }: { user: Session["user"] }) {
             onClick={() => setMobileOpen(false)}
             aria-hidden
           />
-          <aside className="absolute inset-y-0 left-0 w-[85%] max-w-[320px] bg-card border-r border-border-soft shadow-lg flex flex-col animate-[fade-slide_.3s_var(--ease-out)]">
+          <aside className="absolute inset-y-0 left-0 w-[85%] max-w-[320px] bg-card border-r border-border-soft shadow-lg flex flex-col pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] animate-[fade-slide_.3s_var(--ease-out)]">
             <div className="flex items-center justify-between h-16 px-5 border-b border-border-soft flex-none">
               <AppLogo />
               <IconButton label="Fechar menu" onClick={() => setMobileOpen(false)}>

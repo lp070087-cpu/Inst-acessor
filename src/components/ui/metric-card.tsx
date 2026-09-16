@@ -36,10 +36,14 @@ export function MetricCard({
     >
       {/* linha de gradiente superior no hover */}
       <span className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-brand-grad opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-[12.5px] font-semibold text-ink-soft">{label}</span>
+      {/* BLOCO 5 — rótulos como "Comentários analisados" não cabem ao lado do
+          ícone de 32px quando a grade de 2 colunas cai para ~320px de tela.
+          O rótulo pode encolher e quebrar; o ícone fica com largura fixa e não
+          é empurrado para fora do card. */}
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <span className="text-[12.5px] font-semibold text-ink-soft min-w-0 break-words">{label}</span>
         {Icon ? (
-          <span className="w-8 h-8 rounded-[10px] bg-surface text-ink-muted grid place-items-center">
+          <span className="w-8 h-8 rounded-[10px] bg-surface text-ink-muted grid place-items-center flex-none">
             <Icon size={16} strokeWidth={2} />
           </span>
         ) : null}
@@ -48,9 +52,9 @@ export function MetricCard({
         {value}
       </div>
       {empty ? (
-        <p className="text-[12.5px] text-ink-muted mt-1.5">{emptyMessage}</p>
+        <p className="text-[12.5px] text-ink-muted mt-1.5 break-words">{emptyMessage}</p>
       ) : hint ? (
-        <p className="text-[12.5px] text-ink-muted mt-1.5">{hint}</p>
+        <p className="text-[12.5px] text-ink-muted mt-1.5 break-words">{hint}</p>
       ) : null}
     </div>
   );

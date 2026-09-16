@@ -183,8 +183,12 @@ export function MentoriaClient({ initialCards }: MentoriaClientProps) {
               key={card.id}
               className="rounded-[14px] bg-card border border-border-soft shadow-xs p-5 flex flex-col gap-3"
             >
+              {/* BLOCO 5 — os três selos (prioridade/categoria/status) têm
+                  `whitespace-nowrap` na base do componente Badge. Numa tela de
+                  320px eles somados passavam da largura do card: `flex-wrap` faz
+                  o terceiro descer para a linha de baixo em vez de vazar. */}
               <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-2 flex-wrap min-w-0">
                   <span className={cn("text-[11px] font-bold rounded-pill px-2.5 py-1", priorityColor(card.priority))}>
                     {PRIORITY_LABEL[card.priority]}
                   </span>
@@ -197,14 +201,14 @@ export function MentoriaClient({ initialCards }: MentoriaClientProps) {
                 </div>
               </div>
 
-              <div className="flex flex-col gap-1">
-                <h3 className="font-display text-[15.5px] font-bold text-ink">{card.label}</h3>
-                <p className="text-[13.5px] text-ink-soft leading-relaxed">{card.explanation}</p>
+              <div className="flex flex-col gap-1 min-w-0">
+                <h3 className="font-display text-[15.5px] font-bold text-ink break-words">{card.label}</h3>
+                <p className="text-[13.5px] text-ink-soft leading-relaxed break-words">{card.explanation}</p>
               </div>
 
               <div className="flex items-start gap-2 rounded-[12px] bg-ai-soft/60 border border-purple/15 px-4 py-3">
                 <ArrowRight size={15} className="text-purple mt-0.5 flex-none" />
-                <p className="text-[13.5px] text-ink leading-relaxed">{card.action}</p>
+                <p className="text-[13.5px] text-ink leading-relaxed min-w-0 break-words">{card.action}</p>
               </div>
 
               {card.status === "NOVA" && (

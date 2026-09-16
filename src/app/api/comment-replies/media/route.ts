@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 
+import { prisma } from "@/lib/db";
 import { requireSession } from "@/lib/auth/guard";
-import { listEligibleMedia, loadCommentCredentials, CommentCapabilityError } from "@/lib/comment-replies/instagram-comments";
+import {
+  listEligibleMedia,
+  listStoredComments,
+  loadCommentCredentials,
+  CommentCapabilityError,
+} from "@/lib/comment-replies/instagram-comments";
 
 export const dynamic = "force-dynamic";
 
@@ -11,14 +17,15 @@ export const dynamic = "force-dynamic";
  * Lista publicações (posts, carrosséis e Reels) da conta conectada, com
  * thumbnail, legenda, data, tipo e contagem de comentários.
  *
- * Os dados vêm do banco (`InstagramMedia`), já sincronizado pelo fluxo
- * existente de Redes Sociais — nenhuma chamada extra à API e nenhum dado
- * inventado.
+ * Os dados vêm do banco (`InstagramMedia` + `InstagramComment`), já
+ * sincronizados pelo fluxo de Redes Sociais — nenhuma chamada extra à API e
+ * nenhum dado inventado.
  *
- * Também informa se a conexão está utilizável, para a tela decidir entre
- * mostrar a lista ou o CTA de conectar o Instagram.
+ * `?mediaId=<ig-media-id>` acrescenta os COMENTÁRIOS REAIS já sincronizados
+ * dessa publicação (`comments`), permitindo à tela mostrar o que existe sem
+ * depender de a Meta liberar a leitura ao vivo.
  */
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -37,7 +44,29 @@ export async function GET() {
 
     const media = await listEligibleMedia(userId);
 
-    return NextResponse.json({ connected, connectionIssue, media });
+    // Comentários da publicação pedida (quando houver `?mediaId=`).
+    const mediaId = new URL(request.url).searchParams.get("mediaId");
+    const comments = mediaId ? await listStoredComments(userId, mediaId) : [];
+
+    // Capacidade REAL de leitura de comentários e última sincronização — vêm do
+    // banco, não de suposição. `commentsAvailable === false` significa que a Meta
+    // recusou o escopo: a tela mostra "indisponível", nunca "0 comentários".
+    const conn = await prisma.socialConnection.findFirst({
+      where: { userId, platform: "instagram" },
+      select: { commentsAvailable: true, lastSyncAt: true, lastSyncAttemptAt: true },
+    });
+
+    return NextResponse.json({
+      connected,
+      connectionIssue,
+      media,
+      comments,
+      commentsAvailable: conn?.commentsAvailable ?? null,
+      lastSyncAt: conn?.lastSyncAt ? conn.lastSyncAt.toISOString() : null,
+      lastSyncAttemptAt: conn?.lastSyncAttemptAt
+        ? conn.lastSyncAttemptAt.toISOString()
+        : null,
+    });
   } catch (err) {
     console.error("[comment-replies/media] erro", err);
     return NextResponse.json({ error: "Não foi possível carregar as publicações." }, { status: 500 });

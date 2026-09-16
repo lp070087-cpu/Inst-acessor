@@ -122,7 +122,10 @@ export async function POST(request: Request) {
         externalAccountId: account.id,
         username: account.username,
         accountType: account.accountType,
-        lastSyncAt: new Date(),
+        // Renovar o token NÃO é sincronizar dados: `lastSyncAt` fica reservado
+        // para sincronizações reais. Registramos apenas a tentativa.
+        lastSyncAttemptAt: new Date(),
+        lastSyncErrorCode: null,
         // O token só é reescrito quando foi realmente renovado.
         ...(renewed
           ? { tokenEncrypted: encryptToken(currentToken), tokenExpiresAt: newExpiry }

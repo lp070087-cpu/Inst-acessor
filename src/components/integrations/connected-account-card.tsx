@@ -1,7 +1,8 @@
-import { Instagram, Music2 } from "lucide-react";
+import { AlertTriangle, Instagram, Music2 } from "lucide-react";
 
 import { Avatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { describeSync } from "@/lib/dashboard/freshness";
 
 /**
  * Identificação da conta conectada (Instagram ou TikTok).
@@ -11,12 +12,13 @@ import { cn } from "@/lib/utils";
  *   - @username da conta social;
  *   - nome da rede;
  *   - status de conexão;
- *   - última sincronização.
+ *   - última sincronização (relativa + absoluta).
  *
  * O nome pessoal ("Olá, Lucas") NÃO vem daqui — pertence ao usuário
  * autenticado no Inst Acessor e é passado pelo chamador em `greeting`.
  *
  * Nada é inventado: campo ausente → não renderiza aquele pedaço.
+ * Dado antigo é SINALIZADO, nunca apagado.
  */
 
 type Platform = "instagram" | "tiktok";
@@ -40,18 +42,6 @@ const PLATFORM_META: Record<Platform, { label: string; Icon: typeof Instagram }>
   tiktok: { label: "TikTok", Icon: Music2 },
 };
 
-/** Data/hora local no formato dd/mm/aaaa hh:mm. */
-function formatLastSync(date: Date | null | undefined): string | null {
-  if (!date) return null;
-  return new Intl.DateTimeFormat("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
-
 export function ConnectedAccountCard({
   platform,
   username,
@@ -62,7 +52,7 @@ export function ConnectedAccountCard({
   className,
 }: ConnectedAccountCardProps) {
   const { label, Icon } = PLATFORM_META[platform];
-  const lastSync = formatLastSync(lastSyncAt);
+  const sync = describeSync(lastSyncAt);
 
   return (
     <section
@@ -115,9 +105,29 @@ export function ConnectedAccountCard({
             </span>
           </div>
 
-          {lastSync && (
+          {sync.known && (
+            <p className="text-[12.5px] text-ink-muted mt-1 flex items-center gap-x-2 gap-y-0.5 flex-wrap">
+              <span>
+                {sync.label}
+                {sync.detail ? (
+                  <>
+                    {" · "}
+                    <span className="text-ink-soft font-medium">{sync.detail}</span>
+                  </>
+                ) : null}
+              </span>
+              {/* Sinaliza sem apagar: o último valor real continua na tela. */}
+              {sync.stale && (
+                <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-warn">
+                  <AlertTriangle size={13} className="flex-none" />
+                  Dados desatualizados
+                </span>
+              )}
+            </p>
+          )}
+          {!sync.known && (
             <p className="text-[12.5px] text-ink-muted mt-1">
-              Última sincronização: <span className="text-ink-soft font-medium">{lastSync}</span>
+              Nenhuma sincronização de dados registrada ainda.
             </p>
           )}
         </div>

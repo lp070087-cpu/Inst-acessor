@@ -2,6 +2,7 @@ import { graphGet } from "./client";
 import { InstagramApiError } from "./client";
 import type {
   InstagramAccountInfo,
+  InstagramCommentData,
   InstagramMediaMetricNode,
   InstagramMediaNode,
   InstagramSyncData,
@@ -90,15 +91,38 @@ export async function getInstagramUser(
 }
 
 /**
+ * Formato REAL de resposta de `/insights` (conta e mídia).
+ * A API devolve uma LISTA de métricas — cada item traz o próprio `name` e o
+ * valor em `values[]` (série) ou em `total_value` (total agregado). NUNCA os
+ * nomes das métricas no topo do objeto, que era o erro da versão anterior.
+ */
+interface InsightsEnvelope {
+  data?: {
+    name?: string;
+    period?: string;
+    values?: { value?: number }[];
+    total_value?: { value?: number };
+  }[];
+}
+
+/** Extrai o valor de um item de insight (série `values[]` ou `total_value`). */
+function readInsightValue(item: {
+  values?: { value?: number }[];
+  total_value?: { value?: number };
+}): number | null {
+  const total = item.total_value?.value;
+  if (typeof total === "number") return total;
+  const values = item.values ?? [];
+  const latest = values[values.length - 1]?.value;
+  return typeof latest === "number" ? latest : null;
+}
+
+/**
  * Obtém insights da conta (janela configurável).
  *
- * ⚠️ CONFIRMAÇÃO EXTERNA PENDENTE: a documentação oficial está bloqueada no
- * ambiente de desenvolvimento (egress allowlist). Os nomes de métrica abaixo
- * são os que já estavam em uso e são aceitos pela API do Instagram; o conjunto
- * exato disponível pode variar conforme a versão do Graph/Instagram API.
  * A chamada é DEGRADANTE por natureza (ver catch): métrica indisponível ou
- * recusada → `null`, sem derrubar o sync. Antes de depender destes números em
- * produção, confirme a lista vigente na documentação oficial do Instagram API.
+ * recusada → `null`, sem derrubar o sync. `null` significa "a fonte não
+ * forneceu" — NUNCA é convertido em zero.
  *
  * @param since timestamp inicial (opcional)
  */
@@ -107,15 +131,13 @@ export async function getAccountInsights(
   accessToken: string,
   since?: number
 ): Promise<{ reach?: number | null; impressions?: number | null; profileViews?: number | null }> {
-  // Período máximo suportado pela API é "30 days". Usamos janela de 7 dias
-  // como padrão para os cards atuais (reach/impressions de 7 dias).
+  // Período máximo suportado pela API é "30 days". Usamos janela diária como
+  // padrão para os cards atuais (reach/impressions do último dia disponível).
   const period = "day";
   const metric = "reach,impressions,profile_views";
 
   try {
-    const data = await graphGet<{
-      data?: { name?: string; period?: string; values?: { value?: number }[] }[];
-    }>(
+    const data = await graphGet<InsightsEnvelope>(
       `${igUserId}/insights?metric=${metric}&period=${period}${
         since ? `&since=${since}` : ""
       }`,
@@ -129,16 +151,15 @@ export async function getAccountInsights(
     };
 
     for (const item of data.data ?? []) {
-      const values = item.values ?? [];
-      const latest = values[values.length - 1]?.value;
-      if (item.name === "reach") result.reach = latest ?? null;
-      if (item.name === "impressions") result.impressions = latest ?? null;
-      if (item.name === "profile_views") result.profileViews = latest ?? null;
+      const value = readInsightValue(item);
+      if (item.name === "reach") result.reach = value;
+      if (item.name === "impressions") result.impressions = value;
+      if (item.name === "profile_views") result.profileViews = value;
     }
 
     return result;
   } catch (err) {
-    // Insights podem não estar disponíveis (perm/staging). Não derruba o sync.
+    // Insights podem não estar disponíveis (permissão/escopo). Não derruba o sync.
     if (err instanceof InstagramApiError) {
       console.warn("[instagram-metrics] insights indisponíveis", err.code ?? "n/a");
       return { reach: null, impressions: null, profileViews: null };
@@ -147,39 +168,112 @@ export async function getAccountInsights(
   }
 }
 
-/** Obtém a lista de mídias recentes da conta. */
+/** Campos de mídia sempre solicitados ao nó `media`. */
+const MEDIA_FIELDS =
+  "id,media_type,media_product_type,permalink,caption,timestamp,like_count,comments_count,media_url,thumbnail_url";
+
+/** Teto de segurança de páginas seguidas de `paging.next`. */
+const MAX_MEDIA_PAGES = 10;
+
+/**
+ * Obtém a lista de mídias recentes da conta, SEGUINDO a paginação oficial.
+ *
+ * A versão anterior fazia uma única chamada com `limit=50` e ignorava
+ * `paging.next` — contas com mais de 50 publicações perdiam silenciosamente
+ * todo o histórico anterior. Aqui seguimos o cursor até o fim (com teto de
+ * segurança) para que a publicação real sincronizada seja a lista real.
+ */
 export async function getRecentMedia(
   igUserId: string,
   accessToken: string,
   limit = 50
 ): Promise<InstagramMediaNode[]> {
-  const data = await graphGet<{ data: InstagramMediaNode[] }>(
-    `${igUserId}/media?fields=id,media_type,permalink,caption,timestamp,like_count,comments_count,media_url,thumbnail_url&limit=${limit}`,
-    accessToken
-  );
-  return data.data ?? [];
+  const all: InstagramMediaNode[] = [];
+  let path: string | null = `${igUserId}/media?fields=${MEDIA_FIELDS}&limit=${limit}`;
+
+  for (let page = 0; page < MAX_MEDIA_PAGES && path; page++) {
+    const data: { data?: InstagramMediaNode[]; paging?: { next?: string } } =
+      await graphGet<{ data?: InstagramMediaNode[]; paging?: { next?: string } }>(
+        path,
+        accessToken
+      );
+
+    all.push(...(data.data ?? []));
+
+    const next = data.paging?.next;
+    if (!next) break;
+
+    // `paging.next` vem como URL ABSOLUTA e já contém o token. Extraímos apenas
+    // o caminho relativo (path + query sem access_token) — o token é reanexado
+    // pelo `graphGet`, então nunca duplicamos nem logamos credencial.
+    path = toRelativeGraphPath(next);
+  }
+
+  return all;
 }
 
-/** Obtém métricas detalhadas de uma mídia específica. */
+/**
+ * Converte uma URL absoluta de `paging.next` no caminho relativo aceito por
+ * `graphGet`. Devolve `null` quando a URL não pertence ao host da Graph API
+ * (fail-closed: nunca seguimos um destino arbitrário).
+ */
+function toRelativeGraphPath(next: string): string | null {
+  try {
+    const url = new URL(next);
+    if (!url.hostname.endsWith("instagram.com")) return null;
+    url.searchParams.delete("access_token");
+    const query = url.searchParams.toString();
+    const path = url.pathname.replace(/^\/+/, "").replace(/^v\d+\.\d+\//, "");
+    return query ? `${path}?${query}` : path;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Obtém métricas detalhadas de uma mídia específica.
+ *
+ * A API devolve `{ data: [{ name, values[] | total_value }] }`. A versão
+ * anterior lia `data.reached` / `data.shares` direto no topo — campos que não
+ * existem nesse endpoint. Resultado: TODA métrica era gravada `null`.
+ * Agora mapeamos pelo `name` de cada item da lista.
+ *
+ * Métricas recusadas para o tipo de mídia (ex.: `video_views` num carrossel)
+ * ficam `null` — ausência, não zero.
+ */
 export async function getMediaMetrics(
   mediaId: string,
   accessToken: string
 ): Promise<InstagramMediaMetricNode | null> {
   try {
-    const data = await graphGet<InstagramMediaMetricNode & { id: string }>(
+    const data = await graphGet<InsightsEnvelope>(
       `${mediaId}/insights?metric=reach,impressions,shares,saves,comments,likes,video_views,video_view_time`,
       accessToken
     );
 
+    const byName = new Map<string, number | null>();
+    for (const item of data.data ?? []) {
+      if (item.name) byName.set(item.name, readInsightValue(item));
+    }
+
+    const pick = (...names: string[]): number | null => {
+      for (const name of names) {
+        const value = byName.get(name);
+        if (typeof value === "number") return value;
+      }
+      return null;
+    };
+
     return {
-      reached: data.reached ?? null,
-      impressions: data.impressions ?? null,
-      shares: data.shares ?? null,
-      saves: data.saves ?? null,
-      comments: data.comments ?? null,
-      likes: data.likes ?? null,
-      video_views: data.video_views ?? null,
-      video_view_time: data.video_view_time ?? null,
+      // A métrica de alcance chama-se `reach` (não `reached`).
+      reached: pick("reach", "reached"),
+      impressions: pick("impressions"),
+      shares: pick("shares"),
+      saves: pick("saves"),
+      comments: pick("comments"),
+      likes: pick("likes"),
+      video_views: pick("video_views", "plays"),
+      video_view_time: pick("video_view_time"),
     };
   } catch (err) {
     // Nem toda mídia expõe insights. Não derruba o sync.
@@ -191,7 +285,110 @@ export async function getMediaMetrics(
   }
 }
 
-/** Coleta completa normalizada para o sync. */
+/** Nó de comentário conforme retornado pela API. */
+interface InstagramCommentNode {
+  id: string;
+  text?: string | null;
+  username?: string | null;
+  timestamp?: string | null;
+  from?: { id?: string; username?: string } | null;
+  replies?: { data?: unknown[] } | null;
+}
+
+/** Teto de segurança de páginas de comentários por publicação. */
+const MAX_COMMENT_PAGES = 5;
+
+/**
+ * Lê os comentários de uma publicação (paginado).
+ *
+ * Endpoint oficial: `GET /{ig-media-id}/comments?fields=id,text,username,timestamp,from,replies`
+ *
+ * Requer `instagram_business_manage_comments`. Quando a Meta ainda não concedeu
+ * esse escopo, a chamada lança `InstagramApiError` — o chamador (sync) decide:
+ * registra como INDISPONÍVEL e segue, sem inventar comentário e sem derrubar o
+ * restante da sincronização.
+ *
+ * NUNCA publica nada. Somente leitura.
+ */
+export async function getMediaComments(
+  mediaId: string,
+  accessToken: string,
+  limit = 25
+): Promise<InstagramCommentNode[]> {
+  const all: InstagramCommentNode[] = [];
+  let path: string | null =
+    `${mediaId}/comments?fields=id,text,username,timestamp,from,replies&limit=${limit}`;
+
+  for (let page = 0; page < MAX_COMMENT_PAGES && path; page++) {
+    const data: {
+      data?: InstagramCommentNode[];
+      paging?: { next?: string };
+    } = await graphGet<{ data?: InstagramCommentNode[]; paging?: { next?: string } }>(
+      path,
+      accessToken
+    );
+
+    all.push(...(data.data ?? []));
+
+    const next = data.paging?.next;
+    if (!next) break;
+    path = toRelativeGraphPath(next);
+  }
+
+  return all;
+}
+
+/**
+ * Normaliza um comentário da API para persistência.
+ * Campos ausentes ficam `null` — a API pode omitir `text`/`username` para
+ * comentários removidos ou de contas restritas. Ausência NÃO é string vazia
+ * nem zero.
+ */
+function normalizeComment(
+  node: InstagramCommentNode,
+  ownUsername: string | null
+): InstagramCommentData {
+  const username = node.username ?? node.from?.username ?? null;
+  const replies = Array.isArray(node.replies?.data) ? node.replies?.data.length : null;
+
+  return {
+    id: node.id,
+    authorUsername: username,
+    authorId: node.from?.id ?? null,
+    text: node.text ?? null,
+    timestamp: node.timestamp ? new Date(node.timestamp) : null,
+    // Marca comentários da PRÓPRIA conta (útil para não responder a si mesmo).
+    isOwn: Boolean(username && ownUsername && username.toLowerCase() === ownUsername.toLowerCase()),
+    repliesCount: replies,
+  };
+}
+
+/**
+ * Quantas publicações recebem busca de insights detalhados por sincronização.
+ * Insights são uma chamada por publicação (custosa); a lista de publicações em
+ * si é sempre COMPLETA e paginada. Este teto existe só para respeitar o rate
+ * limit da Meta — não é um corte da listagem.
+ */
+const MEDIA_METRICS_LIMIT = 25;
+
+/**
+ * Quantas publicações recebem busca de comentários por sincronização.
+ * Mesmo raciocínio: as publicações mais recentes primeiro.
+ */
+const MEDIA_COMMENTS_LIMIT = 10;
+
+/**
+ * Coleta completa normalizada para o sync.
+ *
+ * - Perfil e insights vêm do nó `me` / `insights` (o que a API fornecer).
+ * - Publicações vêm de `getRecentMedia` — lista COMPLETA e paginada.
+ * - Comentários vêm de `getMediaComments` (uma chamada por publicação recente).
+ *
+ * `commentsAvailable` informa se a leitura de comentários FUNCIONOU nesta
+ * execução. Quando a Meta recusa por escopo (`instagram_business_manage_comments`
+ * sem acesso avançado), o sync continua e a UI mostra o motivo REAL — nunca
+ * "0 comentários" como se fosse um dado.
+ */
 export async function collectInstagramData(
   accessToken: string
 ): Promise<InstagramSyncData> {
@@ -203,13 +400,51 @@ export async function collectInstagramData(
 
   const mediaNodes = await getRecentMedia(account.id, accessToken);
 
-  // Busca métricas de cada mídia (limitado a 20 para não estourar rate limit).
-  const medias = [];
-  for (const node of mediaNodes.slice(0, 20)) {
-    const metrics = await getMediaMetrics(node.id, accessToken);
+  const medias: InstagramSyncData["medias"] = [];
+  // `null` = ainda não tentamos ler comentários (ex.: conta sem publicações).
+  // Só marcamos `true` depois de uma leitura BEM-SUCEDIDA — assim não exibimos
+  // "0 comentários" quando na verdade nunca conseguimos consultar.
+  let commentsAvailable: boolean | null = null;
+  let commentsErrorCode: string | null = null;
+
+  for (let index = 0; index < mediaNodes.length; index++) {
+    const node = mediaNodes[index];
+
+    // Insights detalhados só para as publicações mais recentes (rate limit).
+    const metrics =
+      index < MEDIA_METRICS_LIMIT
+        ? await getMediaMetrics(node.id, accessToken)
+        : null;
+
+    // Comentários: só leitura, nunca resposta. Falha de escopo não interrompe
+    // a sincronização — apenas marca a capacidade como indisponível.
+    let comments: InstagramCommentData[] | null = null;
+    if (
+      index < MEDIA_COMMENTS_LIMIT &&
+      commentsAvailable !== false
+    ) {
+      try {
+        const nodes = await getMediaComments(node.id, accessToken);
+        comments = nodes.map((c) => normalizeComment(c, account.username));
+        commentsAvailable = true;
+      } catch (err) {
+        if (err instanceof InstagramApiError) {
+          commentsAvailable = false;
+          commentsErrorCode = String(err.code ?? "unknown");
+          console.warn(
+            "[instagram-metrics] comentários indisponíveis",
+            err.code ?? "n/a"
+          );
+        } else {
+          throw err;
+        }
+      }
+    }
+
     medias.push({
       id: node.id,
       mediaType: node.media_type ?? null,
+      mediaProductType: node.media_product_type ?? null,
       permalink: node.permalink ?? null,
       caption: node.caption ?? null,
       timestamp: node.timestamp ? new Date(node.timestamp) : null,
@@ -218,6 +453,8 @@ export async function collectInstagramData(
       mediaUrl: node.media_url ?? null,
       thumbnailUrl: node.thumbnail_url ?? null,
       metrics,
+      comments,
+      commentsSynced: comments !== null,
     });
   }
 
@@ -234,5 +471,7 @@ export async function collectInstagramData(
     },
     insights,
     medias,
+    commentsAvailable,
+    commentsErrorCode,
   };
 }

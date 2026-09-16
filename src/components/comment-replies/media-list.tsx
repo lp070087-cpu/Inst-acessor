@@ -22,7 +22,10 @@ export interface MediaItem {
   thumbnailUrl?: string | null;
   permalink?: string | null;
   timestamp?: string | null;
+  /** `comments_count` informado pela API — null quando a API não informou. */
   commentsCount?: number | null;
+  /** Comentários REAIS já sincronizados e guardados no banco. */
+  syncedCommentsCount?: number;
 }
 
 interface MediaListProps {
@@ -64,7 +67,13 @@ export function MediaList({ media, onAnalyze, busyId, busy }: MediaListProps) {
       {media.map((item) => {
         const { label, Icon } = describeType(item);
         const isBusy = busyId === item.id;
-        const hasComments = (item.commentsCount ?? 0) > 0;
+        // Preferimos o número REAL que já sincronizamos. A contagem da API serve
+        // de reserva; quando nem uma nem outra existe mostramos "—" (o dado não
+        // foi fornecido), nunca "0" fingindo que não há comentários.
+        const synced = item.syncedCommentsCount ?? 0;
+        const apiCount = item.commentsCount;
+        const shownComments = synced > 0 ? synced : apiCount ?? null;
+        const hasComments = (shownComments ?? 0) > 0;
 
         return (
           <div
@@ -104,17 +113,22 @@ export function MediaList({ media, onAnalyze, busyId, busy }: MediaListProps) {
                 <span className="text-[11.5px] text-ink-muted">{formatDate(item.timestamp)}</span>
                 <Badge tone={hasComments ? "brand" : "neutral"} size="xs">
                   <MessageCircle size={11} />
-                  {item.commentsCount ?? 0}
+                  {shownComments === null ? "—" : shownComments}
                 </Badge>
               </div>
 
-              <div className="mt-4 pt-3.5 border-t border-border-soft flex items-center gap-2">
+              {/* BLOCO 5 — no celular o botão e o link "Abrir" dividem a mesma
+                  linha. `min-w-0` no botão impede que o rótulo ("Analisar
+                  comentários") force a linha a crescer; `flex-wrap` deixa o
+                  link descer para a linha de baixo em telas de 320px em vez de
+                  comprimir o botão. */}
+              <div className="mt-4 pt-3.5 border-t border-border-soft flex items-center gap-2 flex-wrap">
                 <Button
                   variant="primary"
                   size="xs"
                   onClick={() => onAnalyze(item)}
                   disabled={busy}
-                  className="flex-1"
+                  className="flex-1 min-w-0"
                 >
                   {isBusy ? (
                     <Loader2 size={13} className="animate-spin" />

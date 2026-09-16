@@ -46,6 +46,7 @@ model User {
   growthExperiments      GrowthExperiment[]
   igMedias               InstagramMedia[]
   igMediaMetrics         InstagramMediaMetric[]
+  igComments             InstagramComment[]
   igProfiles             InstagramProfile[]
   igSnapshots            InstagramSnapshot[]
   mentorshipRecs         MentorshipRecommendation[]
@@ -148,7 +149,17 @@ model SocialConnection {
   tokenEncrypted    String?
   tokenExpiresAt    DateTime?
   scopes            String?
+  /// Última sincronização de DADOS bem-sucedida (não o momento do OAuth).
   lastSyncAt        DateTime?
+  /// Última tentativa de sincronização (mesmo quando falhou). Permite explicar
+  /// por que os dados estão antigos sem confundir com "nunca tentei".
+  lastSyncAttemptAt DateTime?
+  /// Código do último erro de sincronização (ex.: "190" token expirado).
+  lastSyncErrorCode String?
+  /// Estado REAL da leitura de comentários: null = nunca tentou;
+  /// true = funcionou; false = a Meta recusou (escopo não aprovado).
+  commentsAvailable Boolean?
+  commentsErrorCode String?
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
   igProfiles        InstagramProfile?
@@ -230,18 +241,22 @@ model InstagramMedia {
   commentsCount Int?
   mediaUrl      String?
   thumbnailUrl  String?
+  /// FEED | REELS | STORY | AD — quando a API informar (null = não informado).
+  mediaProductType String?
   createdAt     DateTime               @default(now())
   updatedAt     DateTime               @updatedAt
   profile       InstagramProfile       @relation(fields: [profileId], references: [id], onDelete: Cascade)
   user          User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   metrics       InstagramMediaMetric[]
+  comments      InstagramComment[]
 
   @@index([userId, timestamp])
 }
 
 model InstagramMediaMetric {
   id            String         @id @default(cuid())
-  mediaId       String
+  /// Unique: uma linha de métricas por publicação (upsert por sincronização).
+  mediaId       String         @unique
   userId        String
   igMediaId     String
   reached       Int?
@@ -258,6 +273,44 @@ model InstagramMediaMetric {
 
   @@index([userId])
   @@index([mediaId, capturedAt])
+}
+
+/// Comentário REAL lido da API do Instagram e persistido.
+///
+/// Antes desta tabela o projeto só guardava `CommentReplyLog` (a NOSSA resposta),
+/// nunca o comentário recebido — por isso a tela de Respostas Inteligentes não
+/// tinha de onde ler comentários sem chamar a API a cada abertura.
+///
+/// Idempotência: `igCommentId` é único (o ID externo da Meta). Sincronizar duas
+/// vezes ATUALIZA o mesmo registro, nunca duplica.
+model InstagramComment {
+  id        String @id @default(cuid())
+  userId    String
+  mediaId   String
+  /// ID externo da Meta — chave de idempotência.
+  igCommentId String @unique
+
+  authorUsername String?
+  authorId       String?
+  /// Texto do comentário como a API retornou (null quando ela não envia).
+  text           String?
+  /// Momento em que o comentário foi feito no Instagram (null se não informado).
+  timestamp      DateTime?
+  /// true quando a conta conectada é a autora do comentário.
+  isOwn          Boolean @default(false)
+  /// Quantidade de respostas já existentes neste comentário (quando a API informa).
+  repliesCount   Int?
+  /// Momento da última leitura deste comentário na API.
+  syncedAt       DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  media InstagramMedia @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  user  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, timestamp])
+  @@index([mediaId, timestamp])
 }
 
 model SyncLog {

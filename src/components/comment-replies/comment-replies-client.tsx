@@ -12,6 +12,7 @@ import {
   ChevronRight,
   Lock,
   Loader2,
+  RefreshCw,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -103,6 +104,10 @@ export function CommentRepliesClient({
 
   const [reviews, setReviews] = React.useState<ReviewItem[]>([]);
   const [analyzedMedia, setAnalyzedMedia] = React.useState<string | null>(null);
+  const [mediaSyncing, setMediaSyncing] = React.useState(false);
+  const [lastSyncAt, setLastSyncAt] = React.useState<string | null>(null);
+  // `null` = nunca sincronizamos comentários · `false` = a Meta recusou o escopo.
+  const [commentsAvailable, setCommentsAvailable] = React.useState<boolean | null>(null);
 
   const refreshStats = React.useCallback(async () => {
     try {
@@ -139,12 +144,47 @@ export function CommentRepliesClient({
       }
       setMedia(data.media ?? []);
       setConnectionIssue(data.connected ? null : data.connectionIssue ?? null);
+      setLastSyncAt(data.lastSyncAt ?? null);
+      setCommentsAvailable(
+        typeof data.commentsAvailable === "boolean" ? data.commentsAvailable : null
+      );
     } catch {
       setMediaError("Não foi possível carregar as publicações.");
     } finally {
       setMediaLoading(false);
     }
   }, []);
+
+  /**
+   * Sincroniza os dados do Instagram sob demanda (mesma rota usada pelo
+   * Dashboard). Necessário aqui porque a lista de publicações vem do banco: sem
+   * uma sincronização recente ela fica vazia mesmo com a conta conectada.
+   * NUNCA publica nem responde nada — apenas relê os dados da conta.
+   */
+  const syncNow = React.useCallback(async () => {
+    setMediaSyncing(true);
+    setMediaError(null);
+    try {
+      const res = await fetch("/api/integrations/instagram/sync", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const code = (data as { code?: string }).code;
+        toast(
+          code === "cooldown"
+            ? "Sincronização recente. Aguarde alguns segundos e tente de novo."
+            : (data as { error?: string }).error ?? "Não foi possível sincronizar agora.",
+          "error"
+        );
+        return;
+      }
+      await loadMedia();
+      await refreshStats();
+    } catch {
+      toast("Não foi possível sincronizar agora.", "error");
+    } finally {
+      setMediaSyncing(false);
+    }
+  }, [loadMedia, refreshStats, toast]);
 
   React.useEffect(() => {
     if (!connected) return;
@@ -383,6 +423,27 @@ export function CommentRepliesClient({
         </div>
       )}
 
+      {/* A Meta recusou a LEITURA de comentários: dizemos isso em vez de exibir
+          "0 comentários", que seria um dado falso. */}
+      {!connectionIssue && commentsAvailable === false && (
+        <div className="flex items-start gap-3 rounded-md border border-info/25 bg-info-soft px-4 py-3.5">
+          <Lock size={18} className="text-info flex-none mt-0.5" />
+          {/* BLOCO 5 — o nome do escopo é um token único de 35 caracteres sem
+              nenhum ponto de quebra. Como este div é filho de um flex e herda
+              `min-width: auto`, ele era o responsável por alargar a página em
+              320px. `min-w-0` deixa a coluna encolher e o `[overflow-wrap:anywhere]`
+              permite quebrar o próprio identificador. */}
+          <div className="text-[12.5px] text-ink-soft leading-relaxed min-w-0 flex-1 break-words">
+            <strong className="text-ink">Comentários indisponíveis pela API do Instagram.</strong>{" "}
+            As publicações foram sincronizadas, mas a Meta não autorizou a leitura de
+            comentários para este app (escopo{" "}
+            <span className="font-mono [overflow-wrap:anywhere]">instagram_business_manage_comments</span> sem
+            acesso avançado). Os comentários aparecem automaticamente quando o acesso
+            for concedido — nada foi inventado no lugar deles.
+          </div>
+        </div>
+      )}
+
       {/* Cards de métrica — todos derivados de registros reais */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
@@ -427,6 +488,30 @@ export function CommentRepliesClient({
 
       {tab === "publicacoes" && (
         <div className="flex flex-col gap-5">
+          {/* Última sincronização REAL — deixa claro se os dados estão antigos. */}
+          {connected && lastSyncAt && (
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <p className="text-[12px] text-ink-muted">
+                Última sincronização:{" "}
+                {new Intl.DateTimeFormat("pt-BR", {
+                  dateStyle: "short",
+                  timeStyle: "short",
+                }).format(new Date(lastSyncAt))}
+              </p>
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={() => void syncNow()}
+                disabled={mediaSyncing}
+              >
+                {mediaSyncing ? (
+                  <><Loader2 size={13} className="animate-spin" /> Sincronizando…</>
+                ) : (
+                  <><RefreshCw size={13} /> Atualizar</>
+                )}
+              </Button>
+            </div>
+          )}
           {mediaLoading ? (
             <div className="flex items-center gap-3 text-[13.5px] text-ink-soft py-10 justify-center">
               <Loader2 size={17} className="animate-spin" />
@@ -441,12 +526,26 @@ export function CommentRepliesClient({
               description={
                 mediaCount === 0
                   ? "Sincronize sua conta em Redes Sociais para que suas publicações apareçam aqui."
-                  : "Nenhuma publicação encontrada para analisar."
+                  : "A conta está conectada, mas nenhuma publicação foi encontrada no Instagram."
               }
               action={
-                <Link href="/redes-sociais">
-                  <Button variant="ghost" size="sm">Ir para Redes Sociais</Button>
-                </Link>
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => void syncNow()}
+                    disabled={mediaSyncing}
+                  >
+                    {mediaSyncing ? (
+                      <><Loader2 size={14} className="animate-spin" /> Sincronizando…</>
+                    ) : (
+                      <><RefreshCw size={14} /> Sincronizar agora</>
+                    )}
+                  </Button>
+                  <Link href="/redes-sociais">
+                    <Button variant="ghost" size="sm">Ir para Redes Sociais</Button>
+                  </Link>
+                </div>
               }
             />
           ) : (

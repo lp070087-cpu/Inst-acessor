@@ -408,8 +408,12 @@ export function RulesPanel({ rule, onPatch, busy, aiConfigured }: RulesPanelProp
                   className="flex items-start gap-3 rounded-md border border-border-soft bg-surface/40 px-3.5 py-2.5"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="text-[13.5px] text-ink leading-relaxed">{t.text}</p>
-                    <div className="flex items-center gap-2 mt-1.5">
+                    {/* BLOCO 5 — a resposta própria é escrita à mão pelo
+                        usuário e pode conter um link longo sem espaços.
+                        `break-words` faz o texto quebrar dentro do card em vez
+                        de alargar a linha. */}
+                    <p className="text-[13.5px] text-ink leading-relaxed break-words">{t.text}</p>
+                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                       <Badge tone="neutral" size="xs">
                         {CATEGORY_LABEL[t.category] ?? t.category}
                       </Badge>
@@ -565,11 +569,11 @@ export function RulesPanel({ rule, onPatch, busy, aiConfigured }: RulesPanelProp
                         <Badge tone="warning" size="xs">Sem resposta automática</Badge>
                       )}
                     </div>
-                    <p className="text-[12.5px] text-ink-soft mt-1.5 leading-relaxed">
+                    <p className="text-[12.5px] text-ink-soft mt-1.5 leading-relaxed break-words">
                       {p.customInstructions}
                     </p>
                     {p.fixedReply && (
-                      <p className="text-[12px] text-ink-muted mt-1 italic">
+                      <p className="text-[12px] text-ink-muted mt-1 italic break-words">
                         Resposta: {p.fixedReply}
                       </p>
                     )}

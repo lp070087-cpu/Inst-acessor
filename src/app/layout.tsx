@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Sora, Plus_Jakarta_Sans, Space_Grotesk } from "next/font/google";
 
 import { ToastProvider } from "@/components/ui/toast";
@@ -50,6 +50,24 @@ export const metadata: Metadata = {
     // favicon padrão, sem quebrar a instalação.
     apple: [{ url: "/icons/icon-192.svg", type: "image/svg+xml" }],
   },
+};
+
+/**
+ * BLOCO 5 — `viewportFit: "cover"` é o que faz `env(safe-area-inset-*)`
+ * devolver um valor real no iPhone. Sem ele, o Next injeta a meta viewport
+ * padrão (sem `viewport-fit=cover`), o navegador mantém o conteúdo dentro da
+ * área segura e o `env()` fica sempre 0 — as regras de safe area que este
+ * bloco adicionou no header do app, nos drawers e no menu da landing não
+ * teriam efeito nenhum.
+ *
+ * `width: "device-width"` e `initialScale: 1` são o padrão que o Next já
+ * aplicava, mantidos aqui de forma explícita para não haver dúvida.
+ * Nada de `userScalable: false`: bloquear o zoom prejudica acessibilidade.
+ */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

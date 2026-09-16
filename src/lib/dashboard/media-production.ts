@@ -31,6 +31,8 @@ type MediaRow = {
   id: string;
   igMediaId: string;
   mediaType: string | null;
+  /** `media_product_type` da Meta (ex.: `REELS`, `FEED`, `STORY`). */
+  mediaProductType: string | null;
   timestamp: Date | null;
   likeCount: number | null;
   commentsCount: number | null;
@@ -48,25 +50,37 @@ type MediaMetricRow = {
 };
 
 /**
- * REELS — verdade sobre a coleta atual.
+ * VÍDEOS / REELS — verdade sobre a coleta atual.
  *
  * A integração persiste `InstagramMedia.mediaType` (ex.: `VIDEO`, `IMAGE`,
- * `CAROUSEL_ALBUM`). O campo que distinguiria um Reel de um vídeo de feed
- * (`media_product_type`) NÃO é coletado, e o schema não tem coluna para ele.
+ * `CAROUSEL_ALBUM`) E `InstagramMedia.mediaProductType` (`REELS`, `FEED`,
+ * `STORY` — campo `media_product_type` da Meta).
  *
- * Consequência honesta: só é possível contar MÍDIAS DE VÍDEO. A contagem
- * abaixo é real, mas o rótulo precisa dizer isso — nunca afirmamos "Reels"
- * como se a distinção existisse.
+ * Porém `mediaProductType` só passou a ser gravado recentemente: as mídias
+ * coletadas ANTES disso têm `null` nessa coluna. A distinção é, portanto,
+ * PARCIAL — e a UI precisa dizer isso em vez de afirmar "Reels" como se todas
+ * as mídias antigas estivessem classificadas.
+ *
+ * Consequência honesta: sempre é possível contar MÍDIAS DE VÍDEO; distinguir
+ * Reels de vídeo de feed só é possível quando `mediaProductType` existe.
+ * Nenhum valor é inferido para as mídias sem classificação.
  */
 export interface ReelCollection {
   /** Quantidade real de mídias com `mediaType === "VIDEO"`. */
   count: number | null;
+  /** Quantas mídias de vídeo SÃO Reels (`mediaProductType === "REELS"`). */
+  reelsCount: number | null;
+  /** Quantas mídias de vídeo têm classificação conhecida. `null` se nenhuma. */
+  classifiedCount: number | null;
   /** Views de vídeo somadas (última métrica conhecida de cada mídia). */
   videoViews: number | null;
   /** Alcance somado das mídias de vídeo (última métrica de cada). */
   reached: number | null;
-  /** `false` enquanto `media_product_type` não for coletado. */
-  distinguishesReels: false;
+  /**
+   * `true` quando TODAS as mídias de vídeo coletadas têm `mediaProductType`.
+   * `false` = distinção parcial (há mídias antigas sem o campo).
+   */
+  distinguishesReels: boolean;
   /** Explicação exibida ao usuário — nunca escondida na UI. */
   note: string;
 }
@@ -104,8 +118,11 @@ export interface MediaProductionData {
   totalInteractions: number | null;
 }
 
-const REELS_NOTE =
-  "Contagem de vídeos publicados. A coleta atual não distingue um Reel de um vídeo de feed — o campo media_product_type ainda não é coletado.";
+const REELS_NOTE_FULL =
+  "Contagem de vídeos publicados. A classificação Reels × feed vem do campo media_product_type da Meta e está disponível para estas mídias.";
+
+const REELS_NOTE_PARTIAL =
+  "Contagem de vídeos publicados. A integração já lê media_product_type, mas parte das mídias foi coletada antes disso e não tem classificação — por isso Reels não é afirmado para todas.";
 
 const STORIES_NOTE =
   "A coleta atual não lê Stories. Nada é estimado: este card fica vazio até a integração passar a coletar stories de verdade.";
@@ -176,6 +193,7 @@ export async function getMediaProductionData(
         id: true,
         igMediaId: true,
         mediaType: true,
+        mediaProductType: true,
         timestamp: true,
         likeCount: true,
         commentsCount: true,
@@ -211,12 +229,26 @@ export async function getMediaProductionData(
     return real.length > 0 ? real.reduce((a, b) => a + b, 0) : null;
   };
 
+  // Classificação Reels × feed: só conta o que a Meta classificou de verdade.
+  // Mídia sem `mediaProductType` (coletada antes do campo existir) NÃO é
+  // presumida Reel nem presumida feed — fica de fora da contagem.
+  const classifiedVideos = videoMedia.filter(
+    (m) => typeof m.mediaProductType === "string" && m.mediaProductType.length > 0
+  );
+  const reelsCount =
+    classifiedVideos.length > 0
+      ? classifiedVideos.filter((m) => m.mediaProductType?.toUpperCase() === "REELS").length
+      : null;
+  const allClassified = videoMedia.length > 0 && classifiedVideos.length === videoMedia.length;
+
   const reels: ReelCollection = {
     count: mediaRows.length > 0 ? videoMedia.length : null,
+    reelsCount,
+    classifiedCount: classifiedVideos.length > 0 ? classifiedVideos.length : null,
     videoViews: sumOrNull(videoMetrics.map((m) => m.videoViews)),
     reached: sumOrNull(videoMetrics.map((m) => m.reached)),
-    distinguishesReels: false,
-    note: REELS_NOTE,
+    distinguishesReels: allClassified,
+    note: allClassified ? REELS_NOTE_FULL : REELS_NOTE_PARTIAL,
   };
 
   const stories: StoryCollection = {
@@ -265,7 +297,7 @@ export async function getMediaProductionData(
       key: "copies",
       label: "Cópias criadas",
       value: copies,
-      detail: "Textos gerados no Gerador de Copy",
+      detail: "Textos gerados no Preview Social",
     },
     {
       key: "ideas",

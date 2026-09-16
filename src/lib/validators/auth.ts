@@ -59,3 +59,28 @@ export const onboardingSchema = z.object({
 });
 
 export type OnboardingInput = z.infer<typeof onboardingSchema>;
+
+/**
+ * Troca de senha do usuário autenticado.
+ *
+ * A senha ATUAL é obrigatória: sem ela, um acesso temporário (aparelho
+ * compartilhado, sessão esquecida aberta) viraria troca definitiva de
+ * credencial. A nova senha segue a mesma regra mínima do cadastro (8) e a
+ * confirmação é comparada aqui — nunca no cliente.
+ */
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, "Informe sua senha atual"),
+    password: z.string().min(8, "A nova senha deve ter no mínimo 8 caracteres"),
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "As senhas não coincidem",
+    path: ["confirmPassword"],
+  })
+  .refine((data) => data.password !== data.currentPassword, {
+    message: "A nova senha precisa ser diferente da senha atual",
+    path: ["password"],
+  });
+
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;

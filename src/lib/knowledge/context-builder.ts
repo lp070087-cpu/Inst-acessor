@@ -311,12 +311,11 @@ export function knowledgeContextToPrompt(ctx: KnowledgeContextParts): string {
   }
 
   lines.push("");
+  // As categorias abaixo são RACIOCÍNIO INTERNO. O prompt do chat já proíbe
+  // expô-las como rótulos na conversa — aqui elas servem só para o modelo
+  // saber de onde cada afirmação vem.
   lines.push(
-    "FORMATO DE RESPOSTA ESTRATÉGICA quando apropriado: DIAGNÓSTICO / EVIDÊNCIA / CONHECIMENTO APLICADO / HIPÓTESE / AÇÃO / TESTE / MÉTRICA DE SUCESSO / NÍVEL DE CONFIANÇA (Baixo/Médio/Alto). Nunca use confiança numérica falsa."
-  );
-
-  lines.push(
-    "Categorias de confiabilidade: DADO REAL (API/snapshot/banco), CONHECIMENTO (regra oficial da DONA), INFERÊNCIA (interpretação), HIPÓTESE (a validar), RECOMENDAÇÃO (ação). NUNCA misture — se um dado não foi fornecido, diga que está indisponível e não invente."
+    "Confiabilidade do que você sabe (para o SEU raciocínio, não para escrever na resposta): DADO REAL (API/snapshot/banco), CONHECIMENTO (regra oficial da DONA), INFERÊNCIA (interpretação), HIPÓTESE (a validar), RECOMENDAÇÃO (ação). Não misture as categorias e não invente o que não foi fornecido."
   );
 
   return lines.join("\n");
