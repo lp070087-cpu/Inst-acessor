@@ -67,6 +67,18 @@ export async function GET() {
         xpNeededForNext: progress.levelInfo.xpNeededForNext,
         progressToNext: progress.levelInfo.progressToNext,
         xpTotal: progress.levelInfo.xpTotal,
+        // Faixa geral (Bronze→Lendário) calculada em `xp.ts` sobre o XP
+        // acumulado. Aditivo: os campos numéricos acima não mudaram.
+        tier: {
+          key: progress.rankTier.key,
+          label: progress.rankTier.label,
+          index: progress.rankTier.index,
+          minXp: progress.rankTier.minXp,
+          nextMinXp: progress.rankTier.nextMinXp,
+          nextLabel: progress.rankTier.nextLabel,
+          xpToNextTier: progress.rankTier.xpToNextTier,
+          progressToNextTier: progress.rankTier.progressToNextTier,
+        },
       },
       xpLogs: progress.xpLogs.map((l) => ({
         source: l.source,

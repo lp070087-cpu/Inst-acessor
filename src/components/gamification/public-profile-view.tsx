@@ -234,23 +234,20 @@ export function PublicProfileView({ payload }: { payload: PublicProfilePayload }
                 Ainda sem conquistas públicas — elas aparecem aqui conforme o perfil evolui.
               </p>
             ) : (
+              /* NUNCA colocar `{/* ... *\/}` no início de um ramo de ternário:
+                 o comentário fecha o `(` e racha o JSX. Por isso o comentário
+                 aqui usa a forma de bloco simples dentro do texto JSX abaixo. */
               <div className="flex flex-wrap gap-2">
-                {payload.achievements.map((a) => {
-                  const Icon = achievementIcon(a.tier);
-                  return (
-                    <span
-                      key={a.slug}
-                      title={a.description}
-                      className={cn(
-                        "inline-flex items-center gap-1.5 text-[12px] font-semibold rounded-pill px-3 py-1.5",
-                        tierChip(a.tier)
-                      )}
-                    >
-                      <Icon size={13} className="flex-none" />
-                      {a.title}
-                    </span>
-                  );
-                })}
+                {payload.achievements.map((a) => (
+                  <span
+                    key={a.slug}
+                    title={a.description}
+                    className="inline-flex items-center gap-1.5 text-[12px] font-semibold rounded-pill px-3 py-1.5 bg-surface text-ink-soft border border-border-soft"
+                  >
+                    <Award size={13} className="flex-none text-purple" />
+                    {a.title}
+                  </span>
+                ))}
               </div>
             )}
           </div>
@@ -265,9 +262,6 @@ export function PublicProfileView({ payload }: { payload: PublicProfilePayload }
               {badge ? (
                 <>
                   <p className="text-[14px] font-bold text-ink">{badge.title}</p>
-                  <span className={cn("text-[11px] font-bold rounded-pill px-2 py-0.5 self-start", tierChip(badge.tier))}>
-                    {TIER_LABEL[badge.tier] ?? badge.tier}
-                  </span>
                 </>
               ) : (
                 <p className="text-[13px] text-ink-muted">— Nenhuma ainda</p>
@@ -281,9 +275,6 @@ export function PublicProfileView({ payload }: { payload: PublicProfilePayload }
               {trophy ? (
                 <>
                   <p className="text-[14px] font-bold text-ink">{trophy.title}</p>
-                  <span className={cn("text-[11px] font-bold rounded-pill px-2 py-0.5 self-start", tierChip(trophy.tier))}>
-                    {TIER_LABEL[trophy.tier] ?? trophy.tier}
-                  </span>
                 </>
               ) : (
                 <p className="text-[13px] text-ink-muted">— Nenhuma ainda</p>

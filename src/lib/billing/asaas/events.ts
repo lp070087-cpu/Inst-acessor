@@ -6,6 +6,8 @@ import { sendAccessReleasedEmail } from "@/lib/email";
 import { getAppBaseUrl } from "@/lib/config/site";
 import type { ParsedAsaasEvent } from "./webhook";
 import { sanitizeAsaasPayload } from "./client";
+import { acceptableChargeAmounts } from "@/lib/billing/promo";
+import { getPromoConfig } from "@/lib/billing/promo-db";
 
 /**
  * ASAAS — PROCESSADOR DE EVENTOS (webhook) — OFICIAL
@@ -211,6 +213,29 @@ async function findOrderByReference(
   }
 }
 
+/**
+ * O valor confirmado pelo Asaas é um valor LEGÍTIMO para este plano?
+ *
+ * Fonte da verdade: o MESMO conjunto fechado que o checkout usa (`promo.ts`).
+ * Nunca uma tolerância, nunca "qualquer valor positivo". Se a leitura da
+ * configuração de pré-venda falhar, o conjunto degrada para o preço cheio —
+ * um pagamento promocional seria recusado (e reentregue/auditável) em vez de
+ * liberar acesso por um valor que não conseguimos conferir.
+ */
+async function isChargeAmountLegitimate(
+  slug: string,
+  basePriceCents: number,
+  amountCents: number
+): Promise<boolean> {
+  let config;
+  try {
+    config = await getPromoConfig();
+  } catch {
+    return amountCents === basePriceCents;
+  }
+  return acceptableChargeAmounts({ slug, basePriceCents, config }).includes(amountCents);
+}
+
 async function findSubscriptionByExternalId(
   externalSubscriptionId: string | null,
   externalPaymentId: string | null
@@ -240,13 +265,27 @@ async function applyOrderPayment(
   parsed: ParsedAsaasEvent,
   order: CheckoutOrder
 ): Promise<ApplyOutcome> {
-  // ---- Validações (regras 14/15/16) ----
+  // ---- Validações (regras 14/15/16 + P17/P21) ----
   if (parsed.amountCents === null) return "ignored";
   if (parsed.amountCents !== order.expectedAmountCents) return "ignored";
 
   const plan = await getPlanById(order.planId ?? order.planSlug);
   if (!plan || !plan.active) return "ignored";
-  if (plan.priceCents !== order.expectedAmountCents) return "ignored";
+
+  // AQUI ESTAVA O DEFEITO DA PRÉ-VENDA (P17/P21).
+  // Antes: `if (plan.priceCents !== order.expectedAmountCents) return "ignored"`.
+  // Com a promoção ligada, `expectedAmountCents` é o valor PROMOCIONAL — então
+  // essa linha comparava o preço CHEIO do catálogo contra o promocional, dava
+  // diferente, e o pagamento legítimo de quem comprou na pré-venda era
+  // DESCARTADO como divergência. O cliente pagava e não recebia acesso: o pior
+  // desfecho possível, e silencioso.
+  //
+  // A conferência correta é contra o CONJUNTO de valores legítimos daquele
+  // plano (cheio + promocional vigente), que é exatamente o conjunto que o
+  // checkout poderia ter cobrado. Valor fora dele continua recusado.
+  if (!(await isChargeAmountLegitimate(plan.slug, plan.priceCents, parsed.amountCents))) {
+    return "ignored";
+  }
   if (!parsed.externalPaymentId) return "ignored"; // sem âncora estável
 
   // ---- Replay exato do mesmo pagamento → não duplica (regra 17) ----
@@ -474,7 +513,13 @@ async function applySubscriptionRenewalOnly(
   const plan = await getPlanById(sub.planId);
   if (!plan || !plan.active) return "ignored";
   if (parsed.amountCents === null) return "ignored";
-  if (parsed.amountCents !== plan.priceCents) return "ignored";
+  // Renovação SEM ordem local: aqui o preço de referência é o do catálogo, mas a
+  // pré-venda também precisa valer — quem assinou no valor promocional é cobrado
+  // assim pelo Asaas, e recusar essa cobrança apagaria o acesso de quem pagou.
+  // Mesmo conjunto fechado do checkout (cheio + promocional vigente).
+  if (!(await isChargeAmountLegitimate(plan.slug, plan.priceCents, parsed.amountCents))) {
+    return "ignored";
+  }
   if (!parsed.externalPaymentId) return "ignored";
 
   // Replay do mesmo pagamento já registrado.
@@ -518,7 +563,12 @@ async function applySubscriptionRenewalOnly(
 
   await upsertPaidPayment({
     parsed,
-    amountCents: plan.priceCents,
+    // Valor REALMENTE cobrado nesta renovação — já foi conferido contra o
+    // conjunto de valores legítimos do plano logo acima. Antes gravava
+    // `plan.priceCents`: com a pré-venda ativa, quem pagou R$ 45,90 ficava
+    // registrado como R$ 77,00 — um fato financeiro falso no ledger local,
+    // que é justamente onde a receita é conferida.
+    amountCents: parsed.amountCents,
     userId: user.id,
     planId: plan.id,
     subscriptionId: sub.id,

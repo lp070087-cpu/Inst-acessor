@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { Images, Film, Grid3x3, MessageCircle, Loader2, Sparkles } from "lucide-react";
+import { Images, Film, Grid3x3, MessageCircle, Loader2, Sparkles, Eye } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { MediaInsightsModal } from "./media-insights-modal";
 
 /**
  * LISTA DE PUBLICAÇÕES
@@ -62,6 +63,11 @@ function truncate(text: string, max: number): string {
 }
 
 export function MediaList({ media, onAnalyze, busyId, busy }: MediaListProps) {
+  // Insights da publicação (PARTES 10 e 11). O modal é UM só para a lista
+  // inteira — abrir 60 modais (um por card) só para deixar 59 fechados
+  // custaria render desnecessário em conta com muito histórico.
+  const [insightsFor, setInsightsFor] = React.useState<MediaItem | null>(null);
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
       {media.map((item) => {
@@ -138,21 +144,31 @@ export function MediaList({ media, onAnalyze, busyId, busy }: MediaListProps) {
                   {isBusy ? "Analisando…" : "Analisar comentários"}
                 </Button>
 
-                {item.permalink && (
-                  <a
-                    href={item.permalink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[12px] font-semibold text-ink-soft hover:text-purple transition-colors px-2 py-1"
-                  >
-                    Abrir
-                  </a>
-                )}
+                {/* "Abrir" passou a abrir os INSIGHTS da publicação dentro do
+                    Inst Acessor (PARTES 10 e 11), em vez de mandar o usuário
+                    embora para o Instagram. O link externo continua existindo
+                    como ação secundária dentro do próprio modal. */}
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => setInsightsFor(item)}
+                  className="px-2"
+                >
+                  <Eye size={13} />
+                  Abrir
+                </Button>
               </div>
             </div>
           </div>
         );
       })}
+
+      <MediaInsightsModal
+        open={insightsFor != null}
+        mediaId={insightsFor?.id ?? null}
+        formatHint={insightsFor ? describeType(insightsFor).label : undefined}
+        onClose={() => setInsightsFor(null)}
+      />
     </div>
   );
 }

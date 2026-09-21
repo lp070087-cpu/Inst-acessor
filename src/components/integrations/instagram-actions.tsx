@@ -77,6 +77,8 @@ function InstagramActionsInner({
   const searchParams = useSearchParams();
 
   const [busy, setBusy] = React.useState(false);
+  /** Estado separado da sincronização de métricas (rodapé do card). */
+  const [metricsBusy, setMetricsBusy] = React.useState(false);
 
   const error = searchParams?.get("error");
   const connectedOk = searchParams?.get("connected") === "true";
@@ -183,7 +185,10 @@ function InstagramActionsInner({
   }
 
   async function handleRefreshMetrics() {
-    setBusy(true);
+    // Estado PRÓPRIO: antes o rodapé usava o mesmo `busy` das ações de conta,
+    // então sincronizar métricas desabilitava "Trocar conta"/"Desconectar" sem
+    // necessidade. São operações independentes.
+    setMetricsBusy(true);
     try {
       const res = await fetchWithTimeout("/api/integrations/instagram/refresh", {
         method: "POST",
@@ -197,7 +202,7 @@ function InstagramActionsInner({
     } catch {
       console.error("refresh metrics network error");
     } finally {
-      setBusy(false);
+      setMetricsBusy(false);
     }
   }
 
@@ -213,34 +218,55 @@ function InstagramActionsInner({
       )}
 
       {connected ? (
-        <div className="flex flex-wrap gap-2.5">
-          <Button onClick={handleReconnect} disabled={busy || connecting} size="sm">
-            <RefreshCw size={15} />
-            Atualizar conexão
-          </Button>
-          <Button
-            onClick={handleRefreshMetrics}
-            disabled={busy}
-            size="sm"
-            variant="ghost"
-          >
-            <BarChart3 size={15} />
-            Atualizar métricas
-          </Button>
-          <Button onClick={handleReconnect} disabled={busy} size="sm" variant="ghost">
-            <Repeat size={15} />
-            Trocar conta
-          </Button>
-          <Button
-            onClick={handleDisconnect}
-            disabled={busy}
-            size="sm"
-            variant="danger"
-          >
-            <Unplug size={15} />
-            Desconectar
-          </Button>
-        </div>
+        <>
+          <div className="flex flex-wrap gap-2.5">
+            <Button onClick={handleReconnect} disabled={busy || connecting} size="sm">
+              <RefreshCw size={15} />
+              Atualizar conexão
+            </Button>
+            <Button onClick={handleReconnect} disabled={busy} size="sm" variant="ghost">
+              <Repeat size={15} />
+              Trocar conta
+            </Button>
+            <Button
+              onClick={handleDisconnect}
+              disabled={busy}
+              size="sm"
+              variant="danger"
+            >
+              <Unplug size={15} />
+              Desconectar
+            </Button>
+          </div>
+
+          {/* Rodapé do card — AÇÃO PRÓPRIA de sincronização de dados.
+              "Atualizar métricas" saiu da fileira de ações da CONTA (que agora
+              só trata credencial: conectar/trocar/desconectar). Aqui ele é o
+              que realmente é: buscar os dados do Instagram de novo. A linha
+              divisória deixa claro que não mexe na conexão. */}
+          <div className="pt-4 border-t border-border-soft flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[13px] font-semibold text-ink">Métricas e publicações</p>
+              <p className="text-[12.5px] text-ink-soft">
+                Busca os dados mais recentes do seu perfil no Instagram.
+              </p>
+            </div>
+            <Button
+              onClick={handleRefreshMetrics}
+              disabled={busy || metricsBusy}
+              size="sm"
+              variant="outline"
+              className="flex-none"
+            >
+              {metricsBusy ? (
+                <RefreshCw size={15} className="animate-spin" />
+              ) : (
+                <BarChart3 size={15} />
+              )}
+              {metricsBusy ? "Atualizando..." : "Atualizar métricas"}
+            </Button>
+          </div>
+        </>
       ) : (
         <div className="flex flex-col gap-2">
           <Button onClick={handleConnect} disabled={busy || connecting} size="md">

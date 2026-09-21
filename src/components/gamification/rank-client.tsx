@@ -47,6 +47,24 @@ interface ProgressData {
   xpInLevel: number;
   xpNeededForNext: number;
   progressToNext: number;
+  /**
+   * Faixa geral (Bronze→Lendário). Vem calculada do servidor
+   * (`rankTierFromXp` em `src/lib/gamification/xp.ts`); estes mesmos limiares
+   * estão espelhados abaixo para o fallback local. `key: null` = ainda antes
+   * do Bronze.
+   */
+  tier?: RankTierData | null;
+}
+
+interface RankTierData {
+  key: string | null;
+  label: string | null;
+  index: number;
+  minXp: number | null;
+  nextMinXp: number | null;
+  nextLabel: string | null;
+  xpToNextTier: number | null;
+  progressToNextTier: number | null;
 }
 
 interface SummaryData {
@@ -248,6 +266,23 @@ function tierCardClass(tier: string): string {
   return TIER_CARD_CLASS[tier] ?? TIER_CARD_CLASS.BRONZE;
 }
 
+/**
+ * Classe visual da FAIXA GERAL (Bronze→Lendário). Sistema separado do
+ * `tierCardClass` das conquistas — os nomes de classe são próprios
+ * (`.rnk-gtier-*`) para os dois nunca se confundirem no CSS.
+ */
+const RANK_TIER_CHIP_CLASS: Record<string, string> = {
+  BRONZE: "rnk-gtier-bronze",
+  PRATA: "rnk-gtier-prata",
+  OURO: "rnk-gtier-ouro",
+  DIAMANTE: "rnk-gtier-diamante",
+  LENDARIO: "rnk-gtier-lendario",
+};
+
+function tierChipClass(key: string | null): string {
+  return key ? RANK_TIER_CHIP_CLASS[key] ?? "rnk-gtier-bronze" : "rnk-gtier-bronze";
+}
+
 function achievementIcon(tier: string) {
   if (tier === "DESAFIO") return Sparkles;
   if (tier === "OURO") return Crown;
@@ -357,6 +392,83 @@ function xpRequiredForLevelLocal(level: number): number {
   let total = 0;
   for (let l = 1; l < level; l++) total += xpToNextLevelLocal(l);
   return total;
+}
+
+/**
+ * FAIXAS GERAIS — espelho EXATO de `RANK_TIERS` em
+ * `src/lib/gamification/xp.ts`. Mantido local pelo mesmo motivo do streak:
+ * `xp.ts` importa o cliente do banco e este arquivo é Client Component.
+ * NÃO alterar sem alterar o core (os limiares são os anunciados na landing:
+ * 1.000 / 2.500 / 5.000 / 10.000 / 20.000 XP).
+ */
+const RANK_TIER_MIRROR: { key: string; label: string; minXp: number }[] = [
+  { key: "BRONZE", label: "Bronze", minXp: 1000 },
+  { key: "PRATA", label: "Prata", minXp: 2500 },
+  { key: "OURO", label: "Ouro", minXp: 5000 },
+  { key: "DIAMANTE", label: "Diamante", minXp: 10000 },
+  { key: "LENDARIO", label: "Lendário", minXp: 20000 },
+];
+
+/**
+ * Resolve a faixa no cliente. Usa SEMPRE o valor calculado no servidor quando
+ * ele existe (fonte da verdade); o espelho local é só fallback para payloads
+ * antigos / chamadas parciais. A lógica é idêntica à do core.
+ */
+function rankTierLocal(totalXpEarned: number, fromServer?: RankTierData | null): RankTierData {
+  if (fromServer && typeof fromServer.index === "number") return fromServer;
+
+  const xp =
+    Number.isFinite(totalXpEarned) && totalXpEarned > 0 ? Math.floor(totalXpEarned) : 0;
+
+  let index = -1;
+  for (let i = 0; i < RANK_TIER_MIRROR.length; i++) {
+    if (xp >= RANK_TIER_MIRROR[i].minXp) index = i;
+  }
+
+  if (index < 0) {
+    const first = RANK_TIER_MIRROR[0];
+    return {
+      key: null,
+      label: null,
+      index: -1,
+      minXp: null,
+      nextMinXp: first.minXp,
+      nextLabel: first.label,
+      xpToNextTier: first.minXp - xp,
+      progressToNextTier: null,
+    };
+  }
+
+  const tier = RANK_TIER_MIRROR[index];
+  const next = RANK_TIER_MIRROR[index + 1] ?? null;
+
+  if (!next) {
+    return {
+      key: tier.key,
+      label: tier.label,
+      index,
+      minXp: tier.minXp,
+      nextMinXp: null,
+      nextLabel: null,
+      xpToNextTier: null,
+      progressToNextTier: null,
+    };
+  }
+
+  const span = next.minXp - tier.minXp;
+  const inTier = Math.max(0, xp - tier.minXp);
+
+  return {
+    key: tier.key,
+    label: tier.label,
+    index,
+    minXp: tier.minXp,
+    nextMinXp: next.minXp,
+    nextLabel: next.label,
+    xpToNextTier: Math.max(0, next.minXp - xp),
+    progressToNextTier:
+      span > 0 ? Math.min(100, Math.round((inTier / span) * 10000) / 100) : null,
+  };
 }
 
 // ------------------------------------------------------------
@@ -835,6 +947,23 @@ const RANK_CSS = `
 .rnk-tier-prata{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.18);color:#C7CCD6}
 .rnk-tier-desafio{background:rgba(139,92,246,.18);border-color:rgba(139,92,246,.34);color:#C4B5FD}
 .rnk-tier-bronze{background:rgba(251,146,60,.14);border-color:rgba(251,146,60,.3);color:#FDBA74}
+
+/* ---------- FAIXA GERAL (Bronze -> Lendario) ----------
+   Sistema SEPARADO das conquistas. Nomes proprios (prefixo rnk-gtier) para
+   os dois nunca colidirem: uma conquista Bronze e a faixa geral Bronze sao
+   coisas diferentes e nao devem compartilhar estilo. */
+.rnk-tier-chip{gap:5px;letter-spacing:.01em}
+/* XP em destaque no card da conquista. Substitui o antigo selo de metal —
+   o que o usuário precisa saber ali é quanto aquilo vale, não a que "metal"
+   a conquista pertence. */
+.rnk-ach-xp{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:800;color:var(--rnk-green)}
+.rnk-gtier-bronze{background:rgba(251,146,60,.14);border-color:rgba(251,146,60,.34);color:#FDBA74}
+.rnk-gtier-prata{background:rgba(203,213,225,.12);border-color:rgba(203,213,225,.3);color:#E2E8F0}
+.rnk-gtier-ouro{background:rgba(245,158,11,.16);border-color:rgba(245,158,11,.34);color:#FBBF24}
+.rnk-gtier-diamante{background:rgba(56,189,248,.15);border-color:rgba(56,189,248,.32);color:#7DD3FC}
+.rnk-gtier-lendario{background:var(--rnk-grad);border-color:rgba(255,255,255,.24);color:#fff}
+.rnk-tier-track{display:flex;flex-direction:column;gap:5px;margin-top:9px;max-width:420px}
+.rnk-tier-track-cap{font-size:11px;font-weight:700;color:var(--rnk-muted)}
 
 /* ---------- vazio ---------- */
 .rnk-empty{display:flex;flex-direction:column;align-items:flex-start;gap:5px;padding:14px 0}
@@ -1413,6 +1542,8 @@ function RankHero({
 }) {
   const pct = Math.round(progress.progressToNext);
   const remaining = Math.max(0, progress.xpNeededForNext - progress.xpInLevel);
+  // Faixa geral: valor do servidor quando vier; senão calculado pelo espelho.
+  const tier = rankTierLocal(progress.totalXpEarned, progress.tier);
 
   return (
     <div className="rnk-card rnk-hero">
@@ -1429,6 +1560,18 @@ function RankHero({
         <div className="rnk-hero-info">
           <span className="rnk-eyebrow">Seu progresso</span>
           <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+            {/* FAIXA GERAL — sempre no topo dos chips: é o rótulo que o
+                usuário procura. Antes do Bronze não inventamos uma faixa:
+                mostramos a distância real até o Bronze. */}
+            {tier.label ? (
+              <span className={cn("rnk-chip", "rnk-tier-chip", tierChipClass(tier.key))}>
+                <Award size={11} /> {tier.label}
+              </span>
+            ) : (
+              <span className="rnk-chip rnk-chip-amber">
+                <Award size={11} /> Faltam {formatXp(tier.xpToNextTier ?? 0)} XP para o Bronze
+              </span>
+            )}
             <span className="rnk-chip rnk-chip-brand">
               <Star size={11} /> Nível {progress.level}
             </span>
@@ -1446,6 +1589,24 @@ function RankHero({
               ? `Faltam ${formatXp(remaining)} XP. Cada ação real no app concede XP uma única vez.`
               : "Você está a um passo do próximo nível. Continue as ações recomendadas."}
           </p>
+          {/* Progresso DENTRO da faixa (Bronze→Lendário) — eixo diferente do
+              anel acima, que mede o nível numérico. No topo (Lendário) não há
+              próxima faixa: mostramos a conquista, sem barra inventada. */}
+          <div className="rnk-tier-track">
+            {tier.nextLabel ? (
+              <>
+                <span className="rnk-tier-track-cap">
+                  Faixa {tier.label ?? "—"} · faltam {formatXp(tier.xpToNextTier ?? 0)} XP para{" "}
+                  {tier.nextLabel}
+                </span>
+                <RnkBar value={tier.progressToNextTier ?? 0} tone="brand" size="xs" />
+              </>
+            ) : (
+              <span className="rnk-tier-track-cap">
+                Faixa máxima alcançada: {tier.label}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1734,9 +1895,8 @@ function MeusDestaques({
             {badge ? (
               <>
                 <span className="rnk-hl-val-sm">{badge.title}</span>
-                <span className={tierCardClass(badge.tier)}>
-                  <TierIcon tier={badge.tier} size={11} />
-                  {TIER_LABEL[badge.tier] ?? badge.tier}
+                <span className="rnk-ach-xp">
+                  <Zap size={11} /> +{badge.xpReward} XP
                 </span>
               </>
             ) : (
@@ -1758,9 +1918,8 @@ function MeusDestaques({
             {trophy ? (
               <>
                 <span className="rnk-hl-val-sm">{trophy.title}</span>
-                <span className={tierCardClass(trophy.tier)}>
-                  <TierIcon tier={trophy.tier} size={11} />
-                  {TIER_LABEL[trophy.tier] ?? trophy.tier}
+                <span className="rnk-ach-xp">
+                  <Zap size={11} /> +{trophy.xpReward} XP
                 </span>
               </>
             ) : (
@@ -2177,9 +2336,8 @@ function PerfilPublicoView({
                 </span>
                 <div style={{ display: "flex", flexDirection: "column", gap: 5, minWidth: 0 }}>
                   <span style={{ fontSize: 13.5, fontWeight: 700, color: "var(--ink)" }}>{badge.title}</span>
-                  <span className={tierCardClass(badge.tier)}>
-                    <TierIcon tier={badge.tier} size={11} />
-                    {TIER_LABEL[badge.tier] ?? badge.tier}
+                  <span className="rnk-ach-xp">
+                    <Zap size={11} /> +{badge.xpReward} XP
                   </span>
                 </div>
               </div>
@@ -2201,9 +2359,8 @@ function PerfilPublicoView({
                 </span>
                 <div style={{ display: "flex", flexDirection: "column", gap: 5, minWidth: 0 }}>
                   <span style={{ fontSize: 13.5, fontWeight: 700, color: "var(--ink)" }}>{trophy.title}</span>
-                  <span className={tierCardClass(trophy.tier)}>
-                    <TierIcon tier={trophy.tier} size={11} />
-                    {TIER_LABEL[trophy.tier] ?? trophy.tier}
+                  <span className="rnk-ach-xp">
+                    <Zap size={11} /> +{trophy.xpReward} XP
                   </span>
                 </div>
               </div>
@@ -3077,9 +3234,8 @@ function ConquistasResumo({
                   </span>
                   <div style={{ minWidth: 0 }}>
                     <p className="rnk-ach-title">{a.title}</p>
-                    <span className={tierCardClass(a.tier)}>
-                      <TierIcon tier={a.tier} size={11} />
-                      {TIER_LABEL[a.tier] ?? a.tier}
+                    <span className="rnk-ach-xp">
+                      <Zap size={11} /> +{a.xpReward} XP
                     </span>
                   </div>
                 </div>
@@ -3386,11 +3542,7 @@ function ConquistasView({
                   <p className="rnk-ach-text">{a.description}</p>
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-                  <span className={tierCardClass(a.tier)}>
-                    <TierIcon tier={a.tier} size={11} />
-                    {TIER_LABEL[a.tier] ?? a.tier}
-                  </span>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10, flexWrap: "wrap" }}>
                   <span style={{ fontSize: 11.5, color: "var(--ink-3)" }}>
                     {a.progress} / {a.threshold} {a.unit}
                   </span>

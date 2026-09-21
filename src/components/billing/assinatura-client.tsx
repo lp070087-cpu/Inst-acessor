@@ -349,6 +349,22 @@ export function AssinaturaClient({
 
   return (
     <div className="flex flex-col gap-6">
+      {/* CONTA ≠ ASSINATURA — sem assinatura E sem direito de acesso liberado.
+          Isto NÃO bloqueia nada: quem não paga continua usando a conta. Existe
+          para o estado real ficar explícito, em vez de a tela deixar dúvida
+          entre "não assinei" e "minha assinatura sumiu". */}
+      {!current && !access.hasSubscription && !access.active && (
+        <div className="rounded-[12px] border border-border-soft bg-surface/50 px-4 py-3 flex items-start gap-2.5 text-[13px] text-ink-soft">
+          <Info size={16} className="flex-none mt-0.5 text-ink-muted" />
+          <span>
+            <strong className="font-semibold text-ink">
+              Sua conta está criada, mas ainda não há assinatura ativa.
+            </strong>{" "}
+            Escolha um plano abaixo para liberar todos os recursos.
+          </span>
+        </div>
+      )}
+
       {/* Aviso de e-mail do checkout (primeiro acesso) */}
       <div className="rounded-[12px] border border-warn/30 bg-warn-soft px-4 py-3 flex items-start gap-2.5 text-[13px] text-warn">
         <Mail size={16} className="flex-none mt-0.5" />

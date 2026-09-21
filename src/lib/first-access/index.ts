@@ -537,23 +537,57 @@ export async function completeTour(userId: string): Promise<CompleteTourResult> 
   }
 }
 
+/**
+ * Status possível do ACESSO EFETIVO do usuário.
+ *
+ * `NO_ACCESS` não é um status de `AccessGrant` — é a AUSÊNCIA de direito de
+ * acesso. Existe como valor próprio justamente para não ser confundido com
+ * EXPIRED (quem nunca pagou não é "alguém que expirou") nem com ACTIVE.
+ */
+export type EffectiveAccessStatus =
+  | "NO_ACCESS"
+  | "PENDING_FIRST_ACCESS"
+  | "ACTIVE"
+  | "EXPIRED"
+  | "CANCELED";
+
 export interface ActiveAccessInfo {
-  /** true se há acesso válido neste momento. */
+  /**
+   * true SOMENTE quando existe direito de acesso PAGO e válido.
+   *
+   * CONTA ≠ ASSINATURA: ter conta no Inst Acessor não concede acesso pago.
+   * Uma conta sem nenhum grant tem `active: false` e `status: "NO_ACCESS"` —
+   * antes desta correção ela era reportada como ACTIVE.
+   */
   active: boolean;
-  /** Status efetivo (EXPIRED/CANCELED/ACTIVE/PENDING_FIRST_ACCESS). */
-  status: string;
+  /** Status efetivo do ACESSO (inclui NO_ACCESS). */
+  status: EffectiveAccessStatus;
   /** Data de expiração (se houver). */
   expiresAt: string | null;
   /** Nome do plano vinculado (se houver). */
   planName: string | null;
   /** true se o usuário ainda precisa concluir o primeiro acesso. */
   needsFirstAccess: boolean;
+  /** Quantos grants o usuário possui (0 = nunca teve direito de acesso). */
+  grantCount: number;
 }
 
 /**
- * Consulta o acesso ATIVO mais recente do usuário (owner-check).
- * Usado pelo layout do app para bloquear recursos quando o acesso expirou.
- * NUNCA deleta o User — apenas informa a expiração.
+ * Consulta o acesso do usuário (owner-check).
+ *
+ * Usado pelo layout do app para bloquear recursos QUANDO O ACESSO EXPIROU.
+ * NUNCA deleta o User — apenas informa o estado.
+ *
+ * IMPORTANTE (correção de produto): a versão anterior devolvia
+ * `active: true, status: "ACTIVE"` quando o usuário não tinha NENHUM grant,
+ * com a justificativa de "usuários antigos". Isso misturava duas coisas
+ * diferentes — existir como CONTA e ter DIREITO DE ACESSO — e fazia uma conta
+ * gratuita recém-criada passar por assinante ativo. Agora a ausência de grant
+ * é reportada como `NO_ACCESS`.
+ *
+ * Compatibilidade: nenhum chamador passa a ser BLOQUEADO por essa mudança. O
+ * layout só redireciona em EXPIRED/CANCELED (inalterado), e `NO_ACCESS` não é
+ * nenhum dos dois. O que muda é que o app passa a ter como saber a diferença.
  */
 export async function getActiveAccessForUser(
   userId: string
@@ -565,16 +599,15 @@ export async function getActiveAccessForUser(
 
   const now = new Date();
 
-  // Garante que usuários que já concluíram o primeiro acesso tenham um grant
-  // ACTIVE (para o layout não bloquear por falta de grant). Se não houver
-  // nenhum grant, assume que o acesso está liberado (usuários antigos).
+  // Sem nenhum grant = conta sem direito de acesso. Nunca "ACTIVE".
   if (grants.length === 0) {
     return {
-      active: true,
-      status: "ACTIVE",
+      active: false,
+      status: "NO_ACCESS",
       expiresAt: null,
       planName: null,
       needsFirstAccess: false,
+      grantCount: 0,
     };
   }
 
@@ -590,5 +623,6 @@ export async function getActiveAccessForUser(
     expiresAt: grant.expiresAt ? grant.expiresAt.toISOString() : null,
     planName: grant.planName ?? null,
     needsFirstAccess,
+    grantCount: grants.length,
   };
 }

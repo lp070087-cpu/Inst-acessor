@@ -9,6 +9,7 @@ import {
   Share2,
   MessageSquareHeart,
   BarChart3,
+  CalendarDays,
   CreditCard,
   User,
   Settings,
@@ -62,6 +63,15 @@ export const mainNav: NavItem[] = [
     href: "/rank",
     icon: Trophy,
     description: "Sua posição no ranking",
+  },
+  {
+    // Motor determinístico sobre dados reais (mesmo banco do /calendario).
+    // Item PRÓPRIO da navegação: a página /calendario continua sendo o
+    // planejamento operacional e NÃO foi alterada por esta adição.
+    label: "Calendário Inteligente",
+    href: "/calendario-inteligente",
+    icon: CalendarDays,
+    description: "Recomendações baseadas no seu histórico",
   },
   {
     label: "Mentoria",

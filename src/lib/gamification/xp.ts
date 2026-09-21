@@ -83,6 +83,137 @@ export function xpRequiredForLevel(level: number): number {
   return total;
 }
 
+// ------------------------------------------------------------
+// NÍVEIS GERAIS (faixas) — progressão por XP acumulado
+// ------------------------------------------------------------
+
+/**
+ * FAIXAS GERAIS DE RANK.
+ *
+ * Regra de produto: o rank GERAL tem EXATAMENTE 5 faixas — Bronze, Prata,
+ * Ouro, Diamante e Lendário. São faixas de XP ACUMULADO (`totalXpEarned`), não
+ * níveis numéricos: o mesmo XP que antes só virava "Nível N" agora também
+ * posiciona o usuário numa faixa nomeada.
+ *
+ * Os limiares são EXATAMENTE os já anunciados na landing
+ * (`src/components/landing/sections-c.tsx`, seção "Badges e troféus"):
+ * 1.000 / 2.500 / 5.000 / 10.000 / 20.000 XP. Antes desta rodada eram promessa
+ * de marketing sem lastro em nenhum cálculo do app; agora são reais.
+ *
+ * Abaixo de 1.000 XP o usuário está ANTES do Bronze — não existe uma 6ª faixa
+ * inventada para preencher ("Iniciante" etc.). O Rank mostra a distância real
+ * até o Bronze. NUNCA inflar o nível do usuário para ele "ter" uma faixa.
+ *
+ * Estas faixas NÃO substituem os tiers das conquistas individuais
+ * (`Achievement.tier`), que continuam sendo um sistema separado.
+ *
+ * Módulo PURO (sem banco): pode ser espelhado no Client Component do Rank.
+ */
+export const RANK_TIERS = [
+  { key: "BRONZE", label: "Bronze", minXp: 1000 },
+  { key: "PRATA", label: "Prata", minXp: 2500 },
+  { key: "OURO", label: "Ouro", minXp: 5000 },
+  { key: "DIAMANTE", label: "Diamante", minXp: 10000 },
+  { key: "LENDARIO", label: "Lendário", minXp: 20000 },
+] as const;
+
+export type RankTierKey = (typeof RANK_TIERS)[number]["key"];
+
+export interface RankTierInfo {
+  /**
+   * `null` quando o XP ainda não alcançou o Bronze. Nunca uma faixa inventada.
+   */
+  key: RankTierKey | null;
+  /** Rótulo exibido. `null` antes do Bronze. */
+  label: string | null;
+  /** Índice 0–4 (Bronze→Lendário). `-1` antes do Bronze. */
+  index: number;
+  /** Faixa mínima de XP da faixa alcançada. `null` antes do Bronze. */
+  minXp: number | null;
+  /** Faixa seguinte (`null` no topo ou antes do Bronze... ver `nextMinXp`). */
+  nextMinXp: number | null;
+  /** Rótulo da faixa seguinte. `null` no topo (Lendário). */
+  nextLabel: string | null;
+  /** XP que falta para a PRÓXIMA faixa. `null` no topo (Lendário). */
+  xpToNextTier: number | null;
+  /** Progresso 0–100 rumo à próxima faixa. `null` no topo (Lendário). */
+  progressToNextTier: number | null;
+  /** XP total acumulado (entrada). */
+  xp: number;
+}
+
+/**
+ * Resolve a faixa geral a partir do XP acumulado.
+ *
+ * Semântica dos limites (importante, é o que aparece na tela):
+ * - 0..999          → nenhuma faixa; falta `1000 - xp` para o Bronze.
+ * - 1.000..2.499    → Bronze; progresso é quanto falta para o Prata.
+ * - 20.000+         → Lendário; topo, sem próxima faixa (progresso `null`).
+ *
+ * No topo NÃO sintetizamos 100% nem 0%: as duas coisas afirmariam algo falso
+ * (que ainda há o que subir, ou que nada foi conquistado).
+ */
+export function rankTierFromXp(totalXp: number): RankTierInfo {
+  const xp = Number.isFinite(totalXp) && totalXp > 0 ? Math.floor(totalXp) : 0;
+
+  let index = -1;
+  for (let i = 0; i < RANK_TIERS.length; i++) {
+    if (xp >= RANK_TIERS[i].minXp) index = i;
+  }
+
+  const base: Omit<RankTierInfo, "key" | "label" | "index" | "minXp"> = {
+    nextMinXp: null,
+    nextLabel: null,
+    xpToNextTier: null,
+    progressToNextTier: null,
+    xp,
+  };
+
+  // Ainda não alcançou o Bronze.
+  if (index < 0) {
+    const first = RANK_TIERS[0];
+    return {
+      ...base,
+      key: null,
+      label: null,
+      index: -1,
+      minXp: null,
+      nextMinXp: first.minXp,
+      nextLabel: first.label,
+      xpToNextTier: first.minXp - xp,
+    };
+  }
+
+  const tier = RANK_TIERS[index];
+  const next = RANK_TIERS[index + 1] ?? null;
+
+  if (!next) {
+    return {
+      ...base,
+      key: tier.key,
+      label: tier.label,
+      index,
+      minXp: tier.minXp,
+    };
+  }
+
+  const span = next.minXp - tier.minXp;
+  const inTier = Math.max(0, xp - tier.minXp);
+
+  return {
+    ...base,
+    key: tier.key,
+    label: tier.label,
+    index,
+    minXp: tier.minXp,
+    nextMinXp: next.minXp,
+    nextLabel: next.label,
+    xpToNextTier: Math.max(0, next.minXp - xp),
+    progressToNextTier:
+      span > 0 ? Math.min(100, Math.round((inTier / span) * 10000) / 100) : null,
+  };
+}
+
 export interface LevelInfo {
   level: number;
   xp: number;
@@ -218,6 +349,11 @@ export async function grantXp(
 
 export interface UserProgress {
   levelInfo: LevelInfo;
+  /**
+   * Faixa geral (Bronze→Lendário) derivada do XP acumulado.
+   * Aditivo: `levelInfo` continua exatamente como era.
+   */
+  rankTier: RankTierInfo;
   xpLogs: {
     source: string;
     refId: string;
@@ -247,6 +383,9 @@ export async function getUserProgress(userId: string): Promise<UserProgress> {
       progressToNext: Math.min(100, Math.round(progress * 100) / 100),
       xpTotal: lvl.xp,
     },
+    // Faixa geral calculada sobre o XP ACUMULADO (`totalXpEarned`), que é a
+    // mesma base dos limiares da landing — não sobre `lvl.xp` (XP do nível).
+    rankTier: rankTierFromXp(lvl.totalXpEarned),
     xpLogs: (logs as { source: string; refId: string; amount: number; createdAt: Date }[]).map(
       (l) => ({
         source: l.source,

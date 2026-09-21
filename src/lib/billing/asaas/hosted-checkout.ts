@@ -69,9 +69,22 @@ export function buildHostedCheckoutRequest(input: {
   buyerPostalCode?: string | null;
   /** Bairro. */
   buyerProvince?: string | null;
+  /**
+   * Preço a COBRAR, em centavos, já resolvido no SERVIDOR (P17–P21).
+   * Vem de `resolveCheckoutPrice()` — catálogo + promoção + histórico REAL do
+   * comprador — e NUNCA do navegador. Quando ausente, usa `plan.priceCents`.
+   * Um valor não-inteiro/não-positivo é ignorado (e vale o preço cheio).
+   */
+  chargePriceCents?: number | null;
 }): AsaasCheckoutRequest {
   const { plan } = input;
-  const value = plan.priceCents / 100; // Asaas espera Reais (float).
+  const chargeCents =
+    typeof input.chargePriceCents === "number" &&
+    Number.isInteger(input.chargePriceCents) &&
+    input.chargePriceCents > 0
+      ? input.chargePriceCents
+      : plan.priceCents;
+  const value = chargeCents / 100; // Asaas espera Reais (float).
   const dueDate = todayIso();
   const baseUrl = getAppBaseUrl();
   const recurring = plan.type === "RECURRING" && Boolean(plan.billingInterval);

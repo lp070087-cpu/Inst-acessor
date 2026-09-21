@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, CreditCard, Plug, Cpu, Webhook, Menu, X, ShieldCheck, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, CreditCard, Plug, Cpu, Webhook, Menu, X, ShieldCheck, LogOut, Tag } from "lucide-react";
 import { signOut } from "next-auth/react";
 import type { Session } from "next-auth";
 
@@ -49,6 +49,12 @@ const adminNav: AdminNavItem[] = [
     href: "/admin/ia",
     icon: Cpu,
     description: "Configuração central da IA",
+  },
+  {
+    label: "Pré-venda",
+    href: "/admin/promocao",
+    icon: Tag,
+    description: "Promoção de lançamento e countdown",
   },
   {
     label: "Webhooks",

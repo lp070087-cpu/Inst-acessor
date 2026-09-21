@@ -10,12 +10,25 @@ import {
   Info,
   CheckCircle2,
   XCircle,
+  Heart,
+  Eye,
+  CalendarCheck,
+  CalendarDays,
+  Activity,
+  BarChart3,
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CircularProgress } from "@/components/ui/circular-progress";
+import { ProgressBar } from "@/components/ui/progress-bar";
 import { cn } from "@/lib/utils";
+import {
+  pillarGuidance,
+  pillarWeightLabel,
+  sortPillarsForDisplay,
+  type PillarBand,
+} from "@/lib/ai/services/score-guidance";
 
 const PLATFORMS = [
   { id: "instagram", label: "Instagram" },
@@ -76,6 +89,113 @@ function StateIcon({ icon }: { icon: "up" | "alert" | "info" | "ok" | "x" }) {
   if (icon === "x") return <XCircle size={14} />;
   if (icon === "ok") return <CheckCircle2 size={14} />;
   return <Info size={14} />;
+}
+
+/** Ícone de cada pilar do Score. Pilar desconhecido → ícone neutro. */
+function pillarIcon(key: string) {
+  if (key === "engagement") return Heart;
+  if (key === "growth") return TrendingUp;
+  if (key === "reach") return Eye;
+  if (key === "consistency") return CalendarCheck;
+  if (key === "frequency") return CalendarDays;
+  if (key === "content") return BarChart3;
+  return Activity;
+}
+
+/** Cor por faixa medida — as mesmas três faixas usadas no resto da tela. */
+function bandColor(band: PillarBand): string {
+  if (band === "bom") return "text-success";
+  if (band === "atencao") return "text-danger";
+  if (band === "desenvolvimento") return "text-warn";
+  return "text-ink-muted";
+}
+
+/**
+ * Card de UM pilar do Score.
+ *
+ * Mostra SEMPRE, para o mesmo pilar: ícone, anel com a nota, rótulo, status,
+ * barra de progresso e recomendação. Quando não há dado, nenhum desses
+ * elementos é preenchido com zero — o anel fica tracejado, a barra não é
+ * desenhada e a recomendação é a de COLETAR o dado (ver `score-guidance`).
+ */
+function PillarCard({ pillar }: { pillar: Pillar }) {
+  const g = pillarGuidance(
+    pillar.key,
+    pillar.value,
+    pillar.available,
+    Boolean(pillar.complementary)
+  );
+  const measured = g.band !== "indisponivel";
+  const Icon = pillarIcon(pillar.key);
+  const weightLabel = pillarWeightLabel(pillar.weight ?? 0, Boolean(pillar.complementary));
+
+  return (
+    <div
+      className={cn(
+        "rounded-[14px] bg-card border border-border-soft shadow-xs p-4 flex flex-col gap-3 min-w-0"
+      )}
+    >
+      <div className="flex items-start gap-3 min-w-0">
+        <span
+          className={cn(
+            "w-8 h-8 rounded-[10px] grid place-items-center flex-none border",
+            measured ? "bg-ai-soft text-purple border-purple/15" : "bg-surface text-ink-muted border-border-soft"
+          )}
+          aria-hidden="true"
+        >
+          <Icon size={16} />
+        </span>
+
+        <div className="flex-1 min-w-0">
+          {/* O rótulo do pilar pode ser uma palavra longa; `break-words` evita
+              que ele empurre a coluna em telas de 320px. */}
+          <p className="text-[12.5px] font-semibold text-ink break-words">{pillar.label}</p>
+          <span className={cn("text-[11.5px] font-bold", bandColor(g.band))}>{g.statusLabel}</span>
+          {weightLabel && (
+            <p className="text-[10.5px] text-ink-muted mt-0.5">{weightLabel}</p>
+          )}
+        </div>
+
+        <div className="flex-none relative w-[58px] h-[58px]">
+          {measured ? (
+            <>
+              {/* O anel do componente não exibe o número aqui: nesta altura
+                  (58px) a fonte seria maior que o círculo. O valor entra em
+                  um overlay próprio, com tamanho fixo. */}
+              <CircularProgress
+                value={pillar.value ?? 0}
+                size={58}
+                strokeWidth={6}
+                showValue={false}
+                gradientId={`ringGrad-${pillar.key}`}
+              />
+              <span className="absolute inset-0 grid place-items-center font-data font-bold text-[16px] leading-none text-ink">
+                {Math.round(pillar.value ?? 0)}
+              </span>
+            </>
+          ) : (
+            <div
+              className="w-[58px] h-[58px] rounded-full border-[5px] border-dashed border-border grid place-items-center"
+              aria-label="Sem dado para este pilar"
+            >
+              <span className="text-[14px] font-bold text-ink-muted">—</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Barra de progresso: só quando existe nota. Sem dado não há o que
+          preencher, e uma barra vazia afirmaria desempenho zero. */}
+      {measured && (
+        <ProgressBar
+          value={pillar.value ?? 0}
+          gradient={g.band === "bom" ? "green" : g.band === "atencao" ? "magenta" : "blue"}
+        />
+      )}
+
+      <p className="text-[12px] text-ink-soft leading-relaxed">{g.recommendation}</p>
+    </div>
+  );
 }
 
 interface ScoreClientProps {
@@ -269,37 +389,29 @@ export function ScoreClient({ initial }: ScoreClientProps) {
               )}
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {score.pillars.map((p) => (
-                <div
-                  key={p.key}
-                  className={cn(
-                    "rounded-[14px] bg-card border border-border-soft shadow-xs p-4 flex flex-col gap-1.5 min-w-0",
-                    !p.available && "opacity-70"
-                  )}
-                >
-                  {/* BLOCO 5 — o rótulo do pilar vem do motor de score e pode
-                      ser uma palavra longa. Em 320px o card da grade de 2
-                      colunas tem ~130px: `break-words` evita que ele empurre
-                      a coluna. */}
-                  <span className="text-[12px] font-semibold text-ink-soft break-words">{p.label}</span>
-                  <span className="font-display text-[24px] font-bold text-ink">
-                    {p.available && p.value != null ? p.value : "—"}
-                  </span>
-                  {p.available && p.value != null ? (
-                    <span
-                      className={cn(
-                        "text-[11.5px] font-bold",
-                        p.value >= 70 ? "text-success" : p.value <= 35 ? "text-danger" : "text-warn"
-                      )}
-                    >
-                      {p.value >= 70 ? "Bom" : p.value <= 35 ? "Atenção" : "Em desenvolvimento"}
-                    </span>
-                  ) : (
-                    <span className="text-[11.5px] text-ink-muted">Dados insuficientes</span>
-                  )}
+            {/* PILARES — grade 2×2 no desktop (Engajamento, Crescimento,
+                Alcance, Consistência), cada um com ícone, anel de nota,
+                status, barra de progresso real e recomendação.
+                O rodapé da grade só existe quando há pilar complementar
+                (Frequência/Desempenho), que vem depois dos 4 oficiais. */}
+            <div className="flex flex-col gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {sortPillarsForDisplay(score.pillars)
+                  .filter((p) => !p.complementary)
+                  .map((p) => (
+                    <PillarCard key={p.key} pillar={p} />
+                  ))}
+              </div>
+
+              {sortPillarsForDisplay(score.pillars).some((p) => p.complementary) && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {sortPillarsForDisplay(score.pillars)
+                    .filter((p) => p.complementary)
+                    .map((p) => (
+                      <PillarCard key={p.key} pillar={p} />
+                    ))}
                 </div>
-              ))}
+              )}
             </div>
           </div>
 

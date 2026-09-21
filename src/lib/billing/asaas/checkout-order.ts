@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 
 import { bll, type CheckoutOrder } from "@/lib/billing/db";
 import { getPlanById } from "@/lib/billing/plans";
+import { resolveCheckoutPrice } from "@/lib/billing/promo-db";
 import { normalizeEmail } from "@/lib/first-access/core";
 import { asaasClient, AsaasHttpError } from "./client";
 import { getAsaasConfig } from "./config";
@@ -150,10 +151,22 @@ export async function startPublicCheckout(input: {
     };
   }
 
-  // 3) Referência externa ÚNICA desta compra.
+  // 3) PREÇO — resolvido AQUI, no servidor (P17–P21). O navegador nunca envia
+  //    valor: ele envia o `planId`. A promoção (pré-venda) só se aplica se
+  //    (a) o admin a mantiver ligada, (b) o countdown — se houver — ainda não
+  //    venceu, e (c) o HISTÓRICO REAL do comprador ainda tiver direito a ela.
+  //    Configuração inválida (promo ≥ cheio) é descartada e vale o preço cheio.
+  const pricing = await resolveCheckoutPrice({
+    slug: plan.slug,
+    basePriceCents: plan.priceCents,
+    userId: input.userId ?? null,
+  });
+  const chargeCents = pricing.priceCents;
+
+  // 4) Referência externa ÚNICA desta compra.
   const externalReference = buildExternalReference(email);
 
-  // 4) Cria a ordem local em PENDING ANTES da chamada externa (reconciliação).
+  // 5) Cria a ordem local em PENDING ANTES da chamada externa (reconciliação).
   //    `planId` é uma FK opcional. Quando `getPlanById` cai no FALLBACK do
   //    catálogo em memória (banco indisponível no momento da resolução), o id
   //    devolvido é `plan:<slug>` — que NÃO existe na tabela `Plan`. Gravar isso
@@ -171,7 +184,12 @@ export async function startPublicCheckout(input: {
       planId: planIdForOrder,
       planSlug: plan.slug,
       planName: plan.name,
-      expectedAmountCents: plan.priceCents,
+      // O valor ESPERADO pela ordem é o preço RESOLVIDO NO SERVIDOR, não o de
+      // catálogo: é contra este número que o webhook valida o valor que o Asaas
+      // confirmar. Um checkout criado com promoção e conferido contra o preço
+      // cheio seria recusado como divergência; e um checkout com preço cheio
+      // conferido contra a promoção liberaria acesso pagando menos.
+      expectedAmountCents: chargeCents,
       currency: plan.currency,
       billingType: plan.type, // "ONE_TIME" | "RECURRING"
       billingInterval: plan.billingInterval ?? null,
@@ -181,7 +199,18 @@ export async function startPublicCheckout(input: {
       externalPaymentId: null,
       externalSubscriptionId: null,
       paidAt: null,
-      audit: { step: "order_created", at: new Date().toISOString() },
+      audit: {
+        step: "order_created",
+        at: new Date().toISOString(),
+        // Trilha de auditoria do PREÇO: qual foi cobrado, qual era o cheio e
+        // por que a promoção aplicou (ou não). Nunca guarda dado pessoal.
+        basePriceCents: pricing.basePriceCents,
+        chargedPriceCents: chargeCents,
+        promoApplied: pricing.applied,
+        promoLabel: pricing.label,
+        promoSkipReason: pricing.skipReason,
+        promoCountdownRunning: pricing.countdownRunning,
+      },
       // `id` e `updatedAt` NÃO são informados de propósito: são gerados pelo
       // Prisma (`@default(cuid())` e `@updatedAt` no schema). Enviá-los aqui
       // como `undefined` era o que disparava o PrismaClientValidationError
@@ -189,7 +218,7 @@ export async function startPublicCheckout(input: {
     },
   })) as unknown as CheckoutOrder;
 
-  // 5) Chama o checkout hospedado oficial (POST /v3/checkouts).
+  // 6) Chama o checkout hospedado oficial (POST /v3/checkouts).
   //    Se o comprador já é nosso User e já tem customer no Asaas, REUTILIZA —
   //    evita criar um segundo customer para a mesma pessoa. Sem customerId,
   //    enviamos `customerData` (nome/e-mail) para o Asaas criar o cliente.
@@ -213,6 +242,8 @@ export async function startPublicCheckout(input: {
         buyerAddressNumber: input.buyer?.addressNumber ?? null,
         buyerPostalCode: input.buyer?.postalCode ?? null,
         buyerProvince: input.buyer?.province ?? null,
+        // Preço JÁ resolvido no servidor (catálogo + promoção + histórico real).
+        chargePriceCents: chargeCents,
       }),
       cfg
     );
