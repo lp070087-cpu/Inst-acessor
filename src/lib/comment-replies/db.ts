@@ -316,7 +316,14 @@ export async function findMediaByIgId(
 /**
  * Cria o registro de forma idempotente.
  * Se o comentário já tiver registro, devolve o existente em vez de duplicar —
- * o `login`/`findFirst` acima cobre o caso comum, e o catch cobre a corrida.
+ * o `findUnique` abaixo cobre o caso comum, e o `create` funciona como
+ * operação atômica: quando a Meta entrega o MESMO webhook duas vezes em
+ * paralelo, `@@unique([mediaId, commentId])` barra o segundo insert e o
+ * código passa a devolver a linha vencedora em vez de estourar.
+ *
+ * O catch é deliberadamente ESTREITO (P2002 no alvo `mediaId_commentId`):
+ * qualquer outro erro continua subindo, em vez de virar um "upsert que
+ * engoliu a falha".
  */
 export async function upsertLog(input: {
   userId: string;
@@ -352,7 +359,35 @@ export async function upsertLog(input: {
     })) as ReplyLogRow;
   }
 
-  return (await db.commentReplyLog.create({ data: input })) as ReplyLogRow;
+  try {
+    return (await db.commentReplyLog.create({ data: input })) as ReplyLogRow;
+  } catch (err) {
+    if (!isUniqueRaceOnComment(err)) throw err;
+
+    // Outra entrega do mesmo evento chegou primeiro: a linha real é a dela.
+    const winner = await findReplyByComment(input.mediaId, input.commentId);
+    if (!winner) throw err;
+    return winner;
+  }
+}
+
+/**
+ * `true` somente para a violação do unique `[mediaId, commentId]`.
+ * Lê a forma do erro do Prisma sem importar `Prisma.PrismaClientKnownRequestError`
+ * (o cliente gerado pode estar desatualizado em relação ao schema).
+ */
+function isUniqueRaceOnComment(err: unknown): boolean {
+  if (typeof err !== "object" || err === null) return false;
+  const e = err as { code?: unknown; meta?: { target?: unknown } };
+  if (e.code !== "P2002") return false;
+
+  const target = e.meta?.target;
+  const fields = Array.isArray(target)
+    ? target.map((t) => String(t))
+    : typeof target === "string"
+      ? [target]
+      : [];
+  return fields.includes("mediaId") && fields.includes("commentId");
 }
 
 export async function updateLog(

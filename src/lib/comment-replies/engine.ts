@@ -24,6 +24,8 @@ import {
   replyToComment,
   CommentCapabilityError,
 } from "./instagram-comments";
+import type { CommentCredentials } from "./instagram-comments";
+import type { AutomationRule } from "./db";
 import type { CommentCategory, EligibleComment, EligibleMedia, ReplySource } from "./types";
 
 /**
@@ -124,8 +126,6 @@ export async function analyzeMedia(
   mediaId: string,
   opts: { onlyUnanswered?: boolean; persist?: boolean } = {}
 ): Promise<AnalyzeSummary> {
-  const persist = opts.persist ?? true;
-
   // ---- conexÃƒÂ£o (mesma do Redes Sociais Ã¢â‚¬â€ sem segundo OAuth) ----
   let credentials;
   try {
@@ -152,7 +152,79 @@ export async function analyzeMedia(
     return { ok: false, error: info.message, code: info.code, items: [] };
   }
 
-  // ---- contexto real do usuÃƒÂ¡rio ----
+  // ---- contexto real do usuÃƒÂ¡rio (uma leitura para TODA a leva) ----
+  let ctx: CommentAnalysisContext;
+  let media: EligibleMedia | undefined;
+  try {
+    const built = await loadAnalysisContext(userId, mediaId);
+    ctx = built.ctx;
+    media = built.media;
+  } catch (err) {
+    const info = err instanceof CommentCapabilityError ? err : null;
+    return {
+      ok: false,
+      error: info?.message ?? "NÃƒÂ£o foi possÃƒÂ­vel carregar a configuraÃƒÂ§ÃƒÂ£o de respostas.",
+      code: info?.code ?? "api",
+      items: [],
+    };
+  }
+
+  const items: AnalyzeResultItem[] = [];
+
+  for (const comment of comments) {
+    if (opts.onlyUnanswered) {
+      const existing = await findReplyByComment(mediaId, comment.commentId);
+      // JÃƒÂ¡ respondido ou jÃƒÂ¡ registrado: nÃƒÂ£o reanalisa, nÃƒÂ£o duplica.
+      if (existing && existing.status !== "ERROR") continue;
+    }
+
+    items.push(
+      await analyzeSingleComment({
+        userId,
+        mediaId,
+        comment,
+        ctx,
+        credentials,
+        persist: opts.persist ?? true,
+      })
+    );
+  }
+
+  return { ok: true, media, items };
+}
+
+// ================================================================
+// NÃƒÅ¡CLEO DE ANÃƒÂLISE DE UM ÃƒÅ¡NICO COMENTÃƒÂRIO
+// ================================================================
+//
+// `analyzeMedia()` LÃƒÂª os comentÃƒÂ¡rios da API e entÃƒÂ£o analisa cada um. O webhook
+// de comentÃƒÂ¡rios do Instagram jÃƒÂ¡ RECEBE o comentÃƒÂ¡rio da Meta e nÃƒÂ£o pode chamar
+// `listComments` de novo (seria uma chamada Ã¢â‚¬â€ e um rate limit Ã¢â‚¬â€ por evento).
+// Por isso o corpo do laÃƒÂ§o abaixo foi extraÃƒÂ­do para cÃƒÂ¡: os DOIS caminhos usam
+// exatamente a mesma classificaÃƒÂ§ÃƒÂ£o, prioridade, geraÃƒÂ§ÃƒÂ£o e regras de seguranÃƒÂ§a.
+// Nada de segunda implementaÃƒÂ§ÃƒÂ£o.
+
+/** Contexto do usuÃƒÂ¡rio usado para analisar comentÃƒÂ¡rios (lido UMA vez). */
+export interface CommentAnalysisContext {
+  rule: AutomationRule;
+  media: EligibleMedia | undefined;
+  templateInputs: TemplateInput[];
+  specialInputs: SpecialProfileInput[];
+  aiProfile: Awaited<ReturnType<typeof getAIProfile>>;
+  profileNiche: string | null;
+  profileObjective: string | null;
+  aiAvailable: boolean;
+  recentReplies: string[];
+}
+
+/**
+ * Carrega todo o contexto necessÃƒÂ¡rio para analisar comentÃƒÂ¡rios de um usuÃƒÂ¡rio.
+ * Mesmas consultas que `analyzeMedia` jÃƒÂ¡ fazia, agora em um ÃƒÂºnico lugar.
+ */
+export async function loadAnalysisContext(
+  userId: string,
+  mediaId: string
+): Promise<{ ctx: CommentAnalysisContext; media: EligibleMedia | undefined }> {
   const [rule, templates, specialProfiles, aiProfile, userProfile, available, recentReplies, mediaRow] =
     await Promise.all([
       getOrCreateRule(userId),
@@ -177,100 +249,129 @@ export async function analyzeMedia(
       }
     : undefined;
 
-  const templateInputs = templates.map(toTemplateInput);
-  const specialInputs = specialProfiles.map(toSpecialProfileInput);
+  const ctx: CommentAnalysisContext = {
+    rule,
+    media,
+    templateInputs: templates.map(toTemplateInput),
+    specialInputs: specialProfiles.map(toSpecialProfileInput),
+    aiProfile,
+    profileNiche: (userProfile as unknown as { niche: string | null } | null)?.niche ?? null,
+    profileObjective: (userProfile as unknown as { objective: string | null } | null)?.objective ?? null,
+    aiAvailable: available,
+    recentReplies,
+  };
 
-  const items: AnalyzeResultItem[] = [];
+  return { ctx, media };
+}
 
-  for (const comment of comments) {
-    if (opts.onlyUnanswered) {
-      const existing = await findReplyByComment(mediaId, comment.commentId);
-      // JÃƒÂ¡ respondido ou jÃƒÂ¡ registrado: nÃƒÂ£o reanalisa, nÃƒÂ£o duplica.
-      if (existing && existing.status !== "ERROR") continue;
-    }
+/**
+ * Analisa UM comentÃƒÂ¡rio jÃƒÂ¡ conhecido (vindo da API ou do webhook) e registra a
+ * sugestÃƒÂ£o em `CommentReplyLog`. NÃƒÆ’O envia nada: o envio ÃƒÂ© sempre
+ * `sendApprovedReply()`, chamado pelo ciclo de automaÃƒÂ§ÃƒÂ£o ou por aprovaÃƒÂ§ÃƒÂ£o.
+ *
+ * `credentials` pode ser omitido quando o leitor jÃƒÂ¡ tem a conexÃƒÂ£o carregada
+ * (`analyzeMedia`); o webhook, que nÃƒÂ£o lÃƒÂª comentÃƒÂ¡rios, passa `null` e a funÃƒÂ§ÃƒÂ£o
+ * carrega a conexÃƒÂ£o — ÃƒÂ© preciso o `connectionId` para gravar o log.
+ */
+export async function analyzeSingleComment(input: {
+  userId: string;
+  mediaId: string;
+  comment: EligibleComment;
+  ctx: CommentAnalysisContext;
+  credentials?: CommentCredentials | null;
+  persist?: boolean;
+}): Promise<AnalyzeResultItem> {
+  const { userId, mediaId, comment, ctx } = input;
+  const persist = input.persist ?? true;
 
-    const classification = await classifyComment(comment.text, available);
-
-    const decision = resolvePriority({
-      commentText: comment.text,
-      commenterUsername: comment.username,
-      category: classification.category,
-      reviewTrigger: classification.reviewTrigger,
-      specialProfiles: specialInputs,
-      templates: templateInputs,
-      tone: aiProfile?.voiceTone ?? null,
-    });
-
-    const generated = await generateReply({
-      decision,
-      commentText: comment.text,
-      commenterUsername: comment.username,
-      mediaCaption: media?.caption ?? null,
-      mediaType: media?.mediaType ?? "IMAGE",
-      aiProfile,
-      profileNiche: (userProfile as unknown as { niche: string | null } | null)?.niche ?? null,
-      profileObjective: (userProfile as unknown as { objective: string | null } | null)?.objective ?? null,
-      recentReplies,
-    });
-
-    const autoDecision = canAutoSend({
-      category: classification.category,
-      text: comment.text,
-      mode: rule.replyMode,
-      enabled: rule.enabled,
-      paused: rule.paused,
-    });
-
-    // O modo AUTO tambÃƒÂ©m ÃƒÂ© bloqueado quando o resolvedor de prioridade marca
-    // revisÃƒÂ£o obrigatÃƒÂ³ria (perfil especial + conteÃƒÂºdo sensÃƒÂ­vel, por exemplo).
-    const forcedReview = decision.kind === "REVIEW_ONLY" || (decision.kind === "AI" && decision.forceReview);
-
-    const reviewReason = classification.reviewTrigger ?? (decision.kind === "REVIEW_ONLY" ? decision.reviewReason : null);
-
-    // Estado inicial: PENDING. A anÃƒÂ¡lise NUNCA envia nada Ã¢â‚¬â€ mesmo quando o
-    // comentÃƒÂ¡rio ÃƒÂ© elegÃƒÂ­vel para automaÃƒÂ§ÃƒÂ£o, ele fica aguardando o ciclo de
-    // envio (aprovaÃƒÂ§ÃƒÂ£o humana ou `runAutomation`).
-    let status: AnalyzeResultItem["status"] = "PENDING";
-    if (classification.category === "spam") {
-      // Spam nunca ÃƒÂ© respondido Ã¢â‚¬â€ registrado como nÃƒÂ£o respondido, o que jÃƒÂ¡
-      // impede nova anÃƒÂ¡lise do mesmo comentÃƒÂ¡rio.
-      status = "SKIPPED";
-    }
-
-    let logId: string | null = null;
-    if (persist) {
-      const log = await upsertLog({
-        userId,
-        socialConnectionId: credentials.connectionId,
-        mediaId,
-        commentId: comment.commentId,
-        commenterUsername: comment.username,
-        originalComment: comment.text,
-        commentCategory: classification.category,
-        generatedReply: generated.reply ?? null,
-        status,
-        sourceRule: decision.source,
-        ruleId: rule.id,
-      });
-      logId = log.id;
-    }
-
-    items.push({
-      comment,
-      category: classification.category,
-      decisionKind: decision.kind,
-      generatedReply: generated.reply ?? null,
-      status,
-      reviewReason,
-      reviewReasonLabel: reviewReason ? REVIEW_REASON_LABEL[reviewReason] ?? null : null,
-      autoSendable: autoDecision.allowed && !forcedReview && generated.ok,
-      source: decision.source,
-      logId,
-      error: generated.ok ? undefined : generated.reason,
-    });
+  let credentials = input.credentials ?? null;
+  if (!credentials) {
+    // Sem conexÃƒÂ£o nÃƒÂ£o hÃƒÂ¡ como registrar a sugestÃƒÂ£o de forma ÃƒÂºtil: o log exige
+    // `socialConnectionId`. Fail-closed, com o erro tipado do projeto.
+    credentials = await loadCommentCredentials(userId);
   }
 
-  return { ok: true, media, items };
+  const media = ctx.media;
+
+  const classification = await classifyComment(comment.text, ctx.aiAvailable);
+
+  const decision = resolvePriority({
+    commentText: comment.text,
+    commenterUsername: comment.username,
+    category: classification.category,
+    reviewTrigger: classification.reviewTrigger,
+    specialProfiles: ctx.specialInputs,
+    templates: ctx.templateInputs,
+    tone: ctx.aiProfile?.voiceTone ?? null,
+  });
+
+  const generated = await generateReply({
+    decision,
+    commentText: comment.text,
+    commenterUsername: comment.username,
+    mediaCaption: media?.caption ?? null,
+    mediaType: media?.mediaType ?? "IMAGE",
+    aiProfile: ctx.aiProfile,
+    profileNiche: ctx.profileNiche,
+    profileObjective: ctx.profileObjective,
+    recentReplies: ctx.recentReplies,
+  });
+
+  const autoDecision = canAutoSend({
+    category: classification.category,
+    text: comment.text,
+    mode: ctx.rule.replyMode,
+    enabled: ctx.rule.enabled,
+    paused: ctx.rule.paused,
+  });
+
+  // O modo AUTO tambÃƒÂ©m ÃƒÂ© bloqueado quando o resolvedor de prioridade marca
+  // revisÃƒÂ£o obrigatÃƒÂ³ria (perfil especial + conteÃƒÂºdo sensÃƒÂ­vel, por exemplo).
+  const forcedReview = decision.kind === "REVIEW_ONLY" || (decision.kind === "AI" && decision.forceReview);
+
+  const reviewReason = classification.reviewTrigger ?? (decision.kind === "REVIEW_ONLY" ? decision.reviewReason : null);
+
+  // Estado inicial: PENDING. A anÃƒÂ¡lise NUNCA envia nada Ã¢â‚¬â€ mesmo quando o
+  // comentÃƒÂ¡rio ÃƒÂ© elegÃƒÂ­vel para automaÃƒÂ§ÃƒÂ£o, ele fica aguardando o ciclo de
+  // envio (aprovaÃƒÂ§ÃƒÂ£o humana ou `runAutomation`).
+  let status: AnalyzeResultItem["status"] = "PENDING";
+  if (classification.category === "spam") {
+    // Spam nunca ÃƒÂ© respondido Ã¢â‚¬â€ registrado como nÃƒÂ£o respondido, o que jÃƒÂ¡
+    // impede nova anÃƒÂ¡lise do mesmo comentÃƒÂ¡rio.
+    status = "SKIPPED";
+  }
+
+  let logId: string | null = null;
+  if (persist) {
+    const log = await upsertLog({
+      userId,
+      socialConnectionId: credentials.connectionId,
+      mediaId,
+      commentId: comment.commentId,
+      commenterUsername: comment.username,
+      originalComment: comment.text,
+      commentCategory: classification.category,
+      generatedReply: generated.reply ?? null,
+      status,
+      sourceRule: decision.source,
+      ruleId: ctx.rule.id,
+    });
+    logId = log.id;
+  }
+
+  return {
+    comment,
+    category: classification.category,
+    decisionKind: decision.kind,
+    generatedReply: generated.reply ?? null,
+    status,
+    reviewReason,
+    reviewReasonLabel: reviewReason ? REVIEW_REASON_LABEL[reviewReason] ?? null : null,
+    autoSendable: autoDecision.allowed && !forcedReview && generated.ok,
+    source: decision.source,
+    logId,
+    error: generated.ok ? undefined : generated.reason,
+  };
 }
 
 /**
