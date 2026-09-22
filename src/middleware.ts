@@ -34,7 +34,12 @@ export default withAuth(
         if (
           pathname.startsWith("/login") ||
           pathname.startsWith("/cadastro") ||
-          pathname.startsWith("/onboarding")
+          pathname.startsWith("/onboarding") ||
+          // Tela de bloqueio por falta de plano: o usuário está autenticado,
+          // mas não tem direito de acesso — não pode ser tratado como visitante.
+          pathname.startsWith("/acesso-restrito") ||
+          pathname.startsWith("/expirado") ||
+          pathname.startsWith("/primeiro-acesso")
         ) {
           return true;
         }
@@ -64,6 +69,17 @@ export const config = {
     "/perfil/:path*",
     "/configuracoes/:path*",
     "/sobre/:path*",
+    "/p/:path*",
+    "/publishing/:path*",
+    "/growth/:path*",
+    "/automacoes/:path*",
+    "/calendario/:path*",
+    "/calendario-inteligente/:path*",
+    "/score/:path*",
+    "/perfil-de-inteligencia/:path*",
+    "/acesso-restrito",
+    "/expirado",
+    "/primeiro-acesso",
     "/login",
     "/cadastro",
     "/onboarding",

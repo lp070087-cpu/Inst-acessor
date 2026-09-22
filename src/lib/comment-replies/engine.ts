@@ -2,6 +2,7 @@
 import { getAIProfile } from "@/lib/ai/services/profile";
 import { prisma } from "@/lib/db";
 import { classifyComment } from "./classify";
+import { analyzeEmptyReason, type AnalyzeEmptyReason } from "./empty-reason";
 import { canAutoSend, REVIEW_REASON_LABEL } from "./safety";
 import { resolvePriority, type SpecialProfileInput, type TemplateInput } from "./priority";
 import { generateReply, isTooSimilar } from "./generator";
@@ -20,11 +21,13 @@ import {
 } from "./db";
 import {
   listComments,
+  listStoredComments,
   loadCommentCredentials,
+  persistComments,
   replyToComment,
   CommentCapabilityError,
 } from "./instagram-comments";
-import type { CommentCredentials } from "./instagram-comments";
+import type { CommentCredentials, ListCommentsMeta } from "./instagram-comments";
 import type { AutomationRule } from "./db";
 import type { CommentCategory, EligibleComment, EligibleMedia, ReplySource } from "./types";
 
@@ -67,12 +70,56 @@ export interface AnalyzeResultItem {
   error?: string;
 }
 
+/**
+ * O MOTIVO do vazio vive em `./empty-reason` (núcleo puro, provado por
+ * execução). Reexportado aqui para os consumidores do motor não precisarem
+ * conhecer o arquivo interno — e para que exista UM caminho de importação.
+ */
+export { analyzeEmptyReason, emptyReasonNotice, emptyReasonNeedsAction } from "./empty-reason";
+export type { AnalyzeEmptyReason, EmptySignals } from "./empty-reason";
+
+/**
+ * Uma leitura que falhou para UM comentário específico.
+ *
+ * Existe porque a falha de item era INVISÍVEL: `analyzeSingleComment` lançava,
+ * o `catch` do laço gravava o motivo em `dbError` e seguia, mas ao final
+ * `emptyReason` só olhava `items.length` e `comments.length` — então 5
+ * comentários lidos com 5 falhas de gravação resultavam em `all_deduped`, isto
+ * é, "todos já foram analisados". A tela dizia exatamente isso enquanto nada
+ * havia sido analisado.
+ */
+export interface AnalyzeReadError {
+  commentId: string;
+  message: string;
+}
+
 export interface AnalyzeSummary {
   ok: boolean;
   error?: string;
   code?: string;
   media?: EligibleMedia;
   items: AnalyzeResultItem[];
+  /** Quantos comentários a Meta devolveu ANTES da deduplicação. */
+  fetchedCount?: number;
+  /** Quantos já tinham registro de análise (deduplicados). */
+  dedupedCount?: number;
+  emptyReason?: AnalyzeEmptyReason;
+  /** Falha de banco ao ler/gravar nesta análise (não é ausência de dados). */
+  dbError?: string;
+  /** A leitura ao vivo falhou, mas devolvemos o que estava persistido. */
+  usedStoredFallback?: boolean;
+  /**
+   * Falhas ao PROCESSAR comentários individuais (gravação do log). Vazio =
+   * nenhuma. Quando isto não está vazio e `items` também não, a leva é parcial
+   * e a UI precisa dizer isso.
+   */
+  readErrors?: AnalyzeReadError[];
+  /** A leitura parou no teto de páginas: a Meta ainda tinha mais comentários. */
+  truncated?: boolean;
+  /** Páginas da leitura ao vivo (diagnóstico; nunca inclui credencial). */
+  pagesFetched?: number;
+  /** Falha ao PERSISTIR os comentários lidos — separada da falha de análise. */
+  persistError?: string | null;
 }
 
 /** Converte a linha do banco no formato esperado pelo resolvedor de prioridade. */
@@ -140,16 +187,60 @@ export async function analyzeMedia(
     };
   }
 
-  // ---- comentÃƒÂ¡rios (erro tipado se a Meta nÃƒÂ£o autorizar) ----
+  // ---- comentários (erro tipado se a Meta não autorizar) ----
+  //
+  // FALLBACK HONESTO: se a leitura ao vivo falhar (rate limit, indisponibilidade
+  // momentânea) mas existirem comentários JÁ SINCRONIZADOS para esta publicação,
+  // analisamos o que temos em vez de devolver erro e esconder o dado real.
+  // A falha NÃO é convertida em "nenhum comentário": ela é reportada no
+  // `usedStoredFallback` + `error`, para a UI poder dizer o que de fato ocorreu.
+  //
+  // `media_not_found` e `capability` NÃO entram no fallback: são condições sobre
+  // A PUBLICAÇÃO e a PERMISSÃO, não indisponibilidade passageira. Analisar o
+  // que está no banco ali só maquiava o problema — e foi por isso que a tela
+  // conseguia dizer "nenhum comentário novo" numa publicação que a Meta nem
+  // reconhecia.
   let comments: EligibleComment[];
+  let usedStoredFallback = false;
+  let liveError: string | null = null;
+  let pagesFetched: number | undefined;
+  let truncated = false;
   try {
-    comments = await listComments(mediaId, credentials);
+    const liveMeta: ListCommentsMeta = {};
+    comments = await listComments(mediaId, credentials, liveMeta);
+    pagesFetched = liveMeta.pages;
+    truncated = liveMeta.truncated === true;
   } catch (err) {
     const info =
       err instanceof CommentCapabilityError
         ? err
-        : new CommentCapabilityError("api", "NÃƒÂ£o foi possÃƒÂ­vel ler os comentÃƒÂ¡rios.");
-    return { ok: false, error: info.message, code: info.code, items: [] };
+        : new CommentCapabilityError("api", "Não foi possível ler os comentários.");
+
+    if (info.code === "media_not_found" || info.code === "capability") {
+      return {
+        ok: false,
+        error: info.message,
+        code: info.code,
+        items: [],
+        emptyReason: "api_empty",
+      };
+    }
+
+    let stored: EligibleComment[] = [];
+    try {
+      stored = await listStoredComments(userId, mediaId);
+    } catch {
+      stored = [];
+    }
+
+    // Sem nada persistido, o erro é a resposta: nunca "zero comentários".
+    if (stored.length === 0) {
+      return { ok: false, error: info.message, code: info.code, items: [], emptyReason: "api_empty" };
+    }
+
+    comments = stored;
+    usedStoredFallback = true;
+    liveError = info.message;
   }
 
   // ---- contexto real do usuÃƒÂ¡rio (uma leitura para TODA a leva) ----
@@ -170,27 +261,117 @@ export async function analyzeMedia(
   }
 
   const items: AnalyzeResultItem[] = [];
+  const readErrors: AnalyzeReadError[] = [];
+  let dedupedCount = 0;
+  let dbError: string | null = null;
+  let persistError: string | null = null;
+
+  // PERSISTE o que foi lido da Meta. Sem isto a leitura ao vivo era descartada:
+  // o card seguia mostrando só o `comments_count` declarado pela Meta e o banco
+  // continuava sem comentário nenhum (a contradição vista em produção).
+  // É idempotente (`igCommentId` é único) e nunca apaga o que já existe.
+  //
+  // `persistError` fica em campo PRÓPRIO: a falha de gravação não pode ser
+  // confundida com falha de análise nem com ausência de comentários — este
+  // catch também não marca mais `dbError`, que agora significa só "não
+  // conseguimos ler/analisar", não "não conseguimos guardar o que lemos".
+  if (opts.persist !== false && !usedStoredFallback) {
+    try {
+      await persistComments(userId, mediaId, comments);
+    } catch (err) {
+      // Falha ao gravar NÃO invalida a leitura: a análise segue com o que veio
+      // da Meta, e a ocorrência fica registrada em vez de virar "sem dados".
+      persistError = err instanceof Error ? err.message : "Falha ao gravar os comentários.";
+      console.error("[comment-replies] persistComments", err);
+    }
+  }
+
+  // Publicação fora do banco: o banco é a única origem do contexto de análise
+  // (regra, templates, legenda). Sem ele a análise não tem como rodar e o
+  // motivo precisa ser dito — antes isso só aparecia depois, sem contexto.
+  if (!ctx.media) {
+    return {
+      ok: false,
+      error:
+        "Esta publicação não está sincronizada no Inst Acessor. Sincronize a conta e tente novamente.",
+      code: "media_unsynced",
+      items: [],
+      fetchedCount: comments.length,
+      emptyReason: "media_unsynced",
+      truncated,
+      pagesFetched,
+    };
+  }
 
   for (const comment of comments) {
     if (opts.onlyUnanswered) {
-      const existing = await findReplyByComment(mediaId, comment.commentId);
-      // JÃƒÂ¡ respondido ou jÃƒÂ¡ registrado: nÃƒÂ£o reanalisa, nÃƒÂ£o duplica.
-      if (existing && existing.status !== "ERROR") continue;
+      let existing: Awaited<ReturnType<typeof findReplyByComment>> = null;
+      try {
+        existing = await findReplyByComment(mediaId, comment.commentId);
+      } catch (err) {
+        // FALHA DE BANCO ≠ COMENTÁRIO JÁ ANALISADO. Antes, uma exceção aqui
+        // subia e virava 500; agora ela é registrada e a análise continua, para
+        // que o motivo real apareça em vez de um "nenhum comentário novo".
+        dbError = err instanceof Error ? err.message : "Falha ao consultar o histórico.";
+        existing = null;
+      }
+      // Já respondido ou já registrado: não reanalisa, não duplica.
+      if (existing && existing.status !== "ERROR") {
+        dedupedCount++;
+        continue;
+      }
     }
 
-    items.push(
-      await analyzeSingleComment({
-        userId,
-        mediaId,
-        comment,
-        ctx,
-        credentials,
-        persist: opts.persist ?? true,
-      })
-    );
+    try {
+      items.push(
+        await analyzeSingleComment({
+          userId,
+          mediaId,
+          comment,
+          ctx,
+          credentials,
+          persist: opts.persist ?? true,
+        })
+      );
+    } catch (err) {
+      // O motivo REAL de cada falha, por comentário. Antes ele ia para o
+      // `dbError` geral e o vazio final era classificado como "todos já
+      // analisados" — a frase mais enganosa possível para uma leva que não
+      // produziu item nenhum.
+      const message = err instanceof Error ? err.message : "Falha ao registrar a análise.";
+      readErrors.push({ commentId: comment.commentId, message });
+      dbError = message;
+    }
   }
 
-  return { ok: true, media, items };
+  // Discriminador — a decisão mora em `analyzeEmptyReason`, um núcleo puro
+  // provado por execução (outputs/bench-empty.mjs). Aqui só medimos os fatos.
+  const emptyReason: AnalyzeEmptyReason = analyzeEmptyReason({
+    itemsCount: items.length,
+    fetchedCount: comments.length,
+    dedupedCount,
+    readErrorCount: readErrors.length,
+    hasDbError: dbError != null,
+    mediaKnown: ctx.media != null,
+  });
+
+  return {
+    ok: true,
+    media,
+    items,
+    fetchedCount: comments.length,
+    dedupedCount,
+    emptyReason,
+    dbError: dbError ?? undefined,
+    usedStoredFallback,
+    readErrors: readErrors.length > 0 ? readErrors : undefined,
+    truncated,
+    pagesFetched,
+    persistError,
+    // A leitura ao vivo falhou mas usamos o que estava persistido — a UI
+    // informa isso em vez de apresentar o resultado como se fosse fresco.
+    error: usedStoredFallback ? liveError ?? undefined : undefined,
+  };
 }
 
 // ================================================================

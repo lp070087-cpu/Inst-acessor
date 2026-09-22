@@ -23,6 +23,8 @@
  * Módulo puro: é a parte verificável sem subir o app nem chamar a API.
  */
 
+import { mediaInteractions } from "@/lib/media/derived-metrics";
+
 /** Frase oficial de ausência. Uma única fonte para as três abas. */
 export const META_UNAVAILABLE_MESSAGE =
   "Dado não disponibilizado pela Meta para esta publicação.";
@@ -151,10 +153,11 @@ export function buildMediaInsights(input: MediaInsightsInput): {
   const videoViews = firstNumber(m?.videoViews ?? null);
   const videoViewTime = firstNumber(m?.videoViewTime ?? null);
 
-  // Derivado HONESTO: só existe quando OS DOIS termos existem.
-  // Se a Meta devolveu só as curtidas, uma "soma" mostraria um número PARCIAL
-  // rotulado como total — pior que a ausência. Por isso: um ausente → ausente.
-  const interactions = likes != null && comments != null ? likes + comments : null;
+  // Derivado HONESTO: só existe quando OS DOIS termos existem. Regra única em
+  // `@/lib/media/derived-metrics`, compartilhada com o Dashboard e o Calendário
+  // Inteligente — antes cada lugar tinha a sua, e os números discordavam entre
+  // as telas para a MESMA publicação.
+  const interactions = mediaInteractions(likes, comments);
 
   const isVideo =
     (input.mediaType ?? "").toUpperCase() === "VIDEO" ||

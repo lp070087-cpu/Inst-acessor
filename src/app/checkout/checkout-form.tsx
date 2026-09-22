@@ -115,6 +115,37 @@ interface CheckoutFormProps {
   /** Comprador já autenticado? Se sim, o servidor usa a sessão como fonte de verdade. */
   authedEmail: string | null;
   authedName: string | null;
+  /**
+   * Preço que o SERVIDOR já resolveu para ESTA compra deste comprador, no
+   * plano da página (`?plano=...`).
+   *
+   * Difere do preço do catálogo quando a pré-venda vale — e a elegibilidade
+   * (primeira compra, cobranças já usadas) só o servidor conhece. Sem isto, o
+   * resumo e o rodapé do formulário mostravam o valor CHEIO enquanto a faixa
+   * acima anunciava o desconto, e o Asaas cobraria um terceiro valor.
+   *
+   * É INFORMATIVO: quem cobra é `startPublicCheckout`, que resolve o preço de
+   * novo no clique. Se o prazo vencer nesse intervalo, vale o preço cheio.
+   */
+  pricing: CheckoutPricing;
+}
+
+/** Cotação de UMA compra, resolvida no servidor para o plano da página. */
+export interface CheckoutPricing {
+  /** Slug do plano a que esta cotação se refere. */
+  slug: string;
+  /** Preço cheio do catálogo (mostrado riscado quando há desconto). */
+  baseCents: number;
+  /** Preço que será cobrado: igual ao cheio quando não há desconto. */
+  effectiveCents: number;
+  /** `true` somente quando houve desconto real. */
+  onSale: boolean;
+  /** Prazo da campanha (ISO) — `null` quando não há. */
+  countdownEndsAt: string | null;
+  /** Rótulo do contador, configurado pelo ADMIN. */
+  countdownLabel: string;
+  /** `true` quando o prazo está ativo e ainda não venceu. */
+  countdownRunning: boolean;
 }
 
 type NoticeState =
@@ -129,6 +160,7 @@ export function CheckoutForm({
   activePlans,
   authedEmail,
   authedName,
+  pricing,
 }: CheckoutFormProps) {
   const { toast } = useToast();
 
@@ -152,6 +184,19 @@ export function CheckoutForm({
   // Sem sessão `activePlans` é vazio, então cai sempre em `plan` — exatamente o
   // plano que veio da landing.
   const selected = activePlans.find((p) => p.id === selectedId) ?? plan;
+
+  // COTAÇÃO VIGENTE deste formulário.
+  //
+  // Enquanto o comprador não troca de plano, vale a cotação do servidor
+  // recebida por prop — ela já considera o histórico dele. Se ele TROCA de
+  // plano no seletor, esta página não tem cotação para o outro plano (o
+  // servidor cotou apenas o da URL): mostramos o preço de catálogo e nada de
+  // "riscado". Prometer desconto para um plano que não foi cotado seria
+  // anunciar um valor que o checkout não necessariamente cobraria.
+  const usesPagePricing = selected.slug === pricing.slug;
+  const effectiveCents = usesPagePricing ? pricing.effectiveCents : selected.priceCents;
+  const onSale = usesPagePricing && pricing.onSale;
+  const baseCents = usesPagePricing ? pricing.baseCents : selected.priceCents;
 
   async function continueToPayment(e: React.FormEvent) {
     e.preventDefault();
@@ -220,7 +265,7 @@ export function CheckoutForm({
         // Estado controlado — nenhuma cobrança foi feita.
         setNotice({
           kind: "warn",
-          text: `${planShortName(selected)} — ${formatBRL(selected.priceCents)}. Pagamento online em configuração. Nenhuma cobrança foi feita.`,
+          text: `${planShortName(selected)} — ${formatBRL(effectiveCents)}. Pagamento online em configuração. Nenhuma cobrança foi feita.`,
         });
         toast("Pagamento online em configuração.");
         return;
@@ -266,9 +311,20 @@ export function CheckoutForm({
           <p className="text-[12px] text-ink-soft break-words">{planPeriodLabel(selected)}</p>
         </div>
         <div className="text-right shrink-0">
+          {/* Preço cheio riscado quando a pré-venda vale NESTA compra. */}
+          {onSale && (
+            <p className="text-[11px] text-ink-muted line-through leading-none mb-1">
+              {formatBRL(baseCents)}
+            </p>
+          )}
           {/* BLOCO 5 — preço atômico: não quebra entre o símbolo e o número. */}
-          <p className="font-display text-[19px] font-bold text-ink leading-none whitespace-nowrap">
-            {formatBRL(selected.priceCents)}
+          <p
+            className={cn(
+              "font-display text-[19px] font-bold leading-none whitespace-nowrap",
+              onSale ? "text-purple" : "text-ink"
+            )}
+          >
+            {formatBRL(effectiveCents)}
           </p>
           <p className="text-[11px] text-ink-muted mt-0.5">
             {planPriceSuffix(selected) || "único"}
@@ -482,8 +538,15 @@ export function CheckoutForm({
                     )}
                     <span className="truncate">{planShortName(p)}</span>
                   </span>
+                  {/* Só o plano COTADO pelo servidor tem preço com desconto a
+                      mostrar; os outros aparecem pelo catálogo — o valor real
+                      será resolvido no clique. */}
                   <span className="text-[12px] font-bold text-ink-soft whitespace-nowrap">
-                    {formatBRL(p.priceCents)}
+                    {formatBRL(
+                      p.slug === pricing.slug && pricing.onSale
+                        ? pricing.effectiveCents
+                        : p.priceCents
+                    )}
                   </span>
                 </button>
               );
@@ -564,7 +627,7 @@ export function CheckoutForm({
           <li className="flex items-start gap-1.5">
             <Check size={12} className="text-success flex-none mt-0.5" />
             <span className="min-w-0 break-words">
-              Pagamento único de {formatBRL(selected.priceCents)} — sem renovação
+              Pagamento único de {formatBRL(effectiveCents)} — sem renovação
               automática e sem cobrança recorrente.
             </span>
           </li>

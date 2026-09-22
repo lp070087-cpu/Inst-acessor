@@ -36,15 +36,49 @@ export async function POST(request: Request) {
     if (!result.ok) {
       // Erros de capacidade/conexão são devolvidos com o motivo REAL da Meta
       // em vez de um "algo deu errado" genérico.
-      const status = result.code === "no_connection" || result.code === "not_connected" ? 409 : 502;
+      //
+      // `media_not_found` (a Meta não reconhece a publicação) e `media_unsynced`
+      // (o Inst Acessor não tem a publicação no banco) são 409: são estados do
+      // RECURSO, não indisponibilidade do serviço — e a ação do usuário é
+      // diferente em cada um.
+      const status =
+        result.code === "no_connection" ||
+        result.code === "not_connected" ||
+        result.code === "media_not_found" ||
+        result.code === "media_unsynced"
+          ? 409
+          : 502;
       return NextResponse.json(
-        { error: result.error, code: result.code, items: [] },
+        {
+          error: result.error,
+          code: result.code,
+          items: [],
+          emptyReason: result.emptyReason ?? null,
+          fetchedCount: result.fetchedCount ?? null,
+        },
         { status }
       );
     }
 
     return NextResponse.json({
       media: result.media,
+      // Diagnóstico do vazio: a UI distingue "a Meta não devolveu comentário",
+      // "todos já foram analisados", "falha de banco" e "publicação não
+      // sincronizada" — em vez de mostrar "nenhum comentário novo" para todas.
+      fetchedCount: result.fetchedCount ?? 0,
+      dedupedCount: result.dedupedCount ?? 0,
+      emptyReason: result.emptyReason ?? "has_items",
+      dbError: result.dbError ?? null,
+      // Falhas por comentário: a leva pode ter sido PARCIAL. Sem este campo a
+      // tela contava só os itens e apresentava o resto como se não existisse.
+      readErrors: result.readErrors ?? [],
+      // Persistência e paginação: falha ao gravar e leitura truncada são
+      // situações distintas que antes não tinham como chegar até a tela.
+      persistError: result.persistError ?? null,
+      truncated: result.truncated ?? false,
+      pagesFetched: result.pagesFetched ?? null,
+      usedStoredFallback: result.usedStoredFallback ?? false,
+      liveError: result.usedStoredFallback ? result.error ?? null : null,
       items: result.items.map((item) => ({
         commentId: item.comment.commentId,
         username: item.comment.username,

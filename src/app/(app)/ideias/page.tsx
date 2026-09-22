@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { Lightbulb } from "lucide-react";
 
-import { requireOnboardedSession } from "@/lib/auth/guard";
+import {
+  requireOnboardedSession,
+  requirePremiumPage,
+} from "@/lib/auth/guard";
 import { aiConfigured } from "@/lib/ai";
 import { listIdeas } from "@/lib/ai/services";
 import { IdeasClient } from "@/components/ai/ideas-client";
@@ -14,6 +17,12 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function IdeiasPage() {
+  // Módulo do plano: sem acesso premium, a própria página manda o usuário
+  // para /acesso-restrito. A checagem vive na página (e não no layout)
+  // porque só ela sabe a própria rota: não há header para ler nem um
+  // valor que possa se perder no caminho.
+  await requirePremiumPage();
+
   const { session } = await requireOnboardedSession();
   const userId = session.user.id;
 

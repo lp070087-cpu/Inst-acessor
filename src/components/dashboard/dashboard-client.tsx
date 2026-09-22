@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import { PlatformSelector, type PlatformId } from "./platform-selector";
 import { MetricGrid } from "./metric-grid";
@@ -22,6 +22,13 @@ interface DashboardClientProps {
   aiConfigured: boolean;
   /** Saudação ao usuário autenticado (ex.: "Olá, Lucas"). */
   greeting?: string | null;
+  /**
+   * Ação de cada conta (o botão "Atualizar métricas"), renderizada no RODAPÉ do
+   * card da conta correspondente. Vem do Server Component para que o botão
+   * continue pertencendo ao servidor — este componente só o posiciona.
+   */
+  instagramAction?: ReactNode;
+  tiktokAction?: ReactNode;
 }
 
 /**
@@ -38,6 +45,8 @@ export function DashboardClient({
   insights,
   aiConfigured,
   greeting,
+  instagramAction,
+  tiktokAction,
 }: DashboardClientProps) {
   const [platform, setPlatform] = useState<PlatformId>(() => {
     if (instagramData.connected) return "instagram";
@@ -60,6 +69,7 @@ export function DashboardClient({
           avatarUrl={active.avatarUrl}
           lastSyncAt={active.lastSyncAt ?? null}
           greeting={greeting}
+          action={platform === "instagram" ? instagramAction : tiktokAction}
         />
       )}
 

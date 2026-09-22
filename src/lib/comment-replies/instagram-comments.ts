@@ -37,19 +37,40 @@ import type { EligibleMedia, EligibleComment } from "./types";
 
 const FETCH_TIMEOUT_MS = 20000;
 
+/**
+ * Códigos de falha da leitura/envio de comentários.
+ *
+ * `media_not_found` existe porque um caso era invisível: a publicação saiu do
+ * ar ou pertence a outra conta, a Meta devolve 400/`code 100`, e antes isso
+ * caía no genérico `api` — a UI mostrava o mesmo aviso de falha passageira,
+ * sem nunca dizer que a MIDIA era o problema. São situações que exigem ações
+ * diferentes do usuário, então precisam de códigos diferentes.
+ */
+export type CommentCapabilityCode =
+  | "no_connection"
+  | "not_connected"
+  | "capability"
+  | "media_not_found"
+  | "rate_limit"
+  | "api";
+
 /** Erro tipado — a UI distingue "sem conexão" de "sem permissão". */
 export class CommentCapabilityError extends Error {
-  code: "no_connection" | "not_connected" | "capability" | "rate_limit" | "api";
+  code: CommentCapabilityCode;
   metaCode?: string;
+  /** Motivo REAL devolvido pela Meta (nunca contém o token). */
+  metaMessage?: string;
   constructor(
-    code: CommentCapabilityError["code"],
+    code: CommentCapabilityCode,
     message: string,
-    metaCode?: string
+    metaCode?: string,
+    metaMessage?: string
   ) {
     super(message);
     this.name = "CommentCapabilityError";
     this.code = code;
     this.metaCode = metaCode;
+    this.metaMessage = metaMessage;
   }
 }
 
@@ -103,37 +124,86 @@ export async function loadCommentCredentials(
   };
 }
 
+/**
+ * Traduz um código de erro da Meta no código do produto.
+ *
+ * Tabela ÚNICA — antes esta classificação estava escrita três vezes (aqui, em
+ * `listComments` e em `replyToComment`), e as três listas eram diferentes: cada
+ * caminho tratava um subconjunto. `rate_limit` existia na classificação geral e
+ * na resposta, mas NÃO na leitura; `media_not_found` não existia em lugar
+ * nenhum. Duas cópias divergentes de uma mesma regra é o defeito, não o detalhe.
+ *
+ * Códigos da Meta:
+ *   190        → token inválido/expirado
+ *   10/200/3   → permissão ausente
+ *   4/17/613   → rate limit
+ *   100/33/24  → objeto inexistente ou sem acesso (mídia fora do ar/outra conta)
+ *   803        → objeto não encontrado no host
+ *   400/404    → o cliente já usa o STATUS HTTP como código quando a Meta não
+ *                manda `code` (ver `graphGet`); aqui isso vira "mídia não
+ *                encontrada" em vez do genérico `api`.
+ */
+function capabilityFromMeta(rawCode: string | number | null | undefined): CommentCapabilityCode {
+  const code = rawCode == null ? "" : String(rawCode);
+  if (code === "190") return "not_connected";
+  if (code === "10" || code === "200" || code === "3") return "capability";
+  if (code === "4" || code === "17" || code === "613") return "rate_limit";
+  if (code === "100" || code === "33" || code === "24" || code === "803") return "media_not_found";
+  if (code === "400" || code === "404") return "media_not_found";
+  return "api";
+}
+
+/** Mensagem do produto para cada código — a UI mostra exatamente esta frase. */
+function capabilityMessage(code: CommentCapabilityCode, metaMessage?: string): string {
+  switch (code) {
+    case "not_connected":
+      return "A conexão com o Instagram expirou. Reconecte em Redes Sociais para continuar.";
+    case "capability":
+      return (
+        "A API do Instagram não autorizou a leitura/resposta de comentários para esta conta. " +
+        "Isso normalmente indica que o acesso avançado ao escopo " +
+        "instagram_business_manage_comments ainda não foi concedido ao app."
+      );
+    case "media_not_found":
+      return (
+        "O Instagram não reconheceu esta publicação para a conta conectada. " +
+        "Ela pode ter sido apagada, arquivada ou pertencer a outra conta — " +
+        "sincronize a conta e tente novamente."
+      );
+    case "rate_limit":
+      return "O Instagram limitou temporariamente as requisições. Tente novamente em alguns minutos.";
+    case "no_connection":
+      return "Conecte seu Instagram em Redes Sociais para usar Respostas Inteligentes.";
+    default:
+      // O motivo REAL da Meta vem primeiro; a frase do produto só o substitui
+      // quando a Meta não mandou nada. Nada de "algo deu errado".
+      return metaMessage?.trim() || "Falha ao falar com a API do Instagram.";
+  }
+}
+
+/**
+ * Versões expostas para conferência por execução.
+ * Mesmo padrão de `__remainingUntil` em `promo-countdown.tsx`: a regra é pura e
+ * precisa poder ser provada por um script, sem subir servidor nem banco.
+ */
+export const __capabilityFromMeta = capabilityFromMeta;
+export const __capabilityMessage = capabilityMessage;
+
 /** Classifica um erro da API do Instagram em código de capacidade. */
 function toCapabilityError(err: unknown): CommentCapabilityError {
   if (err instanceof CommentCapabilityError) return err;
 
   if (err instanceof InstagramApiError) {
-    const metaCode = String(err.code ?? "");
-    // 190 = token inválido/expirado · 10/200 = permissão ausente · 4/17/613 = rate limit
-    if (metaCode === "190") {
-      return new CommentCapabilityError(
-        "not_connected",
-        "A conexão com o Instagram expirou. Reconecte para continuar.",
-        metaCode
-      );
-    }
-    if (metaCode === "10" || metaCode === "200" || metaCode === "3") {
-      return new CommentCapabilityError(
-        "capability",
-        "A API do Instagram não autorizou a leitura/resposta de comentários para esta conta. " +
-          "Isso normalmente indica que o acesso avançado ao escopo " +
-          "instagram_business_manage_comments ainda não foi concedido ao app.",
-        metaCode
-      );
-    }
-    if (metaCode === "4" || metaCode === "17" || metaCode === "613") {
-      return new CommentCapabilityError(
-        "rate_limit",
-        "O Instagram limitou temporariamente as requisições. As respostas foram pausadas.",
-        metaCode
-      );
-    }
-    return new CommentCapabilityError("api", err.message, metaCode);
+    const metaCode = err.code == null ? "" : String(err.code);
+    const code = capabilityFromMeta(metaCode);
+    // Timeout/rede tem código próprio (`TIMEOUT`/`NETWORK`) e continua `api` —
+    // `capabilityFromMeta` devolve `api` e a mensagem da Meta é preservada.
+    return new CommentCapabilityError(
+      code,
+      capabilityMessage(code, err.message),
+      metaCode || undefined,
+      err.message
+    );
   }
 
   return new CommentCapabilityError(
@@ -210,6 +280,75 @@ export async function countStoredComments(userId: string): Promise<number> {
   return prisma.instagramComment.count({ where: { userId } });
 }
 
+/**
+ * PERSISTE os comentários lidos da API em `InstagramComment`.
+ *
+ * POR QUE ISSO EXISTE: antes, os comentários só eram gravados pelo sync de
+ * Redes Sociais (que lê um número limitado de publicações e depende da Meta
+ * liberar o escopo naquele momento). A análise ao vivo (`analyzeMedia`) lia os
+ * comentários, usava-os para gerar sugestões e DESCARTAVA — então a publicação
+ * seguia com `syncedCommentsCount = 0` e o card continuava mostrando só a
+ * contagem declarada pela Meta. O resultado era a contradição vista em
+ * produção: o card dizia "5 comentários" e a tela dizia "nenhum comentário".
+ *
+ * Agora toda leitura bem-sucedida deixa rastro no banco: a análise manual passa
+ * a funcionar para comentários que já existiam (independente do webhook), e o
+ * que o card mostra e o que a tela lista vêm da MESMA origem.
+ *
+ * Idempotente: `InstagramComment.igCommentId` é `@unique`, então reprocessar a
+ * mesma publicação atualiza (não duplica) os comentários já gravados.
+ *
+ * @returns quantos comentários foram gravados/atualizados.
+ */
+export async function persistComments(
+  userId: string,
+  igMediaId: string,
+  comments: EligibleComment[]
+): Promise<number> {
+  if (comments.length === 0) return 0;
+
+  // O `mediaId` de `InstagramComment` é a FK INTERNA — precisa do id do banco,
+  // não do igMediaId da Meta (usar o id externo aqui gravava órfão/erro).
+  const media = await prisma.instagramMedia.findFirst({
+    where: { userId, igMediaId },
+    select: { id: true },
+  });
+  if (!media) return 0;
+
+  let written = 0;
+  for (const comment of comments) {
+    const timestamp = comment.timestamp ? new Date(comment.timestamp) : null;
+    // `new Date("lixo")` gera Invalid Date — gravaríamos um valor impossível.
+    const safeTimestamp =
+      timestamp && !Number.isNaN(timestamp.getTime()) ? timestamp : null;
+    const authorUsername = comment.username || null;
+
+    await prisma.instagramComment.upsert({
+      where: { igCommentId: comment.commentId },
+      create: {
+        userId,
+        mediaId: media.id,
+        igCommentId: comment.commentId,
+        authorUsername,
+        text: comment.text || null,
+        timestamp: safeTimestamp,
+        syncedAt: new Date(),
+      },
+      update: {
+        // Só reescrevemos o que é atributo do comentário; `isOwn`/`repliesCount`
+        // (que o sync pode ter preenchido) ficam preservados.
+        authorUsername,
+        text: comment.text || null,
+        timestamp: safeTimestamp,
+        syncedAt: new Date(),
+      },
+    });
+    written++;
+  }
+
+  return written;
+}
+
 interface IgCommentNode {
   id: string;
   text?: string | null;
@@ -218,44 +357,131 @@ interface IgCommentNode {
   from?: { id?: string; username?: string };
 }
 
+/** Página de comentários devolvida pela Meta (com o cursor de continuação). */
+interface IgCommentPage {
+  data?: IgCommentNode[];
+  paging?: { next?: string; cursors?: { after?: string } };
+  error?: Record<string, unknown>;
+}
+
+/** Teto de páginas para não transformar uma leitura em varredura infinita. */
+const MAX_COMMENT_PAGES = 10;
+/** Comentários por página pedidos à Meta (máximo aceito é 100). */
+export const COMMENTS_PAGE_SIZE = 50;
+
+/**
+ * Sinais da leitura ao vivo, devolvidos ao chamador quando ele pedir.
+ *
+ * `truncated` é o caso que faltava: quando a publicação tem mais comentários do
+ * que `MAX_COMMENT_PAGES × COMMENTS_PAGE_SIZE`, a leitura para no teto. Sem este
+ * sinal, uma lista incompleta era indistinguível de uma lista completa — o
+ * usuário via "N de M" sem saber que existiam mais.
+ */
+export interface ListCommentsMeta {
+  /** Quantas páginas foram realmente lidas. */
+  pages?: number;
+  /** A leitura parou no teto de páginas: ainda havia continuação. */
+  truncated?: boolean;
+  /** Teto aplicado nesta leitura (diagnóstico; ver `MAX_COMMENT_PAGES`). */
+  pageLimit?: number;
+  /** Id do host que respondeu (para diagnóstico, sem credencial). */
+  host?: string;
+}
+
 /**
  * Lê os comentários de uma publicação.
- * GET {media-id}/comments?fields=id,text,username,timestamp
+ * GET {media-id}/comments?fields=id,text,username,timestamp,from&limit=N
+ *
+ * PAGINAÇÃO: a Meta devolve no máximo `limit` nós por resposta. Sem seguir
+ * `paging.next`, uma publicação com mais comentários que o limite parecia ter
+ * apenas os primeiros — e o total nunca batia com o `comments_count` do card.
+ * Aqui seguimos o cursor até acabar (ou até `MAX_COMMENT_PAGES`).
+ *
+ * O token vai na query string, exatamente como no resto da integração
+ * (`integrations/instagram/client.ts`) — o `paging.next` devolvido pela Meta já
+ * traz o token embutido, então as páginas seguintes continuam autorizadas.
+ *
+ * @param meta opcional: recebe páginas lidas e se a leitura foi truncada.
  */
 export async function listComments(
   mediaId: string,
-  credentials: CommentCredentials
+  credentials: CommentCredentials,
+  meta?: ListCommentsMeta
 ): Promise<EligibleComment[]> {
-  const url =
-    `${INSTAGRAM_GRAPH_BASE}/${INSTAGRAM_GRAPH_VERSION}/${encodeURIComponent(mediaId)}/comments` +
-    `?fields=${encodeURIComponent("id,text,username,timestamp,from")}` +
+  const fields = encodeURIComponent("id,text,username,timestamp,from");
+  const base = `${INSTAGRAM_GRAPH_BASE}/${INSTAGRAM_GRAPH_VERSION}/${encodeURIComponent(mediaId)}/comments`;
+  const first =
+    `${base}?fields=${fields}&limit=${COMMENTS_PAGE_SIZE}` +
     `&access_token=${encodeURIComponent(credentials.accessToken)}`;
 
+  const collected: IgCommentNode[] = [];
+  let next: string | null = first;
+  let pages = 0;
+  let truncated = false;
+
   try {
-    const res = await fetch(url, {
-      method: "GET",
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-      cache: "no-store",
-    });
+    for (let page = 0; page < MAX_COMMENT_PAGES && next; page++) {
+      const res: Response = await fetch(next, {
+        method: "GET",
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+        cache: "no-store",
+      });
 
-    const text = await res.text();
-    let data: { data?: IgCommentNode[]; error?: Record<string, unknown> };
-    try {
-      data = JSON.parse(text) as typeof data;
-    } catch {
-      throw new CommentCapabilityError("api", "Resposta inválida do Instagram.");
+      const text = await res.text();
+      let data: IgCommentPage;
+      try {
+        data = JSON.parse(text) as IgCommentPage;
+      } catch {
+        throw new CommentCapabilityError("api", "Resposta inválida do Instagram.");
+      }
+
+      if (!res.ok || data.error) {
+        // O STATUS HTTP também entra na classificação: o host pode responder
+        // 400/404 sem mandar `code`, e antes isso virava o genérico `api` —
+        // indistinguível de uma queda de rede.
+        const metaCode = data.error?.code != null ? String(data.error.code) : String(res.status);
+        const code = capabilityFromMeta(metaCode);
+        const metaMessage = data.error?.message
+          ? String(data.error.message)
+          : "Não foi possível ler os comentários.";
+        throw new CommentCapabilityError(
+          code,
+          capabilityMessage(code, metaMessage),
+          metaCode,
+          metaMessage
+        );
+      }
+
+      pages++;
+      if (data.data?.length) collected.push(...data.data);
+
+      // Duas formas de continuação: `paging.next` (URL pronta, com token) ou
+      // apenas `paging.cursors.after` (cursor). A segunda era ignorada — a
+      // paginação parava na primeira página e o total ficava menor que o
+      // `comments_count` sem nenhum sinal de que faltava coisa.
+      if (data.paging?.next) {
+        next = data.paging.next;
+      } else if (data.paging?.cursors?.after && data.data?.length) {
+        next =
+          `${base}?fields=${fields}&limit=${COMMENTS_PAGE_SIZE}` +
+          `&after=${encodeURIComponent(data.paging.cursors.after)}` +
+          `&access_token=${encodeURIComponent(credentials.accessToken)}`;
+      } else {
+        next = null;
+      }
     }
 
-    if (!res.ok || data.error) {
-      const metaCode = String(data.error?.code ?? res.status);
-      throw new CommentCapabilityError(
-        metaCode === "190" ? "not_connected" : metaCode === "10" || metaCode === "200" || metaCode === "3" ? "capability" : "api",
-        String(data.error?.message ?? "Não foi possível ler os comentários."),
-        metaCode
-      );
+    // Sobrou `next` e o laço terminou pelo TETO (não por esgotar a lista).
+    truncated = next != null;
+
+    if (meta) {
+      meta.pages = pages;
+      meta.truncated = truncated;
+      meta.pageLimit = MAX_COMMENT_PAGES;
+      meta.host = INSTAGRAM_GRAPH_BASE;
     }
 
-    return (data.data ?? []).map((node) => ({
+    return collected.map((node) => ({
       commentId: node.id,
       mediaId,
       // `username` é o campo disponível no Instagram Business Login; `from` é
@@ -306,17 +532,16 @@ export async function replyToComment(
     }
 
     if (!res.ok || data.error || !data.id) {
-      const metaCode = String(data.error?.code ?? res.status);
+      const metaCode = data.error?.code != null ? String(data.error.code) : String(res.status);
+      const code = capabilityFromMeta(metaCode);
+      const metaMessage = data.error?.message
+        ? String(data.error.message)
+        : "Não foi possível publicar a resposta.";
       throw new CommentCapabilityError(
-        metaCode === "190"
-          ? "not_connected"
-          : metaCode === "10" || metaCode === "200" || metaCode === "3"
-            ? "capability"
-            : metaCode === "4" || metaCode === "17" || metaCode === "613"
-              ? "rate_limit"
-              : "api",
-        String(data.error?.message ?? "Não foi possível publicar a resposta."),
-        metaCode
+        code,
+        capabilityMessage(code, metaMessage),
+        metaCode,
+        metaMessage
       );
     }
 

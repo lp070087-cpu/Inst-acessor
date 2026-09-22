@@ -3,6 +3,7 @@ import { CreditCard } from "lucide-react";
 
 import { requireOnboardedSession } from "@/lib/auth/guard";
 import { listPlans, getMySubscription, listMySubscriptions, getAccessStatus } from "@/lib/billing";
+import { getPlanPromoDisplay } from "@/lib/billing/promo-db";
 import { AssinaturaClient } from "@/components/billing/assinatura-client";
 
 export const metadata: Metadata = {
@@ -16,11 +17,17 @@ export default async function AssinaturaPage() {
   const { session } = await requireOnboardedSession();
   const userId = session.user.id;
 
-  const [plans, current, history, access] = await Promise.all([
+  // A pré-venda é lida AQUI, no servidor, junto com os planos: os cards de
+  // "Minha Assinatura" anunciam o mesmo desconto que o checkout vai aplicar.
+  // Antes, esta tela mostrava apenas o preço de catálogo — o cliente via
+  // R$ 27,00 no card e era cobrado R$ 11,90 (ou o contrário, ao vencer o
+  // prazo). A landing e o checkout já liam esta mesma configuração.
+  const [plans, current, history, access, promo] = await Promise.all([
     listPlans(),
     getMySubscription(userId),
     listMySubscriptions(userId),
     getAccessStatus(userId),
+    getPlanPromoDisplay(),
   ]);
 
   return (
@@ -40,6 +47,7 @@ export default async function AssinaturaPage() {
         initialCurrent={current}
         initialHistory={history}
         initialAccess={access}
+        promo={promo}
       />
     </div>
   );

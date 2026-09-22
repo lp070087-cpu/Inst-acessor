@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import {
   CreditCard,
   Check,
@@ -21,6 +22,7 @@ import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PromoCountdown } from "@/components/billing/promo-countdown";
 import {
   annualVsMonthly,
   formatBRL,
@@ -29,6 +31,9 @@ import {
   planPriceSuffix,
   planShortName,
 } from "@/lib/billing/plans/display";
+// Tipo do módulo PURO (`@/lib/billing/promo`): traz só a forma dos dados, sem
+// arrastar o Prisma (`@/lib/billing/promo-db`) para o bundle do navegador.
+import type { PlanPromoDisplay } from "@/lib/billing/promo";
 import { cn } from "@/lib/utils";
 
 /**
@@ -89,7 +94,8 @@ interface SubscriptionView {
   planId: string;
   planName: string;
   planSlug: string;
-  priceCents: number;
+  /** `null` = sem valor conhecido. Nunca vira "R$ 0,00": zero é um preço. */
+  priceCents: number | null;
   currency: string;
   status: string;
   billingType: string;
@@ -124,6 +130,13 @@ interface AssinaturaClientProps {
   billingConfigured?: boolean;
   /** Rótulo do ambiente ("Sandbox"/"Produção") quando configurado. */
   billingLabel?: string | null;
+  /**
+   * PRÉ-VENDA vigente, resolvida no SERVIDOR com a MESMA configuração que o
+   * checkout usa para cobrar. Sem isto, os cards desta tela anunciavam o preço
+   * de catálogo enquanto o checkout aplicava (ou deixava de aplicar) o
+   * desconto — duas telas dizendo coisas diferentes sobre o mesmo dinheiro.
+   */
+  promo: PlanPromoDisplay;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -204,8 +217,10 @@ export function AssinaturaClient({
   initialAccess,
   billingConfigured = false,
   billingLabel = null,
+  promo,
 }: AssinaturaClientProps) {
   const { toast } = useToast();
+  const router = useRouter();
 
   const [plans, setPlans] = React.useState<PlanView[]>(initialPlans);
   const [current, setCurrent] = React.useState<SubscriptionView | null>(initialCurrent);
@@ -215,6 +230,19 @@ export function AssinaturaClient({
   const [canceling, setCanceling] = React.useState(false);
   const [notice, setNotice] = React.useState<{ kind: "info" | "warn" | "success"; text: string } | null>(null);
   const [checkoutUrl, setCheckoutUrl] = React.useState<string | null>(null);
+  // Preço efetivo devolvido pelo SERVIDOR na última tentativa de checkout.
+  // É o único número que pode ser exibido como "o que será cobrado": ele vem de
+  // `resolveCheckoutPrice`, com a promoção já avaliada, e não do navegador.
+  const [quotedCents, setQuotedCents] = React.useState<number | null>(null);
+  const [quotedPlanId, setQuotedPlanId] = React.useState<string | null>(null);
+  // O contador zerou com a página aberta: o preço anunciado deixou de ser o
+  // preço cobrado. Recarregamos do servidor para os cards voltarem ao valor
+  // real, em vez de seguir mostrando uma oferta vencida.
+  const [promoExpired, setPromoExpired] = React.useState(false);
+  const handlePromoExpire = React.useCallback(() => {
+    setPromoExpired(true);
+    router.refresh();
+  }, [router]);
 
   async function choosePlan(plan: PlanView) {
     setCheckingPlan(plan.id);
@@ -234,7 +262,15 @@ export function AssinaturaClient({
       let data: {
         error?: string;
         status?: string;
-        checkout?: { checkoutUrl?: string | null; subscriptionId?: string | null };
+        amountCents?: number | null;
+        promo?: { applied?: boolean; label?: string | null } | null;
+        checkout?: {
+          checkoutUrl?: string | null;
+          subscriptionId?: string | null;
+          // Preço EFETIVO resolvido no servidor (promoção já avaliada).
+          amountCents?: number | null;
+          promo?: { applied?: boolean; label?: string | null } | null;
+        };
       } | null = null;
       try {
         data = rawBody ? JSON.parse(rawBody) : null;
@@ -258,11 +294,25 @@ export function AssinaturaClient({
         return;
       }
 
+      // PREÇO EFETIVO desta compra, resolvido no servidor. O navegador nunca
+      // envia valor — ele só exibe o que voltou. Quando o servidor não devolve
+      // nenhum (resposta antiga), caímos no preço de catálogo apenas para a
+      // mensagem não ficar sem número; nada é cobrado a partir daqui.
+      const effectiveCents =
+        typeof data.amountCents === "number"
+          ? data.amountCents
+          : typeof data.checkout?.amountCents === "number"
+            ? data.checkout.amountCents
+            : null;
+      const promoApplied =
+        data.promo?.applied === true || data.checkout?.promo?.applied === true;
+      const priceText = formatBRL(effectiveCents ?? plan.priceCents);
+
       if (data.status === "INTEGRATION_NOT_CONFIGURED") {
         // Estado controlado — nenhuma cobrança real foi feita.
         setNotice({
           kind: "warn",
-          text: `${planShortName(plan)} — ${formatBRL(plan.priceCents)}. Pagamento online em configuração. Nenhuma cobrança foi feita.`,
+          text: `${planShortName(plan)} — ${priceText}. Pagamento online em configuração. Nenhuma cobrança foi feita.`,
         });
         toast("Pagamento online em configuração.");
         return;
@@ -272,9 +322,15 @@ export function AssinaturaClient({
       // confirmação do pagamento (webhook). NUNCA marca como ativo aqui.
       const url = typeof data?.checkout?.checkoutUrl === "string" ? data.checkout.checkoutUrl : null;
       setCheckoutUrl(url);
+      if (effectiveCents != null) {
+        setQuotedCents(effectiveCents);
+        setQuotedPlanId(plan.id);
+      }
       setNotice({
         kind: "info",
-        text: `${planShortName(plan)} — ${formatBRL(plan.priceCents)}. Checkout iniciado. Seu acesso é liberado assim que o pagamento for confirmado.`,
+        text: `${planShortName(plan)} — ${priceText}${
+          promoApplied ? " (pré-venda)" : ""
+        }. Checkout iniciado. Seu acesso é liberado assim que o pagamento for confirmado.`,
       });
       toast(url ? "Checkout criado. Finalize o pagamento." : "Checkout criado. Aguardando pagamento.");
 
@@ -287,7 +343,9 @@ export function AssinaturaClient({
           planId: plan.id,
           planName: plan.name,
           planSlug: plan.slug,
-          priceCents: plan.priceCents,
+          // Preço COTADO pelo servidor para esta compra (pode ser o promocional).
+          // Sem cotação na resposta, mantém o de catálogo.
+          priceCents: effectiveCents ?? plan.priceCents,
           currency: plan.currency,
           status: "PENDING",
           billingType: plan.type,
@@ -401,7 +459,10 @@ export function AssinaturaClient({
           <div className="flex flex-col gap-4">
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
               <InfoCell label="Plano" value={current.planName} />
-              <InfoCell label="Preço" value={formatBRL(current.priceCents)} />
+              <InfoCell
+                label="Preço"
+                value={current.priceCents != null ? formatBRL(current.priceCents) : "—"}
+              />
               <InfoCell
                 label="Status"
                 value={
@@ -488,11 +549,38 @@ export function AssinaturaClient({
             const isFeatured = plan.badge === "MAIS_ESCOLHIDO";
             const isBest = plan.badge === "MELHOR_CUSTO_BENEFICIO";
             const isCurrent = current?.planId === plan.id;
+
+            // PRÉ-VENDA deste plano, vinda do SERVIDOR (mesma config do
+            // checkout). `showPromo` já é falso para promoção desligada,
+            // vencida ou com valor que não é desconto — nesses casos o card
+            // mostra o preço de catálogo, que é o que o checkout cobraria.
+            const showcase = promo.bySlug[plan.slug];
+            const onSale =
+              !promoExpired &&
+              Boolean(showcase?.showPromo && showcase.promoPriceCents != null);
+            const promoPrice = onSale ? showcase!.promoPriceCents! : null;
+
+            // O SERVIDOR já cotou este plano para esta pessoa (ela clicou em
+            // "Assinar"): esse é o valor que será cobrado de fato — a
+            // elegibilidade individual (primeira compra, cobranças já usadas)
+            // só o servidor conhece. Prevalece sobre a vitrine.
+            const quoted = quotedPlanId === plan.id ? quotedCents : null;
+            const displayedCents = quoted ?? promoPrice ?? plan.priceCents;
+            const isQuotedPrice = quoted != null && quoted !== plan.priceCents;
+            // A cotação foi ABAIXO do catálogo → houve desconto de verdade
+            // para esta pessoa (a vitrine não sabe quem é ela; o servidor sabe).
+            const promoAppliedForPlan = quoted != null && quoted < plan.priceCents;
+
             // Comparativo do anual contra 12 meses do mensal, calculado a
             // partir dos PREÇOS REAIS desta lista — nada de constantes
             // numéricas escritas aqui (antes eram 54700/7700 literais).
+            // Com pré-venda vigente ele é OMITIDO: comparar 12× o mensal CHEIO
+            // contra a oferta do 1º ano seria uma economia inventada.
             const annualCompare =
-              plan.type === "RECURRING" && plan.billingInterval === "YEAR"
+              plan.type === "RECURRING" &&
+              plan.billingInterval === "YEAR" &&
+              !onSale &&
+              quoted == null
                 ? annualVsMonthly(plans)
                 : null;
             const priceSuffix = planPriceSuffix(plan);
@@ -532,6 +620,15 @@ export function AssinaturaClient({
                       </Badge>
                     )}
                   </div>
+                  {/* Preço CHEIO riscado quando há oferta vigente — a
+                      comparação é explícita em vez de "economia" calculada no
+                      navegador. */}
+                  {onSale && promoPrice != null && (
+                    <span className="text-[12.5px] text-ink-muted">
+                      de <s>{formatBRL(plan.priceCents)}</s> por
+                    </span>
+                  )}
+
                   <div className="flex items-baseline flex-wrap gap-x-1.5 gap-y-0">
                     {/* BLOCO 5 — o preço é atômico.
                         Sem `whitespace-nowrap` o valor formatado ("R$ 547,00")
@@ -540,8 +637,13 @@ export function AssinaturaClient({
                         cards estreitos. `flex-wrap` continua no container para
                         o sufixo ("/mês") descer quando faltar espaço, mas o
                         NÚMERO nunca se divide. */}
-                    <span className="font-display text-[30px] font-bold text-ink whitespace-nowrap">
-                      {formatBRL(plan.priceCents)}
+                    <span
+                      className={cn(
+                        "font-display text-[30px] font-bold whitespace-nowrap",
+                        onSale ? "text-purple" : "text-ink"
+                      )}
+                    >
+                      {formatBRL(displayedCents)}
                     </span>
                     {/* "único" para o plano de pagamento único — mesma regra
                         do checkout, sem repetir a cadeia de ifs aqui. */}
@@ -549,6 +651,36 @@ export function AssinaturaClient({
                       {priceSuffix || "único"}
                     </span>
                   </div>
+
+                  {/* Oferta vigente: texto pedido + o que ela significa. */}
+                  {onSale && promoPrice != null && (
+                    <p className="text-[11.5px] font-semibold text-purple break-words">
+                      NO LANÇAMENTO POR {formatBRL(promoPrice)}
+                      {showcase?.label ? (
+                        <span className="font-normal text-ink-soft"> · {showcase.label}</span>
+                      ) : null}
+                    </p>
+                  )}
+
+                  {/* Cotação individual veio do servidor e difere do catálogo:
+                      é ESTE o valor que será cobrado desta pessoa. */}
+                  {isQuotedPrice && (
+                    <p className="text-[11.5px] text-ink-soft break-words">
+                      Valor desta compra: <strong className="text-ink">{formatBRL(displayedCents)}</strong>
+                      {promoAppliedForPlan ? " (pré-venda aplicada)" : ""}
+                    </p>
+                  )}
+
+                  {/* Contador da campanha, integrado ao card. Sem prazo
+                      definido pelo ADMIN, o componente não renderiza nada. */}
+                  {onSale && showcase?.countdownRunning && showcase.countdownEndsAt && (
+                    <PromoCountdown
+                      endsAt={showcase.countdownEndsAt}
+                      label={promo.config.countdown.label}
+                      onExpire={handlePromoExpire}
+                    />
+                  )}
+
                   {annualCompare && (
                     <p className="text-[11.5px] text-ink-soft break-words">
                       ≈ {formatBRL(annualCompare.perMonthCents)}/mês
@@ -638,7 +770,9 @@ export function AssinaturaClient({
                 className="rounded-[10px] border border-border-soft bg-bg-ice px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-1"
               >
                 <span className="text-[13px] font-semibold text-ink">{s.planName}</span>
-                <span className="text-[12.5px] text-ink-soft">{formatBRL(s.priceCents)}</span>
+                <span className="text-[12.5px] text-ink-soft">
+                  {s.priceCents != null ? formatBRL(s.priceCents) : "—"}
+                </span>
                 <Badge tone={STATUS_TONE[s.status] ?? "neutral"} size="xs">
                   {STATUS_LABEL[s.status] ?? s.status}
                 </Badge>

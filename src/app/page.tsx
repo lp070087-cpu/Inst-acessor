@@ -71,7 +71,21 @@ export const metadata: Metadata = {
     "Transforme dados do Instagram em decisões de crescimento. IA, estratégia, metas e XP — tudo em um só lugar.",
 };
 
-export default function HomePage() {
+/**
+ * A landing passa a ser renderizada por requisição.
+ *
+ * Motivo: a seção "Planos" mostra a PRÉ-VENDA vigente (preço promocional e
+ * contador) lida de `SystemSetting`. Isso é configuração do ADMIN e muda sem
+ * deploy — se a página ficasse estática, o valor anunciado poderia continuar
+ * exibindo a promoção já encerrada, ou escondendo uma recém-ligada.
+ *
+ * O contador em si é atualizado no navegador pelo componente cliente; este
+ * `force-dynamic` garante que o ESTADO inicial (preço, rótulo, se a promoção
+ * está de pé) também venha atualizado do servidor.
+ */
+export const dynamic = "force-dynamic";
+
+export default async function HomePage() {
   return (
     <main className="lnd-root">
       <LandingClient />

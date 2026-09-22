@@ -160,3 +160,30 @@ export const signOutItem: NavItem = {
   icon: LogOut,
   description: "Encerrar sessão",
 };
+
+/**
+ * MÓDULOS DO PLANO — exigem acesso premium (grant válido, assinatura ativa ou
+ * ADMIN). A lista mora AQUI, e não em `@/lib/access/premium`, porque este
+ * módulo é consumido por componentes CLIENT (a sidebar): importar o resolvedor
+ * de acesso traria o Prisma para o bundle do navegador.
+ *
+ * O que fica de fora (acessível a conta sem plano): /dashboard,
+ * /redes-sociais, /assinatura, /perfil, /configuracoes e /sobre.
+ */
+export const PREMIUM_ROUTES = [
+  "/ia-acessor",
+  "/ideias",
+  "/rank",
+  "/calendario-inteligente",
+  "/calendario",
+  "/mentoria",
+  "/score",
+  "/perfil-de-inteligencia",
+  "/respostas-inteligentes",
+  "/analise-de-desempenho",
+] as const;
+
+/** true se a rota exige plano. Fonte única usada pelo servidor e pela sidebar. */
+export function isPremiumRoute(href: string): boolean {
+  return PREMIUM_ROUTES.some((route) => href.startsWith(route));
+}

@@ -11,7 +11,8 @@ import {
   planShortName,
 } from "@/lib/billing/plans";
 import { getPromoConfig, getBuyerHistory } from "@/lib/billing/promo-db";
-import { describeCountdown, resolvePromoPrice } from "@/lib/billing/promo";
+import { resolvePromoPrice } from "@/lib/billing/promo";
+import { PromoCountdown } from "@/components/billing/promo-countdown";
 import { CheckoutForm } from "./checkout-form";
 
 export const metadata: Metadata = {
@@ -83,7 +84,6 @@ export default async function CheckoutPage({
     history: buyerHistory,
     now: new Date().toISOString(),
   });
-  const countdown = describeCountdown(promo.countdownEndsAt, new Date().toISOString());
   // O aviso de "não é mais para você" só faz sentido para quem JÁ comprou: para
   // quem nunca comprou, a promoção está disponível e a tela não diz nada.
   const lostPromoForBuyer =
@@ -136,10 +136,14 @@ export default async function CheckoutPage({
                   {promo.label}
                 </span>
               </div>
-              {countdown.running && countdown.text && (
-                <p className="text-[12px] text-ink-soft mt-1">
-                  A oferta termina em <b className="text-ink">{countdown.text}</b>.
-                </p>
+              {/* Mesmo contador dos cards (formato 02d : 14h : 32m : 08s), com
+                  o rótulo que o ADMIN configurou. Sem prazo, não renderiza. */}
+              {promo.countdownRunning && promo.countdownEndsAt && (
+                <PromoCountdown
+                  endsAt={promo.countdownEndsAt}
+                  label={promoConfig.countdown.label}
+                  className="mt-2"
+                />
               )}
             </div>
           </div>
@@ -161,6 +165,17 @@ export default async function CheckoutPage({
           activePlans={activePlans}
           authedEmail={authedEmail}
           authedName={authedName}
+          // Cotação resolvida AQUI, no servidor, para este plano e este
+          // comprador. O formulário só exibe: nenhum preço nasce no navegador.
+          pricing={{
+            slug: plan.slug,
+            baseCents: promo.basePriceCents,
+            effectiveCents: promo.priceCents,
+            onSale: promo.applied,
+            countdownEndsAt: promo.countdownEndsAt,
+            countdownLabel: promoConfig.countdown.label,
+            countdownRunning: promo.countdownRunning,
+          }}
         />
       </div>
 

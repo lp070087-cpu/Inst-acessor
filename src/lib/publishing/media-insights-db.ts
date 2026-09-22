@@ -149,8 +149,12 @@ export async function getMediaInsights(
     metrics = null;
   }
 
+  // `InstagramComment.mediaId` é a FK INTERNA (aponta para `InstagramMedia.id`),
+  // NÃO o `igMediaId` da Meta. Filtrar pelo id externo nunca casava com nada e
+  // a contagem de comentários importados aparecia sempre como 0. Mesmo defeito
+  // que `listStoredComments` já evitava resolvendo o id interno primeiro.
   const storedCommentsCount = await safeCount(p.instagramComment, {
-    where: { userId, mediaId: igMediaId },
+    where: { userId, mediaId: media.id },
   });
 
   const built = buildMediaInsights({

@@ -25,6 +25,9 @@ import { Divider } from "@/components/ui/divider";
 
 import type { ReplyMode } from "@/lib/comment-replies/types";
 import { REPLY_MODE_LABEL } from "@/lib/comment-replies/types";
+// A frase do vazio vem do MESMO núcleo puro que decide o motivo — nunca de um
+// texto reescrito aqui (era assim que a tela e o motor divergiam).
+import { emptyReasonNotice, type AnalyzeEmptyReason } from "@/lib/comment-replies/empty-reason";
 
 import { MediaList, type MediaItem } from "./media-list";
 import { ApprovalBox, type ReviewItem } from "./approval-box";
@@ -101,6 +104,12 @@ export function CommentRepliesClient({
   const [mediaLoading, setMediaLoading] = React.useState(false);
   const [mediaError, setMediaError] = React.useState<string | null>(null);
   const [connectionIssue, setConnectionIssue] = React.useState<string | null>(null);
+  // Publicação que a Meta não reconhece (ou que não temos no banco). Guarda o
+  // id para o aviso poder oferecer "sincronizar e tentar de novo" em vez de só
+  // informar o problema.
+  const [mediaIssue, setMediaIssue] = React.useState<{ mediaId: string; message: string } | null>(
+    null
+  );
 
   const [reviews, setReviews] = React.useState<ReviewItem[]>([]);
   const [analyzedMedia, setAnalyzedMedia] = React.useState<string | null>(null);
@@ -108,6 +117,11 @@ export function CommentRepliesClient({
   const [lastSyncAt, setLastSyncAt] = React.useState<string | null>(null);
   // `null` = nunca sincronizamos comentários · `false` = a Meta recusou o escopo.
   const [commentsAvailable, setCommentsAvailable] = React.useState<boolean | null>(null);
+  // A conexão era válida quando a página carregou, mas a Meta acabou de
+  // recusar o token (código 190). Sem isto, a tela continuaria operando como
+  // se estivesse conectada e só falharia de novo no próximo clique.
+  const [connectionDown, setConnectionDown] = React.useState(false);
+  const isConnected = connected && !connectionDown;
 
   const refreshStats = React.useCallback(async () => {
     try {
@@ -177,6 +191,9 @@ export function CommentRepliesClient({
         );
         return;
       }
+      // Sincronizou: o aviso de "publicação não reconhecida" perdeu a validade
+      // — a publicação pode ter entrado no banco agora.
+      setMediaIssue(null);
       await loadMedia();
       await refreshStats();
     } catch {
@@ -187,10 +204,10 @@ export function CommentRepliesClient({
   }, [loadMedia, refreshStats, toast]);
 
   React.useEffect(() => {
-    if (!connected) return;
+    if (!isConnected) return;
     void refreshStats();
     void loadMedia();
-  }, [connected, refreshStats, loadMedia]);
+  }, [isConnected, refreshStats, loadMedia]);
 
   async function patchRule(patch: Partial<InitialRule>) {
     setBusy(true);
@@ -238,11 +255,31 @@ export function CommentRepliesClient({
       const data = await res.json();
 
       if (!res.ok) {
-        // Erro de capacidade da Meta é mostrado com o motivo real.
+        // O erro da Meta é mostrado com o motivo REAL e cada código tem um
+        // desfecho próprio na tela. Antes tudo virava o mesmo toast, e as
+        // causas que exigem AÇÃO DIFERENTE (permissão, publicação, conexão)
+        // eram indistinguíveis de uma falha passageira.
         setReviews([]);
+        const code: string | undefined = data?.code;
         toast(data?.error ?? "Não foi possível analisar os comentários.", "error");
-        if (data?.code === "capability") {
+
+        if (code === "capability") {
+          // Permissão: o aviso fica na tela, não só no toast — o usuário
+          // precisa entender que a configuração continua válida.
           setConnectionIssue(data.error);
+        } else if (code === "not_connected" || code === "no_connection") {
+          // Conexão/token: a tela volta ao estado "sem conexão".
+          setConnectionIssue(data.error);
+          setConnectionDown(true);
+        } else if (code === "media_not_found" || code === "media_unsynced") {
+          // Problema na PUBLICAÇÃO (apagada, arquivada, outro dono) ou no
+          // nosso espelho dela. A ação é sincronizar — então oferecemos isso.
+          setMediaIssue({
+            mediaId: item.id,
+            message:
+              data?.error ??
+              "O Instagram não reconheceu esta publicação para a conta conectada.",
+          });
         }
         return;
       }
@@ -278,13 +315,72 @@ export function CommentRepliesClient({
       );
 
       setReviews(items);
+
+      // Falhas por comentário: a leva pode estar PARCIAL. Antes a tela contava
+      // os itens e tratava o resto como inexistente — quem teve 3 de 5
+      // comentários gravados via "3 comentários analisados" e nada mais.
+      const readErrors: { commentId: string; message: string }[] = Array.isArray(
+        data?.readErrors
+      )
+        ? data.readErrors
+        : [];
+      const partial = items.length > 0 && readErrors.length > 0;
+
       if (items.length === 0) {
-        toast("Nenhum comentário novo nesta publicação.", "info");
+        // O vazio tem MOTIVO, e a frase vem do núcleo puro (`emptyReasonNotice`)
+        // — a MESMA regra que decide o motivo. Antes a tela reescrevia o texto
+        // por conta própria, então o motivo e a mensagem podiam divergir, e
+        // quatro situações diferentes viravam "Nenhum comentário novo".
+        const reason = (data?.emptyReason ?? "has_items") as AnalyzeEmptyReason;
+        const fetched = Number(data?.fetchedCount ?? 0);
+        const notice = emptyReasonNotice(reason, fetched);
+        if (notice.text) toast(notice.text, notice.tone);
+      } else if (partial) {
+        // Sucesso PARCIAL: dizer o que entrou e o que faltou. Nunca apresentar
+        // a leva como completa.
+        toast(
+          `${items.length} de ${items.length + readErrors.length} comentário(s) foram analisados; ${readErrors.length} falharam.`,
+          "warning"
+        );
+        setTab("aprovacoes");
       } else {
         toast(`${items.length} comentário(s) analisado(s).`);
         setTab("aprovacoes");
       }
+
+      // Leitura ao vivo falhou, mas analisamos o que já estava sincronizado.
+      if (data?.usedStoredFallback) {
+        toast(
+          "A leitura ao vivo no Instagram falhou; usamos os comentários já sincronizados.",
+          "warning"
+        );
+      }
+
+      // A leitura parou no teto de páginas: existiam mais comentários do que os
+      // que entraram. Sem isso, uma leva incompleta parecia completa.
+      if (data?.truncated) {
+        toast(
+          "Esta publicação tem mais comentários do que conseguimos ler de uma vez. Analise novamente depois de responder os atuais.",
+          "info"
+        );
+      }
+
+      // O que foi lido da Meta não conseguiu ser gravado: o card do Instagram e
+      // a tela continuarão divergindo até a gravação funcionar.
+      if (data?.persistError) {
+        toast(
+          "A análise funcionou, mas não foi possível guardar os comentários importados.",
+          "warning"
+        );
+      }
+
       void refreshStats();
+      // A leva importou comentários: o banco mudou, então a contagem do card
+      // (que vem do banco) precisa ser relida — senão ela fica defasada em
+      // relação ao que a análise acabou de gravar.
+      if (data?.persistError == null && (items.length > 0 || data?.usedStoredFallback === false)) {
+        void loadMedia();
+      }
     } catch {
       toast("Não foi possível analisar os comentários.", "error");
     } finally {
@@ -321,7 +417,7 @@ export function CommentRepliesClient({
 
   // ---------------------------------------------------------------- sem conexão
 
-  if (!connected) {
+  if (!isConnected) {
     return (
       <EmptyState
         icon={Instagram}
@@ -412,13 +508,65 @@ export function CommentRepliesClient({
         </div>
       )}
 
-      {connectionIssue && (
+      {connectionIssue && !connectionDown && (
         <div className="flex items-start gap-3 rounded-md border border-info/25 bg-info-soft px-4 py-3.5">
           <Lock size={18} className="text-info flex-none mt-0.5" />
           <div className="text-[12.5px] text-ink-soft leading-relaxed">
             <strong className="text-ink">Permissão de comentários indisponível no momento.</strong>{" "}
             {connectionIssue} Toda a configuração abaixo continua válida e passa a
             funcionar assim que o Instagram liberar o acesso.
+          </div>
+        </div>
+      )}
+
+      {/* Token expirado/recusado: a única saída é reconectar, então o aviso
+          leva direto para lá em vez de deixar o usuário tentar de novo à toa. */}
+      {connectionDown && (
+        <div className="flex items-start gap-3 rounded-md border border-warn/25 bg-warn-soft px-4 py-3.5">
+          <AlertTriangle size={18} className="text-warn flex-none mt-0.5" />
+          <div className="text-[12.5px] text-ink-soft leading-relaxed min-w-0 flex-1">
+            <strong className="text-ink">A conexão com o Instagram não está mais ativa.</strong>{" "}
+            {connectionIssue ??
+              "Reconecte a conta em Redes Sociais para voltar a ler e responder comentários."}
+            <div className="mt-2">
+              <Link href="/redes-sociais">
+                <Button variant="ghost" size="xs">
+                  Ir para Redes Sociais
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* A Meta não reconheceu a publicação que o usuário tentou analisar.
+          Este aviso tem AÇÃO: o problema é da publicação (apagada, arquivada,
+          de outra conta) ou do nosso espelho dela — nos dois casos a saída é
+          sincronizar. Antes isso chegava como "não foi possível analisar os
+          comentários", indistinguível de uma queda de rede. */}
+      {mediaIssue && (
+        <div className="flex items-start gap-3 rounded-md border border-warn/25 bg-warn-soft px-4 py-3.5 min-w-0">
+          <AlertTriangle size={18} className="text-warn flex-none mt-0.5" />
+          <div className="text-[12.5px] text-ink-soft leading-relaxed min-w-0 flex-1 break-words">
+            <strong className="text-ink">Não foi possível ler esta publicação.</strong>{" "}
+            {mediaIssue.message}
+            <div className="mt-2 flex items-center gap-2 flex-wrap">
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={() => void syncNow()}
+                disabled={mediaSyncing}
+              >
+                {mediaSyncing ? (
+                  <><Loader2 size={13} className="animate-spin" /> Sincronizando…</>
+                ) : (
+                  <><RefreshCw size={13} /> Sincronizar conta</>
+                )}
+              </Button>
+              <Button variant="ghost" size="xs" onClick={() => setMediaIssue(null)}>
+                Dispensar
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -489,7 +637,7 @@ export function CommentRepliesClient({
       {tab === "publicacoes" && (
         <div className="flex flex-col gap-5">
           {/* Última sincronização REAL — deixa claro se os dados estão antigos. */}
-          {connected && lastSyncAt && (
+          {isConnected && lastSyncAt && (
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <p className="text-[12px] text-ink-muted">
                 Última sincronização:{" "}

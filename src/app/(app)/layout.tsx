@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireSession } from "@/lib/auth/guard";
 import { isOfficialAdminEmail } from "@/lib/auth/admin-access";
-import { getActiveAccessForUser } from "@/lib/first-access";
+import { resolvePremiumAccess } from "@/lib/access/premium";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { ToastProvider } from "@/components/ui/toast";
 
@@ -31,8 +31,12 @@ export default async function AppLayout({
   // normalizado recebe o item "Admin" no menu. Clientes comuns nunca veem.
   const isAdmin = isOfficialAdminEmail(user?.email ?? null);
 
-  // Expiração/estado do acesso (PENDING_FIRST_ACCESS / ACTIVE / EXPIRED / CANCELED).
-  const access = await getActiveAccessForUser(session.user.id);
+  // ACESSO EFETIVO (fonte única): grant válido OU assinatura ativa OU ADMIN.
+  //
+  // Aqui o valor só marca a sidebar (cadeado). QUEM BLOQUEIA o módulo é
+  // `requirePremiumPage()` no topo de cada página do plano — essa é a
+  // autoridade. Ler o estado neste layout é o que permite o menu não mentir.
+  const access = await resolvePremiumAccess(session.user.id);
 
   // PRIMEIRO ACESSO — o fluxo de ativação (criar a própria senha) só se aplica
   // a usuários com um grant pendente (PENDING_FIRST_ACCESS) que AINDA NÃO
@@ -40,7 +44,7 @@ export default async function AppLayout({
   // ativada) passam direto — isso elimina o ciclo /primeiro-acesso ↔ /dashboard
   // que deixava a página piscando para contas legadas.
   const needsActivation =
-    access.status === "PENDING_FIRST_ACCESS" && !user?.passwordHash;
+    access.reason === "PENDING_FIRST_ACCESS" && !user?.passwordHash;
   if (needsActivation) {
     redirect("/primeiro-acesso");
   }
@@ -62,20 +66,20 @@ export default async function AppLayout({
     redirect("/onboarding");
   }
 
-  // Expiração real: apenas EXPIRED/CANCELED bloqueiam os recursos pagos.
-  // PENDING_FIRST_ACCESS é estado de ativação, NÃO de expiração — por isso não
-  // usamos `!access.active` aqui (equivaleria a mandar quem ainda vai ativar
-  // para a tela de renovação).
-  if (access.status === "EXPIRED" || access.status === "CANCELED") {
-    redirect("/expirado");
-  }
-
+  // ACESSO AOS MÓDULOS DO PLANO — autoridade em `requirePremiumPage()`, no topo
+  // de cada página premium. Aqui o layout apenas repassa `hasAccess` para a
+  // sidebar marcar os itens com cadeado (exibição; nunca autorização).
+  //
+  // O que continua acessível sem plano (conta gratuita de verdade): Dashboard,
+  // Redes Sociais, Minha Assinatura, Perfil, Configurações e Sobre. Nada é
+  // apagado e o usuário não é deslogado.
   return (
     <ToastProvider>
       <div className="min-h-screen bg-bg">
         <AppSidebar
           user={session.user}
           isAdmin={isAdmin}
+          hasPremiumAccess={access.hasAccess}
           account={{ name: profile?.user?.name ?? null, avatar: profile?.avatar ?? null }}
         />
         <main className="lg:pl-72 min-h-screen flex flex-col min-w-0">

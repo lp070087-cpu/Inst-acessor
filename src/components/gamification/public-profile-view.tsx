@@ -20,6 +20,8 @@ import { Badge } from "@/components/ui/badge";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
+// Tipo puro (sem banco) — seguro importar num Client Component.
+import type { RankTierInfo } from "@/lib/gamification/xp";
 
 // ------------------------------------------------------------
 // Tipos públicos (serializáveis — o servidor envia somente dados
@@ -48,6 +50,11 @@ export interface PublicProfilePayload {
   xpInLevel: number;
   xpNeededForNext: number;
   progressToNext: number;
+  /**
+   * Faixa geral (Bronze→Lendário) sobre o XP acumulado. `label: null` antes do
+   * Bronze — nesse caso o perfil mostra a distância real, nunca inventa faixa.
+   */
+  tier?: RankTierInfo | null;
   // Posição (real)
   position: number | null;
   totalUsers: number;
@@ -134,9 +141,14 @@ export function PublicProfileView({ payload }: { payload: PublicProfilePayload }
   }
 
   async function shareEvolution() {
+    // O PAR (Rank, Nível) é a identidade do Rank — "Bronze • Nível 2". Mostrar
+    // só "Bronze" não distinguiria dois usuários em níveis internos diferentes.
+    const tierText = payload.tier
+      ? `${payload.tier.fullLabel} com ${payload.totalXpEarned} XP acumulados`
+      : `${payload.totalXpEarned} XP acumulados`;
     const shareData = {
       title: `${payload.name} no Inst Acessor`,
-      text: `Veja a evolução de ${payload.name} — nível ${payload.level} com ${payload.xp} XP.`,
+      text: `Veja a evolução de ${payload.name} — ${tierText}.`,
       url,
     };
     try {
@@ -186,7 +198,7 @@ export function PublicProfileView({ payload }: { payload: PublicProfilePayload }
               </p>
             </div>
             <Badge tone="brand" size="md" className="flex-none">
-              Nível {payload.level}
+              {payload.tier?.label ?? `Nível ${payload.level}`}
             </Badge>
           </div>
 
@@ -204,19 +216,29 @@ export function PublicProfileView({ payload }: { payload: PublicProfilePayload }
             />
           </div>
 
-          {/* Progresso p/ o próximo nível */}
+          {/* Progresso p/ a próxima faixa do Rank (ou próximo nível, se a
+              faixa ainda não foi alcançada / já é a máxima). */}
           <div className="rounded-[16px] bg-surface/40 border border-border-soft p-4 flex flex-col gap-2">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <span className="text-[12.5px] font-semibold text-ink-soft">
-                Progresso para o nível {payload.level + 1}
+                {payload.tier?.nextLabel
+                  ? `Progresso para ${payload.tier.nextLabel}`
+                  : payload.tier?.label
+                    ? "Topo da progressão alcançado"
+                    : `Progresso para o nível ${payload.level + 1}`}
               </span>
               <span className="font-data font-bold text-[14px] text-ink">
                 {payload.xpInLevel} / {payload.xpNeededForNext} XP
               </span>
             </div>
-            <ProgressBar value={payload.progressToNext} gradient="brand" />
+            <ProgressBar
+              value={payload.tier?.progressToNextTier ?? payload.progressToNext}
+              gradient="brand"
+            />
             <p className="text-[11.5px] text-ink-muted">
-              {Math.round(payload.progressToNext)}% do caminho · {payload.totalXpEarned} XP acumulados no total
+              {payload.tier?.nextLabel
+                ? `${Math.round(payload.tier.progressToNextTier ?? 0)}% até ${payload.tier.nextLabel} · ${payload.totalXpEarned} XP acumulados no total`
+                : `${Math.round(payload.progressToNext)}% do caminho · ${payload.totalXpEarned} XP acumulados no total`}
             </p>
           </div>
 

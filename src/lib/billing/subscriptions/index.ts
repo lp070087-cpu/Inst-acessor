@@ -32,8 +32,14 @@ export interface SubscriptionView {
   planId: string;
   planName: string;
   planSlug: string;
-  /** Valor efetivamente cobrado (travado na criação) — NUNCA lido do client. */
-  priceCents: number;
+  /**
+   * Valor efetivamente cobrado (travado na criação) — NUNCA lido do client.
+   *
+   * `null` quando nem a assinatura nem o catálogo têm valor. NÃO é 0: zero é um
+   * preço ("grátis"), e transformar ausência em 0 faria a tela afirmar que o
+   * plano custa R$ 0,00. Ausência de preço é ausência — a UI mostra a ausência.
+   */
+  priceCents: number | null;
   currency: string;
   status: string;
   billingType: string;
@@ -76,6 +82,12 @@ interface SubscriptionRow {
   accessSource: string | null;
   provider: string | null;
   createdAt: Date;
+  /**
+   * ID da assinatura NO GATEWAY. É o que permite cancelar a recorrência de
+   * verdade (`DELETE /subscriptions/{id}` no Asaas). Sem ele, a assinatura
+   * nasceu local e não existe nada para cancelar do outro lado.
+   */
+  externalSubscriptionId: string | null;
 }
 
 function computeStatus(row: SubscriptionRow): { status: string; active: boolean; daysRemaining: number } {
@@ -98,8 +110,9 @@ async function toSubscriptionView(
     planSlug: plan?.slug ?? "",
     // Valor efetivamente cobrado (travado na criação pelo servidor). Quando
     // o gateway estiver ativo, `amountCents` reflete o valor real; senão usa
-    // o preço do catálogo (fonte única server-side).
-    priceCents: row.amountCents ?? plan?.priceCents ?? 0,
+    // o preço do catálogo (fonte única server-side). Sem nenhum dos dois:
+    // `null` — ausência de preço, nunca "R$ 0,00" (ver `SubscriptionView`).
+    priceCents: row.amountCents ?? plan?.priceCents ?? null,
     currency: row.currency ?? plan?.currency ?? "BRL",
     status: row.status,
     billingType: row.billingType,
@@ -130,8 +143,16 @@ export async function getMySubscription(userId: string): Promise<SubscriptionVie
 
 /**
  * Cria uma assinatura PENDING (sem gateway real). Owner-check.
- * Quando o gateway Asaas estiver ativo, este ponto chamará o adapter e
- * só então criará uma assinatura com dados externos reais.
+ *
+ * CORREÇÃO: o corpo criava `status: "ACTIVE"`, contradizendo o próprio nome
+ * ("Pending") e o comentário acima. Uma assinatura marcada como ACTIVE sem
+ * NENHUM pagamento é exatamente a "assinatura fingida" que o produto não pode
+ * ter — e, agora que `resolvePremiumAccess` confia em `status`, isso viraria
+ * acesso premium gratuito. Passa a nascer PENDING (e sem renovação automática,
+ * porque não há cobrança recorrente real por trás).
+ *
+ * Quando o checkout Asaas ativo confirmar o pagamento, é o webhook que ativa
+ * (ver `src/lib/billing/asaas/events.ts`).
  */
 export async function createPendingSubscription(
   userId: string,
@@ -141,23 +162,18 @@ export async function createPendingSubscription(
   if (!plan) return null;
 
   const now = new Date();
-  const startAt = now;
-  const durationDays = plan.durationDays ?? 0;
-  const expiresAt = durationDays > 0
-    ? new Date(startAt.getTime() + durationDays * 86_400_000)
-    : null;
 
   const created = (await bll.subscription.create({
     data: {
       userId,
       planId,
-      status: "ACTIVE",
+      status: "PENDING",
       billingType: plan.type,
       billingInterval: plan.billingInterval,
-      startAt,
-      expiresAt,
-      autoRenew: plan.type === "RECURRING",
-      nextBillingAt: plan.type === "RECURRING" && plan.billingInterval ? computeNextBilling(startAt, plan.billingInterval) : null,
+      startAt: null,
+      expiresAt: null,
+      autoRenew: false,
+      nextBillingAt: null,
       provider: null,
       externalCustomerId: null,
       externalSubscriptionId: null,
@@ -167,31 +183,72 @@ export async function createPendingSubscription(
   return toSubscriptionView(created);
 }
 
-function computeNextBilling(from: Date, interval: string): Date | null {
-  const d = new Date(from.getTime());
-  if (interval === "MONTH") d.setMonth(d.getMonth() + 1);
-  else if (interval === "YEAR") d.setFullYear(d.getFullYear() + 1);
-  else return null;
-  return d;
-}
-
 /**
  * Marca a renovação futura como cancelada (não cancela o acesso atual).
- * Owner-check. NÃO finge cancelamento externo (sem gateway, sem chamada).
+ * Owner-check.
+ *
+ * O DEFEITO QUE ESTA FUNÇÃO TINHA
+ * -------------------------------
+ * Ela só gravava `autoRenew: false` no banco local. Nenhuma chamada saía para o
+ * Asaas — `cancelAsaasSubscription` (que faz o `DELETE /subscriptions/{id}` com
+ * owner-check) existia pronta e **sem um único chamador**. Efeito real: a tela
+ * dizia "renovação cancelada" e o Asaas continuava cobrando na data seguinte. O
+ * usuário só descobria no extrato.
+ *
+ * ORDEM DAS OPERAÇÕES — de propósito, não por acaso
+ * -------------------------------------------------
+ * Primeiro o GATEWAY, depois o banco local. Se o local viesse primeiro e o
+ * Asaas falhasse, o banco diria "cancelado" enquanto o Asaas seguiria cobrando
+ * — o pior resultado possível, porque é silencioso. Nesta ordem, uma falha do
+ * Asaas deixa o local intacto e a tela pode dizer a verdade.
+ *
+ * Também de propósito: quando a assinatura recorrente TEM vínculo externo, uma
+ * falha no gateway NÃO é engolida. Ela volta como erro para a rota responder
+ * 502, em vez de gravar um cancelamento que não aconteceu.
  */
-export async function cancelRenewal(userId: string, subscriptionId: string): Promise<SubscriptionView | null> {
+export async function cancelRenewal(
+  userId: string,
+  subscriptionId: string
+): Promise<{ ok: true; subscription: SubscriptionView } | { ok: false; reason: string; message: string }> {
   const existing = (await bll.subscription.findUnique({
     where: { id: subscriptionId },
   })) as unknown as SubscriptionRow | null;
-  if (!existing || existing.userId !== userId) return null;
-  if (existing.billingType !== "RECURRING") return toSubscriptionView(existing);
 
+  if (!existing || existing.userId !== userId) {
+    return { ok: false, reason: "not_found", message: "Assinatura não encontrada." };
+  }
+
+  // Assinatura não recorrente (compra única): não há renovação a cancelar. Nada
+  // é chamado no gateway e nada muda — mas a resposta continua sendo sucesso,
+  // porque o estado desejado ("não vai renovar") já é o estado atual.
+  if (existing.billingType !== "RECURRING") {
+    const view = await toSubscriptionView(existing);
+    return { ok: true, subscription: view };
+  }
+
+  // 1º — GATEWAY. Só é acionado quando existe vínculo externo real; sem ele a
+  // assinatura nasceu local e não há nada para cancelar do outro lado.
+  const hasExternalLink = Boolean(existing.externalSubscriptionId);
+  if (hasExternalLink) {
+    const { cancelAsaasSubscription } = await import("@/lib/billing/asaas/service");
+    const gateway = await cancelAsaasSubscription({ userId, subscriptionId });
+
+    if (!gateway.ok) {
+      return {
+        ok: false,
+        reason: "gateway",
+        message: gateway.message,
+      };
+    }
+  }
+
+  // 2º — BANCO LOCAL, só depois do gateway confirmar.
   const updated = (await bll.subscription.update({
     where: { id: subscriptionId },
     data: { autoRenew: false, canceledAt: new Date() },
   })) as unknown as SubscriptionRow;
 
-  return toSubscriptionView(updated);
+  return { ok: true, subscription: await toSubscriptionView(updated) };
 }
 
 /** Lista assinaturas do usuário (owner-check). */
@@ -204,19 +261,29 @@ export async function listMySubscriptions(userId: string): Promise<SubscriptionV
 }
 
 /**
- * CONTROLE DE ACESSO (6.5.25) — função central.
- * Avalia a assinatura do usuário para liberar/negar recursos pagos.
+ * CONTROLE DE ACESSO — função central.
  *
- * IMPORTANTE: nesta fase NÃO bloqueia nada. A DONA precisa continuar
- * acessando o sistema durante o desenvolvimento. Quando o gateway real
- * existir, esta função passará a considerar subscription.status, expiresAt
- * e billingInterval de verdade.
+ * ANTES: devolvia `true` fixo ("em desenvolvimento: acesso liberado sempre") e
+ * nunca era chamada por ninguém. O efeito prático era uma conta gratuita, sem
+ * nenhum grant e sem assinatura, atravessar Score/Rank/IA/Calendário como se
+ * tivesse assinado. O comentário prometia "quando o gateway real existir", e o
+ * gateway real (Asaas) já existe.
+ *
+ * AGORA: delega ao resolvedor único `resolvePremiumAccess`, que exige prova de
+ * acesso (grant válido do Asaas/webhook, liberação manual do ADMIN, assinatura
+ * ativa ou o ADMIN exclusivo). Ausência de dado → `false`. A assinatura da
+ * função foi mantida para não quebrar o barrel `@/lib/billing`.
  */
 export async function canAccessPaidFeatures(userId: string): Promise<boolean> {
-  // Em desenvolvimento: acesso liberado sempre (não quebrar usuários existentes).
-  void userId;
-  return true;
+  const { resolvePremiumAccess } = await import("@/lib/access/premium");
+  const access = await resolvePremiumAccess(userId);
+  return access.hasAccess;
 }
+// O resolver mora em `@/lib/access/premium` e é importado DINAMICAMENTE acima
+// de propósito: `@/lib/billing` é um barrel grande (catálogo, Asaas, adapter) e
+// importar o resolvedor no topo criaria dependência circular em tempo de módulo
+// (premium → prisma/guard → billing). Em runtime a importação é resolvida uma
+// única vez pelo cache do Node/Next.
 
 /**
  * Versão informativa do status de acesso (para exibir na UI sem bloquear).

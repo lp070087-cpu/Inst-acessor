@@ -73,13 +73,21 @@ export function MediaList({ media, onAnalyze, busyId, busy }: MediaListProps) {
       {media.map((item) => {
         const { label, Icon } = describeType(item);
         const isBusy = busyId === item.id;
-        // Preferimos o número REAL que já sincronizamos. A contagem da API serve
-        // de reserva; quando nem uma nem outra existe mostramos "—" (o dado não
-        // foi fornecido), nunca "0" fingindo que não há comentários.
+        // DUAS ORIGENS DIFERENTES, DUAS LEITURAS DIFERENTES.
+        //  - `synced`: comentários REAIS no banco (o que a tela consegue listar).
+        //  - `commentsCount`: o `comments_count` DECLARADO pela Meta no nó da
+        //    mídia — que pode existir sem nenhum comentário importado.
+        // Somar/alternar as duas num único badge foi o que produziu a
+        // contradição em produção ("5 comentários" no card + "nenhum comentário
+        // novo" ao analisar). Agora o número grande é o que TEMOS, e a
+        // divergência com a Meta aparece explicitamente.
         const synced = item.syncedCommentsCount ?? 0;
         const apiCount = item.commentsCount;
         const shownComments = synced > 0 ? synced : apiCount ?? null;
         const hasComments = (shownComments ?? 0) > 0;
+        // A Meta diz que existem mais do que importamos, e já tentamos (já há
+        // análise registrada): vale avisar em vez de deixar o número mentir.
+        const pendingFromMeta = apiCount != null && apiCount > synced;
 
         return (
           <div
@@ -121,6 +129,17 @@ export function MediaList({ media, onAnalyze, busyId, busy }: MediaListProps) {
                   <MessageCircle size={11} />
                   {shownComments === null ? "—" : shownComments}
                 </Badge>
+                {/* O Instagram informa mais comentários do que os importados.
+                    Dizemos isso com o número real da Meta — nunca escondemos a
+                    diferença nem a apresentamos como se já estivesse tudo aqui. */}
+                {pendingFromMeta && (
+                  <span
+                    className="text-[10.5px] text-ink-muted"
+                    title="Comentários declarados pelo Instagram. Use “Analisar comentários” para importar e analisar."
+                  >
+                    ({apiCount} no Instagram)
+                  </span>
+                )}
               </div>
 
               {/* BLOCO 5 — no celular o botão e o link "Abrir" dividem a mesma

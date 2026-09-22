@@ -24,6 +24,9 @@
  * catálogo puro + das regras de apresentação, sem risco de puxar o Prisma.
  */
 export { PLAN_CATALOG, type PlanSlug } from "./catalog";
+// Import LOCAL (além do reexport acima) porque `planAfterText` precisa do valor
+// em tempo de execução — um `export { } from` não cria binding neste módulo.
+import { PLAN_CATALOG } from "./catalog";
 
 /** Forma mínima aceita pelos helpers — serve tanto para `PlanView` quanto para o catálogo. */
 export interface PlanShape {
@@ -94,6 +97,28 @@ export function planLandingPeriod(
   if (days === 30) return "por mês";
   if (days === 365) return "por ano";
   return days ? `por ${days} dias` : "pagamento único";
+}
+
+/**
+ * O que o plano passa a custar DEPOIS da pré-venda — texto do card.
+ *
+ * Existe para o MESMO card poder mostrar "Depois R$ 77,00/mês" / "Renovação por
+ * R$ 547,00/ano" também quando a promoção está DESLIGADA: nesse caso não há "de
+ * X por Y", mas o ciclo continua sendo a informação comercial relevante.
+ *
+ * Derivado de `type`/`billingInterval`, nunca de um slug — o mesmo motivo de
+ * `planLandingPeriod`. Compra ÚNICA devolve `null`: não há "depois" em algo que
+ * não se repete (é o caso do semanal).
+ */
+export function planAfterText(
+  slug: string,
+  priceCents: number
+): string | null {
+  const plan = PLAN_CATALOG.find((p) => p.slug === slug) ?? null;
+  if (!plan || plan.type !== "RECURRING") return null;
+  if (plan.billingInterval === "YEAR") return `Renovação por ${formatBRL(priceCents)}/ano`;
+  if (plan.billingInterval === "MONTH") return `Depois ${formatBRL(priceCents)}/mês`;
+  return null;
 }
 
 /**

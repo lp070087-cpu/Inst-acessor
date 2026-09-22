@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { gp } from "@/lib/gamification/db";
-import { levelInfoFromXp } from "@/lib/gamification/xp";
+import { levelInfoFromXp, rankTierFromXp } from "@/lib/gamification/xp";
 
 /**
  * RANKING — Fase 5
@@ -16,6 +16,25 @@ export interface RankingEntry {
   xp: number;
   position: number;
   isMe: boolean;
+  /**
+   * @username do Instagram conectado, quando existe. Dado REAL do
+   * `InstagramProfile` — nunca inventado a partir do nome.
+   */
+  username: string | null;
+  /**
+   * Rótulo do RANK GERAL ("Bronze"). Nunca `null`: todos começam no Bronze.
+   */
+  tierLabel: string;
+  /**
+   * Nível INTERNO dentro do Rank (1..5 estrelas). Sozinho NÃO identifica o
+   * usuário — o par (Rank, Nível) é a identidade. Use `rankLevelLabel`.
+   */
+  levelWithinRank: number;
+  /**
+   * Rótulo do par, pronto para exibir: "Bronze • Nível 2". É este campo que a
+   * lista/pódio deve mostrar; "Nível 2" sozinho é ambíguo entre os 5 Ranks.
+   */
+  rankLevelLabel: string;
 }
 
 export interface UserRankSummary {
@@ -46,12 +65,36 @@ export async function getRanking(
   const nameByUser = new Map<string, string | null>();
   for (const p of profiles) nameByUser.set(p.userId, p.displayName ?? null);
 
+  // @username REAL do Instagram conectado. Fica em tabela separada do nome de
+  // exibição, então é lido aqui em vez de derivado — se a conta não estiver
+  // conectada, o campo fica `null` e a UI simplesmente não mostra a linha.
+  const igProfiles = await prisma.instagramProfile.findMany({
+    where: { userId: { in: userIds } },
+    select: { userId: true, username: true },
+    orderBy: { updatedAt: "desc" },
+  });
+  const userByUser = new Map<string, string>();
+  for (const p of igProfiles) {
+    // A ordenação desc garante que o primeiro de cada userId seja o mais recente.
+    if (!userByUser.has(p.userId) && p.username) userByUser.set(p.userId, p.username);
+  }
+
   const entries: RankingEntry[] = [];
   let myPosition: number | null = null;
   levels.forEach((row, idx) => {
-    const r = row as { userId: string; xp: number; level: number };
+    const r = row as {
+      userId: string;
+      xp: number;
+      level: number;
+      totalXpEarned?: number | null;
+    };
     const isMe = r.userId === me;
     if (isMe) myPosition = idx + 1;
+    // O Rank usa o XP ACUMULADO quando disponível; o ranking já ordena por
+    // `xp` (XP corrente), que é o mesmo valor na prática. O par (Rank, Nível)
+    // vem do MESMO motor que posiciona o usuário — não existe uma contagem
+    // paralela de estrelas para o ranking.
+    const tier = rankTierFromXp(r.totalXpEarned ?? r.xp);
     entries.push({
       userId: r.userId,
       name: nameByUser.get(r.userId) ?? "Usuário",
@@ -59,6 +102,10 @@ export async function getRanking(
       xp: r.xp,
       position: idx + 1,
       isMe,
+      username: userByUser.get(r.userId) ?? null,
+      tierLabel: tier.label,
+      levelWithinRank: tier.level,
+      rankLevelLabel: tier.fullLabel,
     });
   });
 

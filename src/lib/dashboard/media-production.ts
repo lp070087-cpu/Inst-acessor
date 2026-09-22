@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { averagePresent, mediaInteractions, sumPresent } from "@/lib/media/derived-metrics";
 
 /**
  * DADOS DE MÍDIA E DE PRODUÇÃO DO DASHBOARD
@@ -224,10 +225,10 @@ export async function getMediaProductionData(
     .map((m) => latestMetrics.get(m.id))
     .filter((m): m is MediaMetricRow => m != null);
 
-  const sumOrNull = (values: (number | null)[]): number | null => {
-    const real = values.filter((v): v is number => v != null);
-    return real.length > 0 ? real.reduce((a, b) => a + b, 0) : null;
-  };
+  // Soma de grandezas INDEPENDENTES (views/alcance de cada vídeo — o alcance de
+  // uma mídia não depende do da outra). Vem do núcleo comum para não existir uma
+  // segunda implementação da mesma regra "soma vazia é null, nunca 0".
+  const sumOrNull = sumPresent;
 
   // Classificação Reels × feed: só conta o que a Meta classificou de verdade.
   // Mídia sem `mediaProductType` (coletada antes do campo existir) NÃO é
@@ -257,21 +258,22 @@ export async function getMediaProductionData(
   };
 
   // ---- Engajamento real: curtidas + comentários das publicações coletadas ----
+  //
+  // O derivado (curtidas + comentários) exige OS DOIS termos — regra única em
+  // `@/lib/media/derived-metrics`, a mesma usada pelo modal de insights. Antes
+  // esta função fazia `(likes ?? 0) + (comments ?? 0)`: uma publicação com só
+  // um dos números entrava na conta valendo um total PARCIAL, e o card exibia
+  // esse parcial como se fosse o engajamento real.
+  //
+  // Publicação com termo ausente fica FORA da amostra (não entra valendo zero).
+  // Os dois agregados abaixo são `null` quando nenhuma publicação está completa
+  // — a tela mostra a ausência em vez de "0".
   const interactions = mediaRows
-    .map((m) => {
-      const likes = m.likeCount;
-      const comments = m.commentsCount;
-      if (likes == null && comments == null) return null;
-      return (likes ?? 0) + (comments ?? 0);
-    })
+    .map((m) => mediaInteractions(m.likeCount, m.commentsCount))
     .filter((v): v is number => v != null);
 
-  const totalInteractions =
-    interactions.length > 0 ? interactions.reduce((a, b) => a + b, 0) : null;
-  const avgInteractionsPerMedia =
-    interactions.length > 0
-      ? Math.round(totalInteractions! / interactions.length)
-      : null;
+  const totalInteractions = interactions.length > 0 ? interactions.reduce((a, b) => a + b, 0) : null;
+  const avgInteractionsPerMedia = averagePresent(interactions);
 
   // ---- Bloco "Sua produção" — só contagens que existem no banco ----
   const [

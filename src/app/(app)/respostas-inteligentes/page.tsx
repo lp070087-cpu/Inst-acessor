@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { MessageSquareHeart } from "lucide-react";
 
-import { requireOnboardedSession } from "@/lib/auth/guard";
+import {
+  requireOnboardedSession,
+  requirePremiumPage,
+} from "@/lib/auth/guard";
 import { aiConfigured } from "@/lib/ai";
 import { prisma } from "@/lib/db";
 import { getOrCreateRule } from "@/lib/comment-replies/db";
@@ -29,6 +32,12 @@ export const dynamic = "force-dynamic";
  * esconder a funcionalidade.
  */
 export default async function RespostasInteligentesPage() {
+  // Módulo do plano: sem acesso premium, a própria página manda o usuário
+  // para /acesso-restrito. A checagem vive na página (e não no layout)
+  // porque só ela sabe a própria rota: não há header para ler nem um
+  // valor que possa se perder no caminho.
+  await requirePremiumPage();
+
   const { session } = await requireOnboardedSession();
   const userId = session.user.id;
 

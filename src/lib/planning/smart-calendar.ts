@@ -23,6 +23,8 @@
  * Módulo puro de propósito: é a parte testável sem subir o app.
  */
 
+import { mediaInteractions } from "@/lib/media/derived-metrics";
+
 /** Frase oficial de ausência. Não alterar sem revisar a especificação. */
 export const INSUFFICIENT_DATA_MESSAGE =
   "Dados insuficientes para gerar esta recomendação.";
@@ -285,8 +287,17 @@ function bestWeekdays(input: SmartCalendarInput): SmartRecommendation {
     .map((m) => {
       const d = parse(m.timestamp);
       if (!d) return null;
-      if (m.likeCount == null && m.commentsCount == null) return null;
-      return { dow: d.getDay(), interactions: (m.likeCount ?? 0) + (m.commentsCount ?? 0) };
+      // A interação medida é um DERIVADO (curtidas + comentários): só existe
+      // quando os DOIS termos existem — regra única em `@/lib/media/derived-metrics`.
+      // Com a ausência tratada como 0, o dia da semana de uma publicação sem
+      // `comments_count` recebia uma interação MENOR do que a real — e o ranking
+      // de "melhores dias" passava a ordenar dias por um artefato de dado
+      // faltante, não por desempenho. Publicação incompleta fica de FORA da
+      // amostra, e a amostra menor pode fazer o limiar mínimo recusar a
+      // conclusão — que é a resposta honesta.
+      const interactions = mediaInteractions(m.likeCount, m.commentsCount);
+      if (interactions == null) return null;
+      return { dow: d.getDay(), interactions };
     })
     .filter((r): r is { dow: number; interactions: number } => r != null);
 
@@ -342,8 +353,12 @@ function bestFormats(input: SmartCalendarInput): SmartRecommendation {
     .map((m) => {
       const product = m.mediaProductType?.trim().toUpperCase();
       if (!product) return null; // sem classificação da Meta → fora da conta
-      if (m.likeCount == null && m.commentsCount == null) return null;
-      return { product, interactions: (m.likeCount ?? 0) + (m.commentsCount ?? 0) };
+      // Mesma regra de `bestWeekdays`: derivado exige os dois termos. Sem isso,
+      // um formato comparado só pelas curtidas pareceria pior que outro — e a
+      // recomendação "melhor formato" apontaria para o lado errado.
+      const interactions = mediaInteractions(m.likeCount, m.commentsCount);
+      if (interactions == null) return null;
+      return { product, interactions };
     })
     .filter((r): r is { product: string; interactions: number } => r != null);
 

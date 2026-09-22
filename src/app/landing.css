@@ -3202,6 +3202,66 @@
   margin-top: 8px;
 }
 
+/* ---------- Pré-venda nos cards de plano (BLOCO 8/9) ----------
+   Estes estilos são ESCOPADOS ao card de plano da landing: nada aqui toca os
+   tokens do app nem os componentes internos. A oferta exibida vem do servidor
+   (`getPlanPromoDisplay`); o CSS só dá o destaque visual. */
+
+.lnd-plan-onsale {
+  border-color: rgba(244, 63, 142, 0.35);
+}
+
+/* Preço cheio riscado, com o "de/por" explícito — a comparação precisa ser
+   legível, não uma economia sugerida. */
+.lnd-plan-was {
+  font-size: 12.5px;
+  color: var(--lnd-ink-2);
+  letter-spacing: 0.01em;
+  margin-top: 2px;
+}
+.lnd-plan-was s {
+  color: var(--lnd-ink-3, #98a2b3);
+  font-weight: 600;
+}
+
+.lnd-plan-price-promo b {
+  background: var(--lnd-grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.lnd-plan-promo-note {
+  font-family: "Space Grotesk", monospace;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--lnd-magenta, #f43f8e);
+  line-height: 1.4;
+}
+.lnd-plan-promo-qual {
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--lnd-ink-2);
+}
+
+/* O contador vive dentro do card e acompanha a largura dele. */
+.lnd-plan-countdown {
+  align-self: flex-start;
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+
+/* Aviso de degradação: o banco não confirmou a config da pré-venda. */
+.lnd-plan-warn {
+  margin-top: 22px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--lnd-ink-2);
+}
+
 /* ---------- FAQ ---------- */
 .lnd-faq-list {
   max-width: 780px;

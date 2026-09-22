@@ -5,8 +5,11 @@ import {
   formatBRL,
   planLandingPeriod,
   planShortName,
+  planAfterText,
   LANDING_PLAN_FEATURES,
 } from "@/lib/billing/plans/display";
+import { getPlanPromoDisplay } from "@/lib/billing/promo-db";
+import { PromoCountdown } from "@/components/billing/promo-countdown";
 import {
   ArrowRight,
   CheckCircle2,
@@ -241,10 +244,18 @@ export function Seguranca() {
 /** Ordem de exibição na landing: do menor para o maior período. */
 const LANDING_PLAN_ORDER = ["semanal", "mensal", "anual"] as const;
 
-export function Planos() {
+export async function Planos() {
   const plans = LANDING_PLAN_ORDER.map((slug) =>
     PLAN_CATALOG.find((p) => p.slug === slug && p.active)
   ).filter((p): p is (typeof PLAN_CATALOG)[number] => Boolean(p));
+
+  // PRÉ-VENDA REAL — lida do servidor (`SystemSetting`, configurada pelo ADMIN).
+  // É a MESMA configuração que o checkout usa para decidir o valor cobrado: a
+  // landing deixa de ser uma tabela paralela de preços e passa a anunciar
+  // exatamente a oferta vigente. `infraOk === false` significa que o banco não
+  // respondeu e o valor exibido é o padrão — nunca apresentamos isso como se
+  // fosse a configuração real do admin.
+  const promo = await getPlanPromoDisplay();
 
   return (
     <section className="lnd-section" id="planos">
@@ -263,19 +274,81 @@ export function Planos() {
           {plans.map((p, i) => {
             const shortName = planShortName(p);
             const featured = p.badge === "MAIS_ESCOLHIDO";
+            const showcase = promo.bySlug[p.slug];
+
+            // A promoção só é anunciada quando é de fato um DESCONTO vigente.
+            // `showPromo` já é falso para promo desligada, vencida (countdown no
+            // passado) ou com valor ≥ cheio — e nesses casos o card volta ao
+            // preço de catálogo, que é o que o checkout cobraria.
+            const onSale = Boolean(showcase?.showPromo && showcase.promoPriceCents != null);
+            const promoPrice = onSale ? showcase.promoPriceCents! : null;
+
             return (
               <div
-                className={`lnd-plan-card${featured ? " lnd-featured lnd-glowbox" : ""} lnd-reveal`}
+                className={`lnd-plan-card${featured ? " lnd-featured lnd-glowbox" : ""}${
+                  onSale ? " lnd-plan-onsale" : ""
+                } lnd-reveal`}
                 data-delay={String(i + 1)}
                 key={p.slug}
               >
                 {featured && <span className="lnd-plan-badge">Mais escolhido</span>}
+
                 <span className="lnd-plan-name">{shortName}</span>
-                <div className="lnd-plan-price">
-                  <b>{formatBRL(p.priceCents)}</b>
-                  <span>{planLandingPeriod(p)}</span>
-                </div>
+
+                {onSale && promoPrice != null ? (
+                  <>
+                    {/* Estrutura pedida no card: DE (cheio, riscado) / selo de
+                        PRÉ-VENDA / preço promocional / condição / o que passa a
+                        valer depois. Tudo derivado da config do admin — o card
+                        não reescreve nenhuma dessas regras. */}
+                    <span className="lnd-plan-was">
+                      DE <s>{formatBRL(p.priceCents)}</s>
+                    </span>
+                    <span className="lnd-plan-selo">PRÉ-VENDA</span>
+                    <div className="lnd-plan-price lnd-plan-price-promo">
+                      <b>{formatBRL(promoPrice)}</b>
+                      <span>{planLandingPeriod(p)}</span>
+                    </div>
+                    {showcase?.qualifier && (
+                      <p className="lnd-plan-promo-note">{showcase.qualifier}</p>
+                    )}
+                    {/* O "depois" só existe quando a oferta é condicional:
+                        no semanal a compra é única e a linha não aparece. */}
+                    {showcase?.afterText && (
+                      <p className="lnd-plan-promo-after">{showcase.afterText}</p>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div className="lnd-plan-price">
+                      <b>{formatBRL(p.priceCents)}</b>
+                      <span>{planLandingPeriod(p)}</span>
+                    </div>
+                    {/* Sem promoção ativa, o card continua dizendo como o plano
+                        se comporta: é a mesma informação, sem oferta. */}
+                    {planAfterText(p.slug, p.priceCents) && (
+                      <p className="lnd-plan-promo-after">{planAfterText(p.slug, p.priceCents)}</p>
+                    )}
+                  </>
+                )}
+
                 <p className="lnd-plan-desc">{p.description}</p>
+
+                {/* Contador da campanha, integrado ao card. Sem prazo definido
+                    pelo admin, `PromoCountdown` não renderiza nada. */}
+                {onSale && showcase?.countdownRunning && showcase.countdownEndsAt && (
+                  <PromoCountdown
+                    endsAt={showcase.countdownEndsAt}
+                    label={promo.config.countdown.label}
+                    className="lnd-plan-countdown"
+                    // Revalida a página ao zerar: o preço promocional deixa de
+                    // ser servido pelo servidor e o card volta ao valor cheio
+                    // enquanto o usuário está olhando — sem "esconder" nada só
+                    // no frontend.
+                    refreshOnExpire
+                  />
+                )}
+
                 <ul className="lnd-plan-feats">
                   {LANDING_PLAN_FEATURES.map((f) => (
                     <li key={f}>
@@ -295,6 +368,16 @@ export function Planos() {
             );
           })}
         </div>
+
+        {/* Degradação honesta: o banco não respondeu e a oferta exibida é o
+            padrão do produto, não a configuração do admin. Dizemos isso em vez
+            de apresentar um valor como se fosse o vigente. */}
+        {!promo.infraOk && (
+          <p className="lnd-plan-warn">
+            Não foi possível confirmar a configuração da pré-venda agora. Os valores
+            acima são os oficiais do catálogo e serão reconfirmados no checkout.
+          </p>
+        )}
       </div>
     </section>
   );

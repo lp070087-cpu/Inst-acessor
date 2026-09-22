@@ -8,6 +8,8 @@ import {
   planPromoDisplay,
   resolvePromoPrice,
   type BuyerHistory,
+  type PlanPromoDisplay,
+  type PlanPromoShowcase,
   type PromoConfig,
   type PromoResolution,
 } from "@/lib/billing/promo";
@@ -160,11 +162,7 @@ export async function resolveCheckoutPrice(input: {
  * `infraOk === false` significa: o banco não respondeu e estamos exibindo o
  * padrão. A UI pode (deve) avisar em vez de fingir que é a config real.
  */
-export async function getPlanPromoDisplay(now?: string): Promise<{
-  config: PromoConfig;
-  bySlug: Record<string, ReturnType<typeof planPromoDisplay>>;
-  infraOk: boolean;
-}> {
+export async function getPlanPromoDisplay(now?: string): Promise<PlanPromoDisplay> {
   let config = DEFAULT_PROMO;
   let infraOk = true;
   try {
@@ -184,7 +182,7 @@ export async function getPlanPromoDisplay(now?: string): Promise<{
   );
 
   const iso = now ?? new Date().toISOString();
-  const bySlug: Record<string, ReturnType<typeof planPromoDisplay>> = {};
+  const bySlug: Record<string, PlanPromoShowcase> = {};
   for (const slug of Object.keys(base)) {
     bySlug[slug] = planPromoDisplay({ slug, basePriceCents: base[slug], config, now: iso });
   }

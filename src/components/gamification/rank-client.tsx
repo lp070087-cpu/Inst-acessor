@@ -30,11 +30,28 @@ import {
   ChevronRight,
   Flag,
   Minus,
+  Info,
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
+// MOTOR DO RANK — importado DIRETO, sem espelho local.
+// `rank-ladder.ts` é um módulo PURO (não importa banco, HTTP nem React), então
+// pode ser usado num Client Component. Antes existia aqui uma cópia dos
+// limiares porque o motor morava em `xp.ts`, que importa o cliente do Prisma —
+// e a cópia foi justamente o que deixou a UI divergir do servidor (começava em
+// 1.000 XP, como se existisse "antes do Bronze"). Agora existe UMA tabela.
+import {
+  rankLadderFromXp,
+  rankJourneyFromXp,
+  RANK_LADDER,
+  RANK_LEVELS,
+  RANK_STAGES,
+  type RankJourneyEntry,
+  type RankLadderState,
+  type RankStage,
+} from "@/lib/gamification/rank-ladder";
 
 // ------------------------------------------------------------
 // Tipos (espelham o payload da API /rank)
@@ -48,23 +65,37 @@ interface ProgressData {
   xpNeededForNext: number;
   progressToNext: number;
   /**
-   * Faixa geral (Bronze→Lendário). Vem calculada do servidor
-   * (`rankTierFromXp` em `src/lib/gamification/xp.ts`); estes mesmos limiares
-   * estão espelhados abaixo para o fallback local. `key: null` = ainda antes
-   * do Bronze.
+   * Rank geral + NÍVEL INTERNO. Vem calculado no servidor
+   * (`rankTierFromXp` → `rank-ladder.ts`). `key` e `label` NUNCA são nulos:
+   * todos começam no Bronze Nível 1 — não existe mais "antes do Bronze".
    */
   tier?: RankTierData | null;
 }
 
 interface RankTierData {
-  key: string | null;
-  label: string | null;
+  key: string;
+  label: string;
   index: number;
-  minXp: number | null;
+  /** XP em que o RANK atual COMEÇA (Bronze = 0; Prata = 2.500; …). */
+  minXp: number;
+  /** XP em que o RANK atual TERMINA (= entrada do próximo Rank). */
+  endXp?: number;
+  /** XP de entrada do NÍVEL INTERNO atual (0/200/450/700/1.000 no Bronze). */
+  levelMinXp?: number;
+  /** Nível INTERNO dentro do Rank (1..5 estrelas). */
+  level: number;
+  /** Rótulo do par, pronto para exibir: "Bronze • Nível 3". */
+  fullLabel: string;
+  /** `true` = limiares internos deste Rank ainda são provisórios. */
+  provisional: boolean;
   nextMinXp: number | null;
   nextLabel: string | null;
   xpToNextTier: number | null;
   progressToNextTier: number | null;
+  /** XP que falta para o PRÓXIMO NÍVEL interno (null no 5º nível do Rank). */
+  xpToNextLevel?: number | null;
+  /** Progresso 0–100 dentro do nível interno (null no 5º nível do Rank). */
+  progressToNextLevel?: number | null;
 }
 
 interface SummaryData {
@@ -79,6 +110,14 @@ interface RankingEntry {
   xp: number;
   position: number;
   isMe: boolean;
+  /** @username do Instagram conectado, quando existe. */
+  username?: string | null;
+  /** Rótulo do RANK GERAL ("Bronze"). Nunca `null`. */
+  tierLabel?: string | null;
+  /** Nível INTERNO no Rank (1..5 estrelas). */
+  levelWithinRank?: number;
+  /** Rótulo do par, pronto para exibir: "Bronze • Nível 2". */
+  rankLevelLabel?: string;
 }
 
 interface EvolutionPoint {
@@ -377,97 +416,34 @@ function shortDate(iso?: string): string {
 }
 
 /**
- * Curva de nível REAL (`xpRequiredForLevel` em `src/lib/gamification/xp.ts`):
- *   xpToNextLevel(level) = 100 + (level - 1) * 25
- *   xpRequiredForLevel(level) = soma da curva até `level - 1`
- * Espelhada aqui pelo mesmo motivo do streak: `xp.ts` importa o cliente do
- * banco. Nenhum número é inventado — os valores são derivados desta fórmula.
- */
-function xpToNextLevelLocal(level: number): number {
-  return 100 + (level - 1) * 25;
-}
-
-function xpRequiredForLevelLocal(level: number): number {
-  if (level <= 1) return 0;
-  let total = 0;
-  for (let l = 1; l < level; l++) total += xpToNextLevelLocal(l);
-  return total;
-}
-
-/**
- * FAIXAS GERAIS — espelho EXATO de `RANK_TIERS` em
- * `src/lib/gamification/xp.ts`. Mantido local pelo mesmo motivo do streak:
- * `xp.ts` importa o cliente do banco e este arquivo é Client Component.
- * NÃO alterar sem alterar o core (os limiares são os anunciados na landing:
- * 1.000 / 2.500 / 5.000 / 10.000 / 20.000 XP).
- */
-const RANK_TIER_MIRROR: { key: string; label: string; minXp: number }[] = [
-  { key: "BRONZE", label: "Bronze", minXp: 1000 },
-  { key: "PRATA", label: "Prata", minXp: 2500 },
-  { key: "OURO", label: "Ouro", minXp: 5000 },
-  { key: "DIAMANTE", label: "Diamante", minXp: 10000 },
-  { key: "LENDARIO", label: "Lendário", minXp: 20000 },
-];
-
-/**
- * Resolve a faixa no cliente. Usa SEMPRE o valor calculado no servidor quando
- * ele existe (fonte da verdade); o espelho local é só fallback para payloads
- * antigos / chamadas parciais. A lógica é idêntica à do core.
+ * Resolve o Rank + NÍVEL INTERNO no cliente.
+ *
+ * O valor do SERVIDOR é sempre preferido (fonte da verdade); o motor puro
+ * (`rank-ladder.ts`) é o fallback para payloads antigos/parciais — e é o MESMO
+ * cálculo, não uma cópia. Antes esta função devolvia `key: null` abaixo de
+ * 1.000 XP, o que fazia a tela dizer "Rumo ao Bronze": resquício do modelo em
+ * que 1.000 XP era o INÍCIO do Bronze. Agora todos começam no Bronze.
  */
 function rankTierLocal(totalXpEarned: number, fromServer?: RankTierData | null): RankTierData {
-  if (fromServer && typeof fromServer.index === "number") return fromServer;
+  if (fromServer && typeof fromServer.index === "number" && fromServer.label) return fromServer;
 
-  const xp =
-    Number.isFinite(totalXpEarned) && totalXpEarned > 0 ? Math.floor(totalXpEarned) : 0;
-
-  let index = -1;
-  for (let i = 0; i < RANK_TIER_MIRROR.length; i++) {
-    if (xp >= RANK_TIER_MIRROR[i].minXp) index = i;
-  }
-
-  if (index < 0) {
-    const first = RANK_TIER_MIRROR[0];
-    return {
-      key: null,
-      label: null,
-      index: -1,
-      minXp: null,
-      nextMinXp: first.minXp,
-      nextLabel: first.label,
-      xpToNextTier: first.minXp - xp,
-      progressToNextTier: null,
-    };
-  }
-
-  const tier = RANK_TIER_MIRROR[index];
-  const next = RANK_TIER_MIRROR[index + 1] ?? null;
-
-  if (!next) {
-    return {
-      key: tier.key,
-      label: tier.label,
-      index,
-      minXp: tier.minXp,
-      nextMinXp: null,
-      nextLabel: null,
-      xpToNextTier: null,
-      progressToNextTier: null,
-    };
-  }
-
-  const span = next.minXp - tier.minXp;
-  const inTier = Math.max(0, xp - tier.minXp);
-
+  const s = rankLadderFromXp(totalXpEarned);
   return {
-    key: tier.key,
-    label: tier.label,
-    index,
-    minXp: tier.minXp,
-    nextMinXp: next.minXp,
-    nextLabel: next.label,
-    xpToNextTier: Math.max(0, next.minXp - xp),
-    progressToNextTier:
-      span > 0 ? Math.min(100, Math.round((inTier / span) * 10000) / 100) : null,
+    key: s.rankKey,
+    label: s.rankLabel,
+    index: s.rankIndex,
+    minXp: s.rankStartXp,
+    endXp: s.rankEndXp,
+    levelMinXp: s.levelMinXp,
+    level: s.level,
+    fullLabel: s.label,
+    provisional: s.provisional,
+    nextMinXp: s.nextRankStartXp,
+    nextLabel: s.nextRankLabel,
+    xpToNextTier: s.xpToNextRank,
+    progressToNextTier: s.progressToNextRank,
+    xpToNextLevel: s.xpToNextLevel,
+    progressToNextLevel: s.progressToNextLevel,
   };
 }
 
@@ -1020,13 +996,26 @@ const RANK_CSS = `
   border-color:rgba(168,85,247,.36);
 }
 .rnk-lvl-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.rnk-lvl-n{font-family:var(--font-data,ui-monospace,monospace);font-size:24px;font-weight:800;color:#fff;line-height:1}
-.rnk-lvl-n-lg{font-size:28px}
-.rnk-lvl-badge{width:32px;height:32px;border-radius:11px;display:grid;place-items:center;flex:none;background:rgba(255,255,255,.06);color:var(--rnk-soft);border:1px solid var(--rnk-border)}
+/* O rótulo deste bloco é TEXTO ("Nível 3" / "Bronze"), não o número gigante da
+   escada antiga — por isso display em 15px e não a monoespaçada de 24px. */
+.rnk-lvl-n{font-family:var(--font-display,inherit);font-size:15px;font-weight:800;color:#fff;line-height:1.2}
+.rnk-lvl-badge{width:auto;min-width:32px;height:32px;border-radius:11px;padding:0 9px;display:grid;place-items:center;flex:none;background:rgba(255,255,255,.06);color:var(--rnk-soft);border:1px solid var(--rnk-border)}
 .rnk-lvl-label{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--rnk-muted)}
 .rnk-lvl-req{font-size:12px;color:var(--rnk-soft);margin:0;line-height:1.5}
 .rnk-lvl-req b{color:var(--rnk-ink);font-family:var(--font-data,ui-monospace,monospace)}
 .rnk-lvl-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+/* Nível/Rank já concluído: leitura mais discreta que o atual, sem sumir. */
+.rnk-lvl-done{opacity:.82}
+/* Nível/estágio ainda não alcançado. */
+.rnk-lvl-locked{opacity:.58}
+.rnk-lvl-span{font-size:11px;color:var(--rnk-muted)}
+.rnk-lvl-next{font-size:11.5px;color:var(--rnk-muted);margin:0;line-height:1.5}
+.rnk-lvl-next b{color:var(--rnk-ink);font-family:var(--font-data,ui-monospace,monospace)}
+.rnk-stars{display:inline-flex;align-items:center;gap:2px}
+.rnk-star-on{color:#FBBF24}
+.rnk-star-off{color:var(--rnk-border-strong)}
+/* Aviso de limiar provisório (Prata/Ouro/Diamante/Lendário). */
+.rnk-chip-warn{background:rgba(245,158,11,.14);color:#FCD34D;border:1px solid rgba(245,158,11,.3)}
 
 /* ---------- destaques ---------- */
 .rnk-hl{
@@ -1053,27 +1042,39 @@ const RANK_CSS = `
 .rnk-strip-hint{font-size:11px;color:var(--rnk-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* ---------- pódio ---------- */
-.rnk-podium{display:grid;gap:12px;grid-template-columns:repeat(3,minmax(0,1fr));align-items:end}
+/* Cards COMPACTOS e proporcionais. A largura é limitada por max-width no
+   container, para o pódio não esticar até as bordas da tela em monitores
+   grandes. Com 1 ou 2 usuários, o grid usa só as colunas reais (as colunas
+   inline vêm do componente, pelo número de degraus existentes). */
+.rnk-podium{
+  display:grid;gap:10px;align-items:end;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  max-width:620px;margin-left:auto;margin-right:auto;
+}
 .rnk-pod{
-  border-radius:19px;padding:16px 14px;text-align:center;
+  border-radius:17px;padding:12px 11px;text-align:center;
   background:var(--rnk-card-flat);border:1px solid var(--rnk-border);
-  display:flex;flex-direction:column;align-items:center;gap:9px;min-width:0;
+  display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0;
   transition:transform .2s ease,border-color .2s ease;
 }
-.rnk-pod:hover{transform:translateY(-3px);border-color:var(--rnk-border-strong)}
+.rnk-pod:hover{transform:translateY(-2px);border-color:var(--rnk-border-strong)}
+/* #1 levemente maior — hierarquia sem dominar o bloco. */
 .rnk-pod-1{
   background:linear-gradient(165deg, rgba(245,158,11,.17), rgba(255,255,255,.03) 62%);
   border-color:rgba(245,158,11,.34);
-  padding:22px 14px;
+  padding:15px 12px;
 }
 .rnk-pod-me{border-color:rgba(168,85,247,.4);box-shadow:0 0 0 1px rgba(168,85,247,.18) inset}
-.rnk-pod-crown{width:38px;height:38px;border-radius:13px;display:grid;place-items:center;flex:none;background:rgba(255,255,255,.07);color:var(--rnk-soft);border:1px solid var(--rnk-border)}
-.rnk-pod-1 .rnk-pod-crown{background:rgba(245,158,11,.2);color:#FBBF24;border-color:rgba(245,158,11,.34)}
+.rnk-pod-crown{width:28px;height:28px;border-radius:10px;display:grid;place-items:center;flex:none;background:rgba(255,255,255,.07);color:var(--rnk-soft);border:1px solid var(--rnk-border)}
+.rnk-pod-1 .rnk-pod-crown{width:32px;height:32px;background:rgba(245,158,11,.2);color:#FBBF24;border-color:rgba(245,158,11,.34)}
 .rnk-pod-2 .rnk-pod-crown{background:rgba(255,255,255,.1);color:#D6DAE2}
 .rnk-pod-3 .rnk-pod-crown{background:rgba(251,146,60,.16);color:#FDBA74;border-color:rgba(251,146,60,.3)}
-.rnk-pod-name{font-family:var(--font-display,inherit);font-size:14px;font-weight:800;color:#fff;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:0}
-.rnk-pod-meta{font-size:11.5px;color:var(--rnk-muted)}
-.rnk-pod-xp{font-family:var(--font-data,ui-monospace,monospace);font-size:17px;font-weight:800;color:var(--rnk-green)}
+.rnk-pod-name{font-family:var(--font-display,inherit);font-size:13px;font-weight:800;color:#fff;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:0}
+.rnk-pod-user{font-size:11px;color:var(--rnk-muted);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Posição e XP na MESMA linha: economiza a altura que antes era de dois blocos. */
+.rnk-pod-line{display:flex;align-items:center;justify-content:center;gap:7px;flex-wrap:wrap}
+.rnk-pod-meta{font-size:11px;color:var(--rnk-soft);font-weight:700;line-height:1.35}
+.rnk-pod-xp{font-family:var(--font-data,ui-monospace,monospace);font-size:14px;font-weight:800;color:var(--rnk-green)}
 
 /* ---------- linha do ranking ---------- */
 .rnk-row{display:flex;align-items:center;gap:12px;padding:12px clamp(12px,1.6vw,20px);min-width:0}
@@ -1192,9 +1193,16 @@ const RANK_CSS = `
 }
 @media(max-width:820px){
   .rnk-sum{grid-template-columns:1fr}
-  .rnk-podium{grid-template-columns:1fr;align-items:stretch}
-  .rnk-pod-1{padding:16px 14px}
+  /* No mobile os degraus continuam LADO A LADO (são cards pequenos), com o
+     grid determinado pelo número real de participantes. Antes viravam uma
+     pilha de 1 coluna, o que empilhava #2/#1/#3 numa ordem sem sentido visual.
+     Abaixo de 380px de largura, sim, empilha — não cabe legível. */
+  .rnk-podium{max-width:none}
+  .rnk-pod-1{padding:14px 11px}
   .rnk-grid-2{grid-template-columns:1fr}
+}
+@media(max-width:360px){
+  .rnk-podium{grid-template-columns:1fr !important;align-items:stretch}
 }
 @media(max-width:640px){
   .rnk-grid-form{grid-template-columns:1fr}
@@ -1301,9 +1309,16 @@ export function RankClient({ initial }: RankClientProps) {
         ? ` · ${unlocked} conquista${unlocked === 1 ? "" : "s"} desbloqueada${unlocked === 1 ? "" : "s"}`
         : "";
 
+    // Identidade do Rank é a FAIXA (Bronze→Lendário), não o nível numérico.
+    // Antes do Bronze não há faixa: o texto mostra a distância real até ele.
+    const shareTier = rankTierLocal(progress.totalXpEarned, progress.tier);
+    const tierPart = shareTier.label
+      ? `• Faixa ${shareTier.label} com ${progress.totalXpEarned} XP acumulados`
+      : `• Faltam ${shareTier.xpToNextTier ?? 0} XP para o Bronze`;
+
     const text =
       `Minha evolução no Inst Acessor:\n` +
-      `• Nível ${progress.level} com ${progress.xp} XP${rankPart}${achPart}`;
+      `${tierPart}${rankPart}${achPart}`;
 
     const shareData = {
       title: "Veja minha evolução no Inst Acessor",
@@ -1431,6 +1446,9 @@ export function RankClient({ initial }: RankClientProps) {
             { id: "visao-geral", label: "Visão geral", icon: BarChart3 },
             { id: "perfil-publico", label: "Perfil público", icon: Globe },
             { id: "ranking", label: "Ranking", icon: Trophy },
+            // Aba nova: a JORNADA (Bronze→Lendário). "Visão geral" mostra os 5
+            // níveis internos do Rank atual; aqui ficam os 5 Ranks gerais.
+            { id: "ranks", label: "Ranks", icon: Crown },
             { id: "metas", label: "Metas", icon: Target },
             { id: "conquistas", label: "Conquistas", icon: Award },
             { id: "historico", label: "Histórico de XP", icon: History },
@@ -1479,6 +1497,8 @@ export function RankClient({ initial }: RankClientProps) {
         )}
 
         {tab === "ranking" && <RankingView entries={ranking} me={summary} />}
+
+        {tab === "ranks" && <RankJourneyView progress={progress} />}
 
         {tab === "metas" && (
           <MetasView
@@ -1541,53 +1561,60 @@ function RankHero({
   onCheck: () => void;
 }) {
   const pct = Math.round(progress.progressToNext);
-  const remaining = Math.max(0, progress.xpNeededForNext - progress.xpInLevel);
   // Faixa geral: valor do servidor quando vier; senão calculado pelo espelho.
   const tier = rankTierLocal(progress.totalXpEarned, progress.tier);
+  // Progresso DENTRO da faixa. `null` antes do Bronze e no topo (Lendário) —
+  // nesses casos o anel cai no progresso numérico, com a legenda correspondente.
+  const tierPct = tier.progressToNextTier != null ? Math.round(tier.progressToNextTier) : null;
 
   return (
     <div className="rnk-card rnk-hero">
       <div className="rnk-hero-l">
         <RnkRing
-          value={progress.progressToNext}
+          value={tierPct ?? progress.progressToNext}
           label={
             <>
-              <span className="rnk-ring-val">{pct}%</span>
-              <span className="rnk-ring-cap">do nível</span>
+              <span className="rnk-ring-val">{tierPct ?? pct}%</span>
+              <span className="rnk-ring-cap">{tierPct != null ? "da faixa" : "do nível"}</span>
             </>
           }
         />
         <div className="rnk-hero-info">
-          <span className="rnk-eyebrow">Seu progresso</span>
-          <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
-            {/* FAIXA GERAL — sempre no topo dos chips: é o rótulo que o
-                usuário procura. Antes do Bronze não inventamos uma faixa:
-                mostramos a distância real até o Bronze. */}
-            {tier.label ? (
-              <span className={cn("rnk-chip", "rnk-tier-chip", tierChipClass(tier.key))}>
-                <Award size={11} /> {tier.label}
-              </span>
-            ) : (
-              <span className="rnk-chip rnk-chip-amber">
-                <Award size={11} /> Faltam {formatXp(tier.xpToNextTier ?? 0)} XP para o Bronze
-              </span>
-            )}
-            <span className="rnk-chip rnk-chip-brand">
-              <Star size={11} /> Nível {progress.level}
+          {/* FAIXA GERAL — é o rótulo principal do Rank (Bronze→Lendário).
+              Antes do Bronze não inventamos uma faixa: mostramos a distância
+              real até o Bronze. O nível NUMÉRICO continua existindo como
+              referência secundária (item "Nível N" abaixo), mas não é mais a
+              identidade do usuário. */}
+          {tier.label ? (
+            <span className={cn("rnk-chip", "rnk-tier-chip", tierChipClass(tier.key))}>
+              <Award size={13} /> {tier.label}
             </span>
+          ) : (
+            <span className="rnk-chip rnk-chip-amber">
+              <Award size={13} /> Faltam {formatXp(tier.xpToNextTier ?? 0)} XP para o Bronze
+            </span>
+          )}
+          <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
             <span className="rnk-chip">{formatXp(progress.xp)} XP totais</span>
             <span className="rnk-chip rnk-chip-green">
               <Zap size={11} /> {formatXp(progress.totalXpEarned)} XP acumulados
             </span>
+            <span className="rnk-chip">
+              <Star size={11} /> Nível {progress.level}
+            </span>
           </div>
+          {/* HEADLINE = a FAIXA. É o rótulo de identidade do Rank: o usuário
+              lê "Faixa Ouro", não "Nível 7". Antes do Bronze não há faixa
+              alcançada — a headline então mostra o alvo real. */}
           <h2 className="rnk-hero-title">
-            {formatXp(progress.xpInLevel)} de {formatXp(progress.xpNeededForNext)} XP para o nível{" "}
-            {progress.level + 1}
+            {tier.label ? `Faixa ${tier.label}` : "Rumo ao Bronze"}
           </h2>
           <p className="rnk-hero-sub">
-            {remaining > 0
-              ? `Faltam ${formatXp(remaining)} XP. Cada ação real no app concede XP uma única vez.`
-              : "Você está a um passo do próximo nível. Continue as ações recomendadas."}
+            {tier.nextLabel
+              ? `Faltam ${formatXp(tier.xpToNextTier ?? 0)} XP para o ${tier.nextLabel}. No nível ${progress.level}, você tem ${formatXp(
+                  progress.xpInLevel
+                )} de ${formatXp(progress.xpNeededForNext)} XP — cada ação real concede XP uma única vez.`
+              : "Você chegou ao topo da progressão. Cada ação real continua valendo XP e conta no ranking."}
           </p>
           {/* Progresso DENTRO da faixa (Bronze→Lendário) — eixo diferente do
               anel acima, que mede o nível numérico. No topo (Lendário) não há
@@ -1596,7 +1623,7 @@ function RankHero({
             {tier.nextLabel ? (
               <>
                 <span className="rnk-tier-track-cap">
-                  Faixa {tier.label ?? "—"} · faltam {formatXp(tier.xpToNextTier ?? 0)} XP para{" "}
+                  Faixa {tier.label ?? "—"} · {Math.round(tier.progressToNextTier ?? 0)}% até{" "}
                   {tier.nextLabel}
                 </span>
                 <RnkBar value={tier.progressToNextTier ?? 0} tone="brand" size="xs" />
@@ -1670,7 +1697,9 @@ function VisaoGeral({
 
       <ProximaMeta progress={progress} />
 
-      <RanksProximos progress={progress} />
+      {/* Os cinco cards numerados são os NÍVEIS INTERNOS do Rank atual (não os
+          5 Ranks gerais — esses ficam na aba "Ranks"). */}
+      <NiveisDoRank progress={progress} />
 
       <MeusDestaques
         progress={progress}
@@ -1713,8 +1742,10 @@ function VisaoGeral({
 
 function ProximaMeta({ progress }: { progress: ProgressData }) {
   const pct = Math.round(progress.progressToNext);
-  const remaining = Math.max(0, progress.xpNeededForNext - progress.xpInLevel);
-  const nextLevelTotal = xpRequiredForLevelLocal(progress.level + 1);
+  // A "próxima meta" do Rank é a PRÓXIMA FAIXA (Bronze→Lendário) — a mesma
+  // unidade de progressão do hero. O nível numérico segue como detalhe.
+  const tier = rankTierLocal(progress.totalXpEarned, progress.tier);
+  const tierRemaining = tier.xpToNextTier;
 
   return (
     <div className="rnk-next">
@@ -1725,10 +1756,21 @@ function ProximaMeta({ progress }: { progress: ProgressData }) {
         <div>
           <span className="rnk-eyebrow">Próxima meta</span>
           <p className="rnk-next-val">
-            {remaining > 0 ? `Faltam ${formatXp(remaining)} XP` : "Nível alcançado"}
+            {tierRemaining != null
+              ? `Faltam ${formatXp(tierRemaining)} XP`
+              : `Topo alcançado`}
           </p>
           <p className="rnk-next-sub">
-            Para chegar ao <b style={{ color: "var(--ink)" }}>Nível {progress.level + 1}</b>
+            {tier.nextLabel ? (
+              <>
+                Para chegar a{" "}
+                <b style={{ color: "var(--ink)" }}>{tier.nextLabel}</b>
+              </>
+            ) : (
+              <>
+                Você está em <b style={{ color: "var(--ink)" }}>{tier.label}</b>
+              </>
+            )}
           </p>
         </div>
       </div>
@@ -1736,19 +1778,23 @@ function ProximaMeta({ progress }: { progress: ProgressData }) {
       <div className="rnk-next-mid">
         <div className="rnk-next-meta">
           <span>
-            {formatXp(progress.xpInLevel)} / {formatXp(progress.xpNeededForNext)} XP
+            {formatXp(progress.xpInLevel)} / {formatXp(progress.xpNeededForNext)} XP no nível{" "}
+            {progress.level}
           </span>
           <span className="rnk-num">{pct}%</span>
         </div>
-        <RnkBar value={progress.progressToNext} tone="brand" />
+        <RnkBar value={tier.progressToNextTier ?? progress.progressToNext} tone="brand" />
       </div>
 
       <div className="rnk-next-r">
-        <span className="rnk-chip rnk-chip-outline">
-          <Flag size={11} /> Exigido: {formatXp(nextLevelTotal)} XP
-        </span>
+        {tier.nextMinXp != null ? (
+          <span className="rnk-chip rnk-chip-outline">
+            <Flag size={11} /> Exigido: {formatXp(tier.nextMinXp)} XP
+          </span>
+        ) : null}
         <span className="rnk-chip rnk-chip-green">
-          <Trophy size={11} /> Recompensa: Nível {progress.level + 1}
+          <Trophy size={11} />{" "}
+          {tier.nextLabel ? `Recompensa: faixa ${tier.nextLabel}` : `Faixa ${tier.label}`}
         </span>
       </div>
     </div>
@@ -1756,102 +1802,272 @@ function ProximaMeta({ progress }: { progress: ProgressData }) {
 }
 
 // ------------------------------------------------------------
-// Ranks próximos — escada de níveis (dados reais da curva de XP)
+// Visão geral do Rank — os 5 NÍVEIS INTERNOS do Rank ATUAL
 // ------------------------------------------------------------
 
-const LADDER_AHEAD = 4;
+/** Estrelas do nível interno: ★★★★★ com `filled` preenchidas. */
+function Stars({ filled, total = RANK_LEVELS }: { filled: number; total?: number }) {
+  return (
+    <span className="rnk-stars" aria-label={`${filled} de ${total} estrelas`}>
+      {Array.from({ length: total }, (_, i) => (
+        <Star
+          key={i}
+          size={14}
+          className={i < filled ? "rnk-star-on" : "rnk-star-off"}
+          aria-hidden="true"
+        />
+      ))}
+    </span>
+  );
+}
 
-function RanksProximos({ progress }: { progress: ProgressData }) {
-  // Nível atual + os próximos. Os alvos são derivados da curva real
-  // (`xpToNextLevel(level) = 100 + (level - 1) * 25`) — nada é inventado.
-  const levels = React.useMemo(() => {
-    const list: {
-      level: number;
-      isNow: boolean;
-      requiredToReach: number;
-      remaining: number;
-      stepXp: number;
-    }[] = [];
-    for (let i = 0; i <= LADDER_AHEAD; i++) {
-      const level = progress.level + i;
-      const requiredToReach = xpRequiredForLevelLocal(level);
-      list.push({
-        level,
-        isNow: i === 0,
-        requiredToReach,
-        remaining: Math.max(0, requiredToReach - progress.xp),
-        stepXp: xpToNextLevelLocal(level),
-      });
-    }
-    return list;
-  }, [progress.level, progress.xp]);
-
-  const totalReach = levels[levels.length - 1]?.remaining ?? 0;
+/**
+ * VISÃO GERAL — os cinco cards numerados do Rank ATUAL.
+ *
+ * Cada card é um dos 5 NÍVEIS INTERNOS do Rank em que o usuário está, com os
+ * limiares REAIS do motor (`RANK_LADDER[rank].levelThresholds`). Para Bronze
+ * isso é 0 / 200 / 450 / 700 / 1.000 XP; o 5º card é "Bronze • Nível 5" e NÃO
+ * uma promoção para o Prata — a promoção só acontece ao fim do Rank.
+ *
+ * Esta seção NÃO lista os 5 Ranks gerais: quem faz isso é a aba "Ranks".
+ */
+function NiveisDoRank({ progress }: { progress: ProgressData }) {
+  const current = rankTierLocal(progress.totalXpEarned, progress.tier);
+  const totalXp = progress.totalXpEarned;
+  const rank = RANK_LADDER[current.index] ?? RANK_LADDER[0];
+  const nextRankName = rank.index + 1 < RANK_LADDER.length ? RANK_LADDER[rank.index + 1].label : null;
 
   return (
     <div className="rnk-card">
       <RnkSectionHead
-        icon={Trophy}
-        title="Ranks próximos"
+        icon={Star}
+        title={`Níveis do ${rank.label}`}
         hint={
-          totalReach > 0
-            ? `Faltam ${formatXp(totalReach)} XP para alcançar o Nível ${levels[levels.length - 1]?.level}.`
-            : "Você já alcançou os próximos níveis desta faixa."
+          nextRankName
+            ? `Cada Rank tem 5 níveis. Ao concluir o ${rank.label} Nível 5, você passa para ${nextRankName} Nível 1.`
+            : `Você está no topo: ${rank.label} Nível ${RANK_LEVELS}.`
         }
       />
-      <div className="rnk-ladder" style={{ marginTop: 14 }}>
-        {levels.map((l) => {
-          if (l.isNow) {
-            return (
-              <div key={l.level} className="rnk-lvl rnk-lvl-now">
-                <div className="rnk-lvl-top">
-                  <span className="rnk-lvl-n rnk-lvl-n-lg">{l.level}</span>
-                  <span className="rnk-lvl-badge" aria-hidden="true">
-                    <Star size={15} />
-                  </span>
-                </div>
-                <span className="rnk-lvl-label">Nível atual</span>
-                <p className="rnk-lvl-req">
-                  <b>
-                    {formatXp(progress.xpInLevel)} / {formatXp(progress.xpNeededForNext)}
-                  </b>{" "}
-                  XP no nível
-                </p>
-                <div className="rnk-lvl-foot">
-                  <span className="rnk-chip rnk-chip-brand">Atual</span>
-                  <span className="rnk-chip rnk-chip-green rnk-num">
-                    {Math.round(progress.progressToNext)}%
-                  </span>
-                </div>
-                <RnkBar value={progress.progressToNext} tone="brand" size="sm" />
-              </div>
-            );
-          }
+      <div className="rnk-stack" style={{ marginTop: 14, gap: 10 }}>
+        {rank.levelThresholds.map((threshold, i) => {
+          const level = i + 1;
+          const isNow = current.level === level;
+          const done = current.level > level;
+          const nextThreshold =
+            i + 1 < rank.levelThresholds.length ? rank.levelThresholds[i + 1] : rank.endXp;
+          const span = nextThreshold - threshold;
+          const inLevel = Math.max(0, Math.min(span, totalXp - threshold));
+          const pct = isNow
+            ? span > 0
+              ? Math.min(100, Math.round((inLevel / span) * 10000) / 100)
+              : 100
+            : done
+              ? 100
+              : 0;
+          // O último nível do Rank se estende ATÉ o fim do Rank (é ali que
+          // ocorre a promoção), por isso o card do Nível 5 mostra o próximo
+          // marco como o próximo Rank, e não "Nível 6".
+          const targetLabel =
+            i + 1 < rank.levelThresholds.length
+              ? `${rank.label} Nível ${level + 1}`
+              : nextRankName
+                ? `${nextRankName} Nível 1`
+                : null;
+
           return (
-            <div key={l.level} className="rnk-lvl">
+            <div
+              key={level}
+              className={cn("rnk-lvl", isNow && "rnk-lvl-now", done && "rnk-lvl-done")}
+            >
               <div className="rnk-lvl-top">
-                <span className="rnk-lvl-n">{l.level}</span>
+                <span className="rnk-lvl-n">Nível {level}</span>
                 <span className="rnk-lvl-badge" aria-hidden="true">
-                  {l.level === levels[levels.length - 1].level ? (
-                    <Crown size={15} />
-                  ) : (
-                    <Medal size={15} />
-                  )}
+                  <Stars filled={done ? RANK_LEVELS : isNow ? current.level : 0} />
                 </span>
               </div>
-              <span className="rnk-lvl-label">Nível {l.level}</span>
               <p className="rnk-lvl-req">
-                XP exigido: <b>{formatXp(l.requiredToReach)}</b>
+                {threshold === 0 ? (
+                  <>
+                    Início do Rank — <b>0 XP</b>
+                  </>
+                ) : (
+                  <>
+                    <b>{formatXp(threshold)} XP</b>
+                    {span > 0 && (
+                      <span className="rnk-lvl-span"> · faixa de {formatXp(span)} XP</span>
+                    )}
+                  </>
+                )}
               </p>
               <div className="rnk-lvl-foot">
-                <span className="rnk-chip rnk-chip-outline">
-                  <Minus size={11} /> Faltam {formatXp(l.remaining)} XP
-                </span>
+                {done ? (
+                  <span className="rnk-chip rnk-chip-green">
+                    <Check size={11} /> Concluído
+                  </span>
+                ) : isNow ? (
+                  <>
+                    <span className="rnk-chip rnk-chip-brand">
+                      <Star size={11} /> Nível atual
+                    </span>
+                    <span className="rnk-chip rnk-chip-green rnk-num">{Math.round(pct)}%</span>
+                  </>
+                ) : (
+                  <span className="rnk-chip rnk-chip-outline">
+                    <Lock size={11} /> Faltam {formatXp(Math.max(0, threshold - totalXp))} XP
+                  </span>
+                )}
               </div>
-              <RnkBar value={Math.min(100, (progress.xp / Math.max(1, l.requiredToReach)) * 100)} tone="muted" size="sm" />
+              {isNow && targetLabel && (
+                <p className="rnk-lvl-next">
+                  Faltam <b>{formatXp(Math.max(0, nextThreshold - totalXp))} XP</b> para{" "}
+                  {targetLabel}.
+                </p>
+              )}
+              <RnkBar value={pct} tone={done ? "muted" : "brand"} size="sm" />
             </div>
           );
         })}
+      </div>
+      {/* O Rank inteiro: XP atual, quanto falta para o próximo Rank e a
+          ressalva honesta quando os limiares internos ainda são provisórios. */}
+      <div className="rnk-lvl-foot" style={{ marginTop: 12, flexWrap: "wrap" }}>
+        <span className="rnk-chip rnk-chip-outline">
+          <Zap size={11} /> {formatXp(totalXp)} XP no Rank
+        </span>
+        {current.nextMinXp != null ? (
+          <span className="rnk-chip rnk-chip-outline">
+            <Flag size={11} /> {formatXp(Math.max(0, current.nextMinXp - totalXp))} XP para{" "}
+            {current.nextLabel} Nível 1
+          </span>
+        ) : (
+          <span className="rnk-chip rnk-chip-green">
+            <Crown size={11} /> Topo da escada
+          </span>
+        )}
+        {rank.provisional && (
+          <span className="rnk-chip rnk-chip-warn">
+            <Info size={11} /> Níveis provisórios
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------
+// Aba "Ranks" — a jornada completa Bronze → Lendário
+// ------------------------------------------------------------
+
+/**
+ * A JORNADA: os 5 Ranks gerais, cada um com suas 5 estrelas, distinguindo
+ * CONCLUÍDO / ATUAL / BLOQUEADO. Fonte única: `rankJourneyFromXp`, o mesmo
+ * cálculo que posiciona o usuário — não existe uma segunda contagem.
+ */
+function RankJourneyView({ progress }: { progress: ProgressData }) {
+  const current = rankTierLocal(progress.totalXpEarned, progress.tier);
+  const totalXp = progress.totalXpEarned;
+  const journey: RankJourneyEntry[] = rankJourneyFromXp(totalXp);
+
+  return (
+    <div className="rnk-stack">
+      <div className="rnk-card">
+        <RnkSectionHead
+          icon={Crown}
+          title="Jornada do Rank"
+          hint="Cinco Ranks, cinco níveis cada. Você começa no Bronze Nível 1."
+        />
+        <div className="rnk-stack" style={{ marginTop: 14, gap: 10 }}>
+          {journey.map((r) => (
+            <div
+              key={r.key}
+              className={cn(
+                "rnk-lvl",
+                r.current && "rnk-lvl-now",
+                r.completed && "rnk-lvl-done",
+                r.locked && "rnk-lvl-locked"
+              )}
+            >
+              <div className="rnk-lvl-top">
+                <span className="rnk-lvl-n">{r.label}</span>
+                <span className="rnk-lvl-badge" aria-hidden="true">
+                  <Stars filled={r.starsEarned} total={r.starsTotal} />
+                </span>
+              </div>
+              <p className="rnk-lvl-req">
+                <b>{formatXp(r.startXp)}</b>
+                {r.endXp > r.startXp ? (
+                  <>
+                    {" "}
+                    → <b>{formatXp(r.endXp)} XP</b>
+                  </>
+                ) : (
+                  " XP"
+                )}
+                <span className="rnk-lvl-span">
+                  {" "}
+                  · {r.starsEarned}/{r.starsTotal} estrelas
+                </span>
+              </p>
+              <div className="rnk-lvl-foot">
+                {r.completed ? (
+                  <span className="rnk-chip rnk-chip-green">
+                    <Check size={11} /> Concluído
+                  </span>
+                ) : r.current ? (
+                  <span className="rnk-chip rnk-chip-brand">
+                    <Star size={11} /> Rank atual — Nível {current.level}
+                  </span>
+                ) : (
+                  <span className="rnk-chip rnk-chip-outline">
+                    <Lock size={11} /> Faltam {formatXp(Math.max(0, r.startXp - totalXp))} XP
+                  </span>
+                )}
+                {r.provisional && (
+                  <span className="rnk-chip rnk-chip-warn">
+                    <Info size={11} /> Níveis provisórios
+                  </span>
+                )}
+              </div>
+              {r.current && (
+                <p className="rnk-lvl-next">
+                  {current.nextLabel
+                    ? `Progresso do Rank: ${Math.round(r.progressPercent)}% · ${formatXp(
+                        Math.max(0, (current.nextMinXp ?? totalXp) - totalXp)
+                      )} XP para ${current.nextLabel} Nível 1.`
+                    : `Progresso do Rank: ${Math.round(r.progressPercent)}% — você está no topo da escada.`}
+                </p>
+              )}
+              <RnkBar
+                value={r.progressPercent}
+                tone={r.completed || r.current ? "brand" : "muted"}
+                size="sm"
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Resumo textual do estado atual — os mesmos números da escada, para quem
+          prefere ler sem interpretar os cards. */}
+      <div className="rnk-card">
+        <RnkSectionHead icon={Trophy} title="Onde você está" />
+        <div className="rnk-lvl-foot" style={{ marginTop: 12, flexWrap: "wrap" }}>
+          <span className="rnk-chip rnk-chip-brand">{current.fullLabel}</span>
+          <span className="rnk-chip rnk-chip-outline">
+            <Zap size={11} /> {formatXp(totalXp)} XP acumulados
+          </span>
+          {current.nextLabel && (
+            <span className="rnk-chip rnk-chip-outline">
+              <Flag size={11} /> Próximo Rank: {current.nextLabel}
+            </span>
+          )}
+          {current.provisional && (
+            <span className="rnk-chip rnk-chip-warn">
+              <Info size={11} /> Os níveis internos de {current.label} ainda são
+              provisórios e serão definidos pelo produto.
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -1874,6 +2090,8 @@ function MeusDestaques({
 }) {
   const badge = bestAchievement(achievements, false);
   const trophy = bestAchievement(achievements, true);
+  // Faixa geral para o card de XP (mesma fonte do hero).
+  const hlTier = rankTierLocal(progress.totalXpEarned, progress.tier);
 
   const valorVazio = <span className="rnk-dash">—</span>;
 
@@ -1940,7 +2158,9 @@ function MeusDestaques({
             <span className="rnk-hl-label">XP total</span>
             <span className="rnk-hl-val">{formatXp(progress.xp)}</span>
             <span className="rnk-hl-sub">
-              Nível {progress.level} · {formatXp(progress.totalXpEarned)} acumulados
+              {hlTier.label
+                ? `Faixa ${hlTier.label} · ${formatXp(progress.totalXpEarned)} acumulados`
+                : `Faltam ${formatXp(hlTier.xpToNextTier ?? 0)} XP para o Bronze`}
             </span>
           </div>
         </div>
@@ -2198,6 +2418,8 @@ function PerfilPublicoView({
   const name = profilePublic?.name ?? "Usuário";
   const ig = profilePublic?.igUsername ?? profilePublic?.username ?? null;
   const pos = summary.position !== null ? `#${summary.position}` : "—";
+  // Faixa geral (mesma fonte do hero) — identidade do Rank também aqui.
+  const ppTier = rankTierLocal(progress.totalXpEarned, progress.tier);
 
   const badge = bestAchievement(achievements, false);
   const trophy = bestAchievement(achievements, true);
@@ -2255,12 +2477,24 @@ function PerfilPublicoView({
               )}
             </p>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 2 }}>
-              <span className="rnk-chip rnk-chip-brand">
-                <Star size={11} /> Nível {progress.level}
-              </span>
+              {/* Faixa geral primeiro: é o rótulo de identidade do Rank.
+                  Antes do Bronze, o espelho devolve `label: null` e o chip
+                  mostra a distância real — nunca uma faixa inventada. */}
+              {ppTier.label ? (
+                <span className={cn("rnk-chip", "rnk-tier-chip", tierChipClass(ppTier.key))}>
+                  <Award size={11} /> {ppTier.label}
+                </span>
+              ) : (
+                <span className="rnk-chip rnk-chip-amber">
+                  <Award size={11} /> Faltam {formatXp(ppTier.xpToNextTier ?? 0)} XP para o Bronze
+                </span>
+              )}
               <span className="rnk-chip">{formatXp(progress.xp)} XP</span>
               <span className="rnk-chip">
                 <Trophy size={11} /> Rank {pos}
+              </span>
+              <span className="rnk-chip">
+                <Star size={11} /> Nível {progress.level}
               </span>
             </div>
           </div>
@@ -2277,11 +2511,18 @@ function PerfilPublicoView({
             gap: 9,
           }}
         >
-          <span className="rnk-eyebrow">Progresso para o nível {progress.level + 1}</span>
-          <RnkBar value={progress.progressToNext} tone="brand" />
+          <span className="rnk-eyebrow">
+            {ppTier.nextLabel
+              ? `Progresso para ${ppTier.nextLabel}`
+              : "Topo da progressão alcançado"}
+          </span>
+          <RnkBar value={ppTier.progressToNextTier ?? progress.progressToNext} tone="brand" />
           <p className="rnk-hint" style={{ margin: 0 }}>
-            {formatXp(progress.xpInLevel)} / {formatXp(progress.xpNeededForNext)} XP ·{" "}
-            {Math.round(progress.progressToNext)}%
+            {ppTier.nextLabel
+              ? `${formatXp(ppTier.xpToNextTier ?? 0)} para ${ppTier.nextLabel} · ${formatXp(
+                  progress.totalXpEarned
+                )} XP acumulados`
+              : `${formatXp(progress.totalXpEarned)} XP acumulados`}
           </p>
         </div>
 
@@ -2524,9 +2765,33 @@ function EvolutionSvg({ points }: { points: EvolutionPoint[] }) {
 // Ranking
 // ------------------------------------------------------------
 
+/**
+ * Identidade do usuário no Ranking: o PAR (Rank, Nível) — "Bronze • Nível 2".
+ * `rankLevelLabel` vem pronto do servidor; o fallback remonta o par com o MESMO
+ * motor do cliente (`rankTierLocal`), nunca exibindo "Nível 2" sozinho — que é
+ * ambíguo entre os cinco Ranks e foi o defeito apontado no produto.
+ */
+function entryRankLabel(e: RankingEntry): string {
+  if (e.rankLevelLabel) return e.rankLevelLabel;
+  if (e.tierLabel) {
+    return e.levelWithinRank ? `${e.tierLabel} • Nível ${e.levelWithinRank}` : e.tierLabel;
+  }
+  const tier = rankTierLocal(e.xp, null);
+  return `${tier.label} • Nível ${tier.level}`;
+}
+
 function RankingView({ entries, me }: { entries: RankingEntry[]; me: SummaryData }) {
   const podium = entries.slice(0, 3);
   const rest = entries.slice(3);
+  // Ordem visual do pódio (2º, 1º, 3º). Com 1 ou 2 usuários, os ausentes
+  // simplesmente NÃO entram: o pódio tem a largura do que existe de verdade,
+  // em vez de reservar espaço vazio para três posições.
+  const podiumOrder = [podium[1], podium[0], podium[2]].filter(
+    (e): e is RankingEntry => Boolean(e)
+  );
+  // Grid pelo número real de degraus, para o card centralizar sozinho em
+  // qualquer contagem (1, 2 ou 3 sem posições fantasmas).
+  const podiumCols = podiumOrder.length === 1 ? "1fr" : podiumOrder.length === 2 ? "1fr 1fr" : "1fr 1.15fr 1fr";
 
   return (
     <div className="rnk-stack">
@@ -2538,34 +2803,39 @@ function RankingView({ entries, me }: { entries: RankingEntry[]; me: SummaryData
             hint={
               entries.length === 1
                 ? "Ainda não há outros usuários ranqueados — por isso você é o único listado."
-                : "Os três maiores acumuladores de XP em ações reais."
+                : "Os maiores acumuladores de XP em ações reais."
             }
           />
-          <div className="rnk-podium" style={{ marginTop: 16 }}>
-            {[podium[1], podium[0], podium[2]]
-              .filter((e): e is RankingEntry => Boolean(e))
-              .map((e) => (
-                <div
-                  key={e.userId}
-                  className={cn(
-                    "rnk-pod",
-                    e.position === 1 && "rnk-pod-1",
-                    e.position === 2 && "rnk-pod-2",
-                    e.position === 3 && "rnk-pod-3",
-                    e.isMe && "rnk-pod-me"
-                  )}
-                >
-                  <span className="rnk-pod-crown" aria-hidden="true">
-                    {e.position === 1 ? <Crown size={18} /> : <Medal size={18} />}
-                  </span>
-                  <RnkAvatar name={e.name ?? "Usuário"} size={e.position === 1 ? 54 : 46} />
-                  <p className="rnk-pod-name">{e.name ?? "Usuário"}</p>
+          <div
+            className="rnk-podium"
+            data-count={podiumOrder.length}
+            style={{ marginTop: 16, gridTemplateColumns: podiumCols }}
+          >
+            {podiumOrder.map((e) => (
+              <div
+                key={e.userId}
+                className={cn(
+                  "rnk-pod",
+                  e.position === 1 && "rnk-pod-1",
+                  e.position === 2 && "rnk-pod-2",
+                  e.position === 3 && "rnk-pod-3",
+                  e.isMe && "rnk-pod-me"
+                )}
+              >
+                <span className="rnk-pod-crown" aria-hidden="true">
+                  {e.position === 1 ? <Crown size={16} /> : <Medal size={16} />}
+                </span>
+                <RnkAvatar name={e.name ?? "Usuário"} size={e.position === 1 ? 44 : 38} />
+                <p className="rnk-pod-name">{e.name ?? "Usuário"}</p>
+                {e.username && <span className="rnk-pod-user">@{e.username}</span>}
+                <div className="rnk-pod-line">
                   <span className="rnk-chip rnk-chip-outline rnk-num">#{e.position}</span>
                   <span className="rnk-pod-xp">{formatXp(e.xp)} XP</span>
-                  <span className="rnk-pod-meta">Nível {e.level}</span>
-                  {e.isMe && <span className="rnk-chip rnk-you">Você</span>}
                 </div>
-              ))}
+                <span className="rnk-pod-meta">{entryRankLabel(e)}</span>
+                {e.isMe && <span className="rnk-chip rnk-you">Você</span>}
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -2588,7 +2858,10 @@ function RankingView({ entries, me }: { entries: RankingEntry[]; me: SummaryData
                 <RnkAvatar name={e.name ?? "Usuário"} size={34} />
                 <div className="rnk-row-body">
                   <p className="rnk-row-name">{e.name ?? "Usuário"}</p>
-                  <span className="rnk-row-meta">Nível {e.level}</span>
+                  <span className="rnk-row-meta">
+                    {e.username ? `@${e.username} · ` : ""}
+                    {entryRankLabel(e)}
+                  </span>
                 </div>
                 <span className="rnk-row-xp">{formatXp(e.xp)} XP</span>
                 {e.isMe && <span className="rnk-chip rnk-you">Você</span>}

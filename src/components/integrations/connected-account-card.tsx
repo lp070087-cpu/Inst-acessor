@@ -1,3 +1,4 @@
+import * as React from "react";
 import { AlertTriangle, Instagram, Music2 } from "lucide-react";
 
 import { Avatar } from "@/components/ui/avatar";
@@ -35,6 +36,12 @@ interface ConnectedAccountCardProps {
   /** Saudação ao usuário autenticado (ex.: "Olá, Lucas"). Opcional. */
   greeting?: string | null;
   className?: string;
+  /**
+   * Ação da conta (ex.: "Atualizar métricas"), renderizada no RODAPÉ do card.
+   * É um slot: o card continua sendo um Server Component e quem passa o
+   * conteúdo decide o que é — aqui, o botão client de sincronização.
+   */
+  action?: React.ReactNode;
 }
 
 const PLATFORM_META: Record<Platform, { label: string; Icon: typeof Instagram }> = {
@@ -50,6 +57,7 @@ export function ConnectedAccountCard({
   lastSyncAt,
   greeting,
   className,
+  action,
 }: ConnectedAccountCardProps) {
   const { label, Icon } = PLATFORM_META[platform];
   const sync = describeSync(lastSyncAt);
@@ -132,6 +140,15 @@ export function ConnectedAccountCard({
           )}
         </div>
       </div>
+
+      {/* Ação da conta no RODAPÉ do card: a atualização de métricas pertence à
+          conta que ela atualiza, não ao topo da página. Antes o botão ficava
+          solto acima do card, separado do contexto a que se refere. */}
+      {action && (
+        <div className="relative mt-4 pt-4 border-t border-border-soft/70 flex items-center justify-between gap-3 flex-wrap">
+          {action}
+        </div>
+      )}
     </section>
   );
 }

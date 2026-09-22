@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { gp } from "./db";
-import { levelInfoFromXp } from "./xp";
+import { levelInfoFromXp, rankTierFromXp, type RankTierInfo } from "./xp";
 import { getRankSocialSummary, getUserRankSummary } from "./ranking";
 import type {
   PublicAchievementItem,
@@ -176,6 +176,9 @@ export async function loadPublicProfile(
       100,
       Math.round((info.xpInLevel / info.xpNeededForNext) * 10000) / 100
     ),
+    // Rank geral + nível interno sobre o XP ACUMULADO — mesma base dos limiares
+    // anunciados na landing. Nunca `null`: todos começam no Bronze Nível 1.
+    tier: rankTierFromXp(totalXpEarned),
     position: summary.position,
     totalUsers: summary.totalUsers,
     followers: social.followers,

@@ -147,6 +147,14 @@ export async function POST(request: Request) {
     );
   }
 
+  // A trilha de auditoria da ordem é `unknown` no repositório (é `Json` no
+  // schema). Normalizamos antes de ler: sem isto, um valor inesperado no banco
+  // derrubaria a resposta do checkout depois de o Asaas já ter sido chamado.
+  const audit =
+    result.order?.audit && typeof result.order.audit === "object"
+      ? (result.order.audit as Record<string, unknown>)
+      : null;
+
   return NextResponse.json({
     ok: true,
     status: result.status,
@@ -155,6 +163,12 @@ export async function POST(request: Request) {
       message: result.message,
       planId: plan.id,
       planName: plan.name,
+      // Este é o valor de CATÁLOGO. Ele NÃO é o que será cobrado quando houver
+      // pré-venda vigente para este comprador: o preço efetivo (`amountCents`) é
+      // resolvido dentro de `startPublicCheckout`, com a config do admin e o
+      // histórico real — e é o `amountCents` que a tela deve exibir. Mantemos
+      // `priceCents` porque é o campo que a UI já lê, mas o valor cobrado vem
+      // ao lado e prevalece.
       priceCents: plan.priceCents,
       checkoutUrl: result.checkoutUrl,
       // Checkout hospedado ainda NÃO criou assinatura (o webhook cria quando o
@@ -162,6 +176,19 @@ export async function POST(request: Request) {
       // PENDING para a UI otimista de /assinatura.
       subscriptionId: result.order?.id ?? null,
       subscriptionStatus: "PENDING",
+      // PREÇO EFETIVO DESTA COMPRA (resolvido no servidor, com a promoção
+      // aplicada quando couber) + o porquê. Nenhum destes números vem do
+      // navegador — o cliente só os exibe.
+      amountCents: result.order?.expectedAmountCents ?? null,
+      currency: result.order?.currency ?? plan.currency,
+      promo: audit?.["promoApplied"] === true
+        ? {
+            applied: true,
+            label: typeof audit["promoLabel"] === "string" ? audit["promoLabel"] : null,
+            basePriceCents:
+              typeof audit["basePriceCents"] === "number" ? audit["basePriceCents"] : null,
+          }
+        : null,
     },
   });
 }

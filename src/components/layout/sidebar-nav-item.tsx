@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
+import { Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { NavItem } from "@/lib/navigation";
 
@@ -11,6 +12,12 @@ interface SidebarNavItemProps {
   active?: boolean;
   collapsed?: boolean;
   isSignOut?: boolean;
+  /**
+   * Módulo do plano que o usuário ainda não tem. O item CONTINUA visível e
+   * clicável (ele precisa saber o que existe e querer assinar) — quem decide
+   * de verdade é o servidor, em `(app)/layout.tsx`. Aqui só sinalizamos.
+   */
+  locked?: boolean;
 }
 
 export function SidebarNavItem({
@@ -18,6 +25,7 @@ export function SidebarNavItem({
   active,
   collapsed,
   isSignOut,
+  locked,
 }: SidebarNavItemProps) {
   const Icon = item.icon;
 
@@ -28,18 +36,29 @@ export function SidebarNavItem({
         strokeWidth={2}
         className={cn(
           "flex-none transition-colors",
-          active ? "text-purple" : isSignOut ? "text-danger" : "text-ink-soft"
+          active ? "text-purple" : isSignOut ? "text-danger" : "text-ink-soft",
+          locked && "text-ink-muted"
         )}
       />
       {!collapsed && (
-        <span
-          className={cn(
-            "text-[13.5px] font-medium transition-colors truncate",
-            active ? "text-ink font-semibold" : isSignOut ? "text-danger" : "text-ink-soft"
+        <>
+          <span
+            className={cn(
+              "text-[13.5px] font-medium transition-colors truncate",
+              active ? "text-ink font-semibold" : isSignOut ? "text-danger" : "text-ink-soft",
+              locked && "text-ink-muted"
+            )}
+          >
+            {item.label}
+          </span>
+          {locked && (
+            <Lock
+              size={13}
+              className="flex-none ml-auto text-ink-muted/70"
+              aria-label="Disponível nos planos pagos"
+            />
           )}
-        >
-          {item.label}
-        </span>
+        </>
       )}
     </>
   );

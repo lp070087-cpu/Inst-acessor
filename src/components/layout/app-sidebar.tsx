@@ -7,7 +7,7 @@ import { Menu, ChevronLeft, LogOut, X } from "lucide-react";
 import type { Session } from "next-auth";
 
 import { cn } from "@/lib/utils";
-import { mainNav, bottomNav, adminNavItem } from "@/lib/navigation";
+import { mainNav, bottomNav, adminNavItem, isPremiumRoute } from "@/lib/navigation";
 import { AppLogo } from "@/components/layout/app-logo";
 import { SidebarNavItem } from "@/components/layout/sidebar-nav-item";
 import { Avatar } from "@/components/ui/avatar";
@@ -18,11 +18,19 @@ const STORAGE_KEY = "inst-acessor:sidebar-collapsed";
 export function AppSidebar({
   user,
   isAdmin = false,
+  hasPremiumAccess = false,
   account,
 }: {
   user: Session["user"];
   /** Autorizado como admin exclusivo (decidido no servidor). */
   isAdmin?: boolean;
+  /**
+   * O usuário tem direito de acesso ao plano? Decidido NO SERVIDOR
+   * (`resolvePremiumAccess`) e apenas EXIBIDO aqui: com `false`, os módulos do
+   * plano aparecem com cadeado. O menu nunca é a autoridade — quem bloqueia a
+   * rota é o layout.
+   */
+  hasPremiumAccess?: boolean;
   /**
    * Identidade REAL da conta, lida do banco pelo layout.
    *
@@ -134,6 +142,7 @@ export function AppSidebar({
                 item={item}
                 active={isActive(item.href)}
                 collapsed={collapsed}
+                locked={!hasPremiumAccess && isPremiumRoute(item.href)}
               />
             ))}
           </div>
@@ -204,7 +213,12 @@ export function AppSidebar({
             <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Menu principal">
               <div className="flex flex-col gap-0.5">
                 {mainNav.map((item) => (
-                  <SidebarNavItem key={item.href} item={item} active={isActive(item.href)} />
+                  <SidebarNavItem
+                    key={item.href}
+                    item={item}
+                    active={isActive(item.href)}
+                    locked={!hasPremiumAccess && isPremiumRoute(item.href)}
+                  />
                 ))}
               </div>
               <div className="my-4 h-px bg-border-soft" />

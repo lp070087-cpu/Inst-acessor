@@ -67,40 +67,32 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        {/* Botões de ação por plataforma */}
-        <div className="flex flex-wrap items-center gap-2.5">
-          {instagramData.connected ? (
-            <SyncMetricsButton
-              connected
-              platform="instagram"
-              lastSyncAt={instagramData.lastSyncAt?.toISOString() ?? null}
-            />
-          ) : (
-            <Link
-              href="/redes-sociais"
-              className="inline-flex items-center gap-2 rounded-pill bg-[linear-gradient(115deg,#F43F8E_0%,#A855F7_45%,#6366F1_100%)] bg-[length:160%_160%] text-white text-[13.5px] font-semibold px-5 py-2.5 shadow-brand transition-all duration-300 hover:shadow-brand-lg hover:-translate-y-0.5 hover:bg-[position:100%_100%] cursor-pointer"
-            >
-              <Instagram size={16} />
-              Conectar Instagram
-            </Link>
-          )}
+        {/* Convite a conectar, SÓ quando não há conexão.
+            O "Atualizar métricas" saiu daqui: ele pertence ao card da conta que
+            atualiza, no rodapé do próprio card (ver `accountAction` abaixo). */}
+        {(!instagramData.connected || !tiktokData.connected) && (
+          <div className="flex flex-wrap items-center gap-2.5">
+            {!instagramData.connected && (
+              <Link
+                href="/redes-sociais"
+                className="inline-flex items-center gap-2 rounded-pill bg-[linear-gradient(115deg,#F43F8E_0%,#A855F7_45%,#6366F1_100%)] bg-[length:160%_160%] text-white text-[13.5px] font-semibold px-5 py-2.5 shadow-brand transition-all duration-300 hover:shadow-brand-lg hover:-translate-y-0.5 hover:bg-[position:100%_100%] cursor-pointer"
+              >
+                <Instagram size={16} />
+                Conectar Instagram
+              </Link>
+            )}
 
-          {tiktokData.connected ? (
-            <SyncMetricsButton
-              connected
-              platform="tiktok"
-              lastSyncAt={tiktokData.lastSyncAt?.toISOString() ?? null}
-            />
-          ) : (
-            <Link
-              href="/redes-sociais"
-              className="inline-flex items-center gap-2 rounded-pill bg-[linear-gradient(115deg,#F43F8E_0%,#A855F7_45%,#6366F1_100%)] bg-[length:160%_160%] text-white text-[13.5px] font-semibold px-5 py-2.5 shadow-brand transition-all duration-300 hover:shadow-brand-lg hover:-translate-y-0.5 hover:bg-[position:100%_100%] cursor-pointer"
-            >
-              <Music2 size={16} />
-              Conectar TikTok
-            </Link>
-          )}
-        </div>
+            {!tiktokData.connected && (
+              <Link
+                href="/redes-sociais"
+                className="inline-flex items-center gap-2 rounded-pill bg-[linear-gradient(115deg,#F43F8E_0%,#A855F7_45%,#6366F1_100%)] bg-[length:160%_160%] text-white text-[13.5px] font-semibold px-5 py-2.5 shadow-brand transition-all duration-300 hover:shadow-brand-lg hover:-translate-y-0.5 hover:bg-[position:100%_100%] cursor-pointer"
+              >
+                <Music2 size={16} />
+                Conectar TikTok
+              </Link>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Visão geral */}
@@ -123,6 +115,24 @@ export default async function DashboardPage() {
           insights={insights}
           aiConfigured={aiReady}
           greeting={greeting}
+          instagramAction={
+            instagramData.connected ? (
+              <SyncMetricsButton
+                connected
+                platform="instagram"
+                lastSyncAt={instagramData.lastSyncAt?.toISOString() ?? null}
+              />
+            ) : null
+          }
+          tiktokAction={
+            tiktokData.connected ? (
+              <SyncMetricsButton
+                connected
+                platform="tiktok"
+                lastSyncAt={tiktokData.lastSyncAt?.toISOString() ?? null}
+              />
+            ) : null
+          }
         />
       </div>
     </div>

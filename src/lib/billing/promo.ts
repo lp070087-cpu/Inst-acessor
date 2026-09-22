@@ -28,6 +28,7 @@
  */
 
 import { PLAN_CATALOG } from "@/lib/billing/plans/catalog";
+import { formatBRL } from "@/lib/billing/plans/display";
 
 /** Chave única em `SystemSetting` onde o admin grava a promoção. */
 export const PROMO_SETTING_KEY = "billing.promo.v1";
@@ -379,6 +380,55 @@ export function resolvePromoPrice(input: {
 }
 
 /**
+ * Vitrine de UM plano: preço cheio + preço promocional, prontos para o card.
+ * Tipo NOMEADO de propósito — é o que o SERVIDOR manda para os componentes de
+ * card (landing e "Minha Assinatura") e nenhum deles deve redigitar a forma.
+ */
+export interface PlanPromoShowcase {
+  basePriceCents: number;
+  promoPriceCents: number | null;
+  discountCents: number;
+  discountPercent: number;
+  label: string | null;
+  /**
+   * Condição EXATA da pré-venda, em texto curto — o "nas 3 primeiras
+   * cobranças" / "no primeiro ano" / "somente na primeira compra" que fica
+   * abaixo do preço promocional no card.
+   *
+   * Derivado da configuração gravada pelo admin (`chargesAtPromoPrice`,
+   * `yearsAtPromoPrice`, `requiresNoPreviousPurchase`), não escrito à mão no
+   * componente: se o admin mudar de 3 para 2 cobranças, o texto acompanha.
+   */
+  qualifier: string | null;
+  /**
+   * O que passa a valer DEPOIS da condição ("Depois R$ 77,00/mês"). Só existe
+   * quando a pré-venda é condicional — no semanal não há "depois", porque a
+   * compra é única.
+   */
+  afterText: string | null;
+  countdownEndsAt: string | null;
+  countdownRunning: boolean;
+  showPromo: boolean;
+}
+
+/**
+ * Vitrine COMPLETA de preços: a configuração vigente + o resultado por plano.
+ *
+ * É montada no SERVIDOR (onde o banco é lido) e viaja até os cards da landing e
+ * de "Minha Assinatura". Declarada neste módulo PURO para que a página (Server
+ * Component) e o card (Client Component) usem a MESMA forma, sem que o
+ * componente de cliente precise importar o módulo que fala com o banco.
+ */
+export interface PlanPromoDisplay {
+  /** Configuração vigente (já normalizada) da pré-venda. */
+  config: PromoConfig;
+  /** Vitrine por slug do plano. Slug ausente = nada a anunciar. */
+  bySlug: Record<string, PlanPromoShowcase>;
+  /** `false` = o banco não respondeu e o exibido é o PADRÃO, não a config real. */
+  infraOk: boolean;
+}
+
+/**
  * Preço CHEIO + preço promocional de uma vez, para os CARDS.
  * Não consulta histórico nenhum: é a vitrine do PLANO, não a oferta de uma
  * pessoa. A elegibilidade individual (primeira compra / cobranças usadas) só
@@ -389,16 +439,7 @@ export function planPromoDisplay(input: {
   basePriceCents: number;
   config: PromoConfig;
   now: string;
-}): {
-  basePriceCents: number;
-  promoPriceCents: number | null;
-  discountCents: number;
-  discountPercent: number;
-  label: string | null;
-  countdownEndsAt: string | null;
-  countdownRunning: boolean;
-  showPromo: boolean;
-} {
+}): PlanPromoShowcase {
   const { slug, config } = input;
   const base = isPositiveInt(input.basePriceCents)
     ? input.basePriceCents
@@ -418,6 +459,8 @@ export function planPromoDisplay(input: {
     discountCents: 0,
     discountPercent: 0,
     label: null,
+    qualifier: null,
+    afterText: null,
     countdownEndsAt,
     countdownRunning,
     showPromo: false,
@@ -440,12 +483,34 @@ export function planPromoDisplay(input: {
           ? "Pré-venda · primeiro ano"
           : `Pré-venda · ${config.anual.yearsAtPromoPrice} primeiros anos`;
 
+  // A CONDIÇÃO e o "DEPOIS" em texto. Derivados da config, para o card não
+  // precisar (nem poder) reescrever as regras por conta própria.
+  let qualifier: string | null;
+  let afterText: string | null;
+  if (slug === "semanal") {
+    // Compra ÚNICA: não existe "depois" — sem renovação automática.
+    qualifier = config.semanal.requiresNoPreviousPurchase
+      ? "somente na primeira compra"
+      : "por tempo limitado";
+    afterText = null;
+  } else if (slug === "mensal") {
+    const n = config.mensal.chargesAtPromoPrice;
+    qualifier = n === 1 ? "na 1ª cobrança" : `nas ${n} primeiras cobranças`;
+    afterText = `Depois ${formatBRL(base)}/mês`;
+  } else {
+    const n = config.anual.yearsAtPromoPrice;
+    qualifier = n === 1 ? "no primeiro ano" : `nos ${n} primeiros anos`;
+    afterText = `Renovação por ${formatBRL(base)}/ano`;
+  }
+
   return {
     basePriceCents: base,
     promoPriceCents: cfg.promoPriceCents,
     discountCents: base - cfg.promoPriceCents,
     discountPercent: Math.round(((base - cfg.promoPriceCents) / base) * 1000) / 10,
     label,
+    qualifier,
+    afterText,
     countdownEndsAt,
     countdownRunning,
     showPromo: true,

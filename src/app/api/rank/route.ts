@@ -67,17 +67,28 @@ export async function GET() {
         xpNeededForNext: progress.levelInfo.xpNeededForNext,
         progressToNext: progress.levelInfo.progressToNext,
         xpTotal: progress.levelInfo.xpTotal,
-        // Faixa geral (Bronze→Lendário) calculada em `xp.ts` sobre o XP
+        // Rank geral + NÍVEL INTERNO, calculados em `rank-ladder.ts` sobre o XP
         // acumulado. Aditivo: os campos numéricos acima não mudaram.
+        // `level`/`fullLabel` são a CAMADA 2 (estrelas dentro do Rank): sozinhos
+        // não identificam o usuário, por isso o par vai pronto em `fullLabel`.
+        // `provisional` avisa a UI que os limiares internos deste Rank ainda são
+        // divisão provisória (o produto só definiu os do Bronze).
         tier: {
           key: progress.rankTier.key,
           label: progress.rankTier.label,
           index: progress.rankTier.index,
           minXp: progress.rankTier.minXp,
+          endXp: progress.rankTier.endXp,
+          levelMinXp: progress.rankTier.levelMinXp,
+          level: progress.rankTier.level,
+          fullLabel: progress.rankTier.fullLabel,
+          provisional: progress.rankTier.provisional,
           nextMinXp: progress.rankTier.nextMinXp,
           nextLabel: progress.rankTier.nextLabel,
           xpToNextTier: progress.rankTier.xpToNextTier,
           progressToNextTier: progress.rankTier.progressToNextTier,
+          xpToNextLevel: progress.rankTier.xpToNextLevel,
+          progressToNextLevel: progress.rankTier.progressToNextLevel,
         },
       },
       xpLogs: progress.xpLogs.map((l) => ({

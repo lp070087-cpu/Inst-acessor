@@ -49,12 +49,18 @@ export async function PATCH(request: Request) {
       );
     }
 
-    const updated = await cancelRenewal(userId, parsed.data.subscriptionId);
-    if (!updated) {
-      return NextResponse.json({ error: "Assinatura não encontrada" }, { status: 404 });
+    const result = await cancelRenewal(userId, parsed.data.subscriptionId);
+
+    if (!result.ok) {
+      // 404 = a assinatura não é do usuário / não existe.
+      // 502 = o gateway recusou: o cancelamento NÃO aconteceu e o banco local
+      //       não foi tocado. Dizer "ok" aqui faria a tela mentir enquanto o
+      //       Asaas seguiria cobrando.
+      const status = result.reason === "not_found" ? 404 : 502;
+      return NextResponse.json({ error: result.message, reason: result.reason }, { status });
     }
 
-    return NextResponse.json({ ok: true, subscription: updated });
+    return NextResponse.json({ ok: true, subscription: result.subscription });
   } catch (err) {
     console.error("[billing/subscription] erro ao cancelar renovação", err);
     return NextResponse.json({ error: "Erro ao cancelar renovação." }, { status: 500 });
