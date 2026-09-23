@@ -34,25 +34,25 @@ import type { CommentCategory, EligibleComment, EligibleMedia, ReplySource } fro
 /**
  * MOTOR DE RESPOSTAS INTELIGENTES
  * ================================
- * Orquestra o ciclo completo de UM comentÃƒÂ¡rio:
+ * Orquestra o ciclo completo de UM comentário:
  *
- *   ler Ã¢â€ â€™ classificar Ã¢â€ â€™ resolver prioridade Ã¢â€ â€™ gerar Ã¢â€ â€™ decidir envio Ã¢â€ â€™ registrar
+ *   ler → classificar → resolver prioridade → gerar → decidir envio → registrar
  *
  * Regras que este arquivo garante:
  *
- *   1. IDEMPOTÃƒÅ NCIA Ã¢â‚¬â€ um `commentId` nunca ÃƒÂ© respondido duas vezes. A checagem
+ *   1. IDEMPOTÊNCIA — um `commentId` nunca é respondido duas vezes. A checagem
  *      vem do `CommentReplyLog` (com `@@unique([mediaId, commentId])` como
  *      garantia final no banco).
- *   2. FAIL-CLOSED Ã¢â‚¬â€ qualquer dÃƒÂºvida (IA fora, limite estourado, categoria
- *      sensÃƒÂ­vel, sem conexÃƒÂ£o) resulta em NÃƒÆ’O ENVIAR. Nunca em enviar "mesmo
+ *   2. FAIL-CLOSED — qualquer dúvida (IA fora, limite estourado, categoria
+ *      sensível, sem conexão) resulta em NÃO ENVIAR. Nunca em enviar "mesmo
  *      assim".
- *   3. LIMITES Ã¢â‚¬â€ todo envio automÃƒÂ¡tico passa por `checkLimits()`.
- *   4. CAPACIDADE REAL Ã¢â‚¬â€ se a Meta ainda nÃƒÂ£o concedeu acesso a comentÃƒÂ¡rios,
- *      o erro ÃƒÂ© tipado e devolvido como estÃƒÂ¡. Nada ÃƒÂ© contornado.
+ *   3. LIMITES — todo envio automático passa por `checkLimits()`.
+ *   4. CAPACIDADE REAL — se a Meta ainda não concedeu acesso a comentários,
+ *      o erro é tipado e devolvido como está. Nada é contornado.
  *
- * O envio real (`sendApprovedReply`) sÃƒÂ³ ocorre quando chamado explicitamente Ã¢â‚¬â€
- * seja por aprovaÃƒÂ§ÃƒÂ£o humana (modos MANUAL/APPROVAL) ou pelo caminho AUTO, que
- * exige que TODAS as condiÃƒÂ§ÃƒÂµes de seguranÃƒÂ§a estejam satisfeitas.
+ * O envio real (`sendApprovedReply`) só ocorre quando chamado explicitamente —
+ * seja por aprovação humana (modos MANUAL/APPROVAL) ou pelo caminho AUTO, que
+ * exige que TODAS as condições de segurança estejam satisfeitas.
  */
 
 export interface AnalyzeResultItem {
@@ -61,7 +61,7 @@ export interface AnalyzeResultItem {
   decisionKind: "EXACT" | "AI" | "REVIEW_ONLY";
   generatedReply: string | null;
   status: "PENDING" | "SKIPPED" | "ERROR";
-  /** Por que este comentÃƒÂ¡rio nÃƒÂ£o pode ser enviado automaticamente. */
+  /** Por que este comentário não pode ser enviado automaticamente. */
   reviewReason: string | null;
   reviewReasonLabel: string | null;
   autoSendable: boolean;
@@ -162,10 +162,10 @@ function toSpecialProfileInput(row: {
 }
 
 /**
- * LÃƒÂª e analisa os comentÃƒÂ¡rios de UMA publicaÃƒÂ§ÃƒÂ£o.
+ * Lê e analisa os comentários de UMA publicação.
  *
- * @param mediaId            publicaÃƒÂ§ÃƒÂ£o alvo
- * @param opts.onlyUnanswered ignora comentÃƒÂ¡rios que jÃƒÂ¡ tÃƒÂªm registro no log
+ * @param mediaId            publicação alvo
+ * @param opts.onlyUnanswered ignora comentários que já têm registro no log
  * @param opts.persist        grava os resultados em `CommentReplyLog`
  */
 export async function analyzeMedia(
@@ -173,7 +173,7 @@ export async function analyzeMedia(
   mediaId: string,
   opts: { onlyUnanswered?: boolean; persist?: boolean } = {}
 ): Promise<AnalyzeSummary> {
-  // ---- conexÃƒÂ£o (mesma do Redes Sociais Ã¢â‚¬â€ sem segundo OAuth) ----
+  // ---- conexão (mesma do Redes Sociais — sem segundo OAuth) ----
   let credentials;
   try {
     credentials = await loadCommentCredentials(userId);
@@ -181,7 +181,7 @@ export async function analyzeMedia(
     const info = err instanceof CommentCapabilityError ? err : null;
     return {
       ok: false,
-      error: info?.message ?? "NÃƒÂ£o foi possÃƒÂ­vel acessar a conexÃƒÂ£o do Instagram.",
+      error: info?.message ?? "Não foi possível acessar a conexão do Instagram.",
       code: info?.code ?? "api",
       items: [],
     };
@@ -216,13 +216,26 @@ export async function analyzeMedia(
         ? err
         : new CommentCapabilityError("api", "Não foi possível ler os comentários.");
 
+    // `emptyReason` FICA AUSENTE de propósito nos retornos de erro.
+    //
+    // Antes estes dois caminhos devolviam `emptyReason: "api_empty"`, que na
+    // tela é a frase "O Instagram respondeu e não devolveu comentários para
+    // esta publicação." — ou seja, um erro de PERMISSÃO ou de publicação
+    // inexistente era anunciado como zero comentários. O usuário concluía que a
+    // publicação não tinha comentários quando o problema era autorização.
+    //
+    // Regra: `emptyReason` responde "por que não veio comentário nenhum?" e só
+    // faz sentido quando a leitura ACONTECEU. Quando ela falha, quem responde é
+    // `error` + `code`. `fetchedCount: 0` entra junto porque é verdade medível:
+    // nenhum comentário foi lido — mas não é um zero da Meta, é a ausência da
+    // leitura, e a UI precisa dos dois campos para não confundir os casos.
     if (info.code === "media_not_found" || info.code === "capability") {
       return {
         ok: false,
         error: info.message,
         code: info.code,
         items: [],
-        emptyReason: "api_empty",
+        fetchedCount: 0,
       };
     }
 
@@ -234,8 +247,10 @@ export async function analyzeMedia(
     }
 
     // Sem nada persistido, o erro é a resposta: nunca "zero comentários".
+    // `emptyReason` ausente pelo mesmo motivo do bloco acima — a leitura
+    // FALHOU, então não há "motivo do vazio" a informar, há um erro.
     if (stored.length === 0) {
-      return { ok: false, error: info.message, code: info.code, items: [], emptyReason: "api_empty" };
+      return { ok: false, error: info.message, code: info.code, items: [], fetchedCount: 0 };
     }
 
     comments = stored;
@@ -243,7 +258,7 @@ export async function analyzeMedia(
     liveError = info.message;
   }
 
-  // ---- contexto real do usuÃƒÂ¡rio (uma leitura para TODA a leva) ----
+  // ---- contexto real do usuário (uma leitura para TODA a leva) ----
   let ctx: CommentAnalysisContext;
   let media: EligibleMedia | undefined;
   try {
@@ -254,7 +269,7 @@ export async function analyzeMedia(
     const info = err instanceof CommentCapabilityError ? err : null;
     return {
       ok: false,
-      error: info?.message ?? "NÃƒÂ£o foi possÃƒÂ­vel carregar a configuraÃƒÂ§ÃƒÂ£o de respostas.",
+      error: info?.message ?? "Não foi possível carregar a configuração de respostas.",
       code: info?.code ?? "api",
       items: [],
     };
@@ -375,17 +390,17 @@ export async function analyzeMedia(
 }
 
 // ================================================================
-// NÃƒÅ¡CLEO DE ANÃƒÂLISE DE UM ÃƒÅ¡NICO COMENTÃƒÂRIO
+// NÚCLEO DE ANÁLISE DE UM ÚNICO COMENTÁRIO
 // ================================================================
 //
-// `analyzeMedia()` LÃƒÂª os comentÃƒÂ¡rios da API e entÃƒÂ£o analisa cada um. O webhook
-// de comentÃƒÂ¡rios do Instagram jÃƒÂ¡ RECEBE o comentÃƒÂ¡rio da Meta e nÃƒÂ£o pode chamar
-// `listComments` de novo (seria uma chamada Ã¢â‚¬â€ e um rate limit Ã¢â‚¬â€ por evento).
-// Por isso o corpo do laÃƒÂ§o abaixo foi extraÃƒÂ­do para cÃƒÂ¡: os DOIS caminhos usam
-// exatamente a mesma classificaÃƒÂ§ÃƒÂ£o, prioridade, geraÃƒÂ§ÃƒÂ£o e regras de seguranÃƒÂ§a.
-// Nada de segunda implementaÃƒÂ§ÃƒÂ£o.
+// `analyzeMedia()` Lê os comentários da API e então analisa cada um. O webhook
+// de comentários do Instagram já RECEBE o comentário da Meta e não pode chamar
+// `listComments` de novo (seria uma chamada — e um rate limit — por evento).
+// Por isso o corpo do laço abaixo foi extraído para cá: os DOIS caminhos usam
+// exatamente a mesma classificação, prioridade, geração e regras de segurança.
+// Nada de segunda implementação.
 
-/** Contexto do usuÃƒÂ¡rio usado para analisar comentÃƒÂ¡rios (lido UMA vez). */
+/** Contexto do usuário usado para analisar comentários (lido UMA vez). */
 export interface CommentAnalysisContext {
   rule: AutomationRule;
   media: EligibleMedia | undefined;
@@ -399,8 +414,8 @@ export interface CommentAnalysisContext {
 }
 
 /**
- * Carrega todo o contexto necessÃƒÂ¡rio para analisar comentÃƒÂ¡rios de um usuÃƒÂ¡rio.
- * Mesmas consultas que `analyzeMedia` jÃƒÂ¡ fazia, agora em um ÃƒÂºnico lugar.
+ * Carrega todo o contexto necessário para analisar comentários de um usuário.
+ * Mesmas consultas que `analyzeMedia` já fazia, agora em um único lugar.
  */
 export async function loadAnalysisContext(
   userId: string,
@@ -446,13 +461,13 @@ export async function loadAnalysisContext(
 }
 
 /**
- * Analisa UM comentÃƒÂ¡rio jÃƒÂ¡ conhecido (vindo da API ou do webhook) e registra a
- * sugestÃƒÂ£o em `CommentReplyLog`. NÃƒÆ’O envia nada: o envio ÃƒÂ© sempre
- * `sendApprovedReply()`, chamado pelo ciclo de automaÃƒÂ§ÃƒÂ£o ou por aprovaÃƒÂ§ÃƒÂ£o.
+ * Analisa UM comentário já conhecido (vindo da API ou do webhook) e registra a
+ * sugestão em `CommentReplyLog`. NÃO envia nada: o envio é sempre
+ * `sendApprovedReply()`, chamado pelo ciclo de automação ou por aprovação.
  *
- * `credentials` pode ser omitido quando o leitor jÃƒÂ¡ tem a conexÃƒÂ£o carregada
- * (`analyzeMedia`); o webhook, que nÃƒÂ£o lÃƒÂª comentÃƒÂ¡rios, passa `null` e a funÃƒÂ§ÃƒÂ£o
- * carrega a conexÃƒÂ£o — ÃƒÂ© preciso o `connectionId` para gravar o log.
+ * `credentials` pode ser omitido quando o leitor já tem a conexão carregada
+ * (`analyzeMedia`); o webhook, que não lê comentários, passa `null` e a função
+ * carrega a conexão — é preciso o `connectionId` para gravar o log.
  */
 export async function analyzeSingleComment(input: {
   userId: string;
@@ -467,7 +482,7 @@ export async function analyzeSingleComment(input: {
 
   let credentials = input.credentials ?? null;
   if (!credentials) {
-    // Sem conexÃƒÂ£o nÃƒÂ£o hÃƒÂ¡ como registrar a sugestÃƒÂ£o de forma ÃƒÂºtil: o log exige
+    // Sem conexão não há como registrar a sugestão de forma útil: o log exige
     // `socialConnectionId`. Fail-closed, com o erro tipado do projeto.
     credentials = await loadCommentCredentials(userId);
   }
@@ -506,19 +521,19 @@ export async function analyzeSingleComment(input: {
     paused: ctx.rule.paused,
   });
 
-  // O modo AUTO tambÃƒÂ©m ÃƒÂ© bloqueado quando o resolvedor de prioridade marca
-  // revisÃƒÂ£o obrigatÃƒÂ³ria (perfil especial + conteÃƒÂºdo sensÃƒÂ­vel, por exemplo).
+  // O modo AUTO também é bloqueado quando o resolvedor de prioridade marca
+  // revisão obrigatória (perfil especial + conteúdo sensível, por exemplo).
   const forcedReview = decision.kind === "REVIEW_ONLY" || (decision.kind === "AI" && decision.forceReview);
 
   const reviewReason = classification.reviewTrigger ?? (decision.kind === "REVIEW_ONLY" ? decision.reviewReason : null);
 
-  // Estado inicial: PENDING. A anÃƒÂ¡lise NUNCA envia nada Ã¢â‚¬â€ mesmo quando o
-  // comentÃƒÂ¡rio ÃƒÂ© elegÃƒÂ­vel para automaÃƒÂ§ÃƒÂ£o, ele fica aguardando o ciclo de
-  // envio (aprovaÃƒÂ§ÃƒÂ£o humana ou `runAutomation`).
+  // Estado inicial: PENDING. A análise NUNCA envia nada — mesmo quando o
+  // comentário é elegível para automação, ele fica aguardando o ciclo de
+  // envio (aprovação humana ou `runAutomation`).
   let status: AnalyzeResultItem["status"] = "PENDING";
   if (classification.category === "spam") {
-    // Spam nunca ÃƒÂ© respondido Ã¢â‚¬â€ registrado como nÃƒÂ£o respondido, o que jÃƒÂ¡
-    // impede nova anÃƒÂ¡lise do mesmo comentÃƒÂ¡rio.
+    // Spam nunca é respondido — registrado como não respondido, o que já
+    // impede nova análise do mesmo comentário.
     status = "SKIPPED";
   }
 
@@ -558,8 +573,8 @@ export async function analyzeSingleComment(input: {
 /**
  * Aprova e ENVIA uma resposta (modos MANUAL/APPROVAL, ou caminho AUTO).
  *
- * O limite ÃƒÂ© checado AQUI, imediatamente antes do envio Ã¢â‚¬â€ nunca no momento da
- * sugestÃƒÂ£o Ã¢â‚¬â€ porque o estado de uso pode ter mudado entre as duas etapas.
+ * O limite é checado AQUI, imediatamente antes do envio — nunca no momento da
+ * sugestão — porque o estado de uso pode ter mudado entre as duas etapas.
  */
 export async function sendApprovedReply(
   userId: string,
@@ -569,16 +584,16 @@ export async function sendApprovedReply(
 ): Promise<{ ok: boolean; error?: string; code?: string; replyId?: string }> {
   const log = await findLogById(userId, logId);
 
-  if (!log) return { ok: false, error: "Registro nÃƒÂ£o encontrado.", code: "not_found" };
+  if (!log) return { ok: false, error: "Registro não encontrado.", code: "not_found" };
 
-  // ---- IDEMPOTÃƒÅ NCIA ----
-  // JÃƒÂ¡ enviado: devolve o mesmo resultado, sem segunda chamada ÃƒÂ  API.
+  // ---- IDEMPOTÊNCIA ----
+  // Já enviado: devolve o mesmo resultado, sem segunda chamada à API.
   if (log.status === "SENT" && log.externalReplyId) {
     return { ok: true, replyId: log.externalReplyId };
   }
 
   const text = finalReply.trim();
-  if (!text) return { ok: false, error: "A resposta estÃƒÂ¡ vazia.", code: "empty" };
+  if (!text) return { ok: false, error: "A resposta está vazia.", code: "empty" };
 
   // ---- LIMITES (reavaliados no momento do envio) ----
   const state = await loadLimitState(userId, 0);
@@ -587,7 +602,7 @@ export async function sendApprovedReply(
     return { ok: false, error: limits.reason ?? "Envio bloqueado pelos limites.", code: "limit" };
   }
 
-  // ---- Para AUTO, revalida a seguranÃƒÂ§a com o texto final ----
+  // ---- Para AUTO, revalida a segurança com o texto final ----
   if (origin === "AUTO") {
     const category = (log.commentCategory ?? "outro") as CommentCategory;
     const auto = canAutoSend({
@@ -598,18 +613,18 @@ export async function sendApprovedReply(
       paused: state.rule.paused,
     });
     if (!auto.allowed) {
-      return { ok: false, error: auto.reason ?? "Envio automÃƒÂ¡tico nÃƒÂ£o permitido.", code: "safety" };
+      return { ok: false, error: auto.reason ?? "Envio automático não permitido.", code: "safety" };
     }
   }
 
-  // ---- conexÃƒÂ£o + envio ----
+  // ---- conexão + envio ----
   let credentials;
   try {
     credentials = await loadCommentCredentials(userId);
   } catch (err) {
     const info = err instanceof CommentCapabilityError ? err : null;
     await updateLog(userId, logId, { status: "ERROR", errorCode: info?.code ?? "no_connection" });
-    return { ok: false, error: info?.message ?? "Sem conexÃƒÂ£o com o Instagram.", code: info?.code ?? "no_connection" };
+    return { ok: false, error: info?.message ?? "Sem conexão com o Instagram.", code: info?.code ?? "no_connection" };
   }
 
   try {
@@ -629,11 +644,11 @@ export async function sendApprovedReply(
     const info =
       err instanceof CommentCapabilityError
         ? err
-        : new CommentCapabilityError("api", "NÃƒÂ£o foi possÃƒÂ­vel publicar a resposta.");
+        : new CommentCapabilityError("api", "Não foi possível publicar a resposta.");
 
     await updateLog(userId, logId, { status: "ERROR", errorCode: info.code });
 
-    // Pausa conforme a natureza do erro Ã¢â‚¬â€ sem laÃƒÂ§o infinito de tentativas.
+    // Pausa conforme a natureza do erro — sem laço infinito de tentativas.
     const pause = pauseForError(info.code);
     if (pause.pause) {
       await updateRule(userId, { paused: true });
@@ -644,9 +659,9 @@ export async function sendApprovedReply(
 }
 
 /**
- * Caminho AUTOMÃƒÂTICO Ã¢â‚¬â€ envia, sem humano, apenas os comentÃƒÂ¡rios que passaram
- * por TODAS as travas. Ordem de verificaÃƒÂ§ÃƒÂ£o: modo Ã¢â€ â€™ regra Ã¢â€ â€™ limites Ã¢â€ â€™
- * seguranÃƒÂ§a Ã¢â€ â€™ idempotÃƒÂªncia Ã¢â€ â€™ envio.
+ * Caminho AUTOMÁTICO — envia, sem humano, apenas os comentários que passaram
+ * por TODAS as travas. Ordem de verificação: modo → regra → limites →
+ * segurança → idempotência → envio.
  *
  * Devolve quantos foram enviados e por que os demais ficaram pendentes.
  */
@@ -666,10 +681,10 @@ export async function runAutomation(
   const details: { commentId: string; status: string; reason?: string }[] = [];
 
   if (!rule.enabled) {
-    return { ok: false, sent: 0, skipped: 0, paused: rule.paused, reason: "A automaÃƒÂ§ÃƒÂ£o estÃƒÂ¡ desativada.", code: "disabled", details };
+    return { ok: false, sent: 0, skipped: 0, paused: rule.paused, reason: "A automação está desativada.", code: "disabled", details };
   }
   if (rule.paused) {
-    return { ok: false, sent: 0, skipped: 0, paused: true, reason: "Respostas Inteligentes estÃƒÂ£o pausadas.", code: "paused", details };
+    return { ok: false, sent: 0, skipped: 0, paused: true, reason: "Respostas Inteligentes estão pausadas.", code: "paused", details };
   }
 
   let sent = 0;
@@ -680,8 +695,8 @@ export async function runAutomation(
     const analysis = await analyzeMedia(userId, mediaId, { onlyUnanswered: true, persist: true });
 
     if (!analysis.ok) {
-      // Falha de capacidade/conexÃƒÂ£o: interrompe a execuÃƒÂ§ÃƒÂ£o inteira Ã¢â‚¬â€ insistir
-      // nas demais publicaÃƒÂ§ÃƒÂµes sÃƒÂ³ multiplicaria o mesmo erro.
+      // Falha de capacidade/conexão: interrompe a execução inteira — insistir
+      // nas demais publicações só multiplicaria o mesmo erro.
       return { ok: false, sent, skipped, paused: true, reason: analysis.error, code: analysis.code, details };
     }
 
@@ -692,7 +707,7 @@ export async function runAutomation(
         continue;
       }
 
-      // Estados atualizados a cada envio: o limite ÃƒÂ© global, nÃƒÂ£o por publicaÃƒÂ§ÃƒÂ£o.
+      // Estados atualizados a cada envio: o limite é global, não por publicação.
       const state = await loadLimitState(userId, sentThisRun);
       const limits = checkLimits(state);
       if (!limits.allowed) {
@@ -716,7 +731,7 @@ export async function runAutomation(
         skipped++;
         details.push({ commentId: item.comment.commentId, status: "ERROR", reason: result.error });
 
-        // Erro fatal de conexÃƒÂ£o/capacidade encerra o ciclo na hora.
+        // Erro fatal de conexão/capacidade encerra o ciclo na hora.
         if (result.code === "not_connected" || result.code === "capability" || result.code === "rate_limit") {
           return { ok: false, sent, skipped, paused: true, reason: result.error, code: result.code, details };
         }
@@ -728,8 +743,8 @@ export async function runAutomation(
 }
 
 /**
- * Detecta repetiÃƒÂ§ÃƒÂ£o nas sugestÃƒÂµes de uma mesma leva e regenera as duplicadas.
- * Ãƒâ€° o tratamento do caso "10 comentÃƒÂ¡rios dizendo 'linda'".
+ * Detecta repetição nas sugestões de uma mesma leva e regenera as duplicadas.
+ * É o tratamento do caso "10 comentários dizendo 'linda'".
  */
 export function markRepetitions(replies: string[]): boolean[] {
   const seen: string[] = [];

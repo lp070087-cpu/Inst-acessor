@@ -153,31 +153,36 @@ function capabilityFromMeta(rawCode: string | number | null | undefined): Commen
   return "api";
 }
 
-/** Mensagem do produto para cada código — a UI mostra exatamente esta frase. */
-function capabilityMessage(code: CommentCapabilityCode, metaMessage?: string): string {
+/**
+ * Mensagem que o USUÁRIO lê — a UI mostra exatamente esta frase.
+ *
+ * REGRA (item 13 do escopo): nenhuma frase daqui pode citar nome de escopo,
+ * nome de endpoint, código de erro, "acesso avançado", "App Review" ou o texto
+ * cru da Meta. O usuário precisa saber O QUE FAZER, não como a Graph API
+ * funciona por dentro.
+ *
+ * O `metaMessage` cru continua existindo, mas em `CommentCapabilityError`
+ * (`metaMessage`) — para log e diagnóstico. Ele NÃO entra nesta função: antes o
+ * caso `default` devolvia a mensagem crua da Meta direto para a tela, e era por
+ * ali que o erro técnico vazava para o usuário.
+ */
+function capabilityMessage(code: CommentCapabilityCode): string {
   switch (code) {
     case "not_connected":
-      return "A conexão com o Instagram expirou. Reconecte em Redes Sociais para continuar.";
+      // Token inválido/expirado e credencial ilegível.
+      return "Precisamos renovar a autorização do Instagram. Reconecte a conta em Redes Sociais para continuar.";
     case "capability":
-      return (
-        "A API do Instagram não autorizou a leitura/resposta de comentários para esta conta. " +
-        "Isso normalmente indica que o acesso avançado ao escopo " +
-        "instagram_business_manage_comments ainda não foi concedido ao app."
-      );
+      // Permissão insuficiente para ler/responder comentários.
+      return "O Instagram não liberou o acesso aos comentários desta conta. Reconecte a conta em Redes Sociais; se o aviso continuar, o acesso ainda está em análise pela Meta.";
     case "media_not_found":
-      return (
-        "O Instagram não reconheceu esta publicação para a conta conectada. " +
-        "Ela pode ter sido apagada, arquivada ou pertencer a outra conta — " +
-        "sincronize a conta e tente novamente."
-      );
+      return "Não conseguimos acessar esta publicação no Instagram agora. Ela pode ter sido removida ou não pertencer mais à conta conectada.";
     case "rate_limit":
       return "O Instagram limitou temporariamente as requisições. Tente novamente em alguns minutos.";
     case "no_connection":
       return "Conecte seu Instagram em Redes Sociais para usar Respostas Inteligentes.";
     default:
-      // O motivo REAL da Meta vem primeiro; a frase do produto só o substitui
-      // quando a Meta não mandou nada. Nada de "algo deu errado".
-      return metaMessage?.trim() || "Falha ao falar com a API do Instagram.";
+      // Antes: `metaMessage?.trim() || "..."` — vazava o texto cru da Meta.
+      return "Não foi possível falar com o Instagram agora. Tente novamente em instantes.";
   }
 }
 
@@ -200,15 +205,21 @@ function toCapabilityError(err: unknown): CommentCapabilityError {
     // `capabilityFromMeta` devolve `api` e a mensagem da Meta é preservada.
     return new CommentCapabilityError(
       code,
-      capabilityMessage(code, err.message),
+      capabilityMessage(code),
       metaCode || undefined,
+      // A mensagem REAL da Meta fica AQUI, para log/diagnóstico — nunca na
+      // frase que a tela mostra (ver `capabilityMessage`).
       err.message
     );
   }
 
+  // Erro não classificado (rede caiu, resposta ilegível): a frase do produto é
+  // a mesma para o usuário, mas a mensagem real vai em `metaMessage` para log.
   return new CommentCapabilityError(
     "api",
-    err instanceof Error ? err.message : "Falha ao falar com a API do Instagram."
+    "Não foi possível falar com o Instagram agora. Tente novamente em instantes.",
+    undefined,
+    err instanceof Error ? err.message : undefined
   );
 }
 
@@ -223,23 +234,68 @@ export async function listEligibleMedia(userId: string): Promise<EligibleMedia[]
     where: { userId },
     orderBy: [{ timestamp: "desc" }, { createdAt: "desc" }],
     take: 50,
-    include: { _count: { select: { comments: true } } },
+    include: {
+      _count: { select: { comments: true } },
+      // Métricas já sincronizadas. UMA consulta a mais na lista inteira — não
+      // uma por publicação. Vêm do banco, que é o que o sync realmente gravou:
+      // nada é buscado na Meta no caminho da listagem, então a falha de métrica
+      // não tem como atrasar nem esconder os cards.
+      //
+      // `take: 1` com `capturedAt: "desc"`: o nome `metrics` sugere um objeto,
+      // mas a relação é uma LISTA — `InstagramMediaMetric` guarda o histórico de
+      // capturas (o índice é `[mediaId, capturedAt]`). Para o card queremos a
+      // leitura MAIS RECENTE e só ela; trazer as N capturas antigas para usar
+      // uma seria carregar histórico inteiro à toa em cada abertura da tela.
+      metrics: { orderBy: { capturedAt: "desc" }, take: 1 },
+    },
   });
 
-  return rows.map((row) => ({
-    id: row.igMediaId,
-    mediaType: row.mediaType ?? "IMAGE",
-    // `mediaProductType` é usado como pista de formato (Reel/Feed). Só é
-    // preenchido quando a API informa — sem valor não inventamos "FEED".
-    mediaProductType: row.mediaProductType ?? null,
-    caption: row.caption,
-    thumbnailUrl: row.thumbnailUrl ?? row.mediaUrl,
-    permalink: row.permalink,
-    timestamp: row.timestamp ? row.timestamp.toISOString() : null,
-    commentsCount: row.commentsCount,
-    // Quantos comentários REAIS temos sincronizados para esta publicação.
-    syncedCommentsCount: row._count.comments,
-  }));
+  return rows.map((row) => {
+    // Primeira (e única, por causa do `take: 1`) captura de métricas. Publicação
+    // que ainda não teve insights lidos não tem nenhuma — e aí `m` é `null`, não
+    // um objeto de zeros.
+    const m = row.metrics[0] ?? null;
+
+    return {
+      id: row.igMediaId,
+      mediaType: row.mediaType ?? "IMAGE",
+      // `mediaProductType` é usado como pista de formato (Reel/Feed). Só é
+      // preenchido quando a API informa — sem valor não inventamos "FEED".
+      mediaProductType: row.mediaProductType ?? null,
+      caption: row.caption,
+      thumbnailUrl: row.thumbnailUrl ?? row.mediaUrl,
+      permalink: row.permalink,
+      timestamp: row.timestamp ? row.timestamp.toISOString() : null,
+      commentsCount: row.commentsCount,
+      // Quantos comentários REAIS temos sincronizados para esta publicação.
+      syncedCommentsCount: row._count.comments,
+      metrics: m
+        ? {
+            // Curtidas e comentários preferem o nó da mídia (fonte primária,
+            // sempre presente quando a API informa) e caem para o `/insights`.
+            likeCount: row.likeCount ?? m.likes ?? null,
+            commentsCount: row.commentsCount ?? m.comments ?? null,
+            reached: m.reached,
+            impressions: m.impressions,
+            shares: m.shares,
+            saves: m.saves,
+            videoViews: m.videoViews,
+            videoViewTime: m.videoViewTime,
+          }
+        : {
+            // Sem linha de métricas: curtas/curtidas do nó ainda existem e são
+            // reais. O resto é `null` — ausência, não zero.
+            likeCount: row.likeCount ?? null,
+            commentsCount: row.commentsCount ?? null,
+            reached: null,
+            impressions: null,
+            shares: null,
+            saves: null,
+            videoViews: null,
+            videoViewTime: null,
+          },
+    };
+  });
 }
 
 /**
@@ -370,6 +426,28 @@ const MAX_COMMENT_PAGES = 10;
 export const COMMENTS_PAGE_SIZE = 50;
 
 /**
+ * Campos pedidos ao nó `comments` — LISTA FECHADA, e o motivo é o defeito
+ * histórico desta leitura.
+ *
+ * Antes esta lista terminava em `from`. `from` NÃO EXISTE no Instagram Business
+ * Login: é estrutura do fluxo Facebook Login (Graph API de Página). O host
+ * `graph.instagram.com` responde `username`; o campo `from` não está disponível
+ * neste nó.
+ *
+ * POR QUE ISSO QUEBRAVA TUDO: a Meta não devolve os campos válidos e ignora o
+ * inválido — ela recusa a REQUISIÇÃO INTEIRA. O resultado era uma leitura que
+ * nunca trazia um único comentário, em nenhuma publicação, para nenhuma conta.
+ * Como `analyzeMedia` recebia lista vazia, o usuário via exatamente
+ * "O Instagram respondeu e não devolveu comentários para esta publicação."
+ * numa publicação que tinha comentários. Um campo a mais apagava o recurso.
+ *
+ * REGRA: só entra nesta lista campo disponível no Instagram Business Login. Se
+ * um campo novo for adicionado, ele precisa ser válido NESTE host — um campo
+ * inválido não degrada: derruba a chamada toda.
+ */
+export const COMMENT_FIELDS = "id,text,username,timestamp";
+
+/**
  * Sinais da leitura ao vivo, devolvidos ao chamador quando ele pedir.
  *
  * `truncated` é o caso que faltava: quando a publicação tem mais comentários do
@@ -408,7 +486,7 @@ export async function listComments(
   credentials: CommentCredentials,
   meta?: ListCommentsMeta
 ): Promise<EligibleComment[]> {
-  const fields = encodeURIComponent("id,text,username,timestamp,from");
+  const fields = encodeURIComponent(COMMENT_FIELDS);
   const base = `${INSTAGRAM_GRAPH_BASE}/${INSTAGRAM_GRAPH_VERSION}/${encodeURIComponent(mediaId)}/comments`;
   const first =
     `${base}?fields=${fields}&limit=${COMMENTS_PAGE_SIZE}` +
@@ -446,7 +524,7 @@ export async function listComments(
           : "Não foi possível ler os comentários.";
         throw new CommentCapabilityError(
           code,
-          capabilityMessage(code, metaMessage),
+          capabilityMessage(code),
           metaCode,
           metaMessage
         );
@@ -484,9 +562,10 @@ export async function listComments(
     return collected.map((node) => ({
       commentId: node.id,
       mediaId,
-      // `username` é o campo disponível no Instagram Business Login; `from` é
-      // usado apenas como reserva quando existir.
-      username: node.username ?? node.from?.username ?? "",
+      // `username` é o ÚNICO campo de autoria disponível no Instagram Business
+      // Login (ver `COMMENT_FIELDS`). Não há reserva por `from`: pedir aquele
+      // campo fazia a Meta recusar a chamada inteira.
+      username: node.username ?? "",
       text: node.text ?? "",
       timestamp: node.timestamp ?? null,
     }));
@@ -539,7 +618,7 @@ export async function replyToComment(
         : "Não foi possível publicar a resposta.";
       throw new CommentCapabilityError(
         code,
-        capabilityMessage(code, metaMessage),
+        capabilityMessage(code),
         metaCode,
         metaMessage
       );
@@ -563,15 +642,13 @@ export async function checkCommentCapability(
   let checked = 0;
   for (const mediaId of mediaIds.slice(0, 3)) {
     try {
+      // Publicação sem comentário nenhum devolve lista VAZIA — não é erro e não
+      // interessa aqui. O que esta função detecta é a recusa da Meta, que chega
+      // como exceção.
       await listComments(mediaId, credentials);
       checked++;
     } catch (err) {
       const info = toCapabilityError(err);
-      // "Sem comentários" não é falha de permissão — só segue adiante.
-      if (info.code === "api" && /no comments/i.test(info.message)) {
-        checked++;
-        continue;
-      }
       return { ok: false, checked, error: info.message, code: info.code };
     }
   }

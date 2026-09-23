@@ -40,11 +40,30 @@ const RETRY_BASE_DELAY_MS = 500;
 export class InstagramApiError extends Error {
   code?: string | number;
   retryable?: boolean;
-  constructor(message: string, code?: string | number, retryable = false) {
+  /**
+   * `subcode`, `type` e `fbtrace_id` da Meta.
+   *
+   * Existem para DIAGNÓSTICO e não para o usuário: `subcode` é o que distingue
+   * "campo inválido nesta chamada" de "objeto não encontrado", informação que o
+   * `code` sozinho não dá. São metadata do erro — não contêm credencial, corpo
+   * de resposta nem dado do usuário, então podem ser registrados com segurança.
+   */
+  subcode?: string;
+  type?: string;
+  fbtraceId?: string;
+  constructor(
+    message: string,
+    code?: string | number,
+    retryable = false,
+    meta?: { subcode?: string; type?: string; fbtraceId?: string }
+  ) {
     super(message);
     this.name = "InstagramApiError";
     this.code = code;
     this.retryable = retryable;
+    this.subcode = meta?.subcode;
+    this.type = meta?.type;
+    this.fbtraceId = meta?.fbtraceId;
   }
 }
 
@@ -117,6 +136,49 @@ export function getRedirectUri(): string {
 }
 
 /**
+ * Remove qualquer credencial de um texto antes de ele ir para log.
+ *
+ * Segunda linha de defesa: o `path` recebido por `graphGet` nunca deveria conter
+ * token (quem o anexa é esta função), mas um `paging.next` devolvido pela Meta
+ * VEM com `access_token` embutido. Se uma URL dessas chegar aqui por engano, o
+ * log não pode ser o vazamento.
+ */
+function redactToken(text: string): string {
+  return text.replace(/access_token=[^&\s]+/gi, "access_token=[REDACTED]");
+}
+
+/**
+ * Registra um erro da Meta para diagnóstico, SEM credencial.
+ *
+ * O que sai: endpoint lógico, media id, status HTTP, code, subcode, type,
+ * mensagem sanitizada e fbtrace id. O que NUNCA sai: access token, secret,
+ * senha, header de autorização, cookies e corpo completo da resposta — a
+ * mensagem da Meta é metadata do erro, não payload.
+ */
+function logMetaError(params: {
+  path: string;
+  status: number;
+  code: string;
+  subcode?: string;
+  type?: string;
+  message: string;
+  fbtraceId?: string;
+  attempt: number;
+}): void {
+  console.warn("[instagram-client] erro da Meta", {
+    // `path` já vem sem o token: quem o anexa é o graphGet, depois desta linha.
+    endpoint: redactToken(params.path.split("?")[0]),
+    status: params.status,
+    code: params.code,
+    subcode: params.subcode ?? "-",
+    type: params.type ?? "-",
+    fbtraceId: params.fbtraceId ?? "-",
+    attempt: params.attempt + 1,
+    message: redactToken(params.message).slice(0, 300),
+  });
+}
+
+/**
  * GET na API do Instagram com retries e timeout.
  * @throws InstagramApiError
  */
@@ -149,12 +211,34 @@ export async function graphGet<T>(path: string, accessToken: string): Promise<T>
         const message = String(data?.error?.message ?? "A API do Instagram retornou um erro.");
         const retryable = isRetryableStatus(res.status) || (data.error && typeof data.error.code === "number" && data.error.code >= 500);
 
+        // Diagnóstico do erro REAL: sem isto, um 400 por campo inválido era
+        // indistinguível de um 400 por objeto inexistente, e a tela escolhia a
+        // mensagem errada. `subcode` é o campo que separa os dois casos.
+        const meta = {
+          subcode:
+            data?.error?.error_subcode != null ? String(data.error.error_subcode) : undefined,
+          type: data?.error?.type != null ? String(data.error.type) : undefined,
+          fbtraceId:
+            data?.error?.fbtrace_id != null ? String(data.error.fbtrace_id) : undefined,
+        };
+
+        logMetaError({
+          path,
+          status: res.status,
+          code,
+          subcode: meta.subcode,
+          type: meta.type,
+          message,
+          fbtraceId: meta.fbtraceId,
+          attempt,
+        });
+
         if (retryable && attempt < MAX_RETRIES) {
-          lastError = new InstagramApiError(message, code, true);
+          lastError = new InstagramApiError(message, code, true, meta);
           continue;
         }
 
-        throw new InstagramApiError(message, code, retryable);
+        throw new InstagramApiError(message, code, retryable, meta);
       }
 
       return data;

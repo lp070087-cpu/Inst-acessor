@@ -241,40 +241,69 @@ function toRelativeGraphPath(next: string): string | null {
  * Métricas recusadas para o tipo de mídia (ex.: `video_views` num carrossel)
  * ficam `null` — ausência, não zero.
  */
+/**
+ * Métricas SEGURAS — válidas para QUALQUER tipo de mídia.
+ *
+ * `video_views` e `video_view_time` NÃO entram aqui, e o motivo é um defeito
+ * real: pedir uma métrica que o tipo de mídia não suporta (ex.: métrica de
+ * vídeo num post de imagem) faz a Meta recusar a REQUISIÇÃO INTEIRA. Como o
+ * erro era engolido, `InstagramMediaMetric` ficava vazia e TODA métrica virava
+ * `null` — inclusive alcance e curtidas, que existiam. Uma métrica inválida
+ * apagava o card inteiro.
+ */
+export const MEDIA_METRICS_CORE = "reach,impressions,shares,saves,comments,likes";
+
+/**
+ * Métricas adicionais de vídeo/Reel, pedidas em chamada SEPARADA.
+ *
+ * ATENÇÃO — NOMES NÃO VERIFICADOS CONTRA A DOCUMENTAÇÃO OFICIAL. O ambiente em
+ * que este código foi escrito não tem saída de rede, então os nomes vieram do
+ * comportamento observado no código (o autor já tentava `plays` como reserva de
+ * `video_views`, sinal de que a renomeação era conhecida) e não de consulta à
+ * doc. Por isso eles são pedidos à parte e com recuo: se a Meta recusar, o
+ * prejuízo são as métricas de vídeo — nunca alcance, curtidas ou salvamentos.
+ * Classificação: IMPLEMENTADO — AGUARDA VALIDAÇÃO META REAL.
+ */
+export const MEDIA_METRICS_VIDEO = "plays,video_views,video_view_time,ig_reels_avg_watch_time";
+
+/**
+ * Lê um lote de métricas do `/insights` de uma mídia e devolve o mapa
+ * `nome → valor`. Lança `InstagramApiError` quando a Meta recusa.
+ */
+async function fetchInsightBatch(
+  mediaId: string,
+  accessToken: string,
+  metricList: string
+): Promise<Map<string, number | null>> {
+  const data = await graphGet<InsightsEnvelope>(
+    `${mediaId}/insights?metric=${metricList}`,
+    accessToken
+  );
+
+  const byName = new Map<string, number | null>();
+  for (const item of data.data ?? []) {
+    if (item.name) byName.set(item.name, readInsightValue(item));
+  }
+  return byName;
+}
+
+/**
+ * Obtém métricas detalhadas de uma mídia específica.
+ *
+ * Os dois grupos são buscados de forma INDEPENDENTE (ver `MEDIA_METRICS_CORE` e
+ * `MEDIA_METRICS_VIDEO`): a falha de um não pode zerar o outro. Métrica que a
+ * Meta não devolveu fica `null` — ausência, nunca zero.
+ *
+ * @param isVideo mídia é vídeo/Reel? Só então as métricas de vídeo são pedidas.
+ */
 export async function getMediaMetrics(
   mediaId: string,
-  accessToken: string
+  accessToken: string,
+  isVideo = false
 ): Promise<InstagramMediaMetricNode | null> {
+  let core: Map<string, number | null>;
   try {
-    const data = await graphGet<InsightsEnvelope>(
-      `${mediaId}/insights?metric=reach,impressions,shares,saves,comments,likes,video_views,video_view_time`,
-      accessToken
-    );
-
-    const byName = new Map<string, number | null>();
-    for (const item of data.data ?? []) {
-      if (item.name) byName.set(item.name, readInsightValue(item));
-    }
-
-    const pick = (...names: string[]): number | null => {
-      for (const name of names) {
-        const value = byName.get(name);
-        if (typeof value === "number") return value;
-      }
-      return null;
-    };
-
-    return {
-      // A métrica de alcance chama-se `reach` (não `reached`).
-      reached: pick("reach", "reached"),
-      impressions: pick("impressions"),
-      shares: pick("shares"),
-      saves: pick("saves"),
-      comments: pick("comments"),
-      likes: pick("likes"),
-      video_views: pick("video_views", "plays"),
-      video_view_time: pick("video_view_time"),
-    };
+    core = await fetchInsightBatch(mediaId, accessToken, MEDIA_METRICS_CORE);
   } catch (err) {
     // Nem toda mídia expõe insights. Não derruba o sync.
     if (err instanceof InstagramApiError) {
@@ -283,9 +312,53 @@ export async function getMediaMetrics(
     }
     throw err;
   }
+
+  // Métricas de vídeo: best-effort. Uma recusa aqui deixa APENAS estes dois
+  // campos ausentes, e o núcleo (alcance/curtidas/salvamentos) segue intacto.
+  const video = new Map<string, number | null>();
+  if (isVideo) {
+    try {
+      const batch = await fetchInsightBatch(mediaId, accessToken, MEDIA_METRICS_VIDEO);
+      for (const [name, value] of batch) video.set(name, value);
+    } catch (err) {
+      if (!(err instanceof InstagramApiError)) throw err;
+      console.warn(
+        `[instagram-metrics] métricas de vídeo indisponíveis (${mediaId})`,
+        err.code ?? "n/a"
+      );
+    }
+  }
+
+  const pick = (...names: string[]): number | null => {
+    for (const name of names) {
+      const value = core.get(name) ?? video.get(name);
+      if (typeof value === "number") return value;
+    }
+    return null;
+  };
+
+  return {
+    // A métrica de alcance chama-se `reach` (não `reached`).
+    reached: pick("reach", "reached"),
+    impressions: pick("impressions"),
+    shares: pick("shares"),
+    saves: pick("saves"),
+    comments: pick("comments"),
+    likes: pick("likes"),
+    video_views: pick("plays", "video_views"),
+    video_view_time: pick("video_view_time", "ig_reels_avg_watch_time"),
+  };
 }
 
-/** Nó de comentário conforme retornado pela API. */
+/**
+ * Nó de comentário conforme retornado pela API.
+ *
+ * `from` e `replies` seguem declarados como OPCIONAIS para tolerar respostas
+ * antigas, mas não são mais PEDIDOS: `from` não existe no Instagram Business
+ * Login e derrubava a chamada inteira. `repliesCount` fica `null` enquanto a
+ * leitura de respostas não for confirmada contra a API real — `null` significa
+ * "a Meta não forneceu", nunca zero.
+ */
 interface InstagramCommentNode {
   id: string;
   text?: string | null;
@@ -299,9 +372,24 @@ interface InstagramCommentNode {
 const MAX_COMMENT_PAGES = 5;
 
 /**
+ * Campos pedidos ao nó `comments` neste host.
+ *
+ * `from` NÃO está aqui de propósito: é estrutura do fluxo Facebook Login e não
+ * existe no Instagram Business Login. Pedir um campo indisponível faz a Meta
+ * recusar a REQUISIÇÃO INTEIRA — não devolve os campos válidos e ignora o
+ * inválido. Era por isso que a leitura nunca trazia comentário algum para
+ * nenhuma publicação. `from` e `replies` ficaram fora até que o suporte a cada
+ * um seja confirmado contra a API real (ver `docs/APP-REVIEW-INSTAGRAM.md`).
+ *
+ * Mesma lista de `COMMENT_FIELDS` em `lib/comment-replies/instagram-comments.ts`
+ * — as duas cópias existiam divergentes e essa divergência é o defeito.
+ */
+export const COMMENT_FIELDS = "id,text,username,timestamp";
+
+/**
  * Lê os comentários de uma publicação (paginado).
  *
- * Endpoint oficial: `GET /{ig-media-id}/comments?fields=id,text,username,timestamp,from,replies`
+ * Endpoint oficial: `GET /{ig-media-id}/comments?fields=id,text,username,timestamp`
  *
  * Requer `instagram_business_manage_comments`. Quando a Meta ainda não concedeu
  * esse escopo, a chamada lança `InstagramApiError` — o chamador (sync) decide:
@@ -317,7 +405,7 @@ export async function getMediaComments(
 ): Promise<InstagramCommentNode[]> {
   const all: InstagramCommentNode[] = [];
   let path: string | null =
-    `${mediaId}/comments?fields=id,text,username,timestamp,from,replies&limit=${limit}`;
+    `${mediaId}/comments?fields=${COMMENT_FIELDS}&limit=${limit}`;
 
   for (let page = 0; page < MAX_COMMENT_PAGES && path; page++) {
     const data: {
@@ -406,31 +494,45 @@ export async function collectInstagramData(
   // "0 comentários" quando na verdade nunca conseguimos consultar.
   let commentsAvailable: boolean | null = null;
   let commentsErrorCode: string | null = null;
+  /** Códigos que FALHARAM em pelo menos uma publicação (diagnóstico). */
+  const failedCommentCodes = new Set<string>();
 
   for (let index = 0; index < mediaNodes.length; index++) {
     const node = mediaNodes[index];
 
+    // Só vídeo/Reel pede as métricas de vídeo — pedi-las numa imagem fazia a
+    // Meta recusar a chamada e TODAS as métricas virarem `null`.
+    const isVideo =
+      (node.media_type ?? "").toUpperCase() === "VIDEO" ||
+      (node.media_product_type ?? "").toUpperCase() === "REELS";
+
     // Insights detalhados só para as publicações mais recentes (rate limit).
     const metrics =
       index < MEDIA_METRICS_LIMIT
-        ? await getMediaMetrics(node.id, accessToken)
+        ? await getMediaMetrics(node.id, accessToken, isVideo)
         : null;
 
     // Comentários: só leitura, nunca resposta. Falha de escopo não interrompe
     // a sincronização — apenas marca a capacidade como indisponível.
+    //
+    // NÃO reagimos mais ao primeiro erro desabilitando a leitura das demais.
+    // Antes, uma falha na 2ª publicação marcava `commentsAvailable = false` e o
+    // `commentsAvailable !== false` pulava TODAS as seguintes — uma publicação
+    // com problema apagava a leitura de comentários de toda a conta. Agora cada
+    // publicação é independente: `available` acumula sucesso, `failedCodes`
+    // acumula os códigos que falharam, e o resultado só é "indisponível" quando
+    // nenhuma das tentativas funcionou.
     let comments: InstagramCommentData[] | null = null;
-    if (
-      index < MEDIA_COMMENTS_LIMIT &&
-      commentsAvailable !== false
-    ) {
+    if (index < MEDIA_COMMENTS_LIMIT) {
       try {
         const nodes = await getMediaComments(node.id, accessToken);
         comments = nodes.map((c) => normalizeComment(c, account.username));
         commentsAvailable = true;
+        commentsErrorCode = null;
       } catch (err) {
         if (err instanceof InstagramApiError) {
-          commentsAvailable = false;
-          commentsErrorCode = String(err.code ?? "unknown");
+          if (commentsAvailable === null) commentsAvailable = false;
+          failedCommentCodes.add(String(err.code ?? "unknown"));
           console.warn(
             "[instagram-metrics] comentários indisponíveis",
             err.code ?? "n/a"
@@ -456,6 +558,21 @@ export async function collectInstagramData(
       comments,
       commentsSynced: comments !== null,
     });
+  }
+
+  // Resultado AGREGADO da coleta de comentários.
+  //
+  // `commentsAvailable === true` só existe se PELO MENOS UMA publicação foi
+  // lida com sucesso — ausência/zero de uma publicação nunca desliga o sinal.
+  // E o código do erro passa a ser reportado também no caso PARCIAL: antes,
+  // quando a 1ª publicação funcionava, o código da falha das seguintes era
+  // descartado, e a tela mostrava "0 comentários" sem ter como saber que a
+  // leitura tinha falhado em metade da conta.
+  if (commentsAvailable === null && failedCommentCodes.size > 0) {
+    commentsAvailable = false;
+  }
+  if (commentsErrorCode === null && failedCommentCodes.size > 0) {
+    commentsErrorCode = [...failedCommentCodes].join(",");
   }
 
   return {

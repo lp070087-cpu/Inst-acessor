@@ -90,7 +90,18 @@ export interface MediaInsightsInput {
   storedCommentsCount: number | null;
 }
 
-/** Rótulo de formato coerente com o resto do app. */
+/**
+ * Rótulo de formato coerente com o resto do app.
+ *
+ * A ORDEM das checagens é a regra. `media_product_type: "FEED"` é o que a Meta
+ * devolve para carrossel também — então checar `FEED` antes de
+ * `CAROUSEL_ALBUM` rotulava todo carrossel como "Feed" aqui, enquanto o card em
+ * `components/comment-replies/media-list.tsx` (que olha `media_type`) dizia
+ * "Carrossel". Duas telas, dois nomes, o mesmo item. Por isso o tipo da mídia
+ * vem primeiro: ele é o que distingue carrossel de publicação simples; o
+ * `media_product_type` só decide entre Reels/Story, que o tipo sozinho não
+ * separa.
+ */
 export function mediaFormatLabel(
   mediaType: string | null,
   mediaProductType: string | null
@@ -98,11 +109,13 @@ export function mediaFormatLabel(
   const product = (mediaProductType ?? "").toUpperCase();
   if (product === "REELS") return "Reels";
   if (product === "STORY") return "Story";
-  if (product === "FEED") return "Feed";
+
   const t = (mediaType ?? "").toUpperCase();
   if (t === "CAROUSEL_ALBUM") return "Carrossel";
   if (t === "VIDEO") return "Vídeo";
   if (t === "IMAGE") return "Imagem";
+
+  if (product === "FEED") return "Feed";
   return "Publicação";
 }
 

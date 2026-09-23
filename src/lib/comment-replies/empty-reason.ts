@@ -33,6 +33,12 @@
  * banco do Inst Acessor). Os dois nomes existem porque rotas antigas já
  * devolviam `no_media`; a frase e a ação são idênticas de propósito — não faria
  * sentido o usuário ver dois textos diferentes para o mesmo problema.
+ *
+ * `api_empty` tem uma condição de entrada ESTREITA de propósito: só quando a
+ * leitura foi FEITA e voltou sem nenhum comentário. Confundir "leitura que não
+ * aconteceu" com "leitura que não achou nada" foi o defeito que produzia a
+ * frase errada em produção, e é a razão pela qual os retornos de ERRO do motor
+ * (`engine.ts`) NÃO carregam `emptyReason`.
  */
 export type AnalyzeEmptyReason =
   | "has_items"
@@ -132,8 +138,13 @@ export function emptyReasonNotice(
         tone: "error",
       };
     case "api_empty":
+      // Só se chega aqui quando a LEITURA ACONTECEU e voltou vazia — os
+      // caminhos de falha saem antes, com `error`/`code` e sem `emptyReason`
+      // (ver `engine.ts`). A frase passou a dizer isso em vez de "o Instagram
+      // respondeu e não devolveu comentários", que era lida como falha da
+      // publicação e era exatamente o sintoma relatado em produção.
       return {
-        text: "O Instagram respondeu e não devolveu comentários para esta publicação.",
+        text: "Esta publicação ainda não recebeu comentários.",
         tone: "info",
       };
     default:

@@ -53,6 +53,7 @@ export function OnboardingForm() {
   const [subNiche, setSubNiche] = React.useState("");
   const [otherNiche, setOtherNiche] = React.useState("");
   const [loading, setLoading] = React.useState(false);
+  const [skipping, setSkipping] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
   const nicheValue = niche === "Outro" ? otherNiche : niche;
@@ -68,36 +69,34 @@ export function OnboardingForm() {
   }
 
   function handleSelectObjective(label: string) {
-    setObjective(label);
-    goTo(2);
+    // Clicar na opção já marcada DESMARCA — é o jeito de voltar atrás sem ter
+    // de sair da etapa, e faz a pergunta ser realmente opcional na prática.
+    setObjective((prev) => (prev === label ? "" : label));
   }
 
   function handleSelectNiche(value: string) {
-    setNiche(value);
-    goTo(3);
+    setNiche((prev) => (prev === value ? "" : value));
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  /**
+   * Envia o perfil — usado tanto pelo botão final quanto por "Pular por
+   * enquanto".
+   *
+   * `skip` é só a diferença entre "o usuário revisou e confirmou" e "o usuário
+   * não quer responder agora"; a gravação é a mesma, e NUNCA bloqueia o acesso.
+   * Por isso esta função não valida preenchimento: campos em branco viram
+   * `null` na rota, e o onboarding é marcado como concluído dos dois jeitos.
+   */
+  async function saveProfile(skip: boolean) {
     setError(null);
-
-    if (!objective) {
-      setError("Escolha seu objetivo principal.");
-      return;
-    }
-    if (!nicheValue || nicheValue.trim().length < 2) {
-      setError("Informe seu nicho.");
-      return;
-    }
-
-    setLoading(true);
+    if (skip) setSkipping(true); else setLoading(true);
     try {
       const res = await fetch("/api/onboarding", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          objective,
-          niche: nicheValue,
+          objective: objective || undefined,
+          niche: nicheValue || undefined,
           subNiche: subNiche || undefined,
         }),
       });
@@ -110,7 +109,11 @@ export function OnboardingForm() {
         return;
       }
 
-      toast("Perfil configurado! Bem-vindo ao Inst Acessor.");
+      toast(
+        skip
+          ? "Tudo bem! Você pode completar seu perfil depois."
+          : "Perfil configurado! Bem-vindo ao Inst Acessor."
+      );
       // Rota pública real do route group (app) — nunca /app/dashboard.
       router.push("/dashboard");
       router.refresh();
@@ -119,7 +122,13 @@ export function OnboardingForm() {
       toast("Não foi possível salvar seu perfil.", "error");
     } finally {
       setLoading(false);
+      setSkipping(false);
     }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    await saveProfile(false);
   }
 
   const inputCls =
@@ -189,6 +198,23 @@ export function OnboardingForm() {
               </button>
             ))}
           </div>
+
+          {/* Nenhuma pergunta bloqueia: sem resposta, "Continuar" segue igual.
+              O "Pular por enquanto" existe porque o rótulo é a informação — sem
+              ele, quem não quer responder não sabe que pode seguir em frente e
+              fica preso numa pergunta que o sistema não exige. */}
+          <div className="flex flex-wrap items-center justify-end gap-2.5">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => goTo(2)}
+            >
+              Pular por enquanto
+            </Button>
+            <Button type="button" variant="outline" onClick={() => goTo(2)}>
+              Continuar
+            </Button>
+          </div>
         </fieldset>
       )}
 
@@ -230,21 +256,6 @@ export function OnboardingForm() {
                 placeholder="Digite seu nicho"
                 className={inputCls}
               />
-              <div className="mt-4 flex justify-end">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    if (!otherNiche.trim()) {
-                      setError("Digite seu nicho antes de continuar.");
-                      return;
-                    }
-                    goTo(3);
-                  }}
-                >
-                  Continuar
-                </Button>
-              </div>
             </div>
           )}
           <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
@@ -257,12 +268,22 @@ export function OnboardingForm() {
               <ArrowLeft size={15} />
               Voltar
             </Button>
-            {niche && niche !== "Outro" && (
-              <span className="text-[12px] text-ink-muted flex items-center gap-1 min-w-0">
-                <Check size={13} className="text-success flex-none" />
-                <span className="min-w-0 truncate">{niche} selecionado</span>
-              </span>
-            )}
+            <div className="flex flex-wrap items-center gap-2.5">
+              {niche && (
+                <span className="text-[12px] text-ink-muted flex items-center gap-1 min-w-0">
+                  <Check size={13} className="text-success flex-none" />
+                  <span className="min-w-0 truncate">
+                    {niche === "Outro" ? otherNiche || "Outro" : niche} selecionado
+                  </span>
+                </span>
+              )}
+              <Button type="button" variant="ghost" onClick={() => goTo(3)}>
+                Pular por enquanto
+              </Button>
+              <Button type="button" variant="outline" onClick={() => goTo(3)}>
+                Continuar
+              </Button>
+            </div>
           </div>
         </fieldset>
       )}
@@ -307,7 +328,7 @@ export function OnboardingForm() {
             </Button>
             <div className="flex items-center gap-2.5">
               <Button type="button" variant="ghost" onClick={() => goTo(4)}>
-                Pular
+                Pular por enquanto
               </Button>
               <Button type="button" variant="outline" onClick={() => goTo(4)}>
                 Continuar
@@ -326,7 +347,7 @@ export function OnboardingForm() {
                 Objetivo
               </span>
               <span className="text-[13.5px] font-medium text-ink text-right">
-                {objective}
+                {objective || <span className="text-ink-muted font-normal">Não informado</span>}
               </span>
             </div>
             <div className="flex items-start justify-between gap-4 rounded-[12px] border border-border bg-bg-ice px-4 py-3">
@@ -334,7 +355,7 @@ export function OnboardingForm() {
                 Nicho
               </span>
               <span className="text-[13.5px] font-medium text-ink text-right">
-                {nicheValue}
+                {nicheValue || <span className="text-ink-muted font-normal">Não informado</span>}
               </span>
             </div>
             <div className="flex items-start justify-between gap-4 rounded-[12px] border border-border bg-bg-ice px-4 py-3">
@@ -357,11 +378,29 @@ export function OnboardingForm() {
               <ArrowLeft size={15} />
               Voltar
             </Button>
-            <Button type="submit" size="lg" disabled={loading} className="gap-2">
-              {loading && <Loader2 size={18} className="animate-spin" />}
-              {loading ? "Salvando..." : "Começar no Inst Acessor"}
-              {!loading && <ArrowRight size={17} />}
-            </Button>
+            <div className="flex flex-wrap items-center gap-2.5">
+              {/* Sair daqui SEM responder nada também entra no sistema. O botão
+                  final já submete com os campos vazios, mas dizer isso é
+                  diferente de deixar a pessoa descobrir tentando. */}
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={loading || skipping}
+                onClick={() => saveProfile(true)}
+              >
+                {skipping ? "Entrando…" : "Pular por enquanto"}
+              </Button>
+              <Button
+                type="submit"
+                size="lg"
+                disabled={loading || skipping}
+                className="gap-2"
+              >
+                {loading && <Loader2 size={18} className="animate-spin" />}
+                {loading ? "Salvando..." : "Começar no Inst Acessor"}
+                {!loading && <ArrowRight size={17} />}
+              </Button>
+            </div>
           </div>
         </div>
       )}

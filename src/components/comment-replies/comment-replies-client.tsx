@@ -28,6 +28,12 @@ import { REPLY_MODE_LABEL } from "@/lib/comment-replies/types";
 // A frase do vazio vem do MESMO núcleo puro que decide o motivo — nunca de um
 // texto reescrito aqui (era assim que a tela e o motor divergiam).
 import { emptyReasonNotice, type AnalyzeEmptyReason } from "@/lib/comment-replies/empty-reason";
+// Traduz o código REAL da Meta (persistido pelo sync) na frase que o usuário lê.
+// O código cru nunca chega à tela.
+import {
+  commentErrorInfo,
+  commentsReadFailed,
+} from "@/lib/comment-replies/comment-error-message";
 
 import { MediaList, type MediaItem } from "./media-list";
 import { ApprovalBox, type ReviewItem } from "./approval-box";
@@ -95,6 +101,14 @@ export function CommentRepliesClient({
 }: CommentRepliesClientProps) {
   const { toast } = useToast();
 
+  /**
+   * Trava SÍNCRONA de sincronização. `mediaSyncing` é estado do React e só
+   * chega ao DOM no próximo render — entre o clique e o re-render cabem outros
+   * cliques. Esta ref fecha essa janela: ela é escrita antes do primeiro
+   * `await`, então uma segunda chamada já a encontra ligada e desiste.
+   */
+  const syncInFlight = React.useRef(false);
+
   const [tab, setTab] = React.useState<TabId>("publicacoes");
   const [rule, setRule] = React.useState<InitialRule | null>(initialRule);
   const [stats, setStats] = React.useState<StatsResponse | null>(null);
@@ -115,8 +129,16 @@ export function CommentRepliesClient({
   const [analyzedMedia, setAnalyzedMedia] = React.useState<string | null>(null);
   const [mediaSyncing, setMediaSyncing] = React.useState(false);
   const [lastSyncAt, setLastSyncAt] = React.useState<string | null>(null);
+  // Quando houve TENTATIVA de sincronização, mesmo sem concluir. Diferente de
+  // `lastSyncAt`: uma tentativa que estourou o tempo não pode aparecer como
+  // "sincronizado às 14h" — e sem esta distinção o usuário não tinha como saber
+  // que a sincronização estava sendo interrompida.
+  const [lastSyncAttemptAt, setLastSyncAttemptAt] = React.useState<string | null>(null);
   // `null` = nunca sincronizamos comentários · `false` = a Meta recusou o escopo.
   const [commentsAvailable, setCommentsAvailable] = React.useState<boolean | null>(null);
+  // Código REAL do erro de comentários, como o sync o gravou. Vira frase de
+  // produto por `commentErrorInfo` antes de aparecer na tela.
+  const [commentsErrorCode, setCommentsErrorCode] = React.useState<string | null>(null);
   // A conexão era válida quando a página carregou, mas a Meta acabou de
   // recusar o token (código 190). Sem isto, a tela continuaria operando como
   // se estivesse conectada e só falharia de novo no próximo clique.
@@ -159,8 +181,12 @@ export function CommentRepliesClient({
       setMedia(data.media ?? []);
       setConnectionIssue(data.connected ? null : data.connectionIssue ?? null);
       setLastSyncAt(data.lastSyncAt ?? null);
+      setLastSyncAttemptAt(data.lastSyncAttemptAt ?? null);
       setCommentsAvailable(
         typeof data.commentsAvailable === "boolean" ? data.commentsAvailable : null
+      );
+      setCommentsErrorCode(
+        typeof data.commentsErrorCode === "string" ? data.commentsErrorCode : null
       );
     } catch {
       setMediaError("Não foi possível carregar as publicações.");
@@ -174,8 +200,21 @@ export function CommentRepliesClient({
    * Dashboard). Necessário aqui porque a lista de publicações vem do banco: sem
    * uma sincronização recente ela fica vazia mesmo com a conta conectada.
    * NUNCA publica nem responde nada — apenas relê os dados da conta.
+   *
+   * ORDEM REAL da sincronização (item 12): mídias → métricas → comentários →
+   * estado das respostas → interface. Os quatro primeiros passos acontecem na
+   * rota, na mesma execução; o último é a releitura da tela abaixo.
    */
   const syncNow = React.useCallback(async () => {
+    // Trava de reentrada por REF, não por estado.
+    //
+    // `mediaSyncing` (estado) só bloqueia o botão depois do re-render, então
+    // dois cliques no mesmo frame passavam os dois pela checagem — e cada um
+    // disparava uma sincronização completa. A ref é escrita de forma síncrona,
+    // antes de qualquer `await`, então o segundo clique já a encontra ligada.
+    if (syncInFlight.current) return;
+    syncInFlight.current = true;
+
     setMediaSyncing(true);
     setMediaError(null);
     try {
@@ -189,6 +228,13 @@ export function CommentRepliesClient({
             : (data as { error?: string }).error ?? "Não foi possível sincronizar agora.",
           "error"
         );
+        // MESMO EM FALHA a lista é relida.
+        //
+        // Antes o `return` daqui deixava a tela como estava: se a publicação
+        // tinha entrado no banco numa execução anterior, ela só apareceria no
+        // próximo F5. O usuário clicava em "Atualizar", via um toast de erro e
+        // nada mudava na tela — pior dos dois mundos.
+        await loadMedia();
         return;
       }
       // Sincronizou: o aviso de "publicação não reconhecida" perdeu a validade
@@ -198,7 +244,11 @@ export function CommentRepliesClient({
       await refreshStats();
     } catch {
       toast("Não foi possível sincronizar agora.", "error");
+      // Falha de rede/timeout: a lista continua sendo relida. Se a função do
+      // servidor foi cortada no meio, o que ela chegou a gravar é real.
+      await loadMedia();
     } finally {
+      syncInFlight.current = false;
       setMediaSyncing(false);
     }
   }, [loadMedia, refreshStats, toast]);
@@ -438,6 +488,9 @@ export function CommentRepliesClient({
   // ---------------------------------------------------------------- tela principal
 
   const s = stats?.stats;
+  // Traduzido UMA vez por render, não quatro — e o mesmo objeto alimenta a
+  // frase e a escolha do botão, então os dois não podem divergir.
+  const commentError = commentErrorInfo(commentsErrorCode);
 
   return (
     <div className="flex flex-col gap-6">
@@ -511,10 +564,10 @@ export function CommentRepliesClient({
       {connectionIssue && !connectionDown && (
         <div className="flex items-start gap-3 rounded-md border border-info/25 bg-info-soft px-4 py-3.5">
           <Lock size={18} className="text-info flex-none mt-0.5" />
-          <div className="text-[12.5px] text-ink-soft leading-relaxed">
+          <div className="text-[12.5px] text-ink-soft leading-relaxed min-w-0 flex-1 break-words">
             <strong className="text-ink">Permissão de comentários indisponível no momento.</strong>{" "}
-            {connectionIssue} Toda a configuração abaixo continua válida e passa a
-            funcionar assim que o Instagram liberar o acesso.
+            {connectionIssue} Sua configuração continua salva e volta a funcionar
+            quando o Instagram liberar o acesso.
           </div>
         </div>
       )}
@@ -572,22 +625,51 @@ export function CommentRepliesClient({
       )}
 
       {/* A Meta recusou a LEITURA de comentários: dizemos isso em vez de exibir
-          "0 comentários", que seria um dado falso. */}
+          "0 comentários", que seria um dado falso.
+
+          FRASE SEM JARGÃO (item 13): antes este bloco citava o escopo
+          `instagram_business_manage_comments` e falava em "acesso avançado" —
+          linguagem de painel de desenvolvedor, não de usuário. Agora a frase vem
+          de `commentErrorInfo`, que traduz o código REAL persistido pelo sync
+          (`190` token · `10/200/3` permissão · `4/17/613` limite) e escolhe a
+          ação correspondente — reconectar, esperar ou sincronizar.
+
+          A LISTAGEM CONTINUA ACIMA deste aviso, sempre. Falha de comentário não
+          esconde publicação: os cards vêm de `InstagramMedia`, que o sync grava
+          mesmo quando a leitura de comentários falha. */}
       {!connectionIssue && commentsAvailable === false && (
         <div className="flex items-start gap-3 rounded-md border border-info/25 bg-info-soft px-4 py-3.5">
           <Lock size={18} className="text-info flex-none mt-0.5" />
-          {/* BLOCO 5 — o nome do escopo é um token único de 35 caracteres sem
-              nenhum ponto de quebra. Como este div é filho de um flex e herda
-              `min-width: auto`, ele era o responsável por alargar a página em
-              320px. `min-w-0` deixa a coluna encolher e o `[overflow-wrap:anywhere]`
-              permite quebrar o próprio identificador. */}
           <div className="text-[12.5px] text-ink-soft leading-relaxed min-w-0 flex-1 break-words">
-            <strong className="text-ink">Comentários indisponíveis pela API do Instagram.</strong>{" "}
-            As publicações foram sincronizadas, mas a Meta não autorizou a leitura de
-            comentários para este app (escopo{" "}
-            <span className="font-mono [overflow-wrap:anywhere]">instagram_business_manage_comments</span> sem
-            acesso avançado). Os comentários aparecem automaticamente quando o acesso
-            for concedido — nada foi inventado no lugar deles.
+            <strong className="text-ink">Não foi possível ler os comentários.</strong>{" "}
+            {commentError.message}
+            {commentError.action === "reconnect" && (
+              <div className="mt-2">
+                <Link href="/redes-sociais">
+                  <Button variant="ghost" size="xs">Reconectar Instagram</Button>
+                </Link>
+              </div>
+            )}
+            {commentError.action === "sync" && (
+              <div className="mt-2">
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => void syncNow()}
+                  disabled={mediaSyncing || mediaLoading}
+                >
+                  {mediaSyncing ? (
+                    <><Loader2 size={13} className="animate-spin" /> Atualizando…</>
+                  ) : (
+                    <><RefreshCw size={13} /> Sincronizar conta</>
+                  )}
+                </Button>
+              </div>
+            )}
+            <span className="block mt-1.5">
+              Suas publicações continuam listadas — nenhum comentário é inventado no
+              lugar dos que não conseguimos ler.
+            </span>
           </div>
         </div>
       )}
@@ -636,24 +718,43 @@ export function CommentRepliesClient({
 
       {tab === "publicacoes" && (
         <div className="flex flex-col gap-5">
-          {/* Última sincronização REAL — deixa claro se os dados estão antigos. */}
-          {isConnected && lastSyncAt && (
+          {/* Última sincronização REAL + botão Atualizar.
+              Antes este bloco inteiro ficava sob `lastSyncAt`, então uma conta
+              que NUNCA sincronizou com sucesso ficava sem o botão — justamente a
+              conta que mais precisa dele. Agora o botão aparece sempre que há
+              conexão; a data é que depende de existir sincronização. */}
+          {isConnected && (
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <p className="text-[12px] text-ink-muted">
-                Última sincronização:{" "}
-                {new Intl.DateTimeFormat("pt-BR", {
-                  dateStyle: "short",
-                  timeStyle: "short",
-                }).format(new Date(lastSyncAt))}
+                {lastSyncAt ? (
+                  <>
+                    Última sincronização:{" "}
+                    {new Intl.DateTimeFormat("pt-BR", {
+                      dateStyle: "short",
+                      timeStyle: "short",
+                    }).format(new Date(lastSyncAt))}
+                  </>
+                ) : lastSyncAttemptAt ? (
+                  <>
+                    Última tentativa:{" "}
+                    {new Intl.DateTimeFormat("pt-BR", {
+                      dateStyle: "short",
+                      timeStyle: "short",
+                    }).format(new Date(lastSyncAttemptAt))}{" "}
+                    — ainda sem sincronização concluída
+                  </>
+                ) : (
+                  "Ainda não sincronizamos suas publicações."
+                )}
               </p>
               <Button
                 variant="ghost"
                 size="xs"
                 onClick={() => void syncNow()}
-                disabled={mediaSyncing}
+                disabled={mediaSyncing || mediaLoading}
               >
                 {mediaSyncing ? (
-                  <><Loader2 size={13} className="animate-spin" /> Sincronizando…</>
+                  <><Loader2 size={13} className="animate-spin" /> Atualizando…</>
                 ) : (
                   <><RefreshCw size={13} /> Atualizar</>
                 )}
@@ -670,10 +771,10 @@ export function CommentRepliesClient({
           ) : media.length === 0 ? (
             <EmptyState
               icon={Instagram}
-              title="Nenhuma publicação sincronizada"
+              title="Nenhuma publicação encontrada."
               description={
                 mediaCount === 0
-                  ? "Sincronize sua conta em Redes Sociais para que suas publicações apareçam aqui."
+                  ? "Sincronize a conta para que suas publicações apareçam aqui."
                   : "A conta está conectada, mas nenhuma publicação foi encontrada no Instagram."
               }
               action={
@@ -682,10 +783,10 @@ export function CommentRepliesClient({
                     variant="primary"
                     size="sm"
                     onClick={() => void syncNow()}
-                    disabled={mediaSyncing}
+                    disabled={mediaSyncing || mediaLoading}
                   >
                     {mediaSyncing ? (
-                      <><Loader2 size={14} className="animate-spin" /> Sincronizando…</>
+                      <><Loader2 size={14} className="animate-spin" /> Atualizando…</>
                     ) : (
                       <><RefreshCw size={14} /> Sincronizar agora</>
                     )}
@@ -702,6 +803,7 @@ export function CommentRepliesClient({
               onAnalyze={analyze}
               busyId={analyzedMedia}
               busy={busy}
+              commentsReadFailed={commentsReadFailed(commentsAvailable)}
             />
           )}
         </div>

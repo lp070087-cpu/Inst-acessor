@@ -79,6 +79,28 @@ export interface EligibleMedia {
   commentsCount?: number | null;
   /** Comentários REAIS já persistidos no banco para esta publicação. */
   syncedCommentsCount?: number;
+  /**
+   * Métricas do nó da mídia e do `/insights`, como o sync as gravou.
+   *
+   * `null` em QUALQUER campo significa "a Meta não disponibilizou" — nunca
+   * zero. Zero é medida (a publicação realmente não teve salvamentos); `null` é
+   * ausência de dado. A tela distingue os dois, e é por isso que estes campos
+   * são `number | null` e não `number`.
+   *
+   * Opcional para não quebrar quem constrói `EligibleMedia` sem métricas (o
+   * motor de análise de comentários, por exemplo, não precisa delas).
+   */
+  metrics?: {
+    likeCount: number | null;
+    commentsCount: number | null;
+    /** Curtidas e comentários são campos do nó; os demais vêm do `/insights`. */
+    reached: number | null;
+    impressions: number | null;
+    shares: number | null;
+    saves: number | null;
+    videoViews: number | null;
+    videoViewTime: number | null;
+  } | null;
 }
 
 /** Comentário lido da API. */

@@ -76,12 +76,22 @@ export async function GET(request: Request) {
       commentsAvailable: boolean | null;
       lastSyncAt: Date | null;
       lastSyncAttemptAt: Date | null;
+      commentsErrorCode: string | null;
     } | null = null;
     let connFailed = false;
     try {
       conn = await prisma.socialConnection.findFirst({
         where: { userId, platform: "instagram" },
-        select: { commentsAvailable: true, lastSyncAt: true, lastSyncAttemptAt: true },
+        select: {
+          commentsAvailable: true,
+          lastSyncAt: true,
+          lastSyncAttemptAt: true,
+          // O CÓDIGO do erro de comentários já era gravado pelo sync e nunca
+          // era lido por ninguém. Sem ele, "a Meta recusou" e "a leitura falhou
+          // por limite de requisições" chegavam à tela como o MESMO aviso, e a
+          // ação do usuário é diferente em cada caso.
+          commentsErrorCode: true,
+        },
       });
     } catch (err) {
       connFailed = true;
@@ -99,6 +109,11 @@ export async function GET(request: Request) {
       media,
       comments,
       commentsAvailable: conn?.commentsAvailable ?? null,
+      // Código REAL do erro de comentários persistido pelo sync (`190` token,
+      // `10/200/3` permissão, `4/17/613` limite de requisições, `100/33/24/803`
+      // publicação). A tela traduz para uma frase de produto antes de exibir —
+      // o código cru nunca chega ao usuário.
+      commentsErrorCode: conn?.commentsErrorCode ?? null,
       lastSyncAt: conn?.lastSyncAt ? conn.lastSyncAt.toISOString() : null,
       lastSyncAttemptAt: conn?.lastSyncAttemptAt
         ? conn.lastSyncAttemptAt.toISOString()

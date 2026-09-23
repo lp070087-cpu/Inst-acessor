@@ -40,16 +40,33 @@ export const registerSchema = z
 
 export type RegisterInput = z.infer<typeof registerSchema>;
 
+/**
+ * Onboarding do usuário.
+ *
+ * TODAS as respostas são OPCIONAIS, e isso é uma regra de produto, não uma
+ * frouxidão do schema. O onboarding existe para o Inst Acessor entender o perfil
+ * mais rápido — mas o perfil profissional do Instagram, uma vez conectado,
+ * fornece esses dados de forma REAL (nicho pelas mídias, alcance e engajamento
+ * pelo desempenho). Nenhuma pergunta pode, portanto, BLOQUEAR o acesso ao
+ * sistema: quem não quiser responder entra do mesmo jeito, e a plataforma
+ * completa o entendimento com dados reais depois.
+ *
+ * O que o schema continua garantindo é o TAMANHO: campo vazio é permitido,
+ * campo com 300 caracteres não. `max` sem `min`.
+ */
 export const onboardingSchema = z.object({
   objective: z
     .string()
-    .min(1, "Escolha seu objetivo principal")
-    .max(60, "Objetivo muito longo"),
+    .max(60, "Objetivo muito longo")
+    .trim()
+    .optional()
+    .or(z.literal("")),
   niche: z
     .string()
-    .min(2, "Informe seu nicho")
     .max(80, "Nicho muito longo")
-    .trim(),
+    .trim()
+    .optional()
+    .or(z.literal("")),
   subNiche: z
     .string()
     .max(80, "Subnicho muito longo")

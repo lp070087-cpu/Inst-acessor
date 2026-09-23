@@ -19,19 +19,33 @@ export async function PUT(request: Request) {
 
     const { objective, niche, subNiche } = parsed.data;
 
+    // Campo não respondido vira `null`, NUNCA string vazia.
+    //
+    // `objective: ""` no banco seria um valor que parece informação e não é —
+    // quem lê (inclusive a IA) não teria como distinguir "o usuário não
+    // respondeu" de "o usuário respondeu em branco". `null` é ausência de dado,
+    // que é exatamente o que aconteceu quando a pessoa pulou a pergunta.
+    const objectiveValue = objective?.trim() || null;
+    const nicheValue = niche?.trim() || null;
+    const subNicheValue = subNiche?.trim() || null;
+
+    // `onboardingCompleted: true` mesmo com tudo em branco. Lembre-se do motivo:
+    // pular é uma resposta legítima. Gravar `false` aqui faria o guard de
+    // onboarding devolver o usuário para esta tela em laço, que é exatamente o
+    // bloqueio de acesso que a pergunta opcional não pode causar.
     await prisma.userProfile.upsert({
       where: { userId },
       create: {
         userId,
-        objective,
-        niche,
-        subNiche: subNiche || null,
+        objective: objectiveValue,
+        niche: nicheValue,
+        subNiche: subNicheValue,
         onboardingCompleted: true,
       },
       update: {
-        objective,
-        niche,
-        subNiche: subNiche || null,
+        objective: objectiveValue,
+        niche: nicheValue,
+        subNiche: subNicheValue,
         onboardingCompleted: true,
       },
     });
