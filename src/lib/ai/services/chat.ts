@@ -82,6 +82,52 @@ function makeTitle(message: string): string {
 }
 
 /**
+ * Título de conversa informado PELO USUÁRIO (item 10).
+ *
+ * Por que existe uma função e não um `slice` no cliente: o mesmo título vai para
+ * o banco, então a normalização precisa acontecer no servidor — o cliente não
+ * pode ser a única garantia de que uma conversa não fique sem nome.
+ *
+ * Regras (as mesmas que a UI mostra):
+ *  • espaço no começo/fim não conta;
+ *  • quebras de linha viram espaço (o título é uma linha só);
+ *  • vazio ou só espaços → `null`, e aí o título ATUAL é mantido. Não
+ *    inventamos um nome nem gravamos string vazia.
+ *  • corte em 80 caracteres, que é o que o rótulo da lista comporta.
+ *
+ * Diferente de `makeTitle`, aqui NÃO acrescentamos "..." — quem digitou o nome
+ * sabe o que digitou; reticências aqui pareceriam parte do título.
+ */
+export function normalizeConversationTitle(raw: string): string | null {
+  const clean = raw.replace(/\s+/g, " ").trim();
+  if (!clean) return null;
+  return clean.length > 80 ? clean.slice(0, 80) : clean;
+}
+
+/**
+ * Renomeia uma conversa do usuário. Só o dono; devolve `null` quando a conversa
+ * não existe, não é dele, ou o título informado é vazio (nada é gravado).
+ */
+export async function renameConversation(
+  userId: string,
+  conversationId: string,
+  title: string
+): Promise<AIConversationWithMessages | null> {
+  const conv = await ai.conversation.findUnique({ where: { id: conversationId } });
+  if (!conv || (conv as { userId: string }).userId !== userId) return null;
+
+  const normalized = normalizeConversationTitle(title);
+  if (!normalized) return null;
+
+  await ai.conversation.update({
+    where: { id: conversationId },
+    data: { title: normalized },
+  });
+
+  return getConversation(userId, conversationId);
+}
+
+/**
  * Envia uma mensagem: cria (se preciso) a conversa, persiste a mensagem do
  * usuário, chama o provider com o contexto, persiste a resposta.
  */

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth/guard";
 import { scorePlatformSchema } from "@/lib/validators/ai";
 import { computeScore, persistScore, getScoreHistory } from "@/lib/ai/services";
+import { scoreHistoryGate } from "@/lib/ai/services/score-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -55,12 +56,39 @@ export async function POST(request: Request) {
     const platform = parsed.data;
 
     const score = await computeScore(userId, platform);
-    const persisted = score.overall != null ? await persistScore(userId, score) : null;
+
+    // A REGRA de "pode registrar?" mora em `score-gate.ts` e é a MESMA que o
+    // cliente usa — servidor e tela não podem discordar sobre o que é um Score
+    // registrável. Aqui o histórico vai vazio de propósito: ao gravar, um valor
+    // repetido NÃO é bloqueio (é um snapshot novo, com data nova, e é isso que
+    // o botão promete). O cliente bloqueia a repetição para não poluir o card.
+    const gate = scoreHistoryGate(score, []);
+
+    // `persistScore` já tem a guarda interna (overall != null && scoreAvailable)
+    // e é ele quem garante que nada inválido entra no histórico.
+    const persisted = await persistScore(userId, score);
+
+    // O delegate genérico de `ai.score` não infere a linha criada (é
+    // `Delegate<T>`), então o cast é explícito e restrito a estes 3 campos.
+    const row = persisted as unknown as { id?: string; createdAt?: Date; overall?: number } | null;
 
     return NextResponse.json({
       ok: true,
       score,
       persisted: persisted != null,
+      // Linha REAL gravada (id e horário do BANCO): antes o cliente inventava
+      // um `h-${Date.now()}` no fuso do navegador e o item aparecia, sumia ao
+      // recarregar a página e dava a impressão de que nada fora salvo.
+      persistedRow:
+        persisted != null
+          ? {
+              id: row?.id ?? null,
+              overall: row?.overall ?? score.overall,
+              createdAt: row?.createdAt ? new Date(row.createdAt).toISOString() : null,
+            }
+          : null,
+      // Motivo explícito do bloqueio, quando há um (item 4).
+      reason: gate.canPersist ? null : gate.message,
     });
   } catch (err) {
     console.error("[score] erro ao persistir", err);

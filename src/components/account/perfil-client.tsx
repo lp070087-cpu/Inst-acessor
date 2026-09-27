@@ -16,6 +16,7 @@ import {
   ExternalLink,
   KeyRound,
   Info,
+  Layers,
 } from "lucide-react";
 
 import { Avatar } from "@/components/ui/avatar";
@@ -23,6 +24,11 @@ import { Button } from "@/components/ui/button";
 import { Divider } from "@/components/ui/divider";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
+import {
+  PLATFORM_SELECTIONS,
+  PLATFORM_SELECTION_LABELS,
+  type PlatformSelection,
+} from "@/lib/gamification/platforms-core";
 
 /**
  * PERFIL DA CONTA — cliente
@@ -79,6 +85,11 @@ interface PerfilClientProps {
   hasPassword: boolean;
   /** Aceita WEBP? Hoje não — mantido explícito para a UI avisar com precisão. */
   acceptsWebp: boolean;
+  /**
+   * Preferência REALMENTE gravada (`UserPreferences.dashboard.trackedPlatforms`)
+   * — vem do servidor, não de um chute do cliente. Padrão: "both".
+   */
+  trackedPlatforms: PlatformSelection;
 }
 
 /** Campos de texto editáveis — o resto é somente leitura. */
@@ -148,6 +159,7 @@ export function PerfilClient({
   connections,
   hasPassword,
   acceptsWebp,
+  trackedPlatforms,
 }: PerfilClientProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -180,6 +192,49 @@ export function PerfilClient({
   const [pwdShow, setPwdShow] = React.useState(false);
   const [pwdBusy, setPwdBusy] = React.useState(false);
   const [pwdError, setPwdError] = React.useState<string | null>(null);
+
+  // ---- Plataformas acompanhadas (item 5) ----
+  // A escolha é salva NA HORA do clique (não espera o "Salvar alterações"): é um
+  // seletor de preferência, não um campo de formulário, e o efeito (filtrar as
+  // conquistas) precisa ser imediato para o usuário entender o que mudou.
+  const [selection, setSelection] = React.useState<PlatformSelection>(trackedPlatforms);
+  const [savingSelection, setSavingSelection] = React.useState<PlatformSelection | null>(null);
+
+  async function choosePlatforms(next: PlatformSelection) {
+    if (savingSelection || next === selection) return;
+    const previous = selection;
+    setSavingSelection(next);
+    // Otimista: a barra de opções responde no clique; se o servidor recusar,
+    // volta para o valor anterior e avisa.
+    setSelection(next);
+    try {
+      const res = await fetch("/api/account/platforms", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ selection: next }),
+      });
+      const data = (await res.json()) as { ok?: boolean; selection?: PlatformSelection; error?: string };
+      if (!res.ok || !data.ok) {
+        setSelection(previous);
+        toast(data.error ?? "Não foi possível salvar suas plataformas.", "error");
+        return;
+      }
+      // Revalida com o que o SERVIDOR gravou (fonte da verdade).
+      if (data.selection) setSelection(data.selection);
+      toast(
+        next === "both"
+          ? "Acompanhando Instagram e TikTok."
+          : `Acompanhando apenas o ${PLATFORM_SELECTION_LABELS[next]}.`
+      );
+      // As Conquistas do Rank filtram por esta preferência: revalida o servidor.
+      router.refresh();
+    } catch {
+      setSelection(previous);
+      toast("Não foi possível conectar. Verifique sua internet.", "error");
+    } finally {
+      setSavingSelection(null);
+    }
+  }
 
   const hasChanges = dirty.size > 0;
 
@@ -664,6 +719,74 @@ export function PerfilClient({
             </p>
           )}
         </div>
+      </section>
+
+      {/* ================= Plataformas acompanhadas (item 5) ================= */}
+      <section className="bg-card border border-border-soft rounded-lg shadow-xs p-6">
+        <div className="flex items-start gap-3">
+          <span className="w-9 h-9 rounded-[10px] bg-ai-soft text-purple grid place-items-center flex-none">
+            <Layers size={16} />
+          </span>
+          <div className="min-w-0">
+            <h3 className="font-display text-[17px] font-bold text-ink">
+              Plataformas que você acompanha
+            </h3>
+            <p className="text-[13px] text-ink-soft mt-1 max-w-[62ch]">
+              Escolha onde você publica. As conquistas de cada rede só aparecem para
+              quem acompanha aquela rede — assim nada fica travado em uma meta que não
+              é sua.
+            </p>
+          </div>
+        </div>
+
+        <div
+          className="flex flex-wrap gap-2 mt-5"
+          role="radiogroup"
+          aria-label="Plataformas que você acompanha"
+        >
+          {PLATFORM_SELECTIONS.map((option) => {
+            const active = selection === option;
+            const busy = savingSelection === option;
+            return (
+              <button
+                key={option}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                disabled={Boolean(savingSelection)}
+                onClick={() => choosePlatforms(option)}
+                className={cn(
+                  "inline-flex items-center gap-2 px-3.5 py-2 rounded-pill border text-[13px] font-semibold transition-all cursor-pointer",
+                  active
+                    ? "bg-ai-soft border-purple/40 text-purple"
+                    : "bg-bg-ice border-border text-ink-soft hover:text-ink",
+                  savingSelection && !busy && "opacity-60"
+                )}
+              >
+                {busy ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : active ? (
+                  <Check size={14} />
+                ) : null}
+                {PLATFORM_SELECTION_LABELS[option]}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Estado REAL das duas conexões: a escolha é sobre o que MOSTRAR, e a
+            tela não deixa confundir isso com "está conectado". */}
+        <p className="text-[12.5px] text-ink-muted mt-4">
+          {connections.filter((c) => c.connected).length === 0
+            ? "Nenhuma rede conectada ainda — conecte uma em Redes Sociais para começar a acompanhar métricas."
+            : selection === "both"
+              ? "As métricas, o Score e as conquistas das duas redes aparecem no app."
+              : `Só o ${PLATFORM_SELECTION_LABELS[selection]} aparece nas conquistas. Os dados${
+                  connections.find((c) => c.platform !== selection && c.connected)
+                    ? " e a conexão da outra rede continuam salvos"
+                    : ""
+                }.`}
+        </p>
       </section>
 
       {/* ================= Redes conectadas (só leitura) ================= */}

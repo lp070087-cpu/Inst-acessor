@@ -15,6 +15,7 @@ import {
   recomputeRitmo,
   getDisplayNameInfo,
   applySelfDisplayName,
+  getPlatformSelection,
 } from "@/lib/gamification";
 import { RankClient } from "@/components/gamification/rank-client";
 
@@ -49,6 +50,7 @@ export default async function RankPage() {
     achievements,
     goalsResult,
     displayNameInfo,
+    trackedPlatforms,
   ] = await Promise.all([
     getUserProgress(userId),
     getUserRankSummary(userId),
@@ -58,6 +60,9 @@ export default async function RankPage() {
     getUserAchievements(userId),
     recomputeGoalProgress(userId),
     getDisplayNameInfo(userId),
+    // ITEM 6 — preferência REAL do Perfil: as Conquistas só mostram o que se
+    // aplica às plataformas acompanhadas (as já desbloqueadas ficam sempre).
+    getPlatformSelection(userId),
   ]);
 
   return (
@@ -97,6 +102,8 @@ export default async function RankPage() {
             unlocked: a.unlocked,
             unlockedAt: a.unlockedAt,
             xpGranted: a.xpGranted,
+            // ITEM 6 — a plataforma vem do CATÁLOGO (via getUserAchievements).
+            platform: a.platform,
           })),
           goals: goalsResult.goals.map((g) => ({
             id: g.id,
@@ -146,6 +153,8 @@ export default async function RankPage() {
             igUsername: displayNameInfo.igUsername,
             igName: displayNameInfo.igName,
           },
+          // ITEM 6 — as Conquistas filtram por esta escolha (feita no Perfil).
+          trackedPlatforms,
         }}
       />
     </div>

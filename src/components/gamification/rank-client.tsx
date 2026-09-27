@@ -28,6 +28,7 @@ import {
   Instagram,
   Globe,
   ChevronRight,
+  ChevronDown,
   Flag,
   Minus,
   Info,
@@ -52,6 +53,15 @@ import {
   type RankLadderState,
   type RankStage,
 } from "@/lib/gamification/rank-ladder";
+// ITEM 6 — mesma regra pura usada pelo resto da tela para decidir se uma
+// conquista se aplica à seleção de plataformas do usuário. Importada do
+// arquivo PURO (`platforms-core.ts`), que não toca banco nem HTTP — por isso
+// pode ser usada num Client Component.
+import {
+  achievementApplies,
+  PLATFORM_SELECTION_LABELS,
+  type PlatformSelection,
+} from "@/lib/gamification/platforms-core";
 
 // ------------------------------------------------------------
 // Tipos (espelham o payload da API /rank)
@@ -124,6 +134,15 @@ interface EvolutionPoint {
   label: string;
   level: number;
   xp: number;
+  /**
+   * Ponto de PARTIDA da janela, não uma ação.
+   *
+   * O histórico já registrava o XP acumulado ANTES do primeiro log da janela
+   * (`base = total − soma da janela`), mas esse valor só existia como o `xp` do
+   * primeiro ponto — ou seja, a linha começava em 700, 1.240… e dava a impressão
+   * de que o eixo não partia do zero. Marcado, ele vira a âncora honesta em 0.
+   */
+  baseline?: boolean;
 }
 
 interface AchievementData {
@@ -140,6 +159,12 @@ interface AchievementData {
   unlocked: boolean;
   unlockedAt: string | null;
   xpGranted: boolean;
+  /**
+   * ITEM 6 — plataforma que MEDE a conquista (`null` = vale para qualquer uma).
+   * Vem do catálogo no servidor (`getUserAchievements`), então o filtro da tela
+   * usa o mesmo rótulo que o motor de progresso usa — não uma segunda lista.
+   */
+  platform: "instagram" | "tiktok" | null;
 }
 
 interface GoalData {
@@ -228,6 +253,12 @@ interface RankInitialData {
   displayName?: DisplayNameData;
   social?: RankSocialData;
   profilePublic?: RankProfilePublicData;
+  /**
+   * ITEM 6 — plataformas que o usuário acompanha (preferência REAL do banco,
+   * definida no Perfil). Opcional com padrão "both" para o payload antigo não
+   * quebrar: sem a informação, nada é escondido.
+   */
+  trackedPlatforms?: PlatformSelection;
 }
 
 interface RankClientProps {
@@ -1017,6 +1048,32 @@ const RANK_CSS = `
 /* Aviso de limiar provisório (Prata/Ouro/Diamante/Lendário). */
 .rnk-chip-warn{background:rgba(245,158,11,.14);color:#FCD34D;border:1px solid rgba(245,158,11,.3)}
 
+/* ---------- seção recolhível ("Ver níveis") ----------
+   O título fica FORA do botão: um botão só aceita conteúdo "phrasing" e o
+   cabeçalho da seção é um h3 com um parágrafo de dica — aninhá-los geraria HTML
+   inválido e o leitor de tela achataria o heading. O gatilho é o botão ao lado,
+   com aria-expanded/aria-controls. Quando RECOLHIDA, sobra o resumo de uma
+   linha (nível atual + quanto falta). O atributo hidden no miolo é melhor que
+   desmontar: o conteúdo já está calculado e volta sem recalcular nada.
+   ATENÇÃO: este CSS vive dentro de um template literal — escrever crases ou o
+   cifrão seguido de chave no comentário ENCERRA a string e quebra o arquivo. */
+.rnk-disclose-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.rnk-disclose-row .rnk-shead{min-width:0;flex:1 1 auto}
+.rnk-disclose-toggle{
+  display:inline-flex;align-items:center;gap:6px;flex:none;
+  padding:6px 11px;border-radius:999px;border:1px solid var(--rnk-border);
+  background:rgba(255,255,255,.05);color:var(--rnk-soft);cursor:pointer;
+  font-size:11.5px;font-weight:700;line-height:1.5;
+  transition:border-color .2s ease,color .2s ease,background .2s ease;
+}
+.rnk-disclose-toggle:hover{border-color:var(--rnk-border-strong);color:var(--rnk-ink);background:rgba(255,255,255,.09)}
+.rnk-disclose-toggle:focus-visible{outline:2px solid #C4B5FD;outline-offset:2px}
+.rnk-disclose-caret{transition:transform .22s ease}
+.rnk-disclose-toggle[aria-expanded="true"] .rnk-disclose-caret{transform:rotate(180deg)}
+.rnk-disclose-body[hidden]{display:none}
+/* Linha de resumo visível SÓ com a seção recolhida (renderizada sob condição). */
+.rnk-disclose-summary{margin:12px 0 0}
+
 /* ---------- destaques ---------- */
 .rnk-hl{
   display:flex;gap:12px;align-items:flex-start;
@@ -1157,6 +1214,14 @@ const RANK_CSS = `
   padding:clamp(16px,2.4vw,24px);
   color:var(--ink);
   animation:rnk-pop .26s cubic-bezier(.22,1,.36,1);
+}
+/* ITEM 7 — mesma correção de altura do resto do app, aqui dentro do modal.
+   No celular 100vh e MAIOR que a area realmente visivel (mede a tela sem a
+   barra de endereco), entao o rodape do modal ficava atras da barra. O
+   @supports deixa o 100vh acima como rede: navegador sem dvh ignora este
+   bloco e continua com o valor antigo, sem quebrar. */
+@supports (height:100dvh){
+  .rnk-dialog{max-height:calc(100dvh - 32px)}
 }
 @keyframes rnk-pop{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
 .rnk-dialog-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:18px}
@@ -1355,10 +1420,37 @@ export function RankClient({ initial }: RankClientProps) {
   // Sub-aba de conquistas (visíveis vs. todas)
   const [onlyVisible, setOnlyVisible] = React.useState(true);
 
-  const unlockedCount = achievements.filter((a) => a.unlocked).length;
-  const visibleCount = achievements.filter((a) => !a.hidden).length;
-  const totalCount = achievements.length;
+  // ITEM 6 — seleção de plataformas vinda do banco (Perfil). Sem valor,
+  // assume "both": o padrão nunca esconde nada de quem nunca escolheu.
+  const trackedPlatforms: PlatformSelection = initial.trackedPlatforms ?? "both";
+
+  /**
+   * ITEM 6 — o que a tela considera "aplicável".
+   *
+   * Por que existe: quem só acompanha TikTok via as conquistas de Instagram
+   * travadas em 0/5 para sempre — um zero que não é desempenho, é ABSÊNCIA. As
+   * conquistas de uma plataforma fora da seleção saem da contagem e da lista.
+   *
+   * Conquista JÁ DESBLOQUEADA permanece sempre (a regra vive em
+   * `achievementApplies`): trocar a preferência não pode apagar um troféu.
+   * Nada é apagado no banco — é só exibição.
+   */
+  const applicable = React.useMemo(
+    () => achievements.filter((a) => achievementApplies(trackedPlatforms, a.platform, a.unlocked)),
+    [achievements, trackedPlatforms]
+  );
+
+  const unlockedCount = applicable.filter((a) => a.unlocked).length;
+  const visibleCount = applicable.filter((a) => !a.hidden).length;
+  const totalCount = applicable.length;
   const unlockedPct = totalCount > 0 ? Math.round((unlockedCount / totalCount) * 100) : 0;
+
+  // Quanto ficou de fora SÓ por causa da escolha de plataforma — o número que
+  // a tela precisa declarar em voz alta em vez de sumir com conquistas em
+  // silêncio. Com "both" (padrão) é sempre 0 e o aviso nem aparece.
+  const platformFilteredCount = achievements.length - applicable.length;
+  const platformLabel =
+    trackedPlatforms === "both" ? null : PLATFORM_SELECTION_LABELS[trackedPlatforms];
 
   function applyPayload(full: RankInitialData) {
     setProgress(full.progress);
@@ -1473,7 +1565,7 @@ export function RankClient({ initial }: RankClientProps) {
             unlockedCount={unlockedCount}
             visibleCount={visibleCount}
             totalCount={totalCount}
-            achievements={achievements}
+            achievements={applicable}
             social={social}
             displayName={displayName}
             onDisplayNameChange={(info) => setDisplayName(info)}
@@ -1489,7 +1581,7 @@ export function RankClient({ initial }: RankClientProps) {
             profilePublic={profilePublic}
             unlockedCount={unlockedCount}
             totalCount={totalCount}
-            achievements={achievements}
+            achievements={applicable}
             publicProfileUrl={publicProfileUrl}
             onCopyLink={() => handleCopyProfileLink()}
             onShare={() => handleShareEvolution()}
@@ -1504,7 +1596,7 @@ export function RankClient({ initial }: RankClientProps) {
           <MetasView
             goals={goals}
             momentum={momentum}
-            achievements={achievements}
+            achievements={applicable}
             unlockedCount={unlockedCount}
             visibleCount={visibleCount}
             onChanged={reloadAll}
@@ -1516,13 +1608,15 @@ export function RankClient({ initial }: RankClientProps) {
 
         {tab === "conquistas" && (
           <ConquistasView
-            achievements={achievements}
+            achievements={applicable}
             onlyVisible={onlyVisible}
             onToggleVisible={() => setOnlyVisible((v) => !v)}
             unlockedCount={unlockedCount}
             visibleCount={visibleCount}
             totalCount={totalCount}
             unlockedPct={unlockedPct}
+            platformFilteredCount={platformFilteredCount}
+            platformLabel={platformLabel}
             onCheck={checkAchievements}
             checking={checking}
           />
@@ -1712,7 +1806,7 @@ function VisaoGeral({
         <RnkSectionHead
           icon={TrendingUp}
           title="Evolução do seu XP"
-          hint="Acúmulo de XP ao longo do tempo. Cada ponto é uma ação real registrada."
+          hint="Acúmulo de XP ao longo do tempo. Cada ponto é uma ação real registrada — o gráfico parte do zero."
         />
         <div style={{ marginTop: 16 }}>
           {evolution.length === 0 ? (
@@ -1830,24 +1924,81 @@ function Stars({ filled, total = RANK_LEVELS }: { filled: number; total?: number
  * uma promoção para o Prata — a promoção só acontece ao fim do Rank.
  *
  * Esta seção NÃO lista os 5 Ranks gerais: quem faz isso é a aba "Ranks".
+ *
+ * RECOLHÍVEL (item 2): os 5 cards ocupavam ~5 × 110px empurrando "Meus
+ * destaques" e o gráfico para fora da primeira dobra. Agora o cabeçalho é um
+ * botão "Ver níveis" e a lista nasce FECHADA — o mesmo padrão `details/summary`
+ * feito à mão com `aria-expanded`/`aria-controls`, para o CSS injetado não ter
+ * de estilizar o `<summary>` do navegador.
  */
 function NiveisDoRank({ progress }: { progress: ProgressData }) {
+  const [open, setOpen] = React.useState(false);
   const current = rankTierLocal(progress.totalXpEarned, progress.tier);
   const totalXp = progress.totalXpEarned;
   const rank = RANK_LADDER[current.index] ?? RANK_LADDER[0];
   const nextRankName = rank.index + 1 < RANK_LADDER.length ? RANK_LADDER[rank.index + 1].label : null;
+  const levelsId = "rnk-niveis-lista";
+
+  // Próximo marco DENTRO do Rank (o Nível 5 aponta para o primeiro nível do
+  // próximo Rank, que é onde a promoção realmente acontece).
+  const nextLevelThreshold =
+    current.level < RANK_LEVELS
+      ? (rank.levelThresholds[current.level] ?? rank.endXp)
+      : (nextRankName ? rank.endXp : null);
+  const nextLevelLabel =
+    current.level < RANK_LEVELS
+      ? `${rank.label} Nível ${current.level + 1}`
+      : nextRankName
+        ? `${nextRankName} Nível 1`
+        : null;
 
   return (
     <div className="rnk-card">
-      <RnkSectionHead
-        icon={Star}
-        title={`Níveis do ${rank.label}`}
-        hint={
-          nextRankName
-            ? `Cada Rank tem 5 níveis. Ao concluir o ${rank.label} Nível 5, você passa para ${nextRankName} Nível 1.`
-            : `Você está no topo: ${rank.label} Nível ${RANK_LEVELS}.`
-        }
-      />
+      <div className="rnk-disclose-row">
+        <RnkSectionHead
+          icon={Star}
+          title={`Níveis do ${rank.label}`}
+          hint={
+            nextRankName
+              ? `Cada Rank tem 5 níveis. Ao concluir o ${rank.label} Nível 5, você passa para ${nextRankName} Nível 1.`
+              : `Você está no topo: ${rank.label} Nível ${RANK_LEVELS}.`
+          }
+        />
+        <button
+          type="button"
+          className="rnk-disclose-toggle"
+          aria-expanded={open}
+          aria-controls={levelsId}
+          onClick={() => setOpen((v) => !v)}
+        >
+          {open ? "Ocultar níveis" : "Ver níveis"}
+          <ChevronDown size={13} className="rnk-disclose-caret" aria-hidden="true" />
+        </button>
+      </div>
+
+      {/* Resumo de uma linha — o que o card tinha de essencial quando fechado. */}
+      {!open && (
+        <div className="rnk-lvl-foot rnk-disclose-summary">
+          <span className="rnk-chip rnk-chip-brand">
+            <Star size={11} /> {rank.label} Nível {current.level} de {RANK_LEVELS}
+          </span>
+          <span className="rnk-chip rnk-chip-outline">
+            <Zap size={11} /> {formatXp(totalXp)} XP
+          </span>
+          {nextLevelThreshold != null && nextLevelLabel ? (
+            <span className="rnk-chip rnk-chip-outline">
+              <Flag size={11} /> Faltam{" "}
+              {formatXp(Math.max(0, nextLevelThreshold - totalXp))} XP para {nextLevelLabel}
+            </span>
+          ) : (
+            <span className="rnk-chip rnk-chip-green">
+              <Crown size={11} /> Topo da escada
+            </span>
+          )}
+        </div>
+      )}
+
+      <div id={levelsId} className="rnk-disclose-body" hidden={!open}>
       <div className="rnk-stack" style={{ marginTop: 14, gap: 10 }}>
         {rank.levelThresholds.map((threshold, i) => {
           const level = i + 1;
@@ -1949,6 +2100,7 @@ function NiveisDoRank({ progress }: { progress: ProgressData }) {
             <Info size={11} /> Níveis provisórios
           </span>
         )}
+      </div>
       </div>
     </div>
   );
@@ -2652,10 +2804,22 @@ function PerfilPublicoView({
 // ------------------------------------------------------------
 
 function EvolutionSvg({ points }: { points: EvolutionPoint[] }) {
-  const values = points.map((p) => p.xp);
   const W = 720;
   const H = 210;
   const PAD = { top: 18, right: 16, bottom: 26, left: 46 };
+
+  // PARTIDA EM ZERO (item 3). `baseline` é o start da janela: XP REAL acumulado
+  // ANTES do primeiro log mostrado (o servidor marca; ver `getEvolutionHistory`).
+  // Ele NÃO é substituído por zero — isso apagaria XP que existe de verdade.
+  // Em vez disso a série ganha uma ÂNCORA em 0 com o MESMO instante da primeira
+  // ação: a linha nasce no eixo e sobe até o valor real. Sem a âncora ela
+  // começava em cima de 700/1.240 XP e parecia que o eixo não partia de zero.
+  const startXp = points[0]?.baseline ? Math.max(0, points[0].xp) : 0;
+  const anchored = startXp > 0;
+  const series = anchored
+    ? [{ label: points[0].label, level: 1, xp: 0, baseline: true }, ...points]
+    : points;
+  const values = series.map((p) => p.xp);
 
   // Escala do eixo Y: sempre cobre 0 → valor máximo, com "ticks" bonitos e
   // inteiros (nunca 566667 / 333333 / 999999 quebrados). O eixo começa em 0
@@ -2667,8 +2831,8 @@ function EvolutionSvg({ points }: { points: EvolutionPoint[] }) {
   const ySpan = upper - lower || 1;
 
   const x = (i: number) => {
-    if (values.length === 1) return PAD.left + (W - PAD.left - PAD.right) / 2;
-    return PAD.left + (i / (values.length - 1)) * (W - PAD.left - PAD.right);
+    if (series.length === 1) return PAD.left + (W - PAD.left - PAD.right) / 2;
+    return PAD.left + (i / (series.length - 1)) * (W - PAD.left - PAD.right);
   };
   const y = (v: number) => PAD.top + ((upper - v) / ySpan) * (H - PAD.top - PAD.bottom);
 
@@ -2676,9 +2840,9 @@ function EvolutionSvg({ points }: { points: EvolutionPoint[] }) {
     .map((v, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(v).toFixed(1)}`)
     .join(" ");
   const areaPath =
-    values.length === 1
+    series.length === 1
       ? `${linePath} L${x(0).toFixed(1)},${H - PAD.bottom} L${x(0).toFixed(1)},${H - PAD.bottom} Z`
-      : `${linePath} L${x(values.length - 1).toFixed(1)},${H - PAD.bottom} L${x(0).toFixed(1)},${H - PAD.bottom} Z`;
+      : `${linePath} L${x(series.length - 1).toFixed(1)},${H - PAD.bottom} L${x(0).toFixed(1)},${H - PAD.bottom} Z`;
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-full h-auto" role="img" aria-label="Evolução do XP">
@@ -2723,13 +2887,27 @@ function EvolutionSvg({ points }: { points: EvolutionPoint[] }) {
         strokeLinejoin="round"
       />
 
-      {values.length === 1 ? (
+      {/* Âncora de partida: marca o zero na PRIMEIRA data da janela. É o que
+          torna visível que a linha sobe "desde o começo", e não a partir de um
+          valor alto. Só existe quando havia XP antes da janela (`anchored`). */}
+      {anchored && (
+        <>
+          <circle cx={x(0)} cy={y(0)} r="3.5" fill="#FFFFFF" stroke="#A855F7" strokeWidth="2" />
+          <text x={x(0) + 8} y={y(0) + 4} fontSize="10" fontWeight="700" fill="#6F7889">
+            0 XP — início
+          </text>
+        </>
+      )}
+
+      {series.length === 1 ? (
         <circle cx={x(0)} cy={y(values[0])} r="5" fill="#F43F8E" stroke="#FFFFFF" strokeWidth="2" />
       ) : (
         <>
-          <circle cx={x(0)} cy={y(values[0])} r="4" fill="#FFFFFF" stroke="#A855F7" strokeWidth="2" />
+          {!anchored && (
+            <circle cx={x(0)} cy={y(values[0])} r="4" fill="#FFFFFF" stroke="#A855F7" strokeWidth="2" />
+          )}
           <circle
-            cx={x(values.length - 1)}
+            cx={x(series.length - 1)}
             cy={y(values[values.length - 1])}
             r="4.5"
             fill="#F43F8E"
@@ -2739,21 +2917,21 @@ function EvolutionSvg({ points }: { points: EvolutionPoint[] }) {
         </>
       )}
 
-      {values.length === 1 ? (
+      {series.length === 1 ? (
         <text x={x(0)} y={H - 6} textAnchor="middle" fontSize="10.5" fill="#6F7889">
-          {shortDate(points[0]?.label)}
+          {shortDate(series[0]?.label)}
         </text>
       ) : (
-        [0, Math.floor((values.length - 1) / 2), values.length - 1].map((i) => (
+        [0, Math.floor((series.length - 1) / 2), series.length - 1].map((i) => (
           <text
             key={i}
             x={x(i)}
             y={H - 6}
-            textAnchor={i === 0 ? "start" : i === values.length - 1 ? "end" : "middle"}
+            textAnchor={i === 0 ? "start" : i === series.length - 1 ? "end" : "middle"}
             fontSize="10.5"
             fill="#6F7889"
           >
-            {shortDate(points[i]?.label)}
+            {shortDate(series[i]?.label)}
           </text>
         ))
       )}
@@ -3730,6 +3908,8 @@ function ConquistasView({
   visibleCount,
   totalCount,
   unlockedPct,
+  platformFilteredCount,
+  platformLabel,
   onCheck,
   checking,
 }: {
@@ -3740,6 +3920,10 @@ function ConquistasView({
   visibleCount: number;
   totalCount: number;
   unlockedPct: number;
+  /** ITEM 6 — quantas saíram da lista só por causa da escolha de plataforma. */
+  platformFilteredCount: number;
+  /** Rótulo da plataforma escolhida; `null` quando é "both" (nada filtrado). */
+  platformLabel: string | null;
   onCheck: () => void;
   checking: boolean;
 }) {
@@ -3783,6 +3967,17 @@ function ConquistasView({
             descobri-las.
           </p>
         )}
+        {/* ITEM 6 — transparência: quando a escolha de plataforma tira conquistas
+            da lista, isso é DITO. Nada some em silêncio, e as já desbloqueadas
+            continuam aqui de qualquer forma. */}
+        {platformFilteredCount > 0 && (
+          <p className="rnk-hint" style={{ marginTop: 9 }}>
+            {platformFilteredCount} conquista(s) de outra plataforma não aparecem porque você
+            acompanha só {platformLabel ?? "uma plataforma"}. Suas conquistas já desbloqueadas
+            continuam listadas. Para ver todas, mude a escolha em Perfil → Plataformas que você
+            acompanha.
+          </p>
+        )}
       </div>
 
       {list.length === 0 ? (
@@ -3805,8 +4000,18 @@ function ConquistasView({
                   <span className={cn("rnk-ach-ic", a.unlocked && "rnk-ach-ic-on")} aria-hidden="true">
                     {a.unlocked ? <Icon size={17} /> : <Lock size={16} />}
                   </span>
-                  <span className={cn("rnk-chip", a.unlocked && "rnk-chip-green")} style={{ flex: "none" }}>
-                    {a.unlocked ? "Desbloqueada" : "Bloqueada"}
+                  <span style={{ display: "flex", gap: 6, flex: "none", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                    {/* ITEM 6 — de qual rede esta conquista é medida. Genérica
+                        (sem plataforma) não ganha chip: só rotulamos o que tem
+                        origem definida, sem inventar categoria. */}
+                    {a.platform && (
+                      <span className="rnk-chip" style={{ flex: "none" }}>
+                        {PLATFORM_SELECTION_LABELS[a.platform]}
+                      </span>
+                    )}
+                    <span className={cn("rnk-chip", a.unlocked && "rnk-chip-green")} style={{ flex: "none" }}>
+                      {a.unlocked ? "Desbloqueada" : "Bloqueada"}
+                    </span>
                   </span>
                 </div>
 

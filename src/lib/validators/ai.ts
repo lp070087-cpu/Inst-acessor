@@ -21,6 +21,23 @@ export const chatCreateSchema = z.object({
 
 export type ChatCreateInput = z.infer<typeof chatCreateSchema>;
 
+/**
+ * ITEM 10 — renomear conversa.
+ *
+ * `.trim().min(1)` recusa espaço em branco puro AQUI (400 explícito), para que a
+ * rota nunca precise decidir entre "vazio" e "não encontrado". O corte em 200 é
+ * o teto do banco; o nome exibido é normalizado em `normalizeConversationTitle`.
+ */
+export const renameConversationSchema = z.object({
+  title: z
+    .string({ message: "Informe um nome para a conversa" })
+    .trim()
+    .min(1, "Informe um nome para a conversa")
+    .max(200, "Nome muito longo"),
+});
+
+export type RenameConversationInput = z.infer<typeof renameConversationSchema>;
+
 // ------------------------------------------------------------
 // Gerador de Copy
 // ------------------------------------------------------------

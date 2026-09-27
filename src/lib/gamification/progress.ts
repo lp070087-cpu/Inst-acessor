@@ -175,6 +175,13 @@ export interface UserAchievementView {
   unlocked: boolean;
   unlockedAt: string | null;
   xpGranted: boolean;
+  /**
+   * Plataforma da conquista (item 6): `null` = vale para qualquer usuário.
+   * Vem do CATÁLOGO (`ACHIEVEMENT_CATALOG`), não da tabela `Achievement` — a
+   * coluna não existe no banco e não é preciso criá-la: o catálogo é a fonte
+   * de verdade das definições (o model é só o espelho persistido).
+   */
+  platform: "instagram" | "tiktok" | null;
 }
 
 /**
@@ -268,6 +275,7 @@ export async function getUserAchievements(
       unlocked: r.unlocked,
       unlockedAt: r.unlockedAt ? r.unlockedAt.toISOString() : null,
       xpGranted: r.xpGranted,
+      platform: def?.platform ?? null,
     });
   }
 

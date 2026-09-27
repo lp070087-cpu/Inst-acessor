@@ -4,6 +4,7 @@ import { requireOnboardedSession } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
 import { getAccountData } from "@/lib/profile/account";
 import { describeSync } from "@/lib/dashboard/freshness";
+import { getPlatformSelection } from "@/lib/gamification";
 import { PerfilClient } from "@/components/account/perfil-client";
 import type { PerfilConnection } from "@/components/account/perfil-client";
 
@@ -30,7 +31,7 @@ export default async function PerfilPage() {
   const { session } = await requireOnboardedSession();
   const userId = session.user.id;
 
-  const [account, userRow, igConnection, ttConnection, igProfile, ttProfile] =
+  const [account, userRow, igConnection, ttConnection, igProfile, ttProfile, trackedPlatforms] =
     await Promise.all([
       getAccountData(userId),
       prisma.user.findUnique({ where: { id: userId }, select: { passwordHash: true } }),
@@ -53,6 +54,9 @@ export default async function PerfilPage() {
         orderBy: { updatedAt: "desc" },
         select: { avatarUrl: true },
       }),
+      // Preferência REAL do banco (JSON `UserPreferences.dashboard`), não um
+      // palpite do cliente: a tela precisa mostrar o que está gravado.
+      getPlatformSelection(userId),
     ]);
 
   if (!account) {
@@ -111,6 +115,8 @@ export default async function PerfilPage() {
         }}
         connections={connections}
         hasPassword={Boolean(userRow?.passwordHash)}
+        // Valor GRAVADO no banco (item 5), não um padrão do cliente.
+        trackedPlatforms={trackedPlatforms}
         // WEBP fica desligado enquanto o reencode do canvas não for garantido em
         // todos os navegadores suportados.
         acceptsWebp={false}

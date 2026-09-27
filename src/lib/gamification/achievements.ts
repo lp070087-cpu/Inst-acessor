@@ -56,6 +56,17 @@ export type ProgressKind =
 
 export interface AchievementCatalogEntry extends AchievementDefinition {
   progressKind: ProgressKind;
+  /**
+   * PLATAFORMA da conquista (item 6). `null`/ausente = conquista do APP, vale
+   * para qualquer usuário. Quando declarada, a UI só a mostra se o usuário
+   * acompanha aquela rede (preferência `trackedPlatforms`) — a não ser que ela
+   * já esteja desbloqueada, caso em que permanece visível.
+   *
+   * Antes isso era implícito no `slug` ("snapshots-instagram"), e a UI não
+   * tinha como saber sem adivinhar por texto. O campo é a declaração; o slug é
+   * só o identificador.
+   */
+  platform?: "instagram" | "tiktok" | null;
 }
 
 export const ACHIEVEMENT_CATALOG: AchievementCatalogEntry[] = [
@@ -148,6 +159,9 @@ export const ACHIEVEMENT_CATALOG: AchievementCatalogEntry[] = [
     version: 1,
     active: true,
     progressKind: "frequencia_consistente",
+    // Medida a partir dos snapshots do Instagram (ver `computeProgress`), então
+    // é uma conquista DE PLATAFORMA mesmo sem "instagram" no slug.
+    platform: "instagram",
   },
   {
     slug: "snapshots-instagram",
@@ -162,6 +176,7 @@ export const ACHIEVEMENT_CATALOG: AchievementCatalogEntry[] = [
     version: 1,
     active: true,
     progressKind: "snapshots_instagram",
+    platform: "instagram",
   },
   {
     slug: "snapshots-tiktok",
@@ -176,6 +191,7 @@ export const ACHIEVEMENT_CATALOG: AchievementCatalogEntry[] = [
     version: 1,
     active: true,
     progressKind: "snapshots_tiktok",
+    platform: "tiktok",
   },
   // ------------------------------------------------
   // ESTRATÉGIA — executar recomendações, testar, completar

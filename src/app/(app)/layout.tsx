@@ -75,20 +75,37 @@ export default async function AppLayout({
   // apagado e o usuário não é deslogado.
   return (
     <ToastProvider>
-      <div className="min-h-screen bg-bg">
+      {/* ITEM 7 — `min-h-dvh` em vez de `min-h-screen`.
+          `100vh` no celular é a altura SEM a barra de endereço: o container
+          ficava até ~100px mais alto que a área visível e sobrava uma faixa de
+          rolagem vazia no fim de toda página. `dvh` acompanha a barra quando
+          ela aparece e some. Navegador antigo (sem suporte a `dvh`) ignora a
+          declaração e cai no `min-h-screen` do próprio Tailwind — nada quebra. */}
+      <div className="min-h-dvh bg-bg">
         <AppSidebar
           user={session.user}
           isAdmin={isAdmin}
           hasPremiumAccess={access.hasAccess}
           account={{ name: profile?.user?.name ?? null, avatar: profile?.avatar ?? null }}
         />
-        <main className="lg:pl-72 min-h-screen flex flex-col min-w-0">
+        <main className="lg:pl-72 min-h-dvh flex flex-col min-w-0">
           {/* `min-w-0` é o que permite os filhos encolherem: em flex, o
               item herda `min-width:auto` e qualquer conteúdo largo (tabela,
               gráfico, texto sem quebra) força a coluna a crescer e a página
               inteira a rolar na horizontal. Com `min-w-0` a largura fica
               limitada ao container e o filho é quem resolve o excesso. */}
-          <div className="flex-1 min-w-0 px-5 sm:px-8 lg:px-10 py-8 max-w-[1400px] mx-auto w-full">
+          {/* MARGENS LATERAIS (item 1) — este div é o ÚNICO ponto de margem de
+              todas as páginas internas (a sidebar não desenha header), então o
+              ajuste vale para as 21 de uma vez. Antes: `px-5 sm:px-8 lg:px-10`
+              (20 → 32 → 40 px por lado) com teto de 1400px. O teto é o que mais
+              "espremia" no desktop largo: em 1920px de viewport a caixa tinha
+              1400px e sobravam ~260px de vazio em cada lado, somados ao
+              `lg:pl-72` (288px) da sidebar. Agora o conteúdo ocupa 1640px e o
+              respiro vem do padding, que é intencional e previsível.
+              No mobile o padding CAI (não sobe): em 360px de tela, `px-5`
+              consumia 11% da largura útil; `px-3.5` devolve 12px ao conteúdo.
+              `mx-auto w-full` mantidos para o teto continuar centralizando. */}
+          <div className="flex-1 min-w-0 px-3.5 sm:px-6 lg:px-7 2xl:px-10 py-6 sm:py-8 max-w-[1640px] mx-auto w-full">
             {children}
           </div>
         </main>

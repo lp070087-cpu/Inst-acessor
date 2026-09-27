@@ -29,6 +29,9 @@ import {
   sortPillarsForDisplay,
   type PillarBand,
 } from "@/lib/ai/services/score-guidance";
+// REGRA ÚNICA de "pode registrar?" — o MESMO módulo que o servidor usa. Não
+// existe cópia da condição aqui: se os dois divergirem, o botão volta a mentir.
+import { scoreHistoryGate, SCORE_NOT_AVAILABLE_FALLBACK } from "@/lib/ai/services/score-gate";
 
 const PLATFORMS = [
   { id: "instagram", label: "Instagram" },
@@ -214,12 +217,21 @@ export function ScoreClient({ initial }: ScoreClientProps) {
   const [diagnosis, setDiagnosis] = React.useState<DiagnosticItem[]>(initial?.instagram?.diagnosis ?? []);
   const [loading, setLoading] = React.useState(false);
   const [persisting, setPersisting] = React.useState(false);
+  // Plataformas cujo histórico já foi alterado nesta sessão (registro novo).
+  // Marca por PLATAFORMA: mudar de aba e voltar não pode ressuscitar o payload
+  // congelado da página e apagar o item que acabou de ser gravado.
+  const historyTouched = React.useRef<Set<string>>(new Set());
 
   async function load(p: string) {
     setLoading(true);
     setPlatform(p);
     try {
-      const cached = initial
+      // O payload do servidor é o que a PÁGINA já carregou (initial). Ele é
+      // usado uma vez por plataforma; depois de registrar um Score o histórico
+      // local passa a ser a verdade da tela e o cache NÃO é consultado de novo
+      // para aquela plataforma — senão o item recém-registrado desapareceria ao
+      // voltar para a aba (era o segundo motivo do "Registrar não funciona").
+      const cached = initial && !historyTouched.current.has(p)
         ? (initial as unknown as Record<string, { score: ScoreResult; history: HistoryItem[]; diagnosis: DiagnosticItem[] }>)[p]
         : null;
       if (cached) {
@@ -259,23 +271,32 @@ export function ScoreClient({ initial }: ScoreClientProps) {
         toast(data.error ?? "Erro ao salvar.", "error");
         return;
       }
-      setScore(data.score);
+      const saved = data.score as ScoreResult | null;
+      setScore(saved);
       // `persisted` só é true quando o servidor conseguiu gravar. Um Score
       // Geral nulo NUNCA entra no histórico — nada é fabricado aqui.
-      if (data.persisted && data.score?.overall != null) {
+      if (data.persisted && saved?.overall != null) {
+        // A linha recém-gravada volta do SERVIDOR com id e createdAt REAIS
+        // (`persistedRow`). Antes o cliente fabricava `h-${Date.now()}` com a
+        // hora do navegador: abrir a tela em seguida recarregava o histórico do
+        // banco e o item falso sumia — parecia que o registro não tinha
+        // acontecido. O fallback local só existe para payloads antigos.
+        const row = data.persistedRow as
+          | { id?: string; createdAt?: string; overall?: number }
+          | null
+          | undefined;
         const item: HistoryItem = {
-          id: `h-${Date.now()}`,
-          overall: data.score.overall,
-          createdAt: new Date().toISOString(),
+          id: row?.id ?? `h-${Date.now()}`,
+          overall: row?.overall ?? saved.overall,
+          createdAt: row?.createdAt ?? new Date().toISOString(),
         };
-        setHistory((prev) => [item, ...prev]);
+        // Evita item duplicado caso o mesmo id já esteja na lista (re-render,
+        // clique repetido depois de uma falha de rede).
+        setHistory((prev) => (prev.some((h) => h.id === item.id) ? prev : [item, ...prev]));
+        historyTouched.current.add(platform);
         toast("Score registrado no histórico!");
       } else {
-        toast(
-          data.score?.reason ??
-            "Score ainda não disponível: sem evidência suficiente para uma avaliação confiável.",
-          "error"
-        );
+        toast(data.error ?? saved?.reason ?? SCORE_NOT_AVAILABLE_FALLBACK, "error");
       }
     } catch {
       toast("Não foi possível salvar.", "error");
@@ -291,7 +312,13 @@ export function ScoreClient({ initial }: ScoreClientProps) {
   // antigos (sem o campo) para não esconder um Score que já era válido.
   const scoreAvailable =
     score != null && (score.scoreAvailable ?? (score.overall ?? null) != null);
-  const canPersist = scoreAvailable;
+
+  // REGRA ÚNICA (item 4): o botão só é liberado quando o SERVIDOR gravaria. Os
+  // motivos de bloqueio são DIFERENTES e agora aparecem na tela — antes o botão
+  // ficava cinza sem dizer se faltava sincronizar, se faltava pilar ou se o
+  // registro já existia, que é o que fazia o recurso parecer quebrado.
+  const gate = scoreHistoryGate(score, history);
+  const canPersist = gate.canPersist;
   const measured = score?.measuredPillars ?? score?.pillars.filter((p) => p.available).length ?? 0;
 
   return (
@@ -365,14 +392,10 @@ export function ScoreClient({ initial }: ScoreClientProps) {
                 onClick={persist}
                 disabled={persisting || !canPersist}
                 className="gap-2"
-                title={
-                  canPersist
-                    ? undefined
-                    : "Registre quando houver evidência suficiente para uma avaliação confiável."
-                }
+                title={gate.message ?? "Registra o Score Geral atual no histórico desta plataforma."}
               >
                 {persisting ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-                Registrar no histórico
+                {gate.reason === "ja-registrado" ? "Já registrado" : "Registrar no histórico"}
               </Button>
               {score.coverage != null && (
                 <span className="text-[11.5px] text-ink-muted text-center">
@@ -382,9 +405,20 @@ export function ScoreClient({ initial }: ScoreClientProps) {
                     : ""}
                 </span>
               )}
-              {!canPersist && score.reason && (
-                <span className="text-[11.5px] text-ink-muted text-center max-w-[30ch] leading-snug">
-                  {score.reason}
+              {/* MOTIVO EXPLÍCITO (item 4). Quando o registro está bloqueado, a
+                  tela diz QUAL é o bloqueio e o que fazer. Só o estado "sem
+                  evidência" carrega um aviso; "já registrado" é informativo. */}
+              {gate.message && (
+                <span
+                  className={cn(
+                    "text-[11.5px] text-center max-w-[34ch] leading-snug rounded-[10px] px-2.5 py-1.5 border",
+                    gate.reason === "ja-registrado"
+                      ? "text-ink-muted bg-surface border-border-soft"
+                      : "text-warn bg-warn/5 border-warn/20"
+                  )}
+                >
+                  {gate.message}
+                  {gate.detail ? ` (${gate.detail})` : ""}
                 </span>
               )}
             </div>

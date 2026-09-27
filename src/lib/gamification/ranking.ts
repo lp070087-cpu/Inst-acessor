@@ -146,6 +146,13 @@ export interface EvolutionPoint {
   label: string;
   level: number;
   xp: number;
+  /**
+   * `true` = âncora de partida da janela (XP acumulado ANTES do primeiro log
+   * mostrado), não uma ação do usuário. O `xp` é REAL — é o `base` calculado
+   * abaixo — mas o rótulo é "Início". Serve para o gráfico ligar a linha ao zero
+   * sem começar em cima de um valor alto, que era a origem do "não parte de 0".
+   */
+  baseline?: boolean;
 }
 
 function localDateKey(d: Date): string {
@@ -164,6 +171,15 @@ function localDateKey(d: Date): string {
  *   e a linha mostra o XP acumulado REAL ao longo do tempo.
  * - Se a janela inteira cair num único dia, retorna 1 ponto (a UI decide como
  *   exibir sem inventar histórico).
+ *
+ * PARTIDA EM ZERO (item 3): o `base` acima é REAL, então continua sendo o
+ * primeiro valor da série — nunca é substituído por 0 (isso apagaria XP que o
+ * usuário de fato ganhou). O que mudou é que ele passou a ser MARCADO como
+ * `baseline`, e a UI usa essa marca para desenhar uma âncora em 0 XP ANTES dele.
+ * Sem isso a linha nascia em cima de 700/1.240 XP e parecia que o eixo não
+ * partia do zero: os dois comportamentos — não apagar dado real e partir do
+ * zero — convivem porque a âncora é um ponto de partida declarado, não um log
+ * de ganho.
  */
 export async function getEvolutionHistory(userId: string, take = 30): Promise<EvolutionPoint[]> {
   const lvl = await gp.level.findUnique({ where: { userId } });
@@ -190,7 +206,12 @@ export async function getEvolutionHistory(userId: string, take = 30): Promise<Ev
       xp: running,
     });
   }
-  return [...byDay.values()];
+  const points = [...byDay.values()];
+  // Marca o start da janela. Quando o `base` É zero (conta nova) o primeiro
+  // ponto já começa no eixo, e a marca vira redundante — mas é inofensiva: a UI
+  // só desenha a âncora se o start não estiver em 0, para não criar dois pontos
+  // no mesmo lugar.
+  return points.map((p, i) => (i === 0 ? { ...p, baseline: true } : p));
 }
 
 // ------------------------------------------------------------

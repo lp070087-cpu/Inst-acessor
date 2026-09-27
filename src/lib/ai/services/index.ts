@@ -11,6 +11,9 @@ export {
   listConversations,
   getConversation,
   deleteConversation,
+  // Item 10 — renomear conversa (atual e anteriores).
+  renameConversation,
+  normalizeConversationTitle,
   type ChatResult,
 } from "./chat";
 

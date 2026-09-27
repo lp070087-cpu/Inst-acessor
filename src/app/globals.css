@@ -172,3 +172,77 @@
     transition-duration: 0.001s !important;
   }
 }
+
+/* ============================================================
+   ITEM 7 — RESPONSIVIDADE EM ANDROID E iOS
+   ============================================================
+   Tudo aqui é comportamento de NAVEGADOR MÓVEL, não estilo: nenhuma regra
+   abaixo muda a aparência no desktop (as duas primeiras usam media query de
+   toque ou largura de celular). Por isso ficam no global e não espalhadas
+   tela por tela — do contrário cada tela nova voltaria a ter o defeito.
+
+   Mesmo arquivo de tokens: nenhuma cor nova, nenhum componente novo.
+   ============================================================ */
+
+/* 1) TOQUE — `manipulation` desliga o zoom por DUPLO TOQUE e o atraso de
+   ~300ms que o navegador móvel espera para saber se o segundo toque vem.
+   Aplicado só quando o aparelho tem dedo (`hover: none`): no desktop, com
+   mouse, o valor não faria diferença e ficaria escondido atrás de uma
+   condição que nunca é verdadeira ali. */
+@media (hover: none) {
+  a,
+  button,
+  [role="button"],
+  input,
+  select,
+  textarea,
+  label,
+  summary {
+    touch-action: manipulation;
+  }
+
+  /* Feedback do toque: o cinza padrão do Android não pertence à paleta e às
+     vezes cobre o rótulo inteiro. Trocamos por um brilho roxo discreto — o
+     toque continua dando resposta visual, que é o que importa num aparelho
+     sem hover. */
+  a,
+  button,
+  [role="button"],
+  label,
+  summary {
+    -webkit-tap-highlight-color: rgba(139, 92, 246, 0.16);
+  }
+}
+
+/* 2) ROLAGEM — `contain` impede que o fim de uma lista interna "puxe" a
+   página inteira (scroll chaining) e, no Android, que o gesto para baixo no
+   topo dispare o "puxar para atualizar" e recarregue o app no meio do uso.
+   `overscroll-behavior-y` no body é seguro: não desliga a rolagem normal nem
+   a barra de rolagem. */
+body {
+  overscroll-behavior-y: contain;
+}
+
+/* 3) ZOOM AO FOCAR (iOS) — o defeito mais visível do app no celular.
+   O Safari do iOS DÁ ZOOM quando um campo de texto recebe foco com fonte
+   menor que 16px. O resultado não é "letra pequena": a página fica AMPLIADA e
+   deslocada, e o usuário precisa afastar com os dedos para continuar.
+
+   Por que o `!important` aqui — e só aqui: as telas definem o tamanho do campo
+   com classes utilitárias (`text-[13px]`, `text-[12.5px]`…), que são SELETOR DE
+   CLASSE e por isso vencem um seletor de elemento (`input`) na cascata, em
+   qualquer ordem. Sem `!important` esta regra seria ignorada em quase todos os
+   formulários justamente onde o defeito aparece.
+
+   O raio de ação é estreito de propósito:
+     • só abaixo de 640px (mesmo ponto de quebra do `sm:` do Tailwind);
+     • só controles que recebem TEXTO digitado (fora checkbox, radio, range,
+       file, color, botões e imagens, que não têm texto e não causam o zoom).
+   No desktop nada muda. */
+@media (max-width: 639.98px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}

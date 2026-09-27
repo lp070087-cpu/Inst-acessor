@@ -63,6 +63,21 @@ export {
   type DisplayNameSource,
 } from "./display-name";
 export {
+  getPlatformSelection,
+  setPlatformSelection,
+  normalizePlatformSelection,
+  readStoredPlatforms,
+  selectionIncludes,
+  platformsOf,
+  achievementApplies,
+  PLATFORM_SELECTIONS,
+  PLATFORM_SELECTION_LABELS,
+  PLATFORM_CONNECTION_META,
+  DEFAULT_PLATFORM_SELECTION,
+  type TrackedPlatform,
+  type PlatformSelection,
+} from "./platforms";
+export {
   loadPublicProfile,
   normalizePublicSlug,
 } from "./public-profile";
