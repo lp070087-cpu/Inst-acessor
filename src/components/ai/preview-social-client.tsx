@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { upload } from "@vercel/blob/client";
 import {
   Eye,
   Image as ImageIcon,
@@ -84,6 +85,7 @@ interface SavedCopy {
 }
 
 interface PreviewSocialProps {
+  userId: string;
   aiConfigured: boolean;
   initialDrafts: Draft[];
   initialSaved: SavedCopy[];
@@ -139,8 +141,8 @@ function downscaleImage(file: File): Promise<string> {
   });
 }
 
-export function PreviewSocial({ aiConfigured, initialDrafts, initialSaved }: PreviewSocialProps) {
-  const { toast } = useToast();
+export function PreviewSocial({ userId, aiConfigured, initialDrafts, initialSaved }: PreviewSocialProps) {
+    const { toast } = useToast();
 
   const [platform, setPlatform] = React.useState<string>("instagram");
   const [format, setFormat] = React.useState<string>("post");
@@ -152,6 +154,8 @@ export function PreviewSocial({ aiConfigured, initialDrafts, initialSaved }: Pre
    * do que estourar o limite do schema e devolver um erro incompreensível.
    */
   const [mediaOversize, setMediaOversize] = React.useState(false);
+  const [mediaFile, setMediaFile] = React.useState<File | null>(null);
+  const [uploadingMedia, setUploadingMedia] = React.useState(false);
   const [caption, setCaption] = React.useState("");
   const [hashtags, setHashtags] = React.useState("");
   const [drafts, setDrafts] = React.useState<Draft[]>(initialDrafts);
@@ -159,6 +163,7 @@ export function PreviewSocial({ aiConfigured, initialDrafts, initialSaved }: Pre
   const [view, setView] = React.useState<"criar" | "salvos" | "biblioteca">("criar");
   const [loading, setLoading] = React.useState(false);
   const fileRef = React.useRef<HTMLInputElement>(null);
+
 
   // ---- Campos de criação de copy ----
   const [objective, setObjective] = React.useState("");
@@ -181,6 +186,7 @@ export function PreviewSocial({ aiConfigured, initialDrafts, initialSaved }: Pre
 
   /** Carrega um rascunho de volta no editor. */
   function loadDraft(d: Draft) {
+    setMediaFile(null);
     setPlatform(d.platform);
     setFormat(d.format || "post");
     setMediaUrl(d.mediaUrl);
@@ -196,6 +202,9 @@ export function PreviewSocial({ aiConfigured, initialDrafts, initialSaved }: Pre
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    setMediaFile(file);
+
     const isVideo = file.type.startsWith("video/");
     try {
       const url = isVideo
@@ -225,6 +234,7 @@ export function PreviewSocial({ aiConfigured, initialDrafts, initialSaved }: Pre
   }
 
   function clearAll() {
+    setMediaFile(null);
     setMediaUrl("");
     setMediaOversize(false);
     setCaption("");
@@ -307,17 +317,31 @@ export function PreviewSocial({ aiConfigured, initialDrafts, initialSaved }: Pre
   async function handleSave() {
     setLoading(true);
     try {
-      const res = await fetch("/api/drafts", {
+    let uploadedMediaUrl = mediaUrl;
+if (mediaFile) {
+  setUploadingMedia(true);
+
+  const blob = await upload(
+`inst-acessor/${userId}/${mediaFile.name}`,
+  mediaFile,
+  {
+    access: "public",
+    handleUploadUrl: "/api/upload/media",
+  }
+);
+
+uploadedMediaUrl = blob.url;
+}
+
+const res = await fetch("/api/drafts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          platform,
-          mediaType,
-          // Mídia grande não vai ao banco: o rascunho guarda legendas,
-          // hashtags e formato, e o arquivo continua só no preview local.
-          mediaUrl: mediaOversize ? "" : mediaUrl,
-          caption,
-          hashtags,
+  platform,
+  mediaType,
+  mediaUrl: uploadedMediaUrl,
+  caption,
+  hashtags,
           format,
         }),
       });
@@ -336,6 +360,7 @@ export function PreviewSocial({ aiConfigured, initialDrafts, initialSaved }: Pre
       toast("Erro ao salvar.", "error");
     } finally {
       setLoading(false);
+setUploadingMedia(false);
     }
   }
 

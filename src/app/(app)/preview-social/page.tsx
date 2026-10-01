@@ -42,6 +42,7 @@ export default async function PreviewSocialPage() {
       </div>
 
       <PreviewSocial
+        userId={userId}
         aiConfigured={configured}
         initialDrafts={drafts.map((d) => ({
           id: d.id,
