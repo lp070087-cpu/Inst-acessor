@@ -11,6 +11,8 @@ import {
   Play,
   RefreshCw,
   Send,
+  Plus,
+  Zap,
   XCircle,
   AlertCircle,
   Instagram,
@@ -143,6 +145,9 @@ export function PublishingClient({ initial }: PublishingClientProps) {
   const [platformFilter, setPlatformFilter] = React.useState<string>("TODAS");
   const [loading, setLoading] = React.useState(false);
   const [processingId, setProcessingId] = React.useState<string | null>(null);
+  const [publishingId, setPublishingId] = React.useState<string | null>(null);
+  const [scheduleContentId, setScheduleContentId] = React.useState<string>("");
+  const [scheduleAt, setScheduleAt] = React.useState<string>("");
   const [view, setView] = React.useState<"fila" | "historico">("fila");
   const [logs, setLogs] = React.useState<LogItem[]>([]);
   const [logsLoading, setLogsLoading] = React.useState(false);
@@ -160,6 +165,16 @@ export function PublishingClient({ initial }: PublishingClientProps) {
       return true;
     });
   }, [queue, filter, platformFilter]);
+
+  // Conteúdos que ainda NÃO estão na fila — oferecidos no seletor de agendar.
+  const queuedKeys = React.useMemo(
+    () => new Set(queue.map((q) => `${q.contentId}::${q.platform}`)),
+    [queue]
+  );
+  const availableContents = React.useMemo(
+    () => initial.contents.filter((c) => !queuedKeys.has(`${c.id}::${c.platform}`)),
+    [initial.contents, queuedKeys]
+  );
 
   async function reload() {
     setLoading(true);
@@ -244,6 +259,100 @@ export function PublishingClient({ initial }: PublishingClientProps) {
     }
   }
 
+  /**
+   * Aguarda o item sair de PROCESSANDO. `publishContent` devolve só depois de
+   * falar com a API real do Instagram (pode levar alguns segundos), então a
+   * tela recarrega em passos enquanto o status permanecer PROCESSANDO.
+   */
+  async function pollProcessing(contentId: string, platform: string): Promise<QueueItem[]> {
+    let latest = queue;
+    for (let i = 0; i < 6; i++) {
+      await new Promise((r) => setTimeout(r, 2000));
+      const res = await fetch("/api/publishing");
+      if (!res.ok) break;
+      const data = await res.json();
+      latest = (data.items ?? []) as QueueItem[];
+      setQueue(latest);
+      const item = latest.find((x) => x.contentId === contentId && x.platform === platform);
+      if (!item || item.status !== "PROCESSANDO") break;
+    }
+    return latest;
+  }
+
+  function reportResult(item: QueueItem | undefined, fallbackMessage: string) {
+    if (!item) {
+      toast(fallbackMessage);
+      return;
+    }
+    if (item.status === "PUBLICADO") {
+      toast("Publicado com confirmação do Instagram.");
+    } else if (item.status === "FALHOU") {
+      toast(item.errorMessage ?? "A publicação falhou.", "error");
+    } else {
+      toast("Publicação em andamento.");
+    }
+  }
+
+  async function handleSchedule(contentId: string, platform: string, scheduledAt: string) {
+    const content = contentById.get(contentId);
+    if (!content) return;
+    setPublishingId(contentId);
+    try {
+      const res = await fetch("/api/publishing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contentId,
+          platform,
+          format: content.format,
+          scheduledAt: scheduledAt || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        toast(data.error ?? data.errorMessage ?? "Não foi possível agendar.", "error");
+        return;
+      }
+      toast("Conteúdo agendado na fila.");
+      await reload();
+    } catch {
+      toast("Não foi possível agendar.", "error");
+    } finally {
+      setPublishingId(null);
+      setScheduleContentId("");
+      setScheduleAt("");
+    }
+  }
+
+  async function handlePublishNow(contentId: string, platform: string) {
+    const content = contentById.get(contentId);
+    if (!content) return;
+    setPublishingId(contentId);
+    try {
+      const res = await fetch("/api/publishing?action=publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contentId, platform, format: content.format }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast(data.error ?? "Não foi possível publicar.", "error");
+        return;
+      }
+      // `publishContent` só responde depois da tentativa real; recarregamos
+      // para ler o estado final (PUBLICADO ou FALHOU com o motivo real).
+      const latest = await pollProcessing(contentId, platform);
+      reportResult(
+        latest.find((x) => x.contentId === contentId && x.platform === platform),
+        data.errorMessage ?? "Publicação enviada ao Instagram."
+      );
+    } catch {
+      toast("Não foi possível publicar.", "error");
+    } finally {
+      setPublishingId(null);
+    }
+  }
+
   const counts = React.useMemo(() => {
     const c: Record<string, number> = { TODOS: queue.length };
     for (const s of ["AGENDADO", "PROCESSANDO", "PUBLICADO", "FALHOU", "CANCELADO"]) {
@@ -254,6 +363,85 @@ export function PublishingClient({ initial }: PublishingClientProps) {
 
   return (
     <div className="flex flex-col gap-5">
+      {/* ----------------------------------------------------------------
+          AGENDAR UM CONTEÚDO PLANEJADO
+          Sem este bloco a fila nunca recebia item: `scheduleContent` e
+          `publishContent` existiam nas APIs mas nenhum ponto do app os
+          chamava. Aqui o usuário escolhe um PlannedContent (do Calendário /
+          Preview Social) e o coloca na fila — ou publica na hora.
+          ---------------------------------------------------------------- */}
+      <div className="rounded-md bg-card border border-border-soft p-4 flex flex-col gap-3">
+        <div className="flex items-center gap-2">
+          <Plus size={16} className="text-purple" />
+          <span className="text-[13.5px] font-semibold text-ink">Agendar um conteúdo</span>
+        </div>
+
+        {availableContents.length === 0 ? (
+          <p className="text-[12.5px] text-ink-muted">
+            Todos os seus conteúdos planejados já estão na fila. Crie ou agende
+            novos conteúdos pelo Calendário ou pelo Preview Social.
+          </p>
+        ) : (
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="flex flex-col gap-1 min-w-[240px] flex-1">
+              <span className="text-[11.5px] font-semibold text-ink-soft">Conteúdo planejado</span>
+              <select
+                value={scheduleContentId}
+                onChange={(e) => setScheduleContentId(e.target.value)}
+                className="text-[13px] rounded-[10px] border border-border-soft bg-surface px-3 py-2 text-ink"
+              >
+                <option value="">Selecione um conteúdo…</option>
+                {availableContents.map((c) => (
+                  <option key={`${c.id}::${c.platform}`} value={c.id}>
+                    {c.title} · {PLATFORM_LABEL[c.platform] ?? c.platform} · {FORMAT_LABEL[c.format] ?? c.format}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[11.5px] font-semibold text-ink-soft">Data/hora (opcional)</span>
+              <input
+                type="datetime-local"
+                value={scheduleAt}
+                onChange={(e) => setScheduleAt(e.target.value)}
+                className="text-[13px] rounded-[10px] border border-border-soft bg-surface px-3 py-2 text-ink"
+              />
+            </label>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const c = availableContents.find((x) => x.id === scheduleContentId);
+                if (c) void handleSchedule(c.id, c.platform, scheduleAt);
+              }}
+              disabled={!scheduleContentId || publishingId !== null}
+            >
+              {publishingId === scheduleContentId ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <CalendarClock size={14} />
+              )}
+              Agendar
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                const c = availableContents.find((x) => x.id === scheduleContentId);
+                if (c) void handlePublishNow(c.id, c.platform);
+              }}
+              disabled={!scheduleContentId || publishingId !== null}
+            >
+              {publishingId === scheduleContentId ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Zap size={14} />
+              )}
+              Publicar agora
+            </Button>
+          </div>
+        )}
+      </div>
+
       {/* Barra de ações */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
@@ -428,6 +616,20 @@ export function PublishingClient({ initial }: PublishingClientProps) {
                   <div className="flex items-center gap-2">
                     <Badge tone={tone}>{STATUS_LABEL[q.status] ?? q.status}</Badge>
                     {q.status === "PROCESSANDO" && <Loader2 size={14} className="animate-spin text-warn" />}
+                    {q.status === "AGENDADO" && (
+                      <Button
+                        size="xs"
+                        onClick={() => void handlePublishNow(q.contentId, q.platform)}
+                        disabled={publishingId !== null}
+                      >
+                        {publishingId === q.contentId ? (
+                          <Loader2 size={13} className="animate-spin" />
+                        ) : (
+                          <Zap size={13} />
+                        )}
+                        Publicar agora
+                      </Button>
+                    )}
                   </div>
                 </div>
 

@@ -620,12 +620,13 @@ export function AssinaturaClient({
                       </Badge>
                     )}
                   </div>
-                  {/* Preço CHEIO riscado quando há oferta vigente — a
-                      comparação é explícita em vez de "economia" calculada no
-                      navegador. */}
+                  {/* VALOR DE LANÇAMENTO — o preço MAIOR é o valor ORIGINAL do
+                      plano (`plan.priceCents`), riscado ao lado da oferta. Era um
+                      "de X por" sem nome; agora diz o que é. O preço MENOR, que vem
+                      abaixo, é a PRÉ-VENDA — não o lançamento. */}
                   {onSale && promoPrice != null && (
                     <span className="text-[12.5px] text-ink-muted">
-                      de <s>{formatBRL(plan.priceCents)}</s> por
+                      Valor de lançamento (original): <s>{formatBRL(plan.priceCents)}</s>
                     </span>
                   )}
 
@@ -652,12 +653,22 @@ export function AssinaturaClient({
                     </span>
                   </div>
 
-                  {/* Oferta vigente: texto pedido + o que ela significa. */}
+                  {/* NOMENCLATURA DOS PREÇOS — o preço MAIOR é o valor ORIGINAL /
+                      de LANÇAMENTO do plano (`plan.priceCents`); o preço MENOR é a
+                      PRÉ-VENDA (`promoPrice`). O texto anterior dizia
+                      "NO LANÇAMENTO POR {preço menor}", o que chamava a promoção de
+                      preço de lançamento e invertia os dois papéis. Nenhum valor foi
+                      alterado — só os rótulos. `label` já vem da vitrine com o
+                      prefixo "Pré-venda · " ("Pré-venda · 6 primeiras cobranças"),
+                      removido aqui para a palavra não repetir na mesma linha. */}
                   {onSale && promoPrice != null && (
                     <p className="text-[11.5px] font-semibold text-purple break-words">
-                      NO LANÇAMENTO POR {formatBRL(promoPrice)}
+                      Pré-venda: {formatBRL(promoPrice)}
                       {showcase?.label ? (
-                        <span className="font-normal text-ink-soft"> · {showcase.label}</span>
+                        <span className="font-normal text-ink-soft">
+                          {" · "}
+                          {showcase.label.replace(/^Pré-venda\s*·\s*/i, "")}
+                        </span>
                       ) : null}
                     </p>
                   )}

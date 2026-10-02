@@ -822,6 +822,7 @@ export function CalendarClient({ initial }: CalendarClientProps) {
         goals={goals}
         experiments={experiments}
         copies={copies}
+        drafts={drafts}
         preselectIdeaId={preselectIdeaId}
         onConsumedPreselect={() => setPreselectIdeaId(null)}
       />
@@ -959,11 +960,12 @@ interface CreateContentModalProps {
   goals: GoalData[];
   experiments: ExperimentData[];
   copies: CopyData[];
+  drafts: DraftData[];
   preselectIdeaId?: string | null;
   onConsumedPreselect?: () => void;
 }
 
-function CreateContentModal({ open, onClose, onSave, ideas, goals, experiments, copies, preselectIdeaId, onConsumedPreselect }: CreateContentModalProps) {
+function CreateContentModal({ open, onClose, onSave, ideas, goals, experiments, copies, drafts, preselectIdeaId, onConsumedPreselect }: CreateContentModalProps) {
   const [title, setTitle] = React.useState("");
   const [platform, setPlatform] = React.useState("instagram");
   const [format, setFormat] = React.useState("reel");
@@ -974,6 +976,7 @@ function CreateContentModal({ open, onClose, onSave, ideas, goals, experiments, 
   const [hypothesis, setHypothesis] = React.useState("");
   const [ideaId, setIdeaId] = React.useState("");
   const [copyId, setCopyId] = React.useState("");
+  const [draftId, setDraftId] = React.useState("");
   const [goalId, setGoalId] = React.useState("");
   const [saving, setSaving] = React.useState(false);
 
@@ -981,7 +984,7 @@ function CreateContentModal({ open, onClose, onSave, ideas, goals, experiments, 
     if (open) {
       setTitle(""); setPlatform("instagram"); setFormat("reel"); setTheme("");
       setObjective(""); setScheduledAt(""); setNotes(""); setHypothesis("");
-      setIdeaId(""); setCopyId(""); setGoalId("");
+      setIdeaId(""); setCopyId(""); setDraftId(""); setGoalId("");
       if (preselectIdeaId) {
         setIdeaId(preselectIdeaId);
         const idea = ideas.find((i) => i.id === preselectIdeaId);
@@ -1010,6 +1013,7 @@ function CreateContentModal({ open, onClose, onSave, ideas, goals, experiments, 
       hypothesis: hypothesis.trim(),
       ideaId: ideaId || null,
       copyId: copyId || null,
+      draftId: draftId || null,
       goalId: goalId || null,
     });
     setSaving(false);
@@ -1033,7 +1037,19 @@ function CreateContentModal({ open, onClose, onSave, ideas, goals, experiments, 
         <div className="grid grid-cols-2 gap-3">
           <label className="flex flex-col gap-1">
             <span className="text-[12.5px] font-semibold text-ink">Plataforma</span>
-            <select value={platform} onChange={(e) => setPlatform(e.target.value)} className="px-3.5 py-2.5 rounded-[10px] bg-bg border border-border-soft text-[14px] text-ink focus:outline-none focus:ring-2 focus:ring-purple/30 cursor-pointer">
+            <select
+              value={platform}
+              onChange={(e) => {
+                // Trocar a plataforma INVALIDA o rascunho escolhido: a lista de
+                // rascunhos é filtrada por plataforma, então o valor antigo pode
+                // não existir mais na lista nova. Sem zerar, o estado guardaria
+                // um rascunho de Instagram e o enviaria junto com um conteúdo
+                // de TikTok.
+                setPlatform(e.target.value);
+                setDraftId("");
+              }}
+              className="px-3.5 py-2.5 rounded-[10px] bg-bg border border-border-soft text-[14px] text-ink focus:outline-none focus:ring-2 focus:ring-purple/30 cursor-pointer"
+            >
               <option value="instagram">Instagram</option>
               <option value="tiktok">TikTok</option>
             </select>
@@ -1107,6 +1123,24 @@ function CreateContentModal({ open, onClose, onSave, ideas, goals, experiments, 
             {goals.filter((g) => g.status === "ATIVA").map((g) => (
               <option key={g.id} value={g.id}>{g.title}</option>
             ))}
+          </select>
+        </label>
+
+        {/* Rascunho do Preview Social = MÍDIA do conteúdo. É o que carrega a
+            URL pública do Blob até o publicador (via draftId → buildPayload).
+            Sem vincular, a Central de Publicação não tem mídia para enviar. */}
+        <label className="flex flex-col gap-1">
+          <span className="text-[12.5px] font-semibold text-ink">Rascunho (mídia do Preview Social)</span>
+          <select value={draftId} onChange={(e) => setDraftId(e.target.value)} className="px-3.5 py-2.5 rounded-[10px] bg-bg border border-border-soft text-[14px] text-ink focus:outline-none focus:ring-2 focus:ring-purple/30 cursor-pointer">
+            <option value="">Nenhum</option>
+            {drafts
+              .filter((d) => d.platform === platform)
+              .map((d) => (
+                <option key={d.id} value={d.id}>
+                  {(d.caption ? d.caption.slice(0, 40) : "Rascunho") + "…"}
+                  {d.mediaUrl ? " · com mídia" : " · sem mídia"}
+                </option>
+              ))}
           </select>
         </label>
 

@@ -7,6 +7,7 @@ import {
   GraduationCap,
   BrainCircuit,
   Share2,
+  Send,
   MessageSquareHeart,
   BarChart3,
   CalendarDays,
@@ -98,6 +99,15 @@ export const mainNav: NavItem[] = [
     description: "Conecte e gerencie suas contas",
   },
   {
+    // Central de Publicação: fila, histórico e os 6 estados já existiam em
+    // /publishing, mas a rota estava fora da sidebar. Item próprio, entre
+    // Redes Sociais (onde as contas ficam conectadas) e Respostas Inteligentes.
+    label: "Publicação",
+    href: "/publishing",
+    icon: Send,
+    description: "Publique e acompanhe seus conteúdos",
+  },
+  {
     label: "Respostas Inteligentes",
     href: "/respostas-inteligentes",
     icon: MessageSquareHeart,
@@ -179,6 +189,7 @@ export const PREMIUM_ROUTES = [
   "/mentoria",
   "/score",
   "/perfil-de-inteligencia",
+  "/publishing",
   "/respostas-inteligentes",
   "/analise-de-desempenho",
 ] as const;
