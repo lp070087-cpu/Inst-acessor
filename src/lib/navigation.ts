@@ -75,6 +75,12 @@ export const mainNav: NavItem[] = [
     description: "Recomendações baseadas no seu histórico",
   },
   {
+    label: "Calendário",
+    href: "/calendario",
+    icon: CalendarDays,
+    description: "Planeje e organize suas publicações",
+  },
+  {
     label: "Mentoria",
     href: "/mentoria",
     icon: GraduationCap,
