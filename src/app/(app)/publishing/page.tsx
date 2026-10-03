@@ -61,6 +61,9 @@ export default async function PublishingPage() {
             format: c.format,
             status: c.status,
             scheduledAt: c.scheduledAt,
+            // Mídia do rascunho vinculado — alimenta a miniatura na Central.
+            draftMediaUrl: c.draftMediaUrl ?? "",
+            draftMediaType: c.draftMediaType ?? "",
           })),
         }}
       />

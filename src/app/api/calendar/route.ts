@@ -49,6 +49,8 @@ function toJson(row: {
   ideaTitle: string | null;
   copyContent: string | null;
   draftCaption: string | null;
+  draftMediaUrl: string | null;
+  draftMediaType: string | null;
   goalTitle: string | null;
   experimentTitles: string[];
   createdAt: string;
@@ -75,6 +77,8 @@ function toJson(row: {
     ideaTitle: row.ideaTitle ?? "",
     copyContent: row.copyContent ?? "",
     draftCaption: row.draftCaption ?? "",
+    draftMediaUrl: row.draftMediaUrl ?? "",
+    draftMediaType: row.draftMediaType ?? "",
     goalTitle: row.goalTitle ?? "",
     experimentTitles: row.experimentTitles,
     createdAt: row.createdAt,

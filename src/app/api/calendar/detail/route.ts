@@ -43,6 +43,8 @@ export async function GET(request: Request) {
       ideaTitle: row.ideaTitle ?? "",
       copyContent: row.copyContent ?? "",
       draftCaption: row.draftCaption ?? "",
+      draftMediaUrl: row.draftMediaUrl ?? "",
+      draftMediaType: row.draftMediaType ?? "",
       goalTitle: row.goalTitle ?? "",
       experimentTitles: row.experimentTitles,
       createdAt: row.createdAt,

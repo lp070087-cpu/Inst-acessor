@@ -15,6 +15,8 @@ import {
   Zap,
   XCircle,
   AlertCircle,
+  ChevronDown,
+  Image as ImageIcon,
   Instagram,
   Music2,
 } from "lucide-react";
@@ -53,6 +55,9 @@ interface ContentItem {
   format: string;
   status: string;
   scheduledAt: string | null;
+  /** Miniatura do rascunho vinculado (vem de PlannedContent.draftMediaUrl). */
+  draftMediaUrl: string;
+  draftMediaType: string;
 }
 
 interface LogItem {
@@ -129,6 +134,122 @@ function PlatformIcon({ platform }: { platform: string }) {
     <Instagram size={15} className="text-purple" />
   ) : (
     <Music2 size={15} className="text-purple" />
+  );
+}
+
+/**
+ * Miniatura da mídia do conteúdo planejado (vem do rascunho vinculado).
+ * Sem mídia: marcador "Sem mídia" — nunca inventa imagem.
+ */
+function ContentThumb({ content }: { content: ContentItem | undefined }) {
+  const url = content?.draftMediaUrl;
+  const isVideo = content?.draftMediaType === "video";
+  return (
+    <span className="w-12 h-12 rounded-[10px] overflow-hidden bg-surface grid place-items-center flex-none border border-border-soft">
+      {url ? (
+        isVideo ? (
+          <video src={url} className="w-full h-full object-cover" muted playsInline />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={url} alt="" className="w-full h-full object-cover" />
+        )
+      ) : (
+        <ImageIcon size={16} className="text-ink-muted" />
+      )}
+    </span>
+  );
+}
+
+/**
+ * Erro AMIGÁVEL para o usuário comum, preservando o detalhe técnico para o
+ * admin (nunca escondemos o erro real — só o apresentamos em duas camadas).
+ * O `errorCode` vem do adapter (ex.: "9007/… OAuthException").
+ */
+function friendlyPublishError(code: string | null, message: string | null): string {
+  const raw = `${code ?? ""} ${message ?? ""}`;
+  if (/9007|Media ID is not available/i.test(raw)) {
+    return "Não foi possível concluir o envio da mídia ao Instagram.";
+  }
+  if (/190|OAuthException|access token/i.test(raw)) {
+    return "Sua conexão com o Instagram expirou. Reconecte em Redes Sociais.";
+  }
+  if (/AUTH|token/i.test(code ?? "")) {
+    return "Sua conexão com a plataforma expirou. Reconecte em Redes Sociais.";
+  }
+  if (/RATE_LIMIT/i.test(code ?? "")) {
+    return "A plataforma está limitando publicações. Aguarde um pouco antes de tentar de novo.";
+  }
+  if (/VALIDATION/i.test(code ?? "")) {
+    return "Este conteúdo não pode ser publicado no formato escolhido.";
+  }
+  if (/INTEGRATION_NOT_CONFIGURED/i.test(code ?? "")) {
+    return "A publicação real não está disponível: conecte sua conta de rede social em Redes Sociais.";
+  }
+  return message || "Não foi possível concluir a publicação.";
+}
+
+/** Bloco de erro com detalhe técnico recolhível (visível para o admin). */
+function PublishErrorBox({
+  code,
+  message,
+  provider,
+  externalId,
+}: {
+  code: string | null;
+  message: string | null;
+  provider: string | null;
+  externalId: string | null;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const friendly = friendlyPublishError(code, message);
+  const hasDetail = Boolean(code || provider || externalId);
+  return (
+    <div className="rounded-md bg-danger-soft border border-danger/15 px-3 py-2 flex flex-col gap-1.5">
+      <div className="flex items-start gap-2 text-[12.5px] text-danger">
+        <AlertCircle size={14} className="flex-none mt-0.5" />
+        <span>{friendly}</span>
+      </div>
+      {hasDetail && (
+        <>
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="self-start inline-flex items-center gap-1 text-[11.5px] font-semibold text-danger/90 hover:text-danger cursor-pointer"
+          >
+            <ChevronDown size={12} className={cn("transition-transform duration-200", open && "rotate-180")} />
+            Ver detalhes técnicos
+          </button>
+          {open && (
+            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[11.5px] text-ink-soft">
+              {code && (
+                <>
+                  <dt className="font-semibold text-ink-muted">Código</dt>
+                  <dd className="break-words">{code}</dd>
+                </>
+              )}
+              {provider && (
+                <>
+                  <dt className="font-semibold text-ink-muted">Provider</dt>
+                  <dd className="break-words">{provider}</dd>
+                </>
+              )}
+              {externalId && (
+                <>
+                  <dt className="font-semibold text-ink-muted">ID externo</dt>
+                  <dd className="break-words">{externalId}</dd>
+                </>
+              )}
+              {message && (
+                <>
+                  <dt className="font-semibold text-ink-muted">Mensagem</dt>
+                  <dd className="break-words">{message}</dd>
+                </>
+              )}
+            </dl>
+          )}
+        </>
+      )}
+    </div>
   );
 }
 
@@ -588,29 +709,35 @@ export function PublishingClient({ initial }: PublishingClientProps) {
                 className="rounded-md bg-card border border-border-soft p-4 flex flex-col gap-3"
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="flex flex-col gap-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <PlatformIcon platform={q.platform} />
-                      <span className="text-[13.5px] font-semibold text-ink truncate">
-                        {content?.title ?? "Conteúdo"}
-                      </span>
-                      <Badge size="xs" tone="neutral">{PLATFORM_LABEL[q.platform] ?? q.platform}</Badge>
-                      <Badge size="xs" tone="neutral">{FORMAT_LABEL[q.format] ?? q.format}</Badge>
-                    </div>
-                    <div className="flex items-center gap-3 text-[12px] text-ink-muted">
-                      <span className="inline-flex items-center gap-1">
-                        <Clock size={12} /> {fmtDateTime(q.scheduledAt)}
-                      </span>
-                      {q.nextAttemptAt && q.status === "AGENDADO" && (
-                        <span className="inline-flex items-center gap-1">
-                          <RefreshCw size={12} /> próxima tentativa {fmtDateTime(q.nextAttemptAt)}
+                  <div className="flex items-start gap-3 min-w-0 flex-1">
+                    <ContentThumb content={content} />
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <PlatformIcon platform={q.platform} />
+                        <span className="text-[13.5px] font-semibold text-ink truncate">
+                          {content?.title ?? "Conteúdo"}
                         </span>
-                      )}
-                      {q.attempts > 0 && (
+                        <Badge size="xs" tone="neutral">{PLATFORM_LABEL[q.platform] ?? q.platform}</Badge>
+                        <Badge size="xs" tone="neutral">{FORMAT_LABEL[q.format] ?? q.format}</Badge>
+                        {content && !content.draftMediaUrl && (
+                          <Badge size="xs" tone="warning">Sem mídia</Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 text-[12px] text-ink-muted flex-wrap">
                         <span className="inline-flex items-center gap-1">
-                          <AlertCircle size={12} /> {q.attempts} tentativa(s)
+                          <Clock size={12} /> {fmtDateTime(q.scheduledAt)}
                         </span>
-                      )}
+                        {q.nextAttemptAt && q.status === "AGENDADO" && (
+                          <span className="inline-flex items-center gap-1">
+                            <RefreshCw size={12} /> próxima tentativa {fmtDateTime(q.nextAttemptAt)}
+                          </span>
+                        )}
+                        {q.attempts > 0 && (
+                          <span className="inline-flex items-center gap-1">
+                            <AlertCircle size={12} /> {q.attempts} tentativa(s)
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -633,11 +760,13 @@ export function PublishingClient({ initial }: PublishingClientProps) {
                   </div>
                 </div>
 
-                {q.errorMessage && (
-                  <div className="rounded-md bg-danger-soft border border-danger/15 px-3 py-2 text-[12.5px] text-danger flex items-start gap-2">
-                    <AlertCircle size={14} className="flex-none mt-0.5" />
-                    <span>{q.errorMessage}</span>
-                  </div>
+                {(q.errorMessage || q.errorCode) && (
+                  <PublishErrorBox
+                    code={q.errorCode}
+                    message={q.errorMessage}
+                    provider={q.provider}
+                    externalId={q.externalId}
+                  />
                 )}
                 {q.externalId && (
                   <div className="rounded-md bg-success-soft border border-success/15 px-3 py-2 text-[12.5px] text-success flex items-center gap-2">

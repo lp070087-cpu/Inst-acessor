@@ -16,11 +16,16 @@ import {
   Copy as CopyIcon,
   Check,
   Star,
+  Send,
+  Zap,
+  CalendarClock,
+  AlertTriangle,
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Tabs } from "@/components/ui/tabs";
+import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils";
 
 /**
@@ -164,6 +169,17 @@ export function PreviewSocial({ userId, aiConfigured, initialDrafts, initialSave
   const [loading, setLoading] = React.useState(false);
   const fileRef = React.useRef<HTMLInputElement>(null);
 
+  // Título interno do conteúdo (opcional): alimenta o PlannedContent gerado por
+  // Programar / Publicar agora. Sem ele, o título é derivado da legenda.
+  const [title, setTitle] = React.useState("");
+
+  // Fluxos de publicação (reutilizam o MOTOR existente — nada é duplicado).
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
+  const [scheduleOpen, setScheduleOpen] = React.useState(false);
+  const [scheduleAt, setScheduleAt] = React.useState("");
+  const [publishing, setPublishing] = React.useState(false);
+  const [scheduling, setScheduling] = React.useState(false);
+
 
   // ---- Campos de criação de copy ----
   const [objective, setObjective] = React.useState("");
@@ -198,6 +214,9 @@ export function PreviewSocial({ userId, aiConfigured, initialDrafts, initialSave
     setView("criar");
     toast("Rascunho carregado no editor.");
   }
+
+  /** O motor de publicação real conhece Instagram e TikTok. */
+  const publishablePlatform = platform === "instagram" || platform === "tiktok";
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -244,6 +263,7 @@ export function PreviewSocial({ userId, aiConfigured, initialDrafts, initialSave
     setAudience("");
     setContext("");
     setLastGenerated("");
+    setTitle("");
   }
 
   /** Chama o MOTOR existente do Gerador de Copy (mesma rota, sem duplicação). */
@@ -314,43 +334,51 @@ export function PreviewSocial({ userId, aiConfigured, initialDrafts, initialSave
     }
   }
 
+  /**
+   * Garante que o conteúdo atual está no banco como SocialDraft e devolve o id.
+   *
+   * É o MESMO caminho de `handleSave` (upload ao Vercel Blob → POST /api/drafts),
+   * extraído para ser reutilizado por Salvar / Programar / Publicar agora sem
+   * duplicar a lógica de upload. NÃO cria um segundo fluxo.
+   *
+   * Devolve `null` quando algo falhou — quem chamou já mostrou o motivo.
+   */
+  async function ensureDraft(): Promise<string | null> {
+    let uploadedMediaUrl = mediaUrl;
+    if (mediaFile) {
+      setUploadingMedia(true);
+      try {
+        const blob = await upload(
+          `inst-acessor/${userId}/${mediaFile.name}`,
+          mediaFile,
+          { access: "public", handleUploadUrl: "/api/upload/media" }
+        );
+        uploadedMediaUrl = blob.url;
+      } finally {
+        setUploadingMedia(false);
+      }
+    }
+
+    const res = await fetch("/api/drafts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ platform, mediaType, mediaUrl: uploadedMediaUrl, caption, hashtags, format }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      toast(data.error ?? "Erro ao salvar o rascunho.", "error");
+      return null;
+    }
+    const draft = data.draft as Draft | undefined;
+    if (draft) setDrafts((prev) => [draft, ...prev.filter((d) => d.id !== draft.id)]);
+    return draft?.id ?? null;
+  }
+
   async function handleSave() {
     setLoading(true);
     try {
-    let uploadedMediaUrl = mediaUrl;
-if (mediaFile) {
-  setUploadingMedia(true);
-
-  const blob = await upload(
-`inst-acessor/${userId}/${mediaFile.name}`,
-  mediaFile,
-  {
-    access: "public",
-    handleUploadUrl: "/api/upload/media",
-  }
-);
-
-uploadedMediaUrl = blob.url;
-}
-
-const res = await fetch("/api/drafts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-  platform,
-  mediaType,
-  mediaUrl: uploadedMediaUrl,
-  caption,
-  hashtags,
-          format,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast(data.error ?? "Erro ao salvar.", "error");
-        return;
-      }
-      setDrafts((prev) => [data.draft, ...prev]);
+      const id = await ensureDraft();
+      if (!id) return;
       toast(
         mediaOversize
           ? "Rascunho salvo sem o arquivo (mídia grande demais para guardar)."
@@ -360,7 +388,110 @@ const res = await fetch("/api/drafts", {
       toast("Erro ao salvar.", "error");
     } finally {
       setLoading(false);
-setUploadingMedia(false);
+    }
+  }
+
+  /*
+   * PROGRAMAR PUBLICAÇÃO — usa a ponte JÁ EXISTENTE `POST /api/calendar/schedule-from-draft`
+   * (Fase 6.5). O rascunho é gravado primeiro (se preciso) para que o
+   * `draftId` — e portanto a mídia pública — viaje até o PlannedContent.
+   */
+  async function handleSchedule() {
+    if (!caption.trim()) {
+      toast("Adicione uma legenda antes de programar.", "error");
+      return;
+    }
+    if (!scheduleAt) {
+      toast("Escolha a data e a hora da publicação.", "error");
+      return;
+    }
+    setScheduling(true);
+    try {
+      const draftId = await ensureDraft();
+      if (!draftId) return;
+      const iso = new Date(scheduleAt).toISOString();
+      const res = await fetch("/api/calendar/schedule-from-draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          draftId,
+          platform,
+          format,
+          title: title.trim() || caption.trim().slice(0, 80) || "Conteúdo do Preview Social",
+          scheduledAtList: [iso],
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        toast(data.error ?? "Não foi possível programar.", "error");
+        return;
+      }
+      setScheduleOpen(false);
+      setScheduleAt("");
+      toast("Conteúdo programado no Calendário.");
+    } catch {
+      toast("Não foi possível programar.", "error");
+    } finally {
+      setScheduling(false);
+    }
+  }
+
+  /*
+   * PUBLICAR AGORA — confirmação visual → garante o rascunho → enfileira via
+   * `POST /api/publishing`. O disparo real é do MOTOR existente no servidor;
+   * o client nunca fala com a Meta.
+   */
+  async function handlePublishNow() {
+    setPublishing(true);
+    try {
+      const draftId = await ensureDraft();
+      if (!draftId) return;
+
+      const created = await fetch("/api/calendar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          platform,
+          format,
+          title: title.trim() || caption.trim().slice(0, 80) || "Conteúdo do Preview Social",
+          objective: "",
+          scheduledAt: new Date().toISOString(),
+          draftId,
+        }),
+      });
+      const createdData = await created.json();
+      if (!created.ok) {
+        toast(createdData.error ?? "Não foi possível preparar o conteúdo.", "error");
+        return;
+      }
+      const contentId: string | undefined = createdData.content?.id;
+      if (!contentId) {
+        toast("Não foi possível preparar o conteúdo.", "error");
+        return;
+      }
+
+      const pub = await fetch("/api/publishing?action=publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contentId, platform, format }),
+      });
+      const pubData = await pub.json();
+      if (!pub.ok) {
+        toast(pubData.error ?? "Não foi possível publicar.", "error");
+        return;
+      }
+      if (pubData.status === "PUBLICADO") {
+        toast("Publicado com sucesso no Instagram.");
+      } else if (pubData.errorMessage) {
+        toast(pubData.errorMessage, "error");
+      } else {
+        toast("Publicação enviada. Acompanhe o status na Central de Publicação.");
+      }
+      setConfirmOpen(false);
+    } catch {
+      toast("Não foi possível publicar.", "error");
+    } finally {
+      setPublishing(false);
     }
   }
 
@@ -739,10 +870,58 @@ setUploadingMedia(false);
                 />
               </div>
 
-              <div className="flex flex-wrap gap-2 pt-1">
-                <Button onClick={handleSave} disabled={loading} className="gap-2">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[12.5px] font-semibold text-ink-soft">
+                  Título do conteúdo <span className="font-normal text-ink-muted">(opcional)</span>
+                </label>
+                <input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Ex.: Lançamento coleção verão"
+                  maxLength={120}
+                  className={inputCls}
+                />
+                <p className="text-[11.5px] text-ink-muted">
+                  Usado no Calendário e na fila de publicação. Sem título, usamos o início da legenda.
+                </p>
+              </div>
+
+              {/*
+                TRÊS AÇÕES DO MESMO FLUXO — Salvar / Programar / Publicar agora.
+                Todas passam pelas rotas que JÁ existem (/api/drafts,
+                /api/calendar/schedule-from-draft, /api/publishing). O client
+                nunca chama a Meta.
+              */}
+              <div className="flex flex-wrap gap-2 pt-1 border-t border-border-soft mt-1">
+                <Button
+                  variant="outline"
+                  onClick={handleSave}
+                  disabled={loading || publishing || scheduling}
+                  className="gap-2"
+                >
                   {loading ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                   Salvar rascunho
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setScheduleOpen(true)}
+                  disabled={loading || publishing || scheduling || !caption.trim()}
+                  className="gap-2"
+                >
+                  <CalendarClock size={16} /> Programar publicação
+                </Button>
+                <Button
+                  onClick={() => setConfirmOpen(true)}
+                  disabled={loading || publishing || scheduling || !caption.trim() || !publishablePlatform}
+                  className="gap-2"
+                  title={
+                    publishablePlatform
+                      ? undefined
+                      : "A publicação real está disponível para Instagram e TikTok."
+                  }
+                >
+                  {publishing ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
+                  Publicar agora
                 </Button>
                 <Button variant="ghost" onClick={clearAll} className="gap-2">
                   <Eraser size={16} /> Limpar
@@ -850,6 +1029,102 @@ setUploadingMedia(false);
           </div>
         </div>
       )}
+
+      {/* ---------- CONFIRMAÇÃO DE PUBLICAÇÃO — nunca publica em silêncio ---------- */}
+      <Modal
+        open={confirmOpen}
+        onClose={() => (publishing ? undefined : setConfirmOpen(false))}
+        title={`Publicar agora no ${platformLabel}?`}
+        description="Confira a prévia antes de enviar. A publicação é real e aparece no seu perfil."
+        size="sm"
+      >
+        <div className="flex flex-col gap-4">
+          <div className="flex gap-3">
+            <div className="w-20 h-20 rounded-[12px] overflow-hidden bg-surface grid place-items-center flex-none">
+              {mediaUrl ? (
+                mediaType === "image" ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={mediaUrl} alt="Prévia da mídia" className="w-full h-full object-cover" />
+                ) : (
+                  <video src={mediaUrl} className="w-full h-full object-cover" muted playsInline />
+                )
+              ) : (
+                <ImageIcon size={22} className="text-ink-muted" />
+              )}
+            </div>
+            <div className="min-w-0 flex flex-col gap-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-purple">
+                  {platformLabel}
+                </span>
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+                  {formatLabel}
+                </span>
+              </div>
+              <p className="text-[13px] text-ink leading-snug line-clamp-4 whitespace-pre-wrap break-words">
+                {caption.trim() || "Sem legenda"}
+              </p>
+            </div>
+          </div>
+
+          {mediaOversize && (
+            <div className="flex items-start gap-2 rounded-[10px] bg-warn/10 border border-warn/30 p-2.5">
+              <AlertTriangle size={15} className="text-warn flex-none mt-0.5" />
+              <p className="text-[12px] text-ink-soft">
+                A mídia é grande demais para ir ao banco e seria enviada sem o arquivo.
+                A publicação real exige uma URL pública — reenvie um arquivo menor.
+              </p>
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="ghost" onClick={() => setConfirmOpen(false)} disabled={publishing}>
+              Cancelar
+            </Button>
+            <Button onClick={handlePublishNow} disabled={publishing} className="gap-2">
+              {publishing ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+              {publishing
+                ? platform === "instagram"
+                  ? "Enviando para o Instagram…"
+                  : "Enviando para publicação…"
+                : "Publicar agora"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ---------- PROGRAMAR — grava o rascunho e cria o PlannedContent ---------- */}
+      <Modal
+        open={scheduleOpen}
+        onClose={() => (scheduling ? undefined : setScheduleOpen(false))}
+        title="Programar publicação"
+        description="O conteúdo vai para o Calendário com a mídia já vinculada. Nada é enviado à rede agora."
+        size="sm"
+      >
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[12.5px] font-semibold text-ink-soft">Data e hora</label>
+            <input
+              type="datetime-local"
+              value={scheduleAt}
+              onChange={(e) => setScheduleAt(e.target.value)}
+              className={inputCls}
+            />
+            <p className="text-[11.5px] text-ink-muted">
+              {platformLabel} · {formatLabel}
+            </p>
+          </div>
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="ghost" onClick={() => setScheduleOpen(false)} disabled={scheduling}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSchedule} disabled={scheduling || !scheduleAt} className="gap-2">
+              {scheduling ? <Loader2 size={16} className="animate-spin" /> : <CalendarClock size={16} />}
+              {scheduling ? "Programando..." : "Programar"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {view === "salvos" && (
         /* Rascunhos salvos */

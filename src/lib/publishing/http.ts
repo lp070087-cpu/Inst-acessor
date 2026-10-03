@@ -88,11 +88,12 @@ export async function publishHttp<T>(
         // Erro HTTP: classifica retryável (429/5xx) ou permanente (4xx).
         const retryable = isRetryableStatus(res.status);
         const message = safeErrorText(data, res.status);
+        const metaCode = safeErrorCode(data);
         if (retryable && attempt < PUBLISH_MAX_RETRIES) {
-          lastError = new PublishHttpError(message, res.status, true);
+          lastError = new PublishHttpError(message, res.status, true, metaCode);
           continue;
         }
-        throw new PublishHttpError(message, res.status, retryable);
+        throw new PublishHttpError(message, res.status, retryable, metaCode);
       }
 
       return data as T;
@@ -123,6 +124,25 @@ export async function publishHttp<T>(
   throw lastError instanceof PublishHttpError
     ? lastError
     : new PublishHttpError("Falha ao contactar a plataforma.", 0, true);
+}
+
+/**
+ * Extrai o código de erro da Meta (`code`/`error_subcode`) quando existir.
+ * Apenas números/strings curtos — nunca corpo, nunca token. Serve para o App
+ * Review e para o painel de "detalhes técnicos" da Central de Publicação.
+ */
+function safeErrorCode(data: unknown): string | number | undefined {
+  if (!data || typeof data !== "object") return undefined;
+  const err = (data as Record<string, unknown>).error;
+  if (!err || typeof err !== "object") return undefined;
+  const rec = err as Record<string, unknown>;
+  const code = rec.code;
+  const sub = rec.error_subcode;
+  const type = typeof rec.type === "string" ? (rec.type as string) : undefined;
+  if (code == null) return undefined;
+  const subTxt = sub == null ? "" : `/${String(sub)}`;
+  const typeTxt = type ? ` ${type}` : "";
+  return `${String(code)}${subTxt}${typeTxt}`.slice(0, 80);
 }
 
 /** Extrai uma mensagem de erro segura (nunca inclui token/query). */

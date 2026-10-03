@@ -78,6 +78,8 @@ export default async function CalendarPage() {
             ideaTitle: c.ideaTitle ?? "",
             copyContent: c.copyContent ?? "",
             draftCaption: c.draftCaption ?? "",
+            draftMediaUrl: c.draftMediaUrl ?? "",
+            draftMediaType: c.draftMediaType ?? "",
             goalTitle: c.goalTitle ?? "",
             experimentTitles: c.experimentTitles,
             createdAt: c.createdAt,

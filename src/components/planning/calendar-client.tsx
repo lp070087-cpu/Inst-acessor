@@ -21,6 +21,8 @@ import {
   Loader2,
   Save,
   ExternalLink,
+  Image as ImageIcon,
+  Send,
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
@@ -30,6 +32,30 @@ import { Tabs } from "@/components/ui/tabs";
 import { Modal } from "@/components/ui/modal";
 import { SectionCard } from "@/components/ui/section-card";
 import { cn } from "@/lib/utils";
+
+/**
+ * Miniatura do conteúdo na lista do calendário. Usa a mídia do rascunho
+ * vinculado (`draftMediaUrl`) — nada é buscado a mais, o campo já vem da API.
+ * Sem mídia, cai para um quadrado neutro com ícone: nunca inventa imagem.
+ */
+function ContentThumb({ content }: { content: ContentItem }) {
+  const url = content.draftMediaUrl;
+  const isVideo = content.draftMediaType === "video";
+  return (
+    <span className="w-9 h-9 rounded-[8px] overflow-hidden bg-surface grid place-items-center flex-none border border-border-soft">
+      {url ? (
+        isVideo ? (
+          <video src={url} className="w-full h-full object-cover" muted playsInline />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={url} alt="" className="w-full h-full object-cover" />
+        )
+      ) : (
+        <ImageIcon size={15} className="text-ink-muted" />
+      )}
+    </span>
+  );
+}
 
 // ------------------------------------------------------------
 // Tipos (espelham o payload do servidor)
@@ -57,6 +83,8 @@ interface ContentItem {
   ideaTitle: string;
   copyContent: string;
   draftCaption: string;
+  draftMediaUrl: string;
+  draftMediaType: string;
   goalTitle: string;
   experimentTitles: string[];
   createdAt: string;
@@ -777,6 +805,7 @@ export function CalendarClient({ initial }: CalendarClientProps) {
                           onClick={() => setDetailId(c.id)}
                           className="flex items-center gap-3 text-left px-3 py-2 rounded-md hover:bg-bg transition-colors cursor-pointer"
                         >
+                          <ContentThumb content={c} />
                           <span className={cn("w-2 h-2 rounded-full flex-none", STATUS_TONE[c.status].split(" ")[0])} />
                           <span className="text-[13.5px] font-semibold text-ink flex-1 truncate">{c.title}</span>
                           <Badge size="xs" tone="neutral">{PLATFORM_LABEL[c.platform] ?? c.platform}</Badge>
@@ -797,6 +826,7 @@ export function CalendarClient({ initial }: CalendarClientProps) {
                         onClick={() => setDetailId(c.id)}
                         className="flex items-center gap-3 text-left px-3 py-2 rounded-md hover:bg-bg transition-colors cursor-pointer"
                       >
+                        <ContentThumb content={c} />
                         <span className={cn("w-2 h-2 rounded-full flex-none", STATUS_TONE[c.status].split(" ")[0])} />
                         <span className="text-[13.5px] font-semibold text-ink flex-1 truncate">{c.title}</span>
                         <Badge size="xs" tone="neutral">{STATUS_LABEL[c.status] ?? c.status}</Badge>
@@ -1020,9 +1050,15 @@ function CreateContentModal({ open, onClose, onSave, ideas, goals, experiments, 
   }
 
   const selectedIdea = ideas.find((i) => i.id === ideaId);
+  // Rascunho escolhido = a MÍDIA do conteúdo. Usado para a prévia ao lado.
+  const selectedDraft = drafts.find((d) => d.id === draftId);
+  const draftIsVideo = selectedDraft?.mediaType === "video";
 
   return (
     <Modal open={open} onClose={onClose} title="Novo conteúdo planejado" description="Crie um item no calendário. Ele entra como rascunho (ou agendado, se tiver data)." size="lg">
+      {/* Desktop: planejamento à esquerda, prévia da publicação à direita.
+          Mobile: uma coluna (campos, depois prévia) — o grid colapsa sozinho. */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-5 items-start">
       <div className="flex flex-col gap-3">
         <label className="flex flex-col gap-1">
           <span className="text-[12.5px] font-semibold text-ink">Título *</span>
@@ -1131,7 +1167,21 @@ function CreateContentModal({ open, onClose, onSave, ideas, goals, experiments, 
             Sem vincular, a Central de Publicação não tem mídia para enviar. */}
         <label className="flex flex-col gap-1">
           <span className="text-[12.5px] font-semibold text-ink">Rascunho (mídia do Preview Social)</span>
-          <select value={draftId} onChange={(e) => setDraftId(e.target.value)} className="px-3.5 py-2.5 rounded-[10px] bg-bg border border-border-soft text-[14px] text-ink focus:outline-none focus:ring-2 focus:ring-purple/30 cursor-pointer">
+          <select
+            value={draftId}
+            onChange={(e) => {
+              const id = e.target.value;
+              setDraftId(id);
+              // Sincroniza o planejamento com o rascunho escolhido: um rascunho
+              // criado como POST não pode virar Story sem o usuário perceber.
+              const d = drafts.find((x) => x.id === id);
+              if (d) {
+                if (d.platform) setPlatform(d.platform);
+                if (d.format && d.format in FORMAT_LABEL) setFormat(d.format);
+              }
+            }}
+            className="px-3.5 py-2.5 rounded-[10px] bg-bg border border-border-soft text-[14px] text-ink focus:outline-none focus:ring-2 focus:ring-purple/30 cursor-pointer"
+          >
             <option value="">Nenhum</option>
             {drafts
               .filter((d) => d.platform === platform)
@@ -1172,6 +1222,70 @@ function CreateContentModal({ open, onClose, onSave, ideas, goals, experiments, 
           </Button>
         </div>
       </div>
+
+      {/* PRÉVIA DA PUBLICAÇÃO — espelha o rascunho escolhido. É o que torna o
+          modal visual em vez de só campos de texto. `lg:sticky` mantém a prévia
+          à vista enquanto o formulário rola. */}
+      <aside className="flex flex-col gap-3 lg:sticky lg:top-0">
+        <span className="text-[12.5px] font-semibold text-ink-soft flex items-center gap-2">
+          <Eye size={15} className="text-purple" /> Prévia da publicação
+        </span>
+        <div className="rounded-[14px] border border-border-soft bg-bg-ice overflow-hidden">
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-border-soft">
+            <span className="w-7 h-7 rounded-full bg-brand-grad grid place-items-center text-[10px] font-bold text-white">IA</span>
+            <span className="text-[12.5px] font-semibold text-ink truncate min-w-0">Inst Acessor</span>
+            <span className="ml-auto text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
+              {FORMAT_LABEL[format] ?? format}
+            </span>
+          </div>
+
+          <div className="aspect-square bg-surface grid place-items-center overflow-hidden">
+            {selectedDraft?.mediaUrl ? (
+              draftIsVideo ? (
+                <video src={selectedDraft.mediaUrl} className="w-full h-full object-cover" muted playsInline />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={selectedDraft.mediaUrl} alt="Mídia do rascunho" className="w-full h-full object-cover" />
+              )
+            ) : (
+              <div className="flex flex-col items-center gap-2 text-ink-muted px-4 text-center">
+                <ImageIcon size={24} />
+                <span className="text-[11.5px]">
+                  {selectedDraft ? "Este rascunho não tem mídia." : "Escolha um rascunho para ver a mídia."}
+                </span>
+              </div>
+            )}
+          </div>
+
+          <div className="px-3 py-2.5 flex flex-col gap-1.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge size="xs" tone="brand">{PLATFORM_LABEL[platform] ?? platform}</Badge>
+              <Badge size="xs" tone="neutral">{FORMAT_LABEL[format] ?? format}</Badge>
+              <Badge size="xs" tone={selectedDraft?.mediaUrl ? "success" : "neutral"}>
+                {selectedDraft?.mediaUrl ? "Com mídia" : "Sem mídia"}
+              </Badge>
+            </div>
+            <p className="text-[13px] font-semibold text-ink break-words">
+              {title.trim() || "Sem título"}
+            </p>
+            {selectedDraft?.caption ? (
+              <p className="text-[12px] text-ink-soft leading-snug line-clamp-4 whitespace-pre-wrap break-words">
+                {selectedDraft.caption}
+              </p>
+            ) : (
+              <p className="text-[11.5px] text-ink-muted">Sem legenda no rascunho.</p>
+            )}
+          </div>
+        </div>
+
+        {!selectedDraft?.mediaUrl && (
+          <p className="text-[11.5px] text-warn leading-snug">
+            Sem mídia pública o publicador não consegue enviar ao Instagram. Vincule um
+            rascunho do Preview Social que tenha mídia.
+          </p>
+        )}
+      </aside>
+      </div>
     </Modal>
   );
 }
@@ -1211,6 +1325,8 @@ function ContentDetailModal({
   const [previewHashtags, setPreviewHashtags] = React.useState("");
   const [previewMediaType, setPreviewMediaType] = React.useState("reel");
   const [savingPreview, setSavingPreview] = React.useState(false);
+  /** Anti-clique-duplo do "Enviar para publicação" (não dispara duas entradas na fila). */
+  const [sendingQueue, setSendingQueue] = React.useState(false);
 
   React.useEffect(() => {
     setTab("detalhes");
@@ -1349,9 +1465,91 @@ function ContentDetailModal({
 
   const pipelineIndex = PIPELINE_ORDER.indexOf(content.status);
 
+  /**
+   * Envia o conteúdo direto para a FILA de publicação (motor existente).
+   * Mesma rota que a Central usa (`POST /api/publishing`), com o mesmo
+   * anti-clique-duplo. Não publica nada sozinho e não fala com a Meta.
+   */
+  async function sendToPublishing() {
+    setSendingQueue(true);
+    try {
+      const res = await fetch("/api/publishing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contentId: content.id,
+          platform: content.platform,
+          format: content.format,
+          scheduledAt: content.scheduledAt ?? undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        toast(data.error ?? "Não foi possível enviar para a fila.", "error");
+        return;
+      }
+      toast("Conteúdo enviado para a fila de publicação.");
+    } catch {
+      toast("Não foi possível enviar para a fila.", "error");
+    } finally {
+      setSendingQueue(false);
+    }
+  }
+
   return (
     <Modal open onClose={onClose} title={content.title} description="Detalhes, associações e preparação do conteúdo. Nada é publicado automaticamente." size="lg">
       <div className="flex flex-col gap-4">
+        {/* PRÉVIA + AÇÕES — o que o conteúdo é, e o que dá para fazer com ele. */}
+        <div className="flex flex-col sm:flex-row gap-3 items-start">
+          <span className="w-full sm:w-28 h-28 rounded-[12px] overflow-hidden bg-surface grid place-items-center flex-none border border-border-soft">
+            {content.draftMediaUrl ? (
+              content.draftMediaType === "video" ? (
+                <video src={content.draftMediaUrl} className="w-full h-full object-cover" muted playsInline />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={content.draftMediaUrl} alt="Mídia do conteúdo" className="w-full h-full object-cover" />
+              )
+            ) : (
+              <div className="flex flex-col items-center gap-1.5 text-ink-muted px-2 text-center">
+                <ImageIcon size={22} />
+                <span className="text-[10.5px]">Sem mídia vinculada</span>
+              </div>
+            )}
+          </span>
+
+          <div className="flex flex-col gap-2 min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge size="xs" tone="brand">{PLATFORM_LABEL[content.platform] ?? content.platform}</Badge>
+              <Badge size="xs" tone="neutral">{FORMAT_LABEL[content.format] ?? content.format}</Badge>
+              <Badge size="xs" tone={content.draftMediaUrl ? "success" : "warning"}>
+                {content.draftMediaUrl ? "Com mídia" : "Sem mídia"}
+              </Badge>
+            </div>
+            {content.draftCaption ? (
+              <p className="text-[12.5px] text-ink-soft leading-snug line-clamp-3 whitespace-pre-wrap break-words">
+                {content.draftCaption}
+              </p>
+            ) : (
+              <p className="text-[12px] text-ink-muted">Sem legenda no rascunho vinculado.</p>
+            )}
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                size="xs"
+                onClick={sendToPublishing}
+                disabled={sendingQueue}
+                className="gap-1.5"
+                title="Envia este conteúdo para a fila da Central de Publicação."
+              >
+                {sendingQueue ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+                Enviar para publicação
+              </Button>
+              <span className="text-[11.5px] text-ink-muted">
+                O envio cria uma entrada na fila da Central. Nada é publicado automaticamente.
+              </span>
+            </div>
+          </div>
+        </div>
+
         {/* Status / pipeline */}
         <div className="flex items-center gap-2 flex-wrap">
           {PIPELINE_ORDER.map((s, i) => (

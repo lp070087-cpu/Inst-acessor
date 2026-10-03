@@ -51,6 +51,9 @@ export interface PlannedContentView {
   ideaTitle: string | null;
   copyContent: string | null;
   draftCaption: string | null;
+  /** Mídia pública do rascunho vinculado — alimenta a miniatura no calendário. */
+  draftMediaUrl: string | null;
+  draftMediaType: string | null;
   goalTitle: string | null;
   experimentTitles: string[];
   createdAt: string;
@@ -82,6 +85,8 @@ function toView(
     ideaTitle?: string | null;
     copyContent?: string | null;
     draftCaption?: string | null;
+    draftMediaUrl?: string | null;
+    draftMediaType?: string | null;
     goalTitle?: string | null;
     experimentTitles: string[];
   }
@@ -108,6 +113,8 @@ function toView(
     ideaTitle: extra.ideaTitle ?? null,
     copyContent: extra.copyContent ?? null,
     draftCaption: extra.draftCaption ?? null,
+    draftMediaUrl: extra.draftMediaUrl ?? null,
+    draftMediaType: extra.draftMediaType ?? null,
     goalTitle: extra.goalTitle ?? null,
     experimentTitles: extra.experimentTitles,
     createdAt: row.createdAt.toISOString(),
@@ -142,6 +149,8 @@ async function loadExtras(
     ideaTitle: idea ? ((idea as { title: string }).title ?? null) : null,
     copyContent: copy ? ((copy as { content: string }).content ?? null) : null,
     draftCaption: draft ? ((draft as { caption?: string | null }).caption ?? null) : null,
+    draftMediaUrl: draft ? ((draft as { mediaUrl?: string | null }).mediaUrl ?? null) : null,
+    draftMediaType: draft ? ((draft as { mediaType?: string | null }).mediaType ?? null) : null,
     goalTitle: goal ? ((goal as { title: string }).title ?? null) : null,
   };
 }
