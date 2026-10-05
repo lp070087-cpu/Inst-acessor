@@ -94,6 +94,15 @@ export interface InstagramSyncData {
     impressions?: number | null;
     profileViews?: number | null;
   };
+  /**
+   * Engajamento REAL da conta: soma das interações (curtidas + comentários) das
+   * publicações coletadas. `null` quando nenhuma publicação trouxe o par
+   * completo — ausência, nunca zero.
+   *
+   * NÃO vem do `/insights` da conta (esse endpoint não expõe engajamento); é
+   * derivado das publicações por `collectEngagement`, em `metrics.ts`.
+   */
+  engagement?: number | null;
   medias: {
     id: string;
     mediaType?: string | null;

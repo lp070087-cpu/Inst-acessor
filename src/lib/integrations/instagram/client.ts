@@ -179,10 +179,31 @@ function logMetaError(params: {
 }
 
 /**
+ * Opções de `graphGet`.
+ *
+ * `onErrorResponse` recebe o objeto `error` CRU da Meta quando a resposta não é
+ * OK. Existe porque o `InstagramApiError` carrega só os campos que a UI precisa
+ * (message/code/subcode/type) — e alguns defeitos só se explicam por um campo
+ * que ele não guarda. Caso concreto: o `/insights` devolve, em `error_data`, a
+ * LISTA de métricas válidas quando a métrica pedida foi aposentada; sem esse
+ * campo o 400 é indistinguível de um problema de escopo.
+ *
+ * É um hook de DIAGNÓSTICO: não altera o fluxo do erro — o `InstagramApiError`
+ * continua sendo lançado normalmente depois dele.
+ */
+export interface GraphGetOptions {
+  onErrorResponse?: (error: Record<string, unknown>) => void;
+}
+
+/**
  * GET na API do Instagram com retries e timeout.
  * @throws InstagramApiError
  */
-export async function graphGet<T>(path: string, accessToken: string): Promise<T> {
+export async function graphGet<T>(
+  path: string,
+  accessToken: string,
+  options?: GraphGetOptions
+): Promise<T> {
   const url = `${INSTAGRAM_GRAPH_BASE}/${GRAPH_VERSION}/${path}${
     path.includes("?") ? "&" : "?"
   }access_token=${encodeURIComponent(accessToken)}`;
@@ -232,6 +253,17 @@ export async function graphGet<T>(path: string, accessToken: string): Promise<T>
           fbtraceId: meta.fbtraceId,
           attempt,
         });
+
+        // Hook de diagnóstico: o chamador vê o erro CRU (só leitura/log), o
+        // fluxo de erro abaixo segue idêntico. Envolvido em try/catch para que
+        // uma falha do próprio log nunca derrube a requisição.
+        if (options?.onErrorResponse && data?.error) {
+          try {
+            options.onErrorResponse(data.error);
+          } catch {
+            /* diagnóstico é best-effort — jamais esconde o erro real */
+          }
+        }
 
         if (retryable && attempt < MAX_RETRIES) {
           lastError = new InstagramApiError(message, code, true, meta);

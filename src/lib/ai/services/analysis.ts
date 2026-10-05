@@ -77,8 +77,13 @@ export async function runAnalysis(
         available: d.cards.reach.available,
       },
       {
+        // A coluna persistida ainda se chama `impressions` (congelada no banco),
+        // mas a métrica coletada hoje é `views` — a oficial da API. O rótulo
+        // segue o dado, não o nome da coluna: chamar de "Impressões" um número
+        // de visualizações é o tipo de troca silenciosa que apaga a diferença
+        // entre medido e suposto.
         key: "impressions",
-        label: "Impressões",
+        label: "Visualizações",
         value: d.cards.impressions.value ?? null,
         changePercent: d.cards.impressions.changePercent,
         available: d.cards.impressions.available,

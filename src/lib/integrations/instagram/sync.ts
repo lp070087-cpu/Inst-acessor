@@ -97,8 +97,11 @@ export async function syncInstagram(userId: string): Promise<SyncResult> {
         reach: data.insights.reach ?? null,
         impressions: data.insights.impressions ?? null,
         profileViews: data.insights.profileViews ?? null,
-        // Engajamento: derivado apenas quando houver componentes reais.
-        engagement: null,
+        // Engajamento: derivado das publicações reais coletadas nesta execução
+        // (curtidas + comentários). Antes era `null` fixo, então a tela mostrava
+        // "—" mesmo com as métricas de mídia chegando. `null` continua sendo o
+        // valor quando NENHUMA publicação trouxe o par completo — ausência.
+        engagement: data.engagement ?? null,
       },
     });
 

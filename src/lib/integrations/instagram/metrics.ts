@@ -1,5 +1,6 @@
 import { graphGet } from "./client";
 import { InstagramApiError } from "./client";
+import { mediaInteractions } from "@/lib/media/derived-metrics";
 import type {
   InstagramAccountInfo,
   InstagramCommentData,
@@ -100,12 +101,27 @@ interface InsightsEnvelope {
   data?: {
     name?: string;
     period?: string;
+    /**
+     * Tipo do período do item. Para métricas de SÉRIE a Meta exige o
+     * parâmetro `metric_type=<period>` na requisição — ver `getAccountInsights`.
+     */
+    metric_type?: string;
     values?: { value?: number }[];
     total_value?: { value?: number };
   }[];
 }
 
-/** Extrai o valor de um item de insight (série `values[]` ou `total_value`). */
+/**
+ * Extrai o valor de um item de insight.
+ *
+ * Ordem: `total_value.value` (total agregado da janela) tem prioridade; sem ele,
+ * usa `values[]`. Na série, o valor escolhido é o do ÚLTIMO período retornado,
+ * que é o período mais recente da janela.
+ *
+ * NÃO soma os valores da série: numa janela de 7 dias o acumulado da semana é
+ * exatamente o que `total_value` já entrega, e somar `values[]` daria o mesmo
+ * número por outro caminho — com o risco extra de contar um período parcial.
+ */
 function readInsightValue(item: {
   values?: { value?: number }[];
   total_value?: { value?: number };
@@ -118,54 +134,182 @@ function readInsightValue(item: {
 }
 
 /**
- * Obtém insights da conta (janela configurável).
+ * Janela padrão dos insights de conta, em segundos (7 dias).
  *
- * A chamada é DEGRADANTE por natureza (ver catch): métrica indisponível ou
- * recusada → `null`, sem derrubar o sync. `null` significa "a fonte não
- * forneceu" — NUNCA é convertido em zero.
+ * Motivo: com `period=day` e sem `since`/`until`, a Meta responde sobre o dia
+ * CORRENTE — que ainda não fechou, e cujo total não diz nada sobre desempenho.
+ * A janela de 7 dias é um período fechado e é idêntica à que o Dashboard já
+ * compara (`reach7d`, "Alcance em 7 dias"), então o insights e a tela falam do
+ * MESMO intervalo.
+ */
+const ACCOUNT_INSIGHTS_WINDOW_DAYS = 7;
+
+/**
+ * Métricas de conta no formato ATUAL da API — hoje, uma chamada para cada
+ * (`getAccountInsights`).
  *
- * @param since timestamp inicial (opcional)
+ * ============== O QUE A RESPOSTA REAL DA META DISSE (fonte superior) ======
+ * Uma chamada real de produção com `metric=reach,impressions,profile_views`
+ * voltou HTTP 400 / code 100, e o `error_data` da Meta listou as métricas
+ * ACEITAS naquele endpoint:
+ *
+ *   reach · follower_count · website_clicks · profile_views · online_followers
+ *   accounts_engaged · total_interactions · likes · comments · shares · saves
+ *   replies · engaged_audience_demographics · reached_audience_demographics
+ *   follower_demographics · follows_and_unfollows · ...
+ *
+ * Duas conclusões que CORRIGEM a leitura anterior deste arquivo:
+ *
+ *   1. `profile_views` É aceita. ("Aposentada" era conclusão minha, de fora da
+ *      API, e a API a contradiz.) Volta a ser pedida, em chamada própria.
+ *   2. `impressions` NÃO aparece na lista — é ela a métrica inválida da chamada
+ *      antiga. Como a Meta valida a lista inteira, essa única métrica inválida
+ *      derrubava também `reach` e `profile_views`, que eram válidas. É a causa
+ *      real dos três cards em "—".
+ *
+ * `views` NÃO está na lista acima. Ela continua sendo pedida em chamada própria
+ * e degradante: se a conta aceitar, ótimo; se não, o log diz o motivo e os
+ * outros dois cards seguem preenchidos. NÃO se assume equivalência entre
+ * `impressions` e `views` — são coisas diferentes, e o rótulo da tela diz
+ * "Visualizações" para o que quer que `views` devolva.
+ * ==========================================================================
+ */
+
+/**
+ * Diagnóstico SEGURO de uma resposta de erro do `/insights`.
+ *
+ * Existe porque o `catch` abaixo engolia o motivo: a tela mostrava "—" e o log
+ * mostrava só o `code`. Aqui o erro CRU da Meta é reduzido ao que explica a
+ * falha — mensagem (sanitizada), lista de métricas válidas devolvida em
+ * `error_data` e o código — SEM token, SEM corpo completo e SEM dado do usuário.
+ *
+ * A mensagem da Meta é metadata do erro. Ainda assim passa por corte de tamanho
+ * e por um filtro que remove qualquer coisa com cara de credencial, porque um
+ * log nunca deve ser o vetor de vazamento.
+ */
+function logInsightsDiagnostic(error: Record<string, unknown>): void {
+  const rawMessage = typeof error.message === "string" ? error.message : "";
+  // `error_data` é o campo que a Meta usa para dizer o que ela ACEITA
+  // ("The following metrics are valid: reach, views, ..."). É a informação que
+  // transforma um 400 opaco em uma correção determinística.
+  const errorData = typeof error.error_data === "string" ? error.error_data : "";
+  const sanitize = (text: string): string =>
+    text
+      .replace(/(access_token|client_secret|bearer)\s*[=:]\s*\S+/gi, "$1=[REDACTED]")
+      .slice(0, 400);
+
+  console.warn("[instagram-metrics] insights recusados pela Meta", {
+    code: error.code ?? "-",
+    subcode: error.error_subcode ?? "-",
+    type: error.type ?? "-",
+    fbtraceId: error.fbtrace_id ?? "-",
+    // Sem isto, "campo inválido" e "sem permissão" chegam idênticos.
+    message: sanitize(rawMessage),
+    // Lista de métricas válidas, quando a Meta devolve — em `error_data` ou no
+    // fim da própria mensagem.
+    errorData: sanitize(errorData) || "-",
+  });
+}
+
+/**
+ * Obtém insights da conta numa janela fechada de 7 dias.
+ *
+ * UMA CHAMADA POR MÉTRICA. Não é preferência de estilo: a Meta valida a lista
+ * INTEIRA, então agrupar métricas faz uma só inválida zerar as válidas — que foi
+ * exatamente o defeito relatado (alcance, visualizações e visitas ao perfil em
+ * "—" ao mesmo tempo, enquanto seguidores e publicações, que vêm de outro
+ * endpoint, apareciam normalmente).
+ *
+ *   - `reach`         → série diária; lê-se o dia mais recente da janela;
+ *   - `profile_views` → série diária (confirmada como válida pela Meta);
+ *   - `views`         → total agregado (`metric_type=total_value`), degradante.
+ *
+ * Cada bloco degrada SOZINHO para `null` — ausência, NUNCA zero. Nenhuma das
+ * três é pré-requisito das outras.
+ *
+ * `impressions` no retorno é o alias interno de `views` (nome da coluna
+ * persistida, congelado no banco). `profileViews` é o valor real de
+ * `profile_views`, e não um campo sempre nulo.
+ *
+ * @param since timestamp inicial (opcional). Aceito por compatibilidade: a
+ *              janela pedida à Meta é sempre `ACCOUNT_INSIGHTS_WINDOW_DAYS`,
+ *              para que o valor salvo seja comparável entre sincronizações.
  */
 export async function getAccountInsights(
   igUserId: string,
   accessToken: string,
   since?: number
 ): Promise<{ reach?: number | null; impressions?: number | null; profileViews?: number | null }> {
-  // Período máximo suportado pela API é "30 days". Usamos janela diária como
-  // padrão para os cards atuais (reach/impressions do último dia disponível).
-  const period = "day";
-  const metric = "reach,impressions,profile_views";
+  void since;
 
+  const result: {
+    reach?: number | null;
+    impressions?: number | null;
+    profileViews?: number | null;
+  } = {
+    reach: null,
+    // `views` → nome da coluna persistida.
+    impressions: null,
+    // `profile_views` → campo real (confirmada como aceita pela Meta).
+    profileViews: null,
+  };
+
+  const sinceTs = Math.floor(Date.now() / 1000) - ACCOUNT_INSIGHTS_WINDOW_DAYS * 86400;
+
+  /**
+   * Busca UMA métrica de conta e atribui ao campo correspondente.
+   *
+   * A mensagem de erro é específica por métrica (`"profile_views" indisponível`)
+   * porque, com uma chamada por métrica, "alguma coisa falhou" deixa de ser
+   * resposta útil: o log precisa dizer QUAL.
+   */
+  const fetchAccountMetric = async (
+    metric: string,
+    assign: (value: number | null) => void
+  ): Promise<void> => {
+    try {
+      const data = await graphGet<InsightsEnvelope>(
+        `${igUserId}/insights?metric=${metric}&period=day&since=${sinceTs}`,
+        accessToken,
+        { onErrorResponse: logInsightsDiagnostic }
+      );
+      for (const item of data.data ?? []) {
+        if (item.name === metric) assign(readInsightValue(item));
+      }
+    } catch (err) {
+      if (!(err instanceof InstagramApiError)) throw err;
+      console.warn(
+        `[instagram-metrics] "${metric}" indisponível`,
+        err.code ?? "n/a"
+      );
+    }
+  };
+
+  await fetchAccountMetric("reach", (v) => {
+    result.reach = v;
+  });
+  await fetchAccountMetric("profile_views", (v) => {
+    result.profileViews = v;
+  });
+
+  // ---- views: total agregado da janela (métrica separada e degradante) ----
+  // `metric_type=total_value` é o parâmetro que a Meta exige para métricas de
+  // total; sem ele a resposta pode vir só como série diária.
   try {
     const data = await graphGet<InsightsEnvelope>(
-      `${igUserId}/insights?metric=${metric}&period=${period}${
-        since ? `&since=${since}` : ""
-      }`,
-      accessToken
+      `${igUserId}/insights?metric=views&period=day&metric_type=total_value&since=${sinceTs}`,
+      accessToken,
+      { onErrorResponse: logInsightsDiagnostic }
     );
-
-    const result: { reach?: number | null; impressions?: number | null; profileViews?: number | null } = {
-      reach: null,
-      impressions: null,
-      profileViews: null,
-    };
-
     for (const item of data.data ?? []) {
-      const value = readInsightValue(item);
-      if (item.name === "reach") result.reach = value;
-      if (item.name === "impressions") result.impressions = value;
-      if (item.name === "profile_views") result.profileViews = value;
+      if (item.name === "views") result.impressions = readInsightValue(item);
     }
-
-    return result;
   } catch (err) {
-    // Insights podem não estar disponíveis (permissão/escopo). Não derruba o sync.
-    if (err instanceof InstagramApiError) {
-      console.warn("[instagram-metrics] insights indisponíveis", err.code ?? "n/a");
-      return { reach: null, impressions: null, profileViews: null };
-    }
-    throw err;
+    if (!(err instanceof InstagramApiError)) throw err;
+    console.warn("[instagram-metrics] visualizações (views) indisponíveis", err.code ?? "n/a");
   }
+
+  return result;
 }
 
 /** Campos de mídia sempre solicitados ao nó `media`. */
@@ -231,40 +375,57 @@ function toRelativeGraphPath(next: string): string | null {
 }
 
 /**
- * Obtém métricas detalhadas de uma mídia específica.
+ * Métricas de mídia pedidas no lote principal, como LISTA (a ordem define a
+ * prioridade da degradação — as primeiras são as mais importantes).
  *
- * A API devolve `{ data: [{ name, values[] | total_value }] }`. A versão
- * anterior lia `data.reached` / `data.shares` direto no topo — campos que não
- * existem nesse endpoint. Resultado: TODA métrica era gravada `null`.
- * Agora mapeamos pelo `name` de cada item da lista.
+ * `video_views` e `video_view_time` NÃO estão aqui, e o motivo é um defeito
+ * real: pedir uma métrica que o tipo de mídia não suporta (ex.: métrica de vídeo
+ * num post de imagem) faz a Meta recusar a REQUISIÇÃO INTEIRA. Como o erro era
+ * engolido, `InstagramMediaMetric` ficava vazia e TODA métrica virava `null` —
+ * inclusive alcance e curtidas, que existiam. Uma métrica inválida apagava o
+ * card inteiro.
  *
- * Métricas recusadas para o tipo de mídia (ex.: `video_views` num carrossel)
- * ficam `null` — ausência, não zero.
+ * ===================== `saved`, NÃO `saves` (evidência real da Meta) ======
+ * O nome no endpoint `/{ig-media-id}/insights` é `saved`. O código pedia
+ * `saves` e a Meta respondia com code 100 listando as métricas válidas — em que
+ * `saves` não aparece e `saved` aparece. Como a lista é validada inteira, esse
+ * único nome errado apagava o lote INTEIRO: alcance, curtidas e comentários
+ * junto. Trocado para `saved`.
+ *
+ * O produto continua chamando isso de `saves` (propriedade interna e coluna do
+ * banco). `saved` é o nome da META; `saves` é o nome daqui — ver `pick` em
+ * `getMediaMetrics`, que faz a ponte.
+ * ==========================================================================
  */
-/**
- * Métricas SEGURAS — válidas para QUALQUER tipo de mídia.
- *
- * `video_views` e `video_view_time` NÃO entram aqui, e o motivo é um defeito
- * real: pedir uma métrica que o tipo de mídia não suporta (ex.: métrica de
- * vídeo num post de imagem) faz a Meta recusar a REQUISIÇÃO INTEIRA. Como o
- * erro era engolido, `InstagramMediaMetric` ficava vazia e TODA métrica virava
- * `null` — inclusive alcance e curtidas, que existiam. Uma métrica inválida
- * apagava o card inteiro.
- */
-export const MEDIA_METRICS_CORE = "reach,impressions,shares,saves,comments,likes";
+const MEDIA_METRICS_CORE_LIST = [
+  "reach",
+  "impressions",
+  "shares",
+  "saved",
+  "comments",
+  "likes",
+] as const;
+
+/** O mesmo lote em CSV — formato que o parâmetro `metric` exige. */
+export const MEDIA_METRICS_CORE = MEDIA_METRICS_CORE_LIST.join(",");
 
 /**
  * Métricas adicionais de vídeo/Reel, pedidas em chamada SEPARADA.
  *
- * ATENÇÃO — NOMES NÃO VERIFICADOS CONTRA A DOCUMENTAÇÃO OFICIAL. O ambiente em
- * que este código foi escrito não tem saída de rede, então os nomes vieram do
- * comportamento observado no código (o autor já tentava `plays` como reserva de
- * `video_views`, sinal de que a renomeação era conhecida) e não de consulta à
- * doc. Por isso eles são pedidos à parte e com recuo: se a Meta recusar, o
+ * Nomes verificados apenas contra o que a Meta devolveu em erro real; não houve
+ * consulta à documentação oficial (este ambiente não tem saída para
+ * `developers.facebook.com`). Por isso são pedidas à parte: se a Meta recusar, o
  * prejuízo são as métricas de vídeo — nunca alcance, curtidas ou salvamentos.
- * Classificação: IMPLEMENTADO — AGUARDA VALIDAÇÃO META REAL.
  */
-export const MEDIA_METRICS_VIDEO = "plays,video_views,video_view_time,ig_reels_avg_watch_time";
+const MEDIA_METRICS_VIDEO_LIST = [
+  "plays",
+  "video_views",
+  "video_view_time",
+  "ig_reels_avg_watch_time",
+] as const;
+
+/** O mesmo lote em CSV. */
+export const MEDIA_METRICS_VIDEO = MEDIA_METRICS_VIDEO_LIST.join(",");
 
 /**
  * Lê um lote de métricas do `/insights` de uma mídia e devolve o mapa
@@ -277,7 +438,8 @@ async function fetchInsightBatch(
 ): Promise<Map<string, number | null>> {
   const data = await graphGet<InsightsEnvelope>(
     `${mediaId}/insights?metric=${metricList}`,
-    accessToken
+    accessToken,
+    { onErrorResponse: logInsightsDiagnostic }
   );
 
   const byName = new Map<string, number | null>();
@@ -288,11 +450,52 @@ async function fetchInsightBatch(
 }
 
 /**
+ * Lê um lote com RECUO POR MÉTRICA.
+ *
+ * Uma métrica inválida derruba o lote inteiro (é assim que a Meta valida a
+ * lista). Então, quando o lote falha, cada métrica é pedida sozinha e o que for
+ * válido é preservado. O custo são chamadas extras — e só no caminho de erro,
+ * porque o caminho bom (lote inteiro aceito) continua sendo UMA chamada.
+ *
+ * Isto não é otimização especulativa: é a única forma de uma métrica futuramente
+ * renomeada deixar de apagar alcance, curtidas e comentários junto com ela.
+ * Inversamente, se NENHUMA métrica do lote for aceita, o erro é propagado — não
+ * se inventa "vazio" para uma falha que provavelmente é de escopo.
+ */
+async function fetchInsightsWithFallback(
+  mediaId: string,
+  accessToken: string,
+  metrics: readonly string[]
+): Promise<Map<string, number | null>> {
+  try {
+    return await fetchInsightBatch(mediaId, accessToken, metrics.join(","));
+  } catch (err) {
+    if (!(err instanceof InstagramApiError)) throw err;
+  }
+
+  // Recuo: métrica por métrica, para que a recusa de uma não leve as outras.
+  const byName = new Map<string, number | null>();
+  let lastError: InstagramApiError | null = null;
+  for (const metric of metrics) {
+    try {
+      const one = await fetchInsightBatch(mediaId, accessToken, metric);
+      for (const [name, value] of one) byName.set(name, value);
+    } catch (err) {
+      if (!(err instanceof InstagramApiError)) throw err;
+      lastError = err;
+    }
+  }
+
+  if (byName.size === 0 && lastError) throw lastError;
+  return byName;
+}
+
+/**
  * Obtém métricas detalhadas de uma mídia específica.
  *
- * Os dois grupos são buscados de forma INDEPENDENTE (ver `MEDIA_METRICS_CORE` e
- * `MEDIA_METRICS_VIDEO`): a falha de um não pode zerar o outro. Métrica que a
- * Meta não devolveu fica `null` — ausência, nunca zero.
+ * Os dois grupos são buscados de forma INDEPENDENTE (ver `MEDIA_METRICS_CORE_LIST`
+ * e `MEDIA_METRICS_VIDEO_LIST`): a falha de um não pode zerar o outro. Métrica
+ * que a Meta não devolveu fica `null` — ausência, nunca zero.
  *
  * @param isVideo mídia é vídeo/Reel? Só então as métricas de vídeo são pedidas.
  */
@@ -303,7 +506,11 @@ export async function getMediaMetrics(
 ): Promise<InstagramMediaMetricNode | null> {
   let core: Map<string, number | null>;
   try {
-    core = await fetchInsightBatch(mediaId, accessToken, MEDIA_METRICS_CORE);
+    core = await fetchInsightsWithFallback(
+      mediaId,
+      accessToken,
+      MEDIA_METRICS_CORE_LIST
+    );
   } catch (err) {
     // Nem toda mídia expõe insights. Não derruba o sync.
     if (err instanceof InstagramApiError) {
@@ -318,7 +525,11 @@ export async function getMediaMetrics(
   const video = new Map<string, number | null>();
   if (isVideo) {
     try {
-      const batch = await fetchInsightBatch(mediaId, accessToken, MEDIA_METRICS_VIDEO);
+      const batch = await fetchInsightsWithFallback(
+        mediaId,
+        accessToken,
+        MEDIA_METRICS_VIDEO_LIST
+      );
       for (const [name, value] of batch) video.set(name, value);
     } catch (err) {
       if (!(err instanceof InstagramApiError)) throw err;
@@ -340,9 +551,14 @@ export async function getMediaMetrics(
   return {
     // A métrica de alcance chama-se `reach` (não `reached`).
     reached: pick("reach", "reached"),
+    // `impressions` permanece: a evidência real da Meta a lista como válida no
+    // endpoint de MÍDIA (ao contrário do insights de CONTA, onde ela saiu).
     impressions: pick("impressions"),
     shares: pick("shares"),
-    saves: pick("saves"),
+    // PONTE DE NOME: a Meta devolve `saved`; o produto chama de `saves`.
+    // A ordem importa — `saved` é o nome atual e vem primeiro. `saves` fica como
+    // segunda tentativa apenas para tolerar uma resposta antiga em cache.
+    saves: pick("saved", "saves"),
     comments: pick("comments"),
     likes: pick("likes"),
     video_views: pick("plays", "video_views"),
@@ -466,6 +682,33 @@ const MEDIA_METRICS_LIMIT = 25;
 const MEDIA_COMMENTS_LIMIT = 10;
 
 /**
+ * Engajamento REAL da conta: soma das interações das publicações coletadas.
+ *
+ * ==================== POR QUE ISTO NÃO EXISTIA E PASSA A EXISTIR ==========
+ * O sync gravava `engagement: null` FIXO no snapshot, com o comentário "derivado
+ * apenas quando houver componentes reais". Só que o dado real JÁ estava em mãos
+ * no mesmo laço: `getMediaMetrics` devolve curtidas e comentários de cada
+ * publicação. O resultado era o "Engajamento: —" na tela mesmo com as métricas
+ * de mídia chegando — um campo que nunca era preenchido, não um indisponível.
+ *
+ * Isto é um defeito SEPARADO do insights da conta: `engagement` não vem (e nunca
+ * veio) do endpoint `/insights` da conta, vem das publicações. Corrigir só o
+ * insights não o resolveria, por isso está aqui.
+ *
+ * REGRA (a mesma de `derived-metrics.ts`): interação de uma publicação só
+ * existe quando curtidas E comentários existem — `mediaInteractions` devolve
+ * `null` quando falta um dos dois. Publicações sem o par são descartadas da
+ * soma em vez de entrarem valendo zero, e nenhuma publicação com dado real →
+ * `null`, nunca `0`.
+ * ==========================================================================
+ */
+function collectEngagement(medias: InstagramSyncData["medias"]): number | null {
+  const interactions = medias.map((m) => mediaInteractions(m.likeCount, m.commentsCount));
+  const real = interactions.filter((v): v is number => v != null);
+  return real.length > 0 ? real.reduce((a, b) => a + b, 0) : null;
+}
+
+/**
  * Coleta completa normalizada para o sync.
  *
  * - Perfil e insights vêm do nó `me` / `insights` (o que a API fornecer).
@@ -587,6 +830,9 @@ export async function collectInstagramData(
       biography: user.biography ?? null,
     },
     insights,
+    // Interações reais das publicações coletadas — ver `collectEngagement`.
+    // `null` quando nenhuma publicação trouxe o par curtidas+comentários.
+    engagement: collectEngagement(medias),
     medias,
     commentsAvailable,
     commentsErrorCode,
