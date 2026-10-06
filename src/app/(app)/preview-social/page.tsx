@@ -52,6 +52,7 @@ export default async function PreviewSocialPage() {
           caption: d.caption ?? "",
           hashtags: d.hashtags ?? "",
           format: d.format ?? "",
+          framing: d.framing ?? "",
           updatedAt: d.updatedAt.toISOString(),
         }))}
         initialSaved={saved.map((c) => ({

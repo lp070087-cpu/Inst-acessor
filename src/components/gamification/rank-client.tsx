@@ -617,6 +617,8 @@ function RnkAvatar({
         alt={name}
         width={size}
         height={size}
+        loading="lazy"
+        decoding="async"
         className="rnk-avatar"
         style={{ width: size, height: size }}
       />

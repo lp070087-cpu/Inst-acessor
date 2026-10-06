@@ -139,6 +139,12 @@ export const saveDraftSchema = z.object({
   caption: z.string().max(2200).optional().default(""),
   hashtags: z.string().max(500).optional().default(""),
   format: draftFormatSchema.default("post"),
+  /**
+   * Enquadramento do preview em JSON curto (zoom/offset). Teto de 200 chars:
+   * só cabem os três números — qualquer coisa maior é dado inesperado, não uma
+   * configuração válida.
+   */
+  framing: z.string().max(200).optional(),
 });
 
 export type SaveDraftInput = z.infer<typeof saveDraftSchema>;

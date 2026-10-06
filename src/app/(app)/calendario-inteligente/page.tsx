@@ -6,6 +6,8 @@ import {
   requirePremiumPage,
 } from "@/lib/auth/guard";
 import { getSmartCalendar } from "@/lib/planning/smart-calendar-db";
+import { PageHeader } from "@/components/layout/page-header";
+import { ModuleTabs, CALENDAR_MODULE_TABS } from "@/components/layout/module-tabs";
 import { SmartCalendarClient } from "@/components/planning/smart-calendar-client";
 
 export const metadata: Metadata = {
@@ -32,16 +34,13 @@ export default async function SmartCalendarPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="font-display text-[26px] font-bold text-ink flex items-center gap-2.5">
-          <Sparkles size={26} className="text-purple" />
-          Calendário Inteligente
-        </h1>
-        <p className="text-[13.5px] text-ink-soft mt-1">
-          Recomendações de dia, formato e ritmo derivadas do seu histórico real. Quando
-          não há dado suficiente, o Inst Acessor diz exatamente isso.
-        </p>
-      </div>
+      <PageHeader
+        icon={Sparkles}
+        title="Calendário Inteligente"
+        description="Recomendações de dia, formato e ritmo derivadas do seu histórico real. Quando não há dado suficiente, o Inst Acessor diz exatamente isso."
+      />
+
+      <ModuleTabs tabs={CALENDAR_MODULE_TABS} />
 
       <SmartCalendarClient data={data} />
     </div>

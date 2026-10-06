@@ -7,7 +7,13 @@ import { Menu, ChevronLeft, LogOut, X } from "lucide-react";
 import type { Session } from "next-auth";
 
 import { cn } from "@/lib/utils";
-import { mainNav, bottomNav, adminNavItem, isPremiumRoute } from "@/lib/navigation";
+import {
+  mainNav,
+  bottomNav,
+  adminNavItem,
+  isPremiumRoute,
+  isNavItemActive,
+} from "@/lib/navigation";
 import { AppLogo } from "@/components/layout/app-logo";
 import { SidebarNavItem } from "@/components/layout/sidebar-nav-item";
 import { Avatar } from "@/components/ui/avatar";
@@ -87,10 +93,14 @@ export function AppSidebar({
     };
   }, [mobileOpen]);
 
-  const isActive = (href: string) =>
-    href === "/dashboard"
-      ? pathname === href
-      : pathname.startsWith(href);
+  // "Ativo" passa pelo helper de `navigation.ts` para respeitar a exclusão
+  // pai/filho: `/calendario-inteligente` também começa com `/calendario`, e o
+  // teste por prefixo acendia o pai E o filho ao mesmo tempo. O filho tem
+  // precedência.
+  const isActive = (href: string) => {
+    const item = [...mainNav, ...bottomNav].find((i) => i.href === href);
+    return item ? isNavItemActive(pathname, item) : pathname.startsWith(href);
+  };
 
   return (
     <>

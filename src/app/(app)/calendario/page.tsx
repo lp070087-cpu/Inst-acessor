@@ -11,6 +11,8 @@ import { listCopies } from "@/lib/ai/services";
 import { listDrafts } from "@/lib/ai/services";
 import { kb } from "@/lib/knowledge/repository";
 import { listGoals } from "@/lib/gamification";
+import { PageHeader } from "@/components/layout/page-header";
+import { ModuleTabs, CALENDAR_MODULE_TABS } from "@/components/layout/module-tabs";
 import { CalendarClient } from "@/components/planning/calendar-client";
 
 export const metadata: Metadata = {
@@ -43,16 +45,13 @@ export default async function CalendarPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="font-display text-[26px] font-bold text-ink flex items-center gap-2.5">
-          <CalendarDays size={26} className="text-purple" />
-          Calendário
-        </h1>
-        <p className="text-[13.5px] text-ink-soft mt-1">
-          Planeje, acompanhe o pipeline de conteúdo e transforme ideias, copies e
-          experimentos em execução. Nada é publicado automaticamente.
-        </p>
-      </div>
+      <PageHeader
+        icon={CalendarDays}
+        title="Calendário"
+        description="Planeje, acompanhe o pipeline de conteúdo e transforme ideias, copies e experimentos em execução. Nada é publicado automaticamente."
+      />
+
+      <ModuleTabs tabs={CALENDAR_MODULE_TABS} />
 
       <CalendarClient
         initial={{

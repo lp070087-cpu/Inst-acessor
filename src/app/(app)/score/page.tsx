@@ -6,6 +6,8 @@ import {
   requirePremiumPage,
 } from "@/lib/auth/guard";
 import { computeScore, getScoreHistory, runDiagnosis } from "@/lib/ai/services";
+import { PageHeader } from "@/components/layout/page-header";
+import { ModuleTabs, INTELLIGENCE_MODULE_TABS } from "@/components/layout/module-tabs";
 import { ScoreClient } from "@/components/ai/score-client";
 
 export const metadata: Metadata = {
@@ -38,16 +40,13 @@ export default async function ScorePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="font-display text-[26px] font-bold text-ink flex items-center gap-2.5">
-          <BrainCircuit size={26} className="text-purple" />
-          Score Inteligente
-        </h1>
-        <p className="text-[13.5px] text-ink-soft mt-1">
-          Score 0–100 por pilar, determinístico e explicável. Derivado apenas de
-          dados reais — nunca estimado.
-        </p>
-      </div>
+      <PageHeader
+        icon={BrainCircuit}
+        title="Score Inteligente"
+        description="Score 0–100 por pilar, determinístico e explicável. Derivado apenas de dados reais — nunca estimado."
+      />
+
+      <ModuleTabs tabs={INTELLIGENCE_MODULE_TABS} />
 
       <ScoreClient
         initial={{

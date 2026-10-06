@@ -151,7 +151,13 @@ function ContentThumb({ content }: { content: ContentItem | undefined }) {
           <video src={url} className="w-full h-full object-cover" muted playsInline />
         ) : (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={url} alt="" className="w-full h-full object-cover" />
+          <img
+            src={url}
+            alt=""
+            className="w-full h-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
         )
       ) : (
         <ImageIcon size={16} className="text-ink-muted" />

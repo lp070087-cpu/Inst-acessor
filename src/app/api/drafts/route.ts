@@ -27,6 +27,7 @@ export async function GET() {
         caption: r.caption ?? "",
         hashtags: r.hashtags ?? "",
         format: r.format ?? "",
+        framing: r.framing ?? "",
         updatedAt: r.updatedAt.toISOString(),
       }))
     );
@@ -59,6 +60,7 @@ export async function POST(request: Request) {
       caption: string | null;
       hashtags: string | null;
       format: string | null;
+      framing: string | null;
       updatedAt: Date;
     };
 
@@ -72,6 +74,7 @@ export async function POST(request: Request) {
         caption: row.caption ?? "",
         hashtags: row.hashtags ?? "",
         format: row.format ?? "",
+        framing: row.framing ?? "",
         updatedAt: row.updatedAt.toISOString(),
       },
     });

@@ -13,6 +13,8 @@ export interface DraftData {
   caption?: string;
   hashtags?: string;
   format?: string;
+  /** Enquadramento do preview (JSON curto). */
+  framing?: string;
 }
 
 /** Lista rascunhos do usuário. */
@@ -30,6 +32,8 @@ export async function listDrafts(userId: string) {
     caption?: string | null;
     hashtags?: string | null;
     format?: string | null;
+    /** Enquadramento do preview (JSON curto) — ver model SocialDraft. */
+    framing?: string | null;
     createdAt: Date;
     updatedAt: Date;
   }[];

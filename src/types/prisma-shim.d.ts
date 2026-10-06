@@ -98,6 +98,8 @@ declare module "@prisma/client" {
     caption?: string | null;
     hashtags?: string | null;
     format?: string | null;
+    /** Enquadramento do preview (JSON curto). Ver model SocialDraft no schema. */
+    framing?: string | null;
     createdAt: Date;
     updatedAt: Date;
   }
@@ -236,6 +238,25 @@ declare module "@prisma/client" {
     ruleSlug?: string | null;
     experimentId?: string | null;
     confidence?: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }
+
+  /**
+   * BIBLIOTECA DE MÍDIA — referência de um arquivo enviado pelo usuário.
+   * O binário mora no Vercel Blob; aqui ficam a URL pública e o caminho no Blob.
+   * Espelha `model MediaAsset` em `prisma/schema.prisma`.
+   */
+  interface MediaAsset {
+    id: string;
+    userId: string;
+    url: string;
+    pathname?: string | null;
+    type: string;
+    mimeType?: string | null;
+    size?: number | null;
+    originalName?: string | null;
+    title?: string | null;
     createdAt: Date;
     updatedAt: Date;
   }

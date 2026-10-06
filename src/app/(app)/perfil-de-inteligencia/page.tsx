@@ -6,6 +6,8 @@ import {
   requirePremiumPage,
 } from "@/lib/auth/guard";
 import { getAIProfile } from "@/lib/ai/services";
+import { PageHeader } from "@/components/layout/page-header";
+import { ModuleTabs, INTELLIGENCE_MODULE_TABS } from "@/components/layout/module-tabs";
 import { PerfilInteligenciaClient } from "@/components/ai/perfil-inteligencia-client";
 
 export const metadata: Metadata = {
@@ -29,15 +31,13 @@ export default async function PerfilInteligenciaPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="font-display text-[26px] font-bold text-ink flex items-center gap-2.5">
-          <BrainCircuit size={26} className="text-purple" />
-          Perfil de Inteligência
-        </h1>
-        <p className="text-[13.5px] text-ink-soft mt-1">
-          O que a IA Acessor aprendeu sobre você, com base apenas em dados reais.
-        </p>
-      </div>
+      <PageHeader
+        icon={BrainCircuit}
+        title="Perfil de Inteligência"
+        description="O que a IA Acessor aprendeu sobre você, com base apenas em dados reais."
+      />
+
+      <ModuleTabs tabs={INTELLIGENCE_MODULE_TABS} />
 
       <PerfilInteligenciaClient
         profile={

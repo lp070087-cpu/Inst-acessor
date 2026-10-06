@@ -15,6 +15,7 @@ import {
   User,
   Settings,
   Info,
+  Images,
   LogOut,
   ShieldCheck,
 } from "lucide-react";
@@ -66,15 +67,17 @@ export const mainNav: NavItem[] = [
     description: "Sua posição no ranking",
   },
   {
-    // Motor determinístico sobre dados reais (mesmo banco do /calendario).
-    // Item PRÓPRIO da navegação: a página /calendario continua sendo o
-    // planejamento operacional e NÃO foi alterada por esta adição.
-    label: "Calendário Inteligente",
-    href: "/calendario-inteligente",
-    icon: CalendarDays,
-    description: "Recomendações baseadas no seu histórico",
+    // Biblioteca de Mídia fica entre "Preview Social" (onde o conteúdo nasce) e
+    // "Calendário" (onde ele é agendado) — é ali que o arquivo é escolhido.
+    label: "Biblioteca de Mídia",
+    href: "/biblioteca-de-midia",
+    icon: Images,
+    description: "Suas fotos e vídeos, prontos para reutilizar",
   },
   {
+    // Calendário Inteligente NÃO é item de menu: ele vive DENTRO desta tela,
+    // como aba. Um item de menu por variante inchava a lista sem acrescentar
+    // caminho novo — a rota continua existindo e continua alcançável.
     label: "Calendário",
     href: "/calendario",
     icon: CalendarDays,
@@ -87,12 +90,7 @@ export const mainNav: NavItem[] = [
     description: "Acompanhamento personalizado",
   },
   {
-    label: "Score Inteligente",
-    href: "/score",
-    icon: BrainCircuit,
-    description: "Seu score 0–100 com diagnóstico",
-  },
-  {
+    // Score Inteligente idem: é aba dentro desta tela, não item próprio.
     label: "Perfil de Inteligência",
     href: "/perfil-de-inteligencia",
     icon: BrainCircuit,
@@ -196,6 +194,7 @@ export const PREMIUM_ROUTES = [
   "/score",
   "/perfil-de-inteligencia",
   "/publishing",
+  "/biblioteca-de-midia",
   "/respostas-inteligentes",
   "/analise-de-desempenho",
 ] as const;
@@ -203,4 +202,23 @@ export const PREMIUM_ROUTES = [
 /** true se a rota exige plano. Fonte única usada pelo servidor e pela sidebar. */
 export function isPremiumRoute(href: string): boolean {
   return PREMIUM_ROUTES.some((route) => href.startsWith(route));
+}
+
+/**
+ * Um item deve aparecer como ATIVO nesta rota?
+ *
+ * A regra simples de prefixo (`pathname.startsWith(href)`) quebra quando um
+ * grupo contém um filho cujo caminho COMEÇA com o do pai: em
+ * `/calendario-inteligente`, o pai `/calendario` também casa por prefixo e os
+ * dois acendem juntos. Um item com filhos só fica ativo quando NENHUM filho
+ * casa — o filho tem precedência.
+ *
+ * `/dashboard` continua exigindo igualdade exata: toda rota do app começa com
+ * `/`, e por prefixo o Dashboard nunca se apagaria.
+ */
+export function isNavItemActive(pathname: string, item: NavItem): boolean {
+  const isPath = (href: string) =>
+    pathname === href || pathname.startsWith(`${href}/`);
+
+  return item.href === "/dashboard" ? pathname === "/dashboard" : isPath(item.href);
 }

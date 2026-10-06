@@ -5,6 +5,7 @@ import { upload } from "@vercel/blob/client";
 import {
   Eye,
   Image as ImageIcon,
+  Images,
   Clapperboard,
   Save,
   Trash2,
@@ -26,7 +27,20 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Tabs } from "@/components/ui/tabs";
 import { Modal } from "@/components/ui/modal";
+import { FIELD_CLASS_FILLED, SELECT_CLASS_FILLED } from "@/lib/ui/field";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { PreviewFrame, type PreviewSlide } from "@/components/ai/preview-frame";
+import { MediaPicker } from "@/components/media-library/media-picker";
+import type { MediaAssetView } from "@/lib/media-library";
+import {
+  DEFAULT_FRAMING,
+  MIN_ZOOM,
+  MAX_ZOOM,
+  clamp,
+  isDefaultFraming,
+  type Framing,
+} from "@/components/ai/use-media-framing";
 
 /**
  * PREVIEW SOCIAL — CENTRAL DE CRIAÇÃO
@@ -78,6 +92,26 @@ interface Draft {
   hashtags: string;
   format: string;
   updatedAt: string;
+  /** Enquadramento da mídia de capa, serializado — ver `use-media-framing.ts`. */
+  framing?: string | null;
+}
+
+/**
+ * Item REAL já publicado/enfileirado, como `GET /api/calendar` devolve.
+ * A aba "Postados" mostra estes — nada é criado aqui, só lido.
+ */
+export interface PostedItem {
+  id: string;
+  platform: string;
+  format: string;
+  title: string;
+  status: string;
+  scheduledAt: string | null;
+  publishedAt: string | null;
+  externalId: string | null;
+  draftCaption: string | null;
+  draftMediaUrl: string | null;
+  draftMediaType: string | null;
 }
 
 interface SavedCopy {
@@ -151,6 +185,13 @@ export function PreviewSocial({ userId, aiConfigured, initialDrafts, initialSave
 
   const [platform, setPlatform] = React.useState<string>("instagram");
   const [format, setFormat] = React.useState<string>("post");
+  /**
+   * SLIDES do preview. Um array — e não `mediaUrl`/`mediaType` soltos — porque
+   * o carrossel precisa de várias imagens, cada uma com o seu enquadramento.
+   * Post/Reel/Story usam sempre `slides[0]`; o carrossel usa todos.
+   */
+  const [slides, setSlides] = React.useState<PreviewSlide[]>([]);
+  const [activeSlide, setActiveSlide] = React.useState(0);
   const [mediaUrl, setMediaUrl] = React.useState<string>("");
   const [mediaType, setMediaType] = React.useState<"image" | "video">("image");
   /**
@@ -165,9 +206,109 @@ export function PreviewSocial({ userId, aiConfigured, initialDrafts, initialSave
   const [hashtags, setHashtags] = React.useState("");
   const [drafts, setDrafts] = React.useState<Draft[]>(initialDrafts);
   const [savedCopies, setSavedCopies] = React.useState<SavedCopy[]>(initialSaved);
-  const [view, setView] = React.useState<"criar" | "salvos" | "biblioteca">("criar");
+  /**
+   * POSTADOS — carregados SOB DEMANDA, na primeira vez que a aba abre.
+   *
+   * Não vêm no carregamento inicial de propósito: a lista só interessa a quem
+   * clica na aba, e trazer o histórico inteiro junto com a tela de criação é
+   * exatamente o tipo de peso inicial que atrapalha no celular. Uma busca, uma
+   * vez, e o resultado fica em memória.
+   */
+  const [posted, setPosted] = React.useState<PostedItem[]>([]);
+  const [postedLoaded, setPostedLoaded] = React.useState(false);
+  const [postingLoad, setPostingLoad] = React.useState(false);
+  const [view, setView] = React.useState<"criar" | "postados" | "salvos" | "biblioteca">("criar");
   const [loading, setLoading] = React.useState(false);
   const fileRef = React.useRef<HTMLInputElement>(null);
+  /** Seletor da Biblioteca de Mídia. */
+  const [pickerOpen, setPickerOpen] = React.useState(false);
+
+  /**
+   * Seleção trazida da Biblioteca (`/biblioteca-de-midia` → "Criar carrossel").
+   *
+   * Chega por `sessionStorage` com o FORMATO e as URLs — não os arquivos. A
+   * Biblioteca já persistiu tudo; aqui só se escolhe o que usar, sem reenviar
+   * nada. Lê UMA vez, na montagem, e limpa em seguida: se o usuário recarregar
+   * a página, a seleção não deve ressuscitar sozinha.
+   */
+  React.useEffect(() => {
+    let raw: string | null = null;
+    try {
+      raw = sessionStorage.getItem("inst-acessor:biblioteca-selecao");
+      if (raw) sessionStorage.removeItem("inst-acessor:biblioteca-selecao");
+    } catch {
+      return;
+    }
+    if (!raw) return;
+
+    try {
+      const parsed = JSON.parse(raw) as {
+        format?: string;
+        urls?: { id: string; url: string; type: string }[];
+      };
+      const lista = parsed.urls ?? [];
+      if (lista.length === 0) return;
+
+      const formato = parsed.format === "carrossel" ? "carrossel" : parsed.format === "reel" ? "reel" : "post";
+      setFormat(formato);
+      setSlides(
+        lista.map((u, i) => ({
+          id: `lib-${u.id}-${i}`,
+          url: u.url,
+          type: u.type === "VIDEO" ? "video" : "image",
+          framing: { ...DEFAULT_FRAMING },
+        }))
+      );
+      setActiveSlide(0);
+      setMediaUrl(lista[0].url);
+      setMediaType(lista[0].type === "VIDEO" ? "video" : "image");
+      setMediaFile(null);
+      setView("criar");
+      toast(
+        lista.length === 1
+          ? "Mídia da biblioteca carregada no preview."
+          : `${lista.length} mídias da biblioteca carregadas no preview.`
+      );
+    } catch {
+      /* seleção corrompida → segue com o editor vazio, sem quebrar a tela */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Carrega POSTADOS na primeira vez que a aba abre (a declaração de `view`
+  // precisa vir ANTES deste efeito — daí ele estar aqui, e não junto do estado).
+  React.useEffect(() => {
+    if (view !== "postados" || postedLoaded || postingLoad) return;
+    let cancelled = false;
+    setPostingLoad(true);
+    // `?status=PUBLICADO` filtra no SERVIDOR. Sem o filtro, a rota monta a view
+    // de cada conteúdo planejado (uma consulta por linha, até 500) só para o
+    // cliente descartar quase tudo — peso real num celular em 3G.
+    fetch("/api/calendar?status=PUBLICADO")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("falha"))))
+      .then((rows: unknown) => {
+        if (cancelled || !Array.isArray(rows)) return;
+        // `publishedAt` é o que separa "publicado" de "marcado como publicado
+        // sem data". Sem ele o item não entra: a aba não pode mostrar como
+        // postado algo que não tem quando.
+        const publicados = (rows as PostedItem[]).filter((r) => r.publishedAt);
+        publicados.sort(
+          (a, b) =>
+            new Date(b.publishedAt ?? 0).getTime() - new Date(a.publishedAt ?? 0).getTime()
+        );
+        setPosted(publicados);
+        setPostedLoaded(true);
+      })
+      .catch(() => {
+        if (!cancelled) toast("Não foi possível carregar os conteúdos publicados.", "error");
+      })
+      .finally(() => {
+        if (!cancelled) setPostingLoad(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [view, postedLoaded, postingLoad, toast]);
 
   // Título interno do conteúdo (opcional): alimenta o PlannedContent gerado por
   // Programar / Publicar agora. Sem ele, o título é derivado da legenda.
@@ -211,6 +352,36 @@ export function PreviewSocial({ userId, aiConfigured, initialDrafts, initialSave
     setCaption(d.caption);
     setHashtags(d.hashtags);
     setLastGenerated("");
+    // Reconstrói o slide a partir do rascunho. O enquadramento salvo VOLTA
+    // quando existir — é o que faz o recorte sobreviver a salvar/reabrir/F5.
+    // JSON inválido cai no neutro em vez de quebrar a tela.
+    let framing: Framing = { ...DEFAULT_FRAMING };
+    if (d.framing) {
+      try {
+        const parsed = JSON.parse(d.framing) as Partial<Framing>;
+        framing = {
+          zoom: clamp(Number(parsed.zoom) || 1, MIN_ZOOM, MAX_ZOOM),
+          offsetX: Number(parsed.offsetX) || 0,
+          offsetY: Number(parsed.offsetY) || 0,
+        };
+      } catch {
+        /* enquadramento corrompido → neutro */
+      }
+    }
+
+    setSlides(
+      d.mediaUrl
+        ? [
+            {
+              id: `draft-${d.id}`,
+              url: d.mediaUrl,
+              type: d.mediaType === "video" ? "video" : "image",
+              framing,
+            },
+          ]
+        : []
+    );
+    setActiveSlide(0);
     setView("criar");
     toast("Rascunho carregado no editor.");
   }
@@ -239,10 +410,31 @@ export function PreviewSocial({ userId, aiConfigured, initialDrafts, initialSave
       setMediaType(isVideo ? "video" : "image");
       setMediaUrl(url);
 
+      // Cada arquivo virou um SLIDE com enquadramento próprio. Um carrossel
+      // não é uma lista separada de mídias: é o mesmo array, e o formato decide
+      // se os slides depois do primeiro aparecem.
+      const novo: PreviewSlide = {
+        id: `slide-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        url,
+        type: isVideo ? "video" : "image",
+        framing: { ...DEFAULT_FRAMING },
+      };
+      setSlides((prev) => {
+        // Post/Reel/Story são de UMA mídia: trocar o arquivo substitui o slide,
+        // não acumula. O carrossel acumula.
+        const next = format === "carrossel" ? [...prev, novo] : [novo];
+        setActiveSlide(next.length - 1);
+        return next;
+      });
+
       if (oversize) {
         toast("Mídia grande: aparece no preview, mas será salva sem o arquivo.");
       } else {
-        toast("Mídia adicionada ao preview.");
+        toast(
+          format === "carrossel"
+            ? `Imagem ${slides.length + 1} adicionada ao carrossel.`
+            : "Mídia adicionada ao preview."
+        );
       }
     } catch {
       toast("Não foi possível carregar o arquivo.", "error");
@@ -252,9 +444,83 @@ export function PreviewSocial({ userId, aiConfigured, initialDrafts, initialSave
     }
   }
 
+  /** Move um slide do carrossel uma posição (-1 esquerda, +1 direita). */
+  function moveSlide(index: number, direction: -1 | 1) {
+    setSlides((prev) => {
+      const target = index + direction;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[target]] = [next[target], next[index]];
+      setActiveSlide(target);
+      return next;
+    });
+  }
+
+  /** Remove um slide do carrossel. */
+  function removeSlide(id: string) {
+    setSlides((prev) => {
+      const next = prev.filter((s) => s.id !== id);
+      setActiveSlide((cur) => Math.min(cur, Math.max(0, next.length - 1)));
+      // A mídia "principal" (que vai no rascunho) acompanha o carrossel.
+      const first = next[0];
+      setMediaUrl(first?.url ?? "");
+      setMediaType(first?.type ?? "image");
+      return next;
+    });
+    toast("Imagem removida do carrossel.");
+  }
+
+  /** Aplica o enquadramento (zoom/posição) a um slide. */
+  function setSlideFraming(id: string, framing: Framing) {
+    setSlides((prev) => prev.map((s) => (s.id === id ? { ...s, framing } : s)));
+  }
+
+  /**
+   * Traz mídias da BIBLIOTECA para o preview.
+   *
+   * Reaproveita a URL já persistida — o arquivo NÃO é reenviado. É exatamente o
+   * ganho da Biblioteca: o mesmo binário serve para vários conteúdos.
+   *
+   * O `id` do slide recebe prefixo `lib-<mediaId>` para que dois slides da mesma
+   * mídia (ex.: usar a mesma foto duas vezes no carrossel) não colidam como
+   * chave de React — o enquadramento é POR SLIDE, não por arquivo.
+   */
+  function addFromLibrary(assets: MediaAssetView[]) {
+    if (assets.length === 0) return;
+    const novos: PreviewSlide[] = assets.map((a) => ({
+      id: `lib-${a.id}-${Math.random().toString(36).slice(2, 7)}`,
+      url: a.url,
+      type: a.type === "VIDEO" ? "video" : "image",
+      framing: { ...DEFAULT_FRAMING },
+    }));
+
+    setSlides((prev) => {
+      // Carrossel acumula; os formatos de mídia única substituem.
+      const next = format === "carrossel" ? [...prev, ...novos] : [novos[0]];
+      setActiveSlide(format === "carrossel" ? prev.length : 0);
+      return next;
+    });
+
+    // O rascunho guarda UMA mediaUrl (a que vai para o motor de publicação).
+    // Aqui ela passa a ser a primeira mídia escolhida.
+    setMediaUrl(novos[0].url);
+    setMediaType(novos[0].type);
+    setMediaOversize(false);
+    // A mídia da biblioteca já está no Blob: não há `File` local para enviar.
+    setMediaFile(null);
+
+    toast(
+      novos.length === 1
+        ? "Mídia da biblioteca adicionada."
+        : `${novos.length} mídias da biblioteca adicionadas.`
+    );
+  }
+
   function clearAll() {
     setMediaFile(null);
     setMediaUrl("");
+    setSlides([]);
+    setActiveSlide(0);
     setMediaOversize(false);
     setCaption("");
     setHashtags("");
@@ -359,10 +625,26 @@ export function PreviewSocial({ userId, aiConfigured, initialDrafts, initialSave
       }
     }
 
+    // O enquadramento da mídia de CAPA viaja junto (JSON curto), para o recorte
+    // sobreviver a salvar/reabrir/F5. Só a capa: é ela que o rascunho
+    // representa (`mediaUrl` é uma só). O LIMITE segue valendo — o binário
+    // publicado é o original, o recorte é do preview. Ver `use-media-framing.ts`.
+    const capa = slides[activeSlide] ?? slides[0];
+    const framingJson =
+      capa && !isDefaultFraming(capa.framing) ? JSON.stringify(capa.framing) : undefined;
+
     const res = await fetch("/api/drafts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ platform, mediaType, mediaUrl: uploadedMediaUrl, caption, hashtags, format }),
+      body: JSON.stringify({
+        platform,
+        mediaType,
+        mediaUrl: uploadedMediaUrl,
+        caption,
+        hashtags,
+        format,
+        framing: framingJson,
+      }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -586,19 +868,19 @@ export function PreviewSocial({ userId, aiConfigured, initialDrafts, initialSave
     .map((t) => t.trim())
     .filter(Boolean);
 
-  const inputCls =
-    "h-11 rounded-[12px] border border-border bg-bg-ice px-3.5 text-[14px] text-ink placeholder:text-ink-muted focus:border-purple/50 focus:ring-2 focus:ring-purple/20 focus:outline-none transition-shadow";
+  const inputCls = FIELD_CLASS_FILLED;
 
   return (
     <div className="flex flex-col gap-5">
       <Tabs
         tabs={[
           { id: "criar", label: "Criar" },
+          { id: "postados", label: `Postados (${posted.length})` },
           { id: "salvos", label: `Rascunhos (${drafts.length})` },
           { id: "biblioteca", label: `Legendas salvas (${savedCopies.length})` },
         ]}
         activeId={view}
-        onChange={(v) => setView(v as "criar" | "salvos" | "biblioteca")}
+        onChange={(v) => setView(v as "criar" | "postados" | "salvos" | "biblioteca")}
       />
 
       {view === "criar" && (
@@ -633,7 +915,15 @@ export function PreviewSocial({ userId, aiConfigured, initialDrafts, initialSave
                   {FORMATS.map((f) => (
                     <button
                       key={f.id}
-                      onClick={() => setFormat(f.id)}
+                      onClick={() => {
+                        setFormat(f.id);
+                        // Post/Reel/Story mostram UMA mídia (a primeira). Sem
+                        // isto, sair de um carrossel parado na 3ª imagem deixava
+                        // essa 3ª aparecendo no formato de mídia única. Os
+                        // slides seguem em memória: voltar ao carrossel
+                        // restaura o conjunto inteiro.
+                        if (f.id !== "carrossel") setActiveSlide(0);
+                      }}
                       className={cn(
                         "px-3.5 py-2 rounded-pill border text-[13px] font-semibold transition-all cursor-pointer",
                         format === f.id
@@ -662,23 +952,159 @@ export function PreviewSocial({ userId, aiConfigured, initialDrafts, initialSave
                   className="hidden"
                   onChange={onFile}
                 />
-                <button
-                  onClick={() => fileRef.current?.click()}
-                  className={cn(
-                    "flex items-center justify-center gap-2 rounded-[12px] border-2 border-dashed px-4 py-6 text-[13.5px] font-semibold transition-colors cursor-pointer",
-                    mediaUrl
-                      ? "border-success/40 text-success bg-success/5"
-                      : "border-border text-ink-soft hover:border-purple/40 hover:text-purple"
-                  )}
-                >
-                  <UploadCloud size={18} />
-                  {mediaUrl ? "Trocar mídia" : "Escolher imagem ou vídeo do seu computador"}
-                </button>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button
+                    onClick={() => fileRef.current?.click()}
+                    className={cn(
+                      "flex items-center justify-center gap-2 rounded-[12px] border-2 border-dashed px-4 py-5 text-[13.5px] font-semibold transition-colors cursor-pointer",
+                      mediaUrl
+                        ? "border-success/40 text-success bg-success/5"
+                        : "border-border text-ink-soft hover:border-purple/40 hover:text-purple"
+                    )}
+                  >
+                    <UploadCloud size={18} />
+                    {format === "carrossel"
+                      ? mediaUrl
+                        ? "Outra do dispositivo"
+                        : "Do dispositivo"
+                      : mediaUrl
+                        ? "Trocar do dispositivo"
+                        : "Do dispositivo"}
+                  </button>
+                  <button
+                    onClick={() => setPickerOpen(true)}
+                    className="flex items-center justify-center gap-2 rounded-[12px] border-2 border-dashed border-border px-4 py-5 text-[13.5px] font-semibold text-ink-soft transition-colors cursor-pointer hover:border-purple/40 hover:text-purple"
+                  >
+                    <Images size={18} />
+                    Da Biblioteca
+                  </button>
+                </div>
+                <p className="text-[11.5px] text-ink-muted">
+                  {format === "carrossel"
+                    ? "A biblioteca deixa você escolher várias de uma vez, sem reenviar arquivo."
+                    : "Usar uma mídia já enviada evita subir o mesmo arquivo de novo."}
+                </p>
                 {mediaOversize && (
                   <p className="text-[11.5px] text-warn">
                     Arquivo grande: aparece no preview, mas o rascunho será salvo sem ele.
                   </p>
                 )}
+
+                {/* ---- CARROSSEL: miniaturas com reordenar/remover ---- */}
+                {format === "carrossel" && slides.length > 0 && (
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[11.5px] font-semibold text-ink-muted">
+                      {slides.length} imagem{slides.length > 1 ? "ns" : ""} · a ordem é a do carrossel
+                    </span>
+                    <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+                      {slides.map((s, i) => (
+                        <div
+                          key={s.id}
+                          className={cn(
+                            "relative flex-none rounded-[10px] overflow-hidden border-2 cursor-pointer",
+                            i === activeSlide ? "border-purple" : "border-border-soft"
+                          )}
+                          onClick={() => setActiveSlide(i)}
+                        >
+                          {s.type === "image" ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={s.url} alt="" loading="lazy" decoding="async" className="w-16 h-16 object-cover" />
+                          ) : (
+                            <video src={s.url} className="w-16 h-16 object-cover" muted preload="metadata" />
+                          )}
+                          <span className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-ink/75 text-white text-[9.5px] font-bold grid place-items-center">
+                            {i + 1}
+                          </span>
+                          <div className="absolute bottom-0 left-0 right-0 flex justify-center gap-0.5 bg-ink/60 py-0.5">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                moveSlide(i, -1);
+                              }}
+                              disabled={i === 0}
+                              aria-label="Mover para a esquerda"
+                              className="text-white/85 hover:text-white disabled:opacity-25 cursor-pointer text-[10px] leading-none px-1"
+                            >
+                              ◀
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeSlide(s.id);
+                              }}
+                              aria-label="Remover imagem"
+                              className="text-white/85 hover:text-danger cursor-pointer text-[10px] leading-none px-1"
+                            >
+                              ✕
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                moveSlide(i, 1);
+                              }}
+                              disabled={i === slides.length - 1}
+                              aria-label="Mover para a direita"
+                              className="text-white/85 hover:text-white disabled:opacity-25 cursor-pointer text-[10px] leading-none px-1"
+                            >
+                              ▶
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => fileRef.current?.click()}
+                        className="flex-none w-16 h-16 rounded-[10px] border-2 border-dashed border-border text-ink-muted hover:border-purple/50 hover:text-purple grid place-items-center cursor-pointer"
+                        aria-label="Adicionar imagem ao carrossel"
+                      >
+                        <UploadCloud size={18} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* ---- ENQUADRAMENTO: zoom + reset (a posição vem do arraste) ---- */}
+                {slides.length > 0 && (() => {
+                  const current = slides[activeSlide] ?? slides[0];
+                  if (!current) return null;
+                  return (
+                    <div className="flex items-center gap-3">
+                      <span className="text-[11.5px] font-semibold text-ink-muted flex-none">
+                        Zoom
+                      </span>
+                      <input
+                        type="range"
+                        min={MIN_ZOOM}
+                        max={MAX_ZOOM}
+                        step={0.05}
+                        value={current.framing.zoom}
+                        onChange={(e) =>
+                          setSlideFraming(current.id, {
+                            ...current.framing,
+                            zoom: Number(e.target.value),
+                          })
+                        }
+                        className="flex-1 accent-purple cursor-pointer"
+                        aria-label="Zoom do enquadramento"
+                      />
+                      <span className="text-[11.5px] text-ink-muted w-10 text-right tabular-nums">
+                        {current.framing.zoom.toFixed(2)}×
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSlideFraming(current.id, { ...DEFAULT_FRAMING })}
+                        disabled={isDefaultFraming(current.framing)}
+                        className="text-[11.5px] font-semibold text-purple hover:underline disabled:text-ink-muted disabled:no-underline cursor-pointer disabled:cursor-default flex-none"
+                      >
+                        Centralizar
+                      </button>
+                    </div>
+                  );
+                })()}
+
                 {mediaUrl && (
                   <div className="grid place-items-center">
                     {mediaType === "image" ? (
@@ -748,7 +1174,7 @@ export function PreviewSocial({ userId, aiConfigured, initialDrafts, initialSave
                     <select
                       value={tone}
                       onChange={(e) => setTone(e.target.value)}
-                      className={inputCls}
+                      className={SELECT_CLASS_FILLED}
                     >
                       {TONES.map((t) => (
                         <option key={t.id} value={t.id}>
@@ -762,7 +1188,7 @@ export function PreviewSocial({ userId, aiConfigured, initialDrafts, initialSave
                     <select
                       value={size}
                       onChange={(e) => setSize(e.target.value)}
-                      className={inputCls}
+                      className={SELECT_CLASS_FILLED}
                     >
                       {SIZES.map((s) => (
                         <option key={s.id} value={s.id}>
@@ -937,90 +1363,19 @@ export function PreviewSocial({ userId, aiConfigured, initialDrafts, initialSave
               Preview · {platformLabel} · {formatLabel}
             </div>
 
-            {/* Largura fluida: era `w-[300px]` fixo e, somado ao `border-[10px]`,
-                o mockup media 320px — estourava a viewport em telas de 320/360px.
-                Com `w-full max-w-[300px]` ele encolhe dentro do container. */}
-            <div className="relative w-full max-w-[300px] rounded-[40px] border-[10px] border-ink bg-ink shadow-brand-lg overflow-hidden">
-              {/* Notch */}
-              <div className="absolute top-2 left-1/2 -translate-x-1/2 w-24 h-5 bg-ink rounded-full z-20" />
-
-              {/* Altura responsiva: 540px fixos eram altos demais em telas
-                  baixas (celular na horizontal, ~360px de altura útil). A
-                  área de mídia é `flex-1`, então ela se ajusta sozinha. */}
-              <div className="relative h-[440px] sm:h-[540px] bg-bg-ice flex flex-col">
-                {/* Header do perfil */}
-                <div className="flex items-center gap-2.5 px-4 pt-9 pb-2">
-                  <span className="w-8 h-8 rounded-full bg-brand-grad grid place-items-center text-[11px] font-bold text-white">
-                    IA
-                  </span>
-                  <span className="text-[12.5px] font-semibold text-ink truncate min-w-0">
-                    Inst Acessor
-                  </span>
-                  {format === "story" && (
-                    <span className="ml-auto text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
-                      Story
-                    </span>
-                  )}
-                </div>
-
-                {/* Mídia */}
-                <div className="flex-1 bg-surface grid place-items-center overflow-hidden">
-                  {mediaUrl ? (
-                    mediaType === "image" ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={mediaUrl}
-                        alt="Mídia"
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <video src={mediaUrl} className="w-full h-full object-cover" muted playsInline />
-                    )
-                  ) : (
-                    <div className="flex flex-col items-center gap-2 text-ink-muted px-6 text-center">
-                      <ImageIcon size={26} />
-                      <span className="text-[12px]">
-                        Adicione uma mídia para visualizar o preview.
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Caption + hashtags */}
-                {(caption || tags.length > 0) && (
-                  <div className="px-4 py-3 flex flex-col gap-1.5">
-                    {caption && (
-                      /* BLOCO 5 — a legenda é escrita à mão e pode trazer uma
-                         palavra sem ponto de quebra. Dentro do mockup (proporção
-                         fixa) isso empurrava a borda: `break-words` mantém a
-                         legenda contida na largura do aparelho. */
-                      <p className="text-[12px] text-ink leading-snug line-clamp-4 whitespace-pre-wrap break-words">
-                        {caption}
-                      </p>
-                    )}
-                    {tags.length > 0 && (
-                      /* BLOCO 5 — uma hashtag longa sem espaços não pode
-                         alargar o mockup: `break-words` a quebra dentro do
-                         próprio bloco de legenda. */
-                      <p className="text-[12px] text-[#00376B] font-medium break-words">
-                        {tags.join(" ")}
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {/* Barra inferior */}
-                <div className="px-4 py-2 border-t border-border-soft flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-ink-muted">
-                    <Clapperboard size={15} />
-                    <span className="text-[10.5px] font-semibold">
-                      {format === "story" ? "Story" : format === "reel" ? "Reel" : "Publicação"}
-                    </span>
-                  </div>
-                  <span className="text-[10.5px] text-ink-muted">Pré-visualização</span>
-                </div>
-              </div>
-            </div>
+            {/* O mockup agora vem de `PreviewFrame`, que muda a PROPORÇÃO por
+                formato (4:5 no feed, 9:16 em Reel/Story) e aplica o
+                enquadramento escolhido. Antes a proporção era fixa e o formato
+                só trocava um rótulo. */}
+            <PreviewFrame
+              format={format as "post" | "reel" | "story" | "carrossel"}
+              slides={slides}
+              activeIndex={activeSlide}
+              onIndexChange={setActiveSlide}
+              onFramingChange={setSlideFraming}
+              caption={caption}
+              tags={tags}
+            />
 
             <p className="text-[12px] text-ink-muted text-center max-w-[280px]">
               Apenas pré-visualização local. Nada é publicado nem enviado a
@@ -1093,6 +1448,17 @@ export function PreviewSocial({ userId, aiConfigured, initialDrafts, initialSave
         </div>
       </Modal>
 
+      {/* ---------- SELETOR DA BIBLIOTECA ----------
+          `multiple` segue o FORMATO: carrossel aceita várias; Post/Story/Reel
+          aceitam uma. Reel pede só vídeo. */}
+      <MediaPicker
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        multiple={format === "carrossel"}
+        onlyType={format === "reel" ? "VIDEO" : undefined}
+        onConfirm={addFromLibrary}
+      />
+
       {/* ---------- PROGRAMAR — grava o rascunho e cria o PlannedContent ---------- */}
       <Modal
         open={scheduleOpen}
@@ -1126,6 +1492,37 @@ export function PreviewSocial({ userId, aiConfigured, initialDrafts, initialSave
         </div>
       </Modal>
 
+      {/* ---------- POSTADOS — conteúdos REAIS do calendário ---------- */}
+      {view === "postados" && (
+        <div className="flex flex-col gap-3">
+          {posted.length === 0 ? (
+            <div className="rounded-lg bg-card border border-border-soft shadow-xs p-6">
+              <EmptyState
+                icon={Send}
+                title="Nada publicado ainda"
+                description="Quando você publicar pelo app, o conteúdo aparece aqui com a data e o link real do Instagram."
+              />
+            </div>
+          ) : postingLoad ? (
+            /* Esqueleto enquanto a lista real chega — não inventamos conteúdo
+               para "encher" a aba. */
+            <div className="flex flex-col gap-2.5">
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="rounded-[12px] border border-border-soft bg-card p-3 flex items-center gap-3 animate-pulse"
+                >
+                  <span className="w-12 h-12 rounded-[10px] bg-surface flex-none" />
+                  <span className="flex-1 h-3 bg-surface rounded" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            posted.map((p) => <PostedRow key={p.id} item={p} />)
+          )}
+        </div>
+      )}
+
       {view === "salvos" && (
         /* Rascunhos salvos */
         <div className="rounded-lg bg-card border border-border-soft shadow-xs p-6">
@@ -1136,11 +1533,11 @@ export function PreviewSocial({ userId, aiConfigured, initialDrafts, initialSave
               description="Crie um preview e salve para encontrar aqui depois."
             />
           ) : (
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2.5">
               {drafts.map((d) => (
                 <div
                   key={d.id}
-                  className="rounded-[12px] border border-border-soft bg-bg-ice p-4 flex items-start gap-3"
+                  className="rounded-[12px] border border-border-soft bg-bg-ice px-3 py-2.5 flex items-center gap-3"
                 >
                   {d.mediaUrl ? (
                     d.mediaType === "image" ? (
@@ -1148,47 +1545,44 @@ export function PreviewSocial({ userId, aiConfigured, initialDrafts, initialSave
                       <img
                         src={d.mediaUrl}
                         alt=""
-                        className="w-16 h-16 rounded-[10px] object-cover flex-none"
+                        loading="lazy"
+                        decoding="async"
+                        className="w-12 h-12 rounded-[10px] object-cover flex-none"
                       />
                     ) : (
                       <video
                         src={d.mediaUrl}
-                        className="w-16 h-16 rounded-[10px] object-cover flex-none"
+                        className="w-12 h-12 rounded-[10px] object-cover flex-none"
                         muted
                       />
                     )
                   ) : (
-                    <span className="w-16 h-16 rounded-[10px] bg-surface grid place-items-center text-ink-muted flex-none">
-                      <ImageIcon size={20} />
+                    <span className="w-12 h-12 rounded-[10px] bg-surface grid place-items-center text-ink-muted flex-none">
+                      <ImageIcon size={18} />
                     </span>
                   )}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
-                        {d.platform}
-                      </span>
-                      <span className="text-[11px] font-semibold uppercase tracking-wider text-purple">
-                        {FORMATS.find((f) => f.id === d.format)?.label ?? d.format}
-                      </span>
-                    </div>
                     {d.caption && (
-                      <p className="text-[13px] text-ink leading-snug line-clamp-2 mt-1 whitespace-pre-wrap break-words">
+                      <p className="text-[12.5px] text-ink leading-snug line-clamp-1 whitespace-pre-wrap break-words">
                         {d.caption}
                       </p>
                     )}
-                    <button
-                      onClick={() => loadDraft(d)}
-                      className="text-[12px] font-semibold text-purple hover:underline cursor-pointer mt-1.5"
-                    >
-                      Abrir no editor
-                    </button>
+                    <p className="text-[11.5px] text-ink-muted mt-0.5">
+                      {FORMATS.find((f) => f.id === d.format)?.label ?? d.format}
+                    </p>
                   </div>
+                  <button
+                    onClick={() => loadDraft(d)}
+                    className="text-[12px] font-semibold text-purple hover:underline cursor-pointer flex-none"
+                  >
+                    Abrir
+                  </button>
                   <button
                     onClick={() => remove(d.id)}
                     className="p-1.5 rounded-[8px] text-ink-muted hover:text-danger cursor-pointer flex-none"
                     aria-label="Excluir rascunho"
                   >
-                    <Trash2 size={16} />
+                    <Trash2 size={15} />
                   </button>
                 </div>
               ))}
@@ -1270,6 +1664,69 @@ export function PreviewSocial({ userId, aiConfigured, initialDrafts, initialSave
  * Só mexe quando elas estão AGRUPADAS no final — hashtag no meio de uma frase
  * faz parte da frase e não é removida.
  */
+/**
+ * Linha de um conteúdo REALMENTE publicado.
+ *
+ * `externalId` é o id do objeto na Meta — o link para o post no Instagram só é
+ * montado quando ele existe. Sem `externalId` não há link: inventar uma URL
+ * levaria a uma página 404 disfarçada de "ver no Instagram".
+ */
+function PostedRow({ item }: { item: PostedItem }) {
+  const quando = item.publishedAt
+    ? new Date(item.publishedAt).toLocaleString("pt-BR", {
+        day: "2-digit",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : null;
+
+  const formato = item.format === "legenda" ? "post" : item.format;
+
+  return (
+    <div className="rounded-[12px] border border-border-soft bg-card px-3 py-2.5 flex items-center gap-3">
+      {item.draftMediaUrl ? (
+        item.draftMediaType === "video" ? (
+          <video src={item.draftMediaUrl} className="w-12 h-12 rounded-[10px] object-cover flex-none" muted />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={item.draftMediaUrl} alt="" className="w-12 h-12 rounded-[10px] object-cover flex-none" />
+        )
+      ) : (
+        <span className="w-12 h-12 rounded-[10px] bg-surface grid place-items-center text-ink-muted flex-none">
+          <ImageIcon size={18} />
+        </span>
+      )}
+
+      <div className="flex-1 min-w-0">
+        <p className="text-[12.5px] text-ink font-medium leading-snug line-clamp-1 break-words">
+          {item.draftCaption || item.title}
+        </p>
+        <div className="flex items-center gap-2 mt-1 flex-wrap">
+          <Badge tone="success" size="xs">
+            Publicado
+          </Badge>
+          <span className="text-[11px] text-ink-muted">
+            {FORMATS.find((f) => f.id === formato)?.label ?? formato}
+          </span>
+          {quando && <span className="text-[11px] text-ink-muted">· {quando}</span>}
+        </div>
+      </div>
+
+      {item.externalId && (
+        <a
+          href={`https://www.instagram.com/p/${item.externalId}/`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[12px] font-semibold text-purple hover:underline flex-none"
+        >
+          Ver
+        </a>
+      )}
+    </div>
+  );
+}
+
 function splitHashtags(content: string): { body: string; tags: string } {
   const lines = content.split("\n");
   const tagLine = /^\s*(?:#[\p{L}\p{N}_]+\s*)+$/u;

@@ -73,6 +73,7 @@ model User {
   preferences            UserPreferences?
   profile                UserProfile?
   xpLogs                 XpLog[]
+  mediaAssets            MediaAsset[]
 }
 
 model Account {
@@ -488,6 +489,16 @@ model SocialDraft {
   caption         String?
   hashtags        String?
   format          String?
+  /// ENQUADRAMENTO do preview, em JSON curto: `{"zoom":1.4,"offsetX":0.1,"offsetY":-0.2}`.
+  ///
+  /// Existe para o recorte escolhido SOBREVIVER ao salvar/reabrir/recarregar —
+  /// antes ele vivia só no estado da tela e se perdia no F5.
+  ///
+  /// LIMITE DECLARADO: isto guarda a INTENÇÃO de enquadramento para o preview.
+  /// O arquivo publicado continua sendo o ORIGINAL — o recorte não é aplicado
+  /// ao binário (isso exigiria renderização/transcodificação, etapa separada).
+  /// Ver `src/components/ai/use-media-framing.ts`.
+  framing         String?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
   plannedContents PlannedContent[]
@@ -1309,4 +1320,40 @@ enum ConnectionStatus {
   CONNECTING
   CONNECTED
   ERROR
+}
+
+/// BIBLIOTECA DE MÍDIA — arquivos que o usuário enviou uma vez e reutiliza.
+///
+/// Por que existe: o upload do Preview Social guarda o arquivo no Vercel Blob e
+/// o caminho no RASCUNHO (`SocialDraft.mediaUrl`). Isso amarra o arquivo a um
+/// rascunho: trocar de rascunho perde a referência e o usuário reenvia a MESMA
+/// foto. Aqui o arquivo passa a ter existência própria — enviado uma vez,
+/// reaproveitado em quantos conteúdos quiser, sem upload duplicado.
+///
+/// O binário NÃO mora no banco: fica no Blob. Esta tabela guarda a referência
+/// (`url` pública e `pathname` na Blob).
+model MediaAsset {
+  id           String   @id @default(cuid())
+  userId       String
+  /// URL pública no Vercel Blob — é ela que o preview usa.
+  url          String
+  /// Caminho dentro do Blob (`inst-acessor/<userId>/...`). Serve para localizar
+  /// e remover o binário depois. NUNCA é montado a partir de dado do cliente
+  /// sem validação de prefixo.
+  pathname     String?
+  /// IMAGE | VIDEO — derivado do mimeType, nunca informado solto pelo cliente.
+  type         String
+  mimeType     String?
+  size         Int?
+  originalName String?
+  /// Título do arquivo na biblioteca. `null` → a UI usa `originalName`.
+  title        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// A listagem é SEMPRE por usuário e em ordem de envio — este índice cobre
+  /// exatamente a consulta da tela, inclusive a paginação por cursor.
+  @@index([userId, createdAt])
+  @@map("media_asset")
 }
