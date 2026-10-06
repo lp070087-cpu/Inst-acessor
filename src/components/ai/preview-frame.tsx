@@ -91,8 +91,46 @@ export function PreviewFrame({
   const isCarousel = format === "carrossel";
   const hasNav = isCarousel && slides.length > 1;
 
-  const onDrag = useFramingDrag(slide?.framing ?? { zoom: 1, offsetX: 0, offsetY: 0 }, (next) => {
-    if (slide && interactive) onFramingChange(slide.id, next);
+  /**
+   * ENQUADRAMENTO DURANTE O ARRASTE — estado LOCAL, não o do pai.
+   *
+   * Antes, cada `pointermove` chamava `onFramingChange` → `setSlides` no
+   * Preview Social (1.601 linhas). Um arraste gera dezenas de eventos por
+   * segundo, então o componente INTEIRO re-renderizava dezenas de vezes por
+   * segundo — caro em celular fraco e a causa direta de arraste travado.
+   *
+   * Agora o gesto atualiza SÓ ESTE componente; o estado do pai (e o rascunho)
+   * recebe UM `onFramingChange` quando o dedo solta. O resultado visual é o
+   * mesmo — ver o efeito abaixo.
+   */
+  const [liveFraming, setLiveFraming] = React.useState<Framing | null>(null);
+  /** Último valor do gesto — lido no `pointerup`, sem depender de re-render. */
+  const liveRef = React.useRef<Framing | null>(null);
+
+  // Fora do arraste, o que vale é o valor do PAI (troca de slide, zoom pelo
+  // slider, "Centralizar", rascunho reaberto). O local é só o do gesto em curso.
+  const effectiveFraming = liveFraming ?? slide?.framing ?? { zoom: 1, offsetX: 0, offsetY: 0 };
+
+  // Sai do modo local assim que o pai confirma o valor — sem isso o componente
+  // ficaria preso ao último arraste e ignoraria mudanças externas.
+  React.useEffect(() => {
+    setLiveFraming(null);
+    liveRef.current = null;
+  }, [slide?.id, slide?.framing]);
+
+  const commitFraming = React.useCallback(
+    (next: Framing) => {
+      if (slide && interactive) onFramingChange(slide.id, next);
+    },
+    [slide, interactive, onFramingChange]
+  );
+
+  const onDrag = useFramingDrag(effectiveFraming, (next) => {
+    liveRef.current = next;
+    setLiveFraming(next);
+  }, () => {
+    // Fim do gesto: aí sim o pai (e o rascunho) recebe o valor final.
+    if (liveRef.current) commitFraming(liveRef.current);
   });
 
   return (

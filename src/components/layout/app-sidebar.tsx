@@ -234,7 +234,7 @@ export function AppSidebar({
               <div className="my-4 h-px bg-border-soft" />
               <div className="flex flex-col gap-0.5">
                 {isAdmin && (
-                  <SidebarNavItem key={adminNavItem.href} item={adminNavItem} active={isActive(adminNavItem.href)} />
+                  <SidebarNavItem key={adminNavItem.href} item={adminNavItem} active={isActive(adminNavItem.href)} onNavigate={() => setMobileOpen(false)} />
                 )}
                 {bottomNav.map((item) => (
                   <SidebarNavItem key={item.href} item={item} active={isActive(item.href)} />

@@ -18,6 +18,12 @@ interface SidebarNavItemProps {
    * de verdade é o servidor, em `(app)/layout.tsx`. Aqui só sinalizamos.
    */
   locked?: boolean;
+  /**
+   * Chamado quando o item é clicado. O drawer mobile usa isto para fechar na
+   * hora — ver o comentário em `app-sidebar.tsx` sobre por que o efeito em
+   * `[pathname]` sozinho não bastava.
+   */
+  onNavigate?: () => void;
 }
 
 export function SidebarNavItem({
@@ -26,6 +32,7 @@ export function SidebarNavItem({
   collapsed,
   isSignOut,
   locked,
+  onNavigate,
 }: SidebarNavItemProps) {
   const Icon = item.icon;
 
@@ -96,7 +103,15 @@ export function SidebarNavItem({
   }
 
   return (
-    <Link href={item.href} className={className} aria-current={active ? "page" : undefined}>
+    <Link
+      href={item.href}
+      className={className}
+      aria-current={active ? "page" : undefined}
+      // Fecha o menu no CLIQUE, não na mudança de rota. São coisas diferentes:
+      // tocar na aba da rota ATUAL não muda `pathname`, e o menu ficava aberto
+      // por cima da página. O clique, esse acontece sempre.
+      onClick={onNavigate}
+    >
       {content}
     </Link>
   );

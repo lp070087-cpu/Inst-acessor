@@ -76,10 +76,20 @@ export function isDefaultFraming(f: Framing): boolean {
  * `setPointerCapture` para que o arraste continue mesmo se o ponteiro sair do
  * elemento — sem isso o gesto morre na borda, o que é exatamente onde ele
  * costuma terminar num celular.
+ *
+ * `onCommit` (opcional) roda UMA VEZ, no fim do gesto, com o valor final.
+ * É o que permite ao chamador manter o arraste barato: `onChange` dispara a
+ * cada movimento (para o feedback visual) e `onCommit` só quando o dedo solta —
+ * aí sim vale propagar para o estado global/rascunho.
+ *
+ * O `move` é agendado com `requestAnimationFrame`: `pointermove` pode disparar
+ * mais de uma vez por quadro, e sem isso o trabalho de atualização seria feito
+ * mais vezes do que a tela consegue desenhar.
  */
 export function useFramingDrag(
   framing: Framing,
-  onChange: (next: Framing) => void
+  onChange: (next: Framing) => void,
+  onCommit?: (next: Framing) => void
 ): React.PointerEventHandler<HTMLElement> {
   const start = React.useRef<{
     pointerId: number;
@@ -91,12 +101,14 @@ export function useFramingDrag(
     height: number;
   } | null>(null);
 
-  // `framing` e `onChange` mudam a cada render; guardados em ref para que o
-  // handler seja estável e não force re-render de quem o consome.
+  // `framing`, `onChange` e `onCommit` mudam a cada render; guardados em ref
+  // para que o handler seja estável e não force re-render de quem o consome.
   const framingRef = React.useRef(framing);
   framingRef.current = framing;
   const onChangeRef = React.useRef(onChange);
   onChangeRef.current = onChange;
+  const onCommitRef = React.useRef(onCommit);
+  onCommitRef.current = onCommit;
 
   return React.useCallback((event: React.PointerEvent<HTMLElement>) => {
     const el = event.currentTarget;
@@ -122,24 +134,45 @@ export function useFramingDrag(
       /* ambientes sem pointer capture: o arraste funciona, só não sai da caixa */
     }
 
-    const move = (e: PointerEvent) => {
+    let raf = 0;
+    let last: Framing | null = null;
+
+    const apply = (e: PointerEvent) => {
       const s = start.current;
       if (!s || e.pointerId !== s.pointerId) return;
       // Divide pelo tamanho do QUADRO (não da imagem): assim o arraste é 1:1
       // com o que o dedo percorre, em qualquer largura de tela.
       const dx = (e.clientX - s.x) / s.width;
       const dy = (e.clientY - s.y) / s.height;
-      onChangeRef.current({
+      last = {
         zoom: framingRef.current.zoom,
         offsetX: clamp(s.ox + dx, -MAX_OFFSET, MAX_OFFSET),
         offsetY: clamp(s.oy + dy, -MAX_OFFSET, MAX_OFFSET),
+      };
+      onChangeRef.current(last);
+    };
+
+    const move = (e: PointerEvent) => {
+      // Coalesce: no máximo uma atualização por quadro.
+      if (raf) return;
+      raf = window.requestAnimationFrame(() => {
+        raf = 0;
+        apply(e);
       });
     };
 
     const end = (e: PointerEvent) => {
       const s = start.current;
       if (s && e.pointerId !== s.pointerId) return;
+      if (raf) {
+        window.cancelAnimationFrame(raf);
+        raf = 0;
+      }
+      // Aplica o último movimento antes de fechar — o quadro pendente pode ter
+      // sido cancelado, e sem isso o commit ficaria um passo atrás do dedo.
+      if (s && e.type === "pointerup") apply(e);
       start.current = null;
+      if (last) onCommitRef.current?.(last);
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", end);
       window.removeEventListener("pointercancel", end);

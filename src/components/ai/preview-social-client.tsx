@@ -128,6 +128,13 @@ interface PreviewSocialProps {
   aiConfigured: boolean;
   initialDrafts: Draft[];
   initialSaved: SavedCopy[];
+  /**
+   * Mídia escolhida na Biblioteca e resolvida no SERVIDOR (`?mid=<id>`).
+   * Já vem isolada por usuário — o cliente não faz fetch nem valida acesso.
+   */
+  initialMedia: { id: string; url: string; type: string } | null;
+  /** Formato sugerido pela Biblioteca ("Criar carrossel" → "carrossel"). */
+  initialFormat: string | null;
 }
 
 /**
@@ -180,11 +187,20 @@ function downscaleImage(file: File): Promise<string> {
   });
 }
 
-export function PreviewSocial({ userId, aiConfigured, initialDrafts, initialSaved }: PreviewSocialProps) {
+export function PreviewSocial({
+  userId,
+  aiConfigured,
+  initialDrafts,
+  initialSaved,
+  initialMedia,
+  initialFormat,
+}: PreviewSocialProps) {
     const { toast } = useToast();
 
   const [platform, setPlatform] = React.useState<string>("instagram");
-  const [format, setFormat] = React.useState<string>("post");
+  // `initialFormat` vem da Biblioteca (ex.: "Criar carrossel") e tem prioridade
+  // sobre o padrão "post" — é a intenção que o usuário já expressou.
+  const [format, setFormat] = React.useState<string>(initialFormat ?? "post");
   /**
    * SLIDES do preview. Um array — e não `mediaUrl`/`mediaType` soltos — porque
    * o carrossel precisa de várias imagens, cada uma com o seu enquadramento.
@@ -224,54 +240,31 @@ export function PreviewSocial({ userId, aiConfigured, initialDrafts, initialSave
   const [pickerOpen, setPickerOpen] = React.useState(false);
 
   /**
-   * Seleção trazida da Biblioteca (`/biblioteca-de-midia` → "Criar carrossel").
+   * Mídia escolhida na Biblioteca (`/biblioteca-de-midia` → "Criar publicação").
    *
-   * Chega por `sessionStorage` com o FORMATO e as URLs — não os arquivos. A
-   * Biblioteca já persistiu tudo; aqui só se escolhe o que usar, sem reenviar
-   * nada. Lê UMA vez, na montagem, e limpa em seguida: se o usuário recarregar
-   * a página, a seleção não deve ressuscitar sozinha.
+   * Chega JÁ RESOLVIDA pelo servidor (`?mid=<id>`) — sem `sessionStorage` e sem
+   * fetch no cliente. Dois ganhos: sobrevive a recarregar a página e a abrir em
+   * aba nova, e a autorização fica onde deve (o servidor confere que a mídia é
+   * do usuário antes de mandá-la).
    */
   React.useEffect(() => {
-    let raw: string | null = null;
-    try {
-      raw = sessionStorage.getItem("inst-acessor:biblioteca-selecao");
-      if (raw) sessionStorage.removeItem("inst-acessor:biblioteca-selecao");
-    } catch {
-      return;
-    }
-    if (!raw) return;
-
-    try {
-      const parsed = JSON.parse(raw) as {
-        format?: string;
-        urls?: { id: string; url: string; type: string }[];
-      };
-      const lista = parsed.urls ?? [];
-      if (lista.length === 0) return;
-
-      const formato = parsed.format === "carrossel" ? "carrossel" : parsed.format === "reel" ? "reel" : "post";
-      setFormat(formato);
-      setSlides(
-        lista.map((u, i) => ({
-          id: `lib-${u.id}-${i}`,
-          url: u.url,
-          type: u.type === "VIDEO" ? "video" : "image",
-          framing: { ...DEFAULT_FRAMING },
-        }))
-      );
-      setActiveSlide(0);
-      setMediaUrl(lista[0].url);
-      setMediaType(lista[0].type === "VIDEO" ? "video" : "image");
-      setMediaFile(null);
-      setView("criar");
-      toast(
-        lista.length === 1
-          ? "Mídia da biblioteca carregada no preview."
-          : `${lista.length} mídias da biblioteca carregadas no preview.`
-      );
-    } catch {
-      /* seleção corrompida → segue com o editor vazio, sem quebrar a tela */
-    }
+    if (!initialMedia) return;
+    setSlides([
+      {
+        id: `lib-${initialMedia.id}`,
+        url: initialMedia.url,
+        type: initialMedia.type === "VIDEO" ? "video" : "image",
+        framing: { ...DEFAULT_FRAMING },
+      },
+    ]);
+    setActiveSlide(0);
+    setMediaUrl(initialMedia.url);
+    setMediaType(initialMedia.type === "VIDEO" ? "video" : "image");
+    // A mídia já está no Blob: não há arquivo local para enviar de novo.
+    setMediaFile(null);
+    setView("criar");
+    toast("Mídia da biblioteca carregada no preview.");
+    // Roda uma vez, na montagem, para o HTML que chegou do servidor.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
