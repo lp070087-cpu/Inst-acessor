@@ -314,21 +314,7 @@ export function AppSidebar({
 
         <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Menu principal">
           <div className="flex flex-col gap-1">
-            {visibleGroups.map((group, index) => (
-              <React.Fragment key={group.id}>
-                {/* No rail só há ícones: o divisor é o que separa os grupos. */}
-                {collapsed && index > 0 && <div className="my-2 h-px bg-border-soft" />}
-                <NavGroupSection
-                  group={group}
-                  panelId={`sidebar-group-${group.id}`}
-                  open={isGroupOpen(group.id)}
-                  onToggle={() => toggleGroup(group.id)}
-                  isActive={isActive}
-                  hasPremiumAccess={hasPremiumAccess}
-                  collapsed={collapsed}
-                />
-              </React.Fragment>
-            ))}
+            {visibleGroups.map((group, index) => (<React.Fragment key={group.id}>{index > 0 && <div className="my-2 h-px bg-border-soft" />}{group.items.map((item) => (<SidebarNavItem key={item.href} item={item} active={isActive(item.href)} collapsed={collapsed} locked={!hasPremiumAccess && isPremiumRoute(item.href)} />))}</React.Fragment>))}
           </div>
           <div className="my-4 h-px bg-border-soft" />
           <div className="flex flex-col gap-0.5">

@@ -39,12 +39,6 @@ const adminNav: AdminNavItem[] = [
     description: "Planos e pagamentos",
   },
   {
-    label: "Planos",
-    href: "/admin/planos",
-    icon: Layers,
-    description: "Ativação comercial e franquias",
-  },
-  {
     label: "Integrações",
     href: "/admin/integracoes",
     icon: Plug,
@@ -61,12 +55,6 @@ const adminNav: AdminNavItem[] = [
     href: "/admin/promocao",
     icon: Tag,
     description: "Promoção de lançamento e countdown",
-  },
-  {
-    label: "Gateways",
-    href: "/admin/gateways",
-    icon: Wallet,
-    description: "Asaas oficial + Kiwify/Kacto configuráveis",
   },
   {
     label: "Lista de espera",
