@@ -90,6 +90,10 @@ export function classifyTikTokError(
 }
 
 function isTimeoutError(err: unknown): boolean {
+  // O cliente marca timeout com `code: "TIMEOUT"` e a mensagem em português não
+  // contém a palavra "timeout" — sem checar o código, um timeout era classificado
+  // como `api_error` genérico em vez de `timeout`.
+  if ((err as { code?: unknown })?.code === "TIMEOUT") return true;
   return (
     err instanceof Error &&
     (err.name === "TimeoutError" || err.message.toLowerCase().includes("timeout"))
@@ -97,6 +101,7 @@ function isTimeoutError(err: unknown): boolean {
 }
 
 function isNetworkError(err: unknown): boolean {
+  if ((err as { code?: unknown })?.code === "NETWORK") return true;
   if (err instanceof Error && err.message.toLowerCase().includes("rede")) return true;
   if (err instanceof TypeError && err.message.toLowerCase().includes("fetch")) return true;
   return false;

@@ -7,6 +7,7 @@ import {
 } from "@/lib/auth/guard";
 import { aiConfigured } from "@/lib/ai";
 import { listIdeas } from "@/lib/ai/services";
+import { PageHeader } from "@/components/layout/page-header";
 import { IdeasClient } from "@/components/ai/ideas-client";
 
 export const metadata: Metadata = {
@@ -31,16 +32,11 @@ export default async function IdeiasPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="font-display text-[26px] font-bold text-ink flex items-center gap-2.5">
-          <Lightbulb size={26} className="text-purple" />
-          Central de Ideias
-        </h1>
-        <p className="text-[13.5px] text-ink-soft mt-1">
-          Ideias de conteúdo para o seu nicho, com base apenas nos dados reais do
-          seu perfil. Nada de tendências inventadas.
-        </p>
-      </div>
+      <PageHeader
+        icon={Lightbulb}
+        title="Central de Ideias"
+        description="Ideias de conteúdo para o seu nicho, com base apenas nos dados reais do seu perfil. Nada de tendências inventadas."
+      />
 
       <IdeasClient
         aiConfigured={configured}

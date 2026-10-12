@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/config";
 import { LoginForm } from "./login-form";
+import { LoginExperience } from "./login-experience";
 
 export const metadata: Metadata = {
   title: "Entrar",
@@ -24,25 +25,20 @@ export default async function LoginPage({
     redirect("/dashboard");
   }
 
+  // Esta página NÃO usa o layout de `(auth)` como moldura visual: o palco
+  // escuro da referência substitui a moldura clara daquele layout. O layout
+  // continua existindo para as outras telas do grupo (cadastro, onboarding,
+  // primeiro-acesso, expirado e acesso-restrito), que seguem claras.
   return (
-    <div className="bg-card border border-border-soft rounded-xl shadow-lg p-6 sm:p-8">
-      <h1 className="font-display text-[24px] font-bold text-ink">
-        Bem-vindo de volta
-      </h1>
-      <p className="text-[13.5px] text-ink-soft mt-1.5">
-        Entre para acompanhar a evolução do seu Instagram.
-      </p>
+    <LoginExperience>
+      <h1 className="lgn-title">Login</h1>
+      <p className="lgn-sub">Entre para acompanhar a evolução do seu Instagram.</p>
 
-      <div className="mt-7">
-        <LoginForm />
-      </div>
+      <LoginForm />
 
-      <p className="mt-6 text-center text-[13px] text-ink-soft">
-        Ainda não tem conta?{" "}
-        <a href="/cadastro" className="font-semibold text-purple hover:text-indigo">
-          Criar conta
-        </a>
+      <p className="lgn-foot">
+        Ainda não tem conta? <a href="/cadastro">Criar conta</a>
       </p>
-    </div>
+    </LoginExperience>
   );
 }

@@ -6,8 +6,17 @@ import {
   sendChatMessage,
   AIConfiguredErrorChat,
 } from "@/lib/ai/services";
+import { createRateLimiter } from "@/lib/publishing/rate-limit";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * RATE LIMIT POR USUÁRIO — o chat também aciona o provedor de IA a cada
+ * mensagem. 60/min é folgado para conversa humana (uma pessoa não escreve 60
+ * mensagens por minuto) e corta laço/abuso que multiplicaria custo. In-memory,
+ * best-effort — ver o módulo `publishing/rate-limit`.
+ */
+const chatRateLimiter = createRateLimiter({ windowMs: 60_000, max: 60 });
 
 /**
  * POST /api/ai/chat
@@ -18,6 +27,13 @@ export async function POST(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
+
+    if (!chatRateLimiter.check(userId)) {
+      return NextResponse.json(
+        { error: "Muitas mensagens em pouco tempo. Aguarde um instante." },
+        { status: 429 }
+      );
+    }
 
     const body = await request.json();
     const parsed = chatCreateSchema.safeParse(body);

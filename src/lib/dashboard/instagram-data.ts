@@ -1,3 +1,5 @@
+import { cache } from "react";
+
 import { prisma } from "@/lib/db";
 
 /**
@@ -104,7 +106,7 @@ function safePct(
   return ((current - previous) / previous) * 100;
 }
 
-export async function getDashboardInstagramData(
+async function loadDashboardInstagramData(
   userId: string
 ): Promise<DashboardInstagramData> {
   const connection = await prisma.socialConnection.findFirst({
@@ -170,10 +172,18 @@ export async function getDashboardInstagramData(
   //
   // Agora a série é escopada ao PERFIL ATUAL. Se por algum motivo não houver
   // perfil, cai para a conexão atual (nunca para "tudo do usuário").
-  const snapshots = await prisma.instagramSnapshot.findMany({
+  // LIMITE DA SÉRIE: a tabela cresce um registro por sincronização, para sempre.
+  // Sem `take`, a leitura (e os `.filter()` em memória abaixo) cresciam junto com
+  // o histórico — latência e payload aumentando sem teto. Buscamos os MAIS
+  // RECENTES e invertemos para ordem ascendente, então todo o resto do código
+  // continua enxergando o mesmo array em ordem cronológica. 500 cobre com folga
+  // as janelas de 7/30/90 dias em qualquer ritmo real de uso.
+  const recentSnapshots = await prisma.instagramSnapshot.findMany({
     where: profile ? { userId, profileId: profile.id } : { userId },
-    orderBy: { capturedAt: "asc" },
+    orderBy: { capturedAt: "desc" },
+    take: 500,
   });
+  const snapshots = recentSnapshots.reverse();
 
   const latest = snapshots[snapshots.length - 1] ?? null;
   // Snapshot imediatamente anterior → variação desde a última sincronização.
@@ -414,3 +424,15 @@ function computeTimeline(
     biggestDailyLoss,
   };
 }
+
+/**
+ * Mesmo dado, UMA consulta por requisição.
+ *
+ * Várias telas chamam este loader mais de uma vez no MESMO render por caminhos
+ * diferentes (ex.: `/analise-de-desempenho` chama `runAnalysis` E
+ * `getOpportunities`, e os dois leem o Instagram; `/score` chama `computeScore`
+ * e `runDiagnosis`). Sem memoização, o mesmo conjunto pesado de consultas roda
+ * 2–3× por página. `cache()` do React deduplica por requisição — a assinatura e
+ * o comportamento para quem chama não mudam em nada.
+ */
+export const getDashboardInstagramData = cache(loadDashboardInstagramData);

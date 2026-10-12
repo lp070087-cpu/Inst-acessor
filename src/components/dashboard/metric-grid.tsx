@@ -220,8 +220,10 @@ export function MetricGrid({ data, media, insights, aiConfigured }: MetricGridPr
 
   return (
     <div className="flex flex-col gap-8">
-      {/* Primeira linha — 6 métricas na ordem prioritária */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6 gap-4">
+      {/* Primeira linha — 6 métricas na ordem prioritária.
+          `xl:grid-cols-6` (e não `2xl:`): em notebook (1280–1535px) as 8
+          métricas ficavam espremidas em 3 colunas até a tela ficar enorme. */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         {rowCards.map((card) => (
           <MetricCard
             key={card.key}

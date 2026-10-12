@@ -605,7 +605,11 @@ async function getInstagramStatus(
   try {
     const data = await publishHttp<{ id?: string; status_code?: string; error?: { message?: string } }>(
       containerStatusUrl(query.externalId),
-      { method: "GET" }
+      // A consulta de status EXIGE credencial: sem o header a Graph API
+      // responde erro de token (code 190) e todo poll caía no `catch` genérico,
+      // devolvendo PROCESSING para sempre. Usa o mesmo `Authorization: Bearer`
+      // de `waitForContainer` (nunca o token na query, para não vazar em log).
+      { method: "GET", headers: { Authorization: `Bearer ${connection.accessToken}` } }
     );
     const status = mapInstagramStatus(data?.status_code);
     return { ok: status === "LIVE", status, externalId: data?.id ?? query.externalId };

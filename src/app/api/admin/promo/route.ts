@@ -2,13 +2,17 @@ import { NextResponse } from "next/server";
 
 import { requireAdminSession } from "@/lib/auth/guard";
 import { getPromoConfig, savePromoConfig } from "@/lib/billing/promo-db";
-import { PLAN_CATALOG } from "@/lib/billing/plans/catalog";
+import { PLAN_CATALOG, isLegacyPlan } from "@/lib/billing/plans/catalog";
 import {
   DEFAULT_PROMO,
   describeCountdown,
   parsePromoConfig,
   planPromoDisplay,
+  promoEntryFor,
+  promoValidationError,
 } from "@/lib/billing/promo";
+import { appendAudit } from "@/lib/billing/plans/audit-db";
+import { formatBRL } from "@/lib/billing/plans/display";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +23,11 @@ export const dynamic = "force-dynamic";
  * GET  /api/admin/promo → config atual + prévia do que os cards mostram
  * POST /api/admin/promo → grava a config (normalizada no servidor)
  *
+ * Cobertura ATUAL: os OITO slugs do catálogo (6 vendáveis + 2 legados). Cada
+ * plano tem sua própria entrada no mapa unificado `config.plans`, com
+ * liga/desliga individual, preço promocional e quantas cobranças levam o
+ * desconto.
+ *
  * Persistência: model `SystemSetting` (JÁ EXISTE no schema) com a key
  * `billing.promo.v1`. Nenhuma migration, nenhuma coluna nova.
  *
@@ -28,11 +37,14 @@ export const dynamic = "force-dynamic";
  */
 
 /**
- * Prévia do efeito nos 3 cards (preço cheio, promo, desconto, rótulo).
+ * Prévia do efeito em CADA card (preço cheio, promo, desconto, rótulo, condição).
  *
  * O preço cheio vem do CATÁLOGO OFICIAL (`PLAN_CATALOG`), nunca de números
  * repetidos aqui: se o catálogo mudar, a prévia do admin acompanha sozinha e
  * não existe uma segunda tabela de preços para sair de sincronia.
+ *
+ * Devolvemos também a ENTRADA gravada (`entry`) e metadados do plano (legado,
+ * tipo) para o cliente conseguir editar cada slug sem reimplementar regra.
  */
 function previewFor(config: ReturnType<typeof parsePromoConfig>, now: string) {
   return PLAN_CATALOG.map((plan) => {
@@ -42,14 +54,23 @@ function previewFor(config: ReturnType<typeof parsePromoConfig>, now: string) {
       config,
       now,
     });
+    const entry = promoEntryFor(config, plan.slug);
     return {
       slug: plan.slug,
+      name: plan.name,
+      legacy: isLegacyPlan(plan.slug),
+      type: plan.type,
+      billingInterval: plan.billingInterval,
       basePriceCents: d.basePriceCents,
       promoPriceCents: d.promoPriceCents,
       discountCents: d.discountCents,
       discountPercent: d.discountPercent,
       label: d.label,
+      qualifier: d.qualifier,
+      afterText: d.afterText,
       showPromo: d.showPromo,
+      // Entrada configurada pelo admin (o que ele edita).
+      entry,
     };
   });
 }
@@ -76,7 +97,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  await requireAdminSession();
+  const { session } = await requireAdminSession();
 
   let body: unknown;
   try {
@@ -89,9 +110,65 @@ export async function POST(request: Request) {
   // que REALMENTE ficou gravado. Um payload hostil (preço promocional acima do
   // cheio, `enabled` como string, countdown sem data válida) é normalizado —
   // nunca gravado como veio. O admin recebe de volta o que passou a valer.
+  const raw = (body as { config?: unknown })?.config ?? body;
+
+  // 1) Normaliza (o mapa `plans` é derivado dos campos legados quando ausente).
+  const normalized = parsePromoConfig(raw);
+
+  // 2) RECUSA anunciar um "desconto" que não é desconto: preço promocional ≥
+  //    cheio em plano LIGADO. Antes era só normalizado (silencioso); agora o
+  //    admin recebe o motivo e a gravação não acontece com dado enganoso.
+  const validationError = promoValidationError(normalized);
+  if (validationError) {
+    return NextResponse.json({ error: validationError }, { status: 400 });
+  }
+
   try {
-    const saved = await savePromoConfig((body as { config?: unknown })?.config ?? body);
+    const before = await getPromoConfig();
+    const saved = await savePromoConfig(normalized);
     const now = new Date().toISOString();
+
+    // Auditoria: quais planos tiveram a pré-venda alterada (antes → depois).
+    const touched = new Set([
+      ...Object.keys(before.plans),
+      ...Object.keys(saved.plans),
+    ]);
+    const actor = session.user?.email ?? "admin";
+    for (const slug of touched) {
+      const prev = promoEntryFor(before, slug);
+      const next = promoEntryFor(saved, slug);
+      const changed =
+        prev.enabled !== next.enabled ||
+        prev.promoPriceCents !== next.promoPriceCents ||
+        prev.chargesAtPromoPrice !== next.chargesAtPromoPrice ||
+        prev.requiresNoPreviousPurchase !== next.requiresNoPreviousPurchase;
+      if (!changed) continue;
+      const desc = next.enabled
+        ? `${formatBRL(next.promoPriceCents)}` +
+          (next.chargesAtPromoPrice != null
+            ? ` em ${next.chargesAtPromoPrice} cobrança(s)`
+            : " (1ª cobrança)")
+        : "desligada";
+      await appendAudit({
+        actor,
+        action: "promo.update",
+        slug,
+        summary: `Pré-venda do plano ${slug}: ${desc}.`,
+        before: prev,
+        after: next,
+      });
+    }
+    if (before.enabled !== saved.enabled) {
+      await appendAudit({
+        actor,
+        action: "promo.update",
+        slug: null,
+        summary: `Chave geral da pré-venda ${saved.enabled ? "ligada" : "desligada"}.`,
+        before: { enabled: before.enabled },
+        after: { enabled: saved.enabled },
+      });
+    }
+
     return NextResponse.json({
       ok: true,
       config: saved,

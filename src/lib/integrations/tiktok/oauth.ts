@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "crypto";
 import { encryptToken } from "@/lib/crypto";
-import { getTikTokCredentials, getTikTokRedirectUri, tiktokApiPost } from "./client";
+import { getTikTokCredentials, getTikTokRedirectUri, tiktokApiPost, TikTokApiError } from "./client";
 import { IntegrationConfigError } from "./errors";
 import type { TikTokTokenPayload } from "./types";
 
@@ -77,7 +77,10 @@ export async function exchangeCodeForToken(
 
     if (data.error || typeof data.access_token !== "string" || typeof data.open_id !== "string") {
       const err = (data.error ?? {}) as Record<string, unknown>;
-      throw new Error(String(err.message ?? "Erro ao obter token do TikTok."));
+      throw new TikTokApiError(
+        String(err.message ?? "Erro ao obter token do TikTok."),
+        "token_exchange"
+      );
     }
 
     return {
@@ -89,9 +92,13 @@ export async function exchangeCodeForToken(
       scopes: data.scope ?? DEFAULT_SCOPES,
     };
   } catch (error) {
+    // Erro tipado (inclui o `TikTokApiError` lançado por `tiktokApiPost`) é
+    // preservado — o callback mapeia o código real em vez de perder a causa.
     if (error instanceof IntegrationConfigError) throw error;
-    throw new Error(
-      error instanceof Error ? error.message : "Erro ao trocar o código pelo token."
+    if (error instanceof TikTokApiError) throw error;
+    throw new TikTokApiError(
+      error instanceof Error ? error.message : "Erro ao trocar o código pelo token.",
+      "token_exchange"
     );
   }
 }
@@ -125,7 +132,10 @@ export async function refreshTikTokToken(
 
     if (data.error || typeof data.access_token !== "string") {
       const err = (data.error ?? {}) as Record<string, unknown>;
-      throw new Error(String(err.message ?? "Erro ao renovar token do TikTok."));
+      throw new TikTokApiError(
+        String(err.message ?? "Erro ao renovar token do TikTok."),
+        "refresh"
+      );
     }
 
     return {
@@ -135,8 +145,10 @@ export async function refreshTikTokToken(
     };
   } catch (error) {
     if (error instanceof IntegrationConfigError) throw error;
-    throw new Error(
-      error instanceof Error ? error.message : "Erro ao renovar o token."
+    if (error instanceof TikTokApiError) throw error;
+    throw new TikTokApiError(
+      error instanceof Error ? error.message : "Erro ao renovar o token.",
+      "refresh"
     );
   }
 }

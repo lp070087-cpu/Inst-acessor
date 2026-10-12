@@ -1,5 +1,6 @@
 import { getDashboardInstagramData } from "./instagram-data";
 import type { MediaProductionData } from "./media-production";
+import { withUsage } from "@/lib/billing/usage/meter";
 
 /**
  * INSIGHTS RÁPIDOS DO DASHBOARD
@@ -179,6 +180,7 @@ function buildAIContext(
  * quando não há dado real suficiente para dizer qualquer coisa.
  */
 export async function generateAIInsights(
+  userId: string,
   data: Awaited<ReturnType<typeof getDashboardInstagramData>>,
   media: MediaProductionData
 ): Promise<AIInsightsResult> {
@@ -222,21 +224,29 @@ export async function generateAIInsights(
   }
 
   try {
-    const text = await provider.complete({
-      system:
-        "Você analisa perfis de Instagram profissionais. Escreva em português do Brasil. " +
-        "Use SOMENTE os números fornecidos. Se um dado não foi fornecido, não comente sobre ele. " +
-        "Nunca estime, projete ou invente valores. Responda em no máximo 3 frases curtas e objetivas, " +
-        "sem markdown, sem listas e sem emojis.",
-      messages: [
-        {
-          role: "user",
-          content: `${buildAIContext(data, media)}\n\nEscreva de 2 a 3 observações curtas sobre o desempenho deste perfil, sempre citando os números reais acima.`,
-        },
-      ],
-      temperature: 0.4,
-      maxTokens: 320,
-    });
+    // MEDIÇÃO: envolvemos a MESMA chamada `provider.complete` (nenhuma chamada
+    // nova). `userId` vem da sessão (rota `/api/dashboard/insights`).
+    const metered = await withUsage(
+      { userId, feature: "ai_generation", origin: "dashboard-insights" },
+      () =>
+        provider.complete({
+          system:
+            "Você analisa perfis de Instagram profissionais. Escreva em português do Brasil. " +
+            "Use SOMENTE os números fornecidos. Se um dado não foi fornecido, não comente sobre ele. " +
+            "Nunca estime, projete ou invente valores. Responda em no máximo 3 frases curtas e objetivas, " +
+            "sem markdown, sem listas e sem emojis.",
+          messages: [
+            {
+              role: "user",
+              content: `${buildAIContext(data, media)}\n\nEscreva de 2 a 3 observações curtas sobre o desempenho deste perfil, sempre citando os números reais acima.`,
+            },
+          ],
+          temperature: 0.4,
+          maxTokens: 320,
+        })
+    );
+    if (!metered.ok) throw new Error("QUOTA_EXCEDIDA");
+    const text = metered.value;
 
     return { state: "ok", insights: text, message: null, providerFailed: false };
   } catch (err) {

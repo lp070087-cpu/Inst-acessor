@@ -4,6 +4,7 @@ import { Instagram, Music2, ShieldCheck, Info } from "lucide-react";
 import { requireOnboardedSession } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
 import { effectiveConnectionStatus } from "@/lib/integrations/connection-status";
+import { PageHeader } from "@/components/layout/page-header";
 import { StatusBadge } from "@/components/ui/badge";
 import { Divider } from "@/components/ui/divider";
 import { InstagramActions } from "@/components/integrations/instagram-actions";
@@ -106,12 +107,11 @@ export default async function RedesSociaisPage() {
   return (
     <div className="flex flex-col gap-8">
       {/* Cabeçalho */}
-      <div className="flex flex-col gap-1">
-        <h1 className="font-display text-[26px] font-bold text-ink">Redes Sociais</h1>
-        <p className="text-[13.5px] text-ink-soft">
-          Conecte suas redes sociais para liberar métricas e estratégias.
-        </p>
-      </div>
+      <PageHeader
+        title="Redes Sociais"
+        description="Conecte suas redes sociais para liberar métricas e estratégias."
+      />
+
 
       {/* Cards por plataforma */}
       <div className="flex flex-col gap-6">
@@ -138,6 +138,17 @@ export default async function RedesSociaisPage() {
                     avatarUrl={card.avatarUrl}
                     lastSyncAt={card.lastSyncAt}
                   />
+
+                  {/* Selo informativo — só no Instagram. Puramente descritivo:
+                      a conexão usa `https://graph.instagram.com` com os escopos
+                      oficiais `instagram_business_*`. NÃO afirma certificação,
+                      parceria nem endosso da Meta. */}
+                  {card.platform === "instagram" && (
+                    <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-border-soft bg-surface px-3 py-1.5 text-[11.5px] font-semibold text-ink-soft">
+                      <Instagram size={13} className="text-purple flex-none" />
+                      Integração via API oficial do Instagram
+                    </div>
+                  )}
 
                   <div className="mt-5">
                     <p className="text-[12px] font-semibold uppercase tracking-wider text-ink-muted">

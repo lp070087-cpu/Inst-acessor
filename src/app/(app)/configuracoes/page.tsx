@@ -7,6 +7,7 @@ import { getDisplayNameInfo } from "@/lib/gamification";
 import { describeSync } from "@/lib/dashboard/freshness";
 import { getMySubscription } from "@/lib/billing";
 import { effectiveConnectionStatus } from "@/lib/integrations/connection-status";
+import { PageHeader } from "@/components/layout/page-header";
 import { InstallAppCard } from "@/components/pwa/install-app-card";
 import {
   ConfiguracoesClient,
@@ -82,17 +83,11 @@ export default async function ConfiguracoesPage() {
   return (
     <div className="flex flex-col gap-6">
       {/* Cabeçalho */}
-      <div className="flex items-start gap-3">
-        <span className="w-11 h-11 rounded-[13px] bg-ai-soft text-purple grid place-items-center flex-none">
-          <Settings size={20} />
-        </span>
-        <div className="min-w-0">
-          <h1 className="font-display text-[26px] font-bold text-ink">Configurações</h1>
-          <p className="text-[13.5px] text-ink-soft mt-1">
-            Sua conta, suas integrações e o aplicativo.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        icon={Settings}
+        title="Configurações"
+        description="Sua conta, suas integrações e o aplicativo."
+      />
 
       <ConfiguracoesClient
         displayName={{

@@ -7,29 +7,29 @@ import type {
 } from "./types";
 
 /**
- * ASAAS â€” CHECKOUT HOSPEDADO OFICIAL (POST /v3/checkouts)
+ * ASAAS — CHECKOUT HOSPEDADO OFICIAL (POST /v3/checkouts)
  * =========================================================
- * NÃºcleo PURO (sem banco, sem HTTP) que monta o request do checkout hospedado.
- * O Asaas cria uma pÃ¡gina de pagamento pÃºblica (sem o cliente precisar ter
+ * Núcleo PURO (sem banco, sem HTTP) que monta o request do checkout hospedado.
+ * O Asaas cria uma página de pagamento pública (sem o cliente precisar ter
  * conta no Inst Acessor) e devolve uma URL.
  *
- * Contrato (documentaÃ§Ã£o oficial atual do Asaas):
+ * Contrato (documentação oficial atual do Asaas):
  *   - `chargeTypes: ["DETACHED"]`  â†’ pagamento AVULSO (plano semanal).
  *   - `chargeTypes: ["RECURRENT"]` â†’ ASSINATURA recorrente (mensal/anual), com
  *     `subscription: { cycle, nextDueDate }`. O ciclo vive em `subscription.cycle`
- *     â€” NÃƒO existe `subscriptionCycle` no POST /v3/checkouts.
- *   - `customer` vs `customerData` sÃ£o MUTUAMENTE EXCLUSIVOS: usamos `customer`
- *     quando jÃ¡ existe `User.asaasCustomerId`; caso contrÃ¡rio, `customerData`
+ *     — NÃƒO existe `subscriptionCycle` no POST /v3/checkouts.
+ *   - `customer` vs `customerData` são MUTUAMENTE EXCLUSIVOS: usamos `customer`
+ *     quando já existe `User.asaasCustomerId`; caso contrário, `customerData`
  *     com nome/e-mail. NUNCA os dois juntos.
  *
- * Regras de seguranÃ§a:
- *   - NUNCA confia em preÃ§o/duraÃ§Ã£o/ciclo vindos do browser: o request Ã©
+ * Regras de segurança:
+ *   - NUNCA confia em preço/duração/ciclo vindos do browser: o request é
  *     montado a partir do `PlanView` resolvido NO SERVIDOR (`getPlanById` /
- *     `getPlanBySlug`), que por sua vez aplica o catÃ¡logo oficial.
- *   - `redirectUrl` aponta para o NOSSO app (getAppBaseUrl), nÃ£o para o cliente.
- *   - Formas de cobranÃ§a: enviamos apenas a definida pelo servidor
- *     (`ASAAS_BILLING_TYPE`) â€” nunca ampliamos o que a conta nÃ£o suporta.
- *   - CRIAR CHECKOUT â‰  PAGAMENTO: nada Ã© liberado aqui. A liberaÃ§Ã£o sÃ³ ocorre
+ *     `getPlanBySlug`), que por sua vez aplica o catálogo oficial.
+ *   - `redirectUrl` aponta para o NOSSO app (getAppBaseUrl), não para o cliente.
+ *   - Formas de cobrança: enviamos apenas a definida pelo servidor
+ *     (`ASAAS_BILLING_TYPE`) — nunca ampliamos o que a conta não suporta.
+ *   - CRIAR CHECKOUT â‰  PAGAMENTO: nada é liberado aqui. A liberação só ocorre
  *     pelo webhook validado (PAYMENT_CONFIRMED / PAYMENT_RECEIVED).
  */
 
@@ -40,32 +40,32 @@ function todayIso(): string {
 
 /**
  * Monta o corpo do POST /v3/checkouts.
- * `externalReference` Ã© a Ã¢ncora Ãºnica de reconciliaÃ§Ã£o (CheckoutOrder).
+ * `externalReference` é a âncora única de reconciliação (CheckoutOrder).
  */
 export function buildHostedCheckoutRequest(input: {
   plan: PlanView;
-  /** ReferÃªncia Ãºnica da ordem local (externalReference). */
+  /** Referência única da ordem local (externalReference). */
   externalReference: string;
-  /** Meio de cobranÃ§a definido pelo servidor (ASAAS_BILLING_TYPE). */
+  /** Meio de cobrança definido pelo servidor (ASAAS_BILLING_TYPE). */
   billingType: AsaasBillingTypeValue;
   /**
-   * `User.asaasCustomerId` do comprador, quando jÃ¡ existir.
+   * `User.asaasCustomerId` do comprador, quando já existir.
    * Presente â†’ usamos `customer` e NÃƒO enviamos `customerData`.
    */
   asaasCustomerId?: string | null;
-  /** Nome do comprador â€” usado em `customerData` quando nÃ£o hÃ¡ customer. */
+  /** Nome do comprador — usado em `customerData` quando não há customer. */
   buyerName?: string | null;
-  /** E-mail do comprador â€” usado em `customerData` quando nÃ£o hÃ¡ customer. */
+  /** E-mail do comprador — usado em `customerData` quando não há customer. */
   buyerEmail?: string | null;
-  /** CPF/CNPJ â€” somente dÃ­gitos (normalizado pelo servidor). */
+  /** CPF/CNPJ — somente dígitos (normalizado pelo servidor). */
   buyerCpfCnpj?: string | null;
-  /** Telefone/WhatsApp â€” DDD + nÃºmero, somente dÃ­gitos (normalizado no servidor). */
+  /** Telefone/WhatsApp — DDD + número, somente dígitos (normalizado no servidor). */
   buyerPhone?: string | null;
-  /** EndereÃ§o (rua/avenida, sem nÃºmero). */
+  /** Endereço (rua/avenida, sem número). */
   buyerAddress?: string | null;
-  /** NÃºmero do endereÃ§o. */
+  /** Número do endereço. */
   buyerAddressNumber?: string | null;
-  /** CEP â€” somente dÃ­gitos. */
+  /** CEP — somente dígitos. */
   buyerPostalCode?: string | null;
   /** Bairro. */
   buyerProvince?: string | null;
@@ -89,10 +89,10 @@ export function buildHostedCheckoutRequest(input: {
   const baseUrl = getAppBaseUrl();
   const recurring = plan.type === "RECURRING" && Boolean(plan.billingInterval);
 
-  // `name` curto e estÃ¡vel (limite do Asaas: 30 caracteres). O `plan.name` real
-  // nÃ£o cabe no limite â€” usamos rÃ³tulos fixos por tipo de plano:
+  // `name` curto e estável (limite do Asaas: 30 caracteres). O `plan.name` real
+  // não cabe no limite — usamos rótulos fixos por tipo de plano:
   //   Semanal = "Inst Acessor - Semanal" (22) | Mensal = "Inst Acessor - Mensal"
-  //   (22) | Anual = "Inst Acessor - Anual" (21). DescriÃ§Ã£o continua detalhada.
+  //   (22) | Anual = "Inst Acessor - Anual" (21). Descrição continua detalhada.
   const shortLabel = recurring
     ? plan.billingInterval === "YEAR"
       ? "Anual"
@@ -103,9 +103,9 @@ export function buildHostedCheckoutRequest(input: {
     ? `Assinatura ${plan.billingInterval === "YEAR" ? "anual" : "mensal"} Inst Acessor`
     : `Acesso de ${plan.durationDays ?? 7} dias ao Inst Acessor`;
 
-  // URL de retorno do CLIENTE (nosso app), sempre preservando a referÃªncia da
-  // ordem. O `status` diferencia apenas o desfecho visual â€” NUNCA prova
-  // pagamento (a confirmaÃ§Ã£o vem exclusivamente do webhook).
+  // URL de retorno do CLIENTE (nosso app), sempre preservando a referência da
+  // ordem. O `status` diferencia apenas o desfecho visual — NUNCA prova
+  // pagamento (a confirmação vem exclusivamente do webhook).
   const ref = encodeURIComponent(input.externalReference);
   const retorno = (status: "sucesso" | "cancelado" | "expirado") =>
     `${baseUrl}/checkout/retorno?status=${status}&referencia=${ref}`;
@@ -114,21 +114,21 @@ export function buildHostedCheckoutRequest(input: {
     name,
     description,
     value,
-    // A documentaÃ§Ã£o atual do Asaas exige `items` (campo obrigatÃ³rio). Ã‰ um
-    // Ãºnico item â€” a unidade de acesso deste plano â€” com `quantity: 1` e o
-    // `value` em REAIS (jÃ¡ convertido de centavos exatamente uma vez, acima).
+    // A documentação atual do Asaas exige `items` (campo obrigatório). Ã‰ um
+    // único item — a unidade de acesso deste plano — com `quantity: 1` e o
+    // `value` em REAIS (já convertido de centavos exatamente uma vez, acima).
     items: [{ name, description, quantity: 1, value }],
-    // Avulso vs recorrente Ã© o que define o tipo de cobranÃ§a do checkout.
+    // Avulso vs recorrente é o que define o tipo de cobrança do checkout.
     chargeTypes: [recurring ? "RECURRENT" : "DETACHED"],
     // Apenas a forma definida pelo servidor (nunca ampliamos as aceitas).
     billingTypes: recurring ? ["CREDIT_CARD"] : ["PIX", "CREDIT_CARD"],
     dueDate,
-    // ExpiraÃ§Ã£o conservadora do checkout hospedado (limite: 10â€“1440 min).
+    // Expiração conservadora do checkout hospedado (limite: 10“1440 min).
     minutesToExpire: 60,
     externalReference: input.externalReference,
     redirectUrl: retorno("sucesso"),
-    // Callback obrigatÃ³rio na doc atual do Asaas â€” as 3 URLs de retorno do
-    // CLIENTE. NÃƒO Ã© o webhook (fluxo separado, intacto).
+    // Callback obrigatório na doc atual do Asaas — as 3 URLs de retorno do
+    // CLIENTE. NÃƒO é o webhook (fluxo separado, intacto).
     callback: {
       successUrl: retorno("sucesso"),
       cancelUrl: retorno("cancelado"),
@@ -137,7 +137,7 @@ export function buildHostedCheckoutRequest(input: {
   };
 
   // Customer: REUTILIZA o existente OU envia os dados para criar um novo.
-  // Os dois campos sÃ£o mutuamente exclusivos â€” nunca ambos.
+  // Os dois campos são mutuamente exclusivos — nunca ambos.
   const customerId = (input.asaasCustomerId ?? "").trim();
   if (customerId) {
     request.customer = customerId;
@@ -150,13 +150,13 @@ export function buildHostedCheckoutRequest(input: {
     const addressNumber = (input.buyerAddressNumber ?? "").trim();
     const postalCode = (input.buyerPostalCode ?? "").trim();
     const province = (input.buyerProvince ?? "").trim();
-    // `customerData` sÃ³ faz sentido com pelo menos um dado identificador.
+    // `customerData` só faz sentido com pelo menos um dado identificador.
     if (email || name) {
       request.customerData = {
         ...(name ? { name } : {}),
         ...(email ? { email } : {}),
-        // Dados obrigatÃ³rios do comprador (checkout hospedado do Asaas).
-        // Todos jÃ¡ chegam normalizados do servidor â€” nunca inventados aqui.
+        // Dados obrigatórios do comprador (checkout hospedado do Asaas).
+        // Todos já chegam normalizados do servidor — nunca inventados aqui.
         ...(cpfCnpj ? { cpfCnpj } : {}),
         ...(phone ? { phone } : {}),
         ...(address ? { address } : {}),
@@ -167,7 +167,7 @@ export function buildHostedCheckoutRequest(input: {
     }
   }
 
-  // RecorrÃªncia: o ciclo vive em `subscription.cycle`.
+  // Recorrência: o ciclo vive em `subscription.cycle`.
   if (recurring) {
     request.subscription = {
       cycle: plan.billingInterval === "YEAR" ? "YEARLY" : "MONTHLY",
@@ -179,8 +179,8 @@ export function buildHostedCheckoutRequest(input: {
 }
 
 /**
- * Extrai a URL pÃºblica do checkout da resposta do Asaas.
- * Retorna null se a resposta nÃ£o trouxer URL (fail-closed â€” nunca inventa).
+ * Extrai a URL pública do checkout da resposta do Asaas.
+ * Retorna null se a resposta não trouxer URL (fail-closed — nunca inventa).
  */
 export function extractCheckoutUrl(
   response: AsaasCheckoutResponse

@@ -23,19 +23,23 @@ export interface AdminAIStatus {
   gemini: AIProviderStatusView;
 }
 
-const OPENAI_MODELS = ["gpt-4o-mini", "gpt-4o"] as const;
-const GEMINI_MODELS = ["gemini-1.5-flash", "gemini-1.5-pro"] as const;
+/** Listas oficiais — injetadas pela página (fonte única, nunca duplicar aqui). */
+export interface AdminAIModels {
+  openai: readonly string[];
+  gemini: readonly string[];
+}
 
 interface ProviderFormProps {
   provider: "openai" | "gemini";
   status: AIProviderStatusView;
+  models: readonly string[];
   onRefresh: () => void;
 }
 
-function ProviderForm({ provider, status, onRefresh }: ProviderFormProps) {
+function ProviderForm({ provider, status, models, onRefresh }: ProviderFormProps) {
   const { toast } = useToast();
   const [apiKey, setApiKey] = React.useState("");
-  const [model, setModel] = React.useState<string>(status.model || (provider === "openai" ? "gpt-4o-mini" : "gemini-1.5-flash"));
+  const [model, setModel] = React.useState<string>(status.model || models[0]);
   const [busy, setBusy] = React.useState<null | "save" | "test" | "remove">(null);
 
   const label = provider === "openai" ? "OpenAI" : "Gemini";
@@ -106,8 +110,6 @@ function ProviderForm({ provider, status, onRefresh }: ProviderFormProps) {
       setBusy(null);
     }
   };
-
-  const models = provider === "openai" ? OPENAI_MODELS : GEMINI_MODELS;
 
   return (
     <SectionCard
@@ -181,7 +183,13 @@ function ProviderForm({ provider, status, onRefresh }: ProviderFormProps) {
   );
 }
 
-export function AdminAIClient({ initialStatus }: { initialStatus: AdminAIStatus }) {
+export function AdminAIClient({
+  initialStatus,
+  models,
+}: {
+  initialStatus: AdminAIStatus;
+  models: AdminAIModels;
+}) {
   const [status, setStatus] = React.useState<AdminAIStatus>(initialStatus);
   const [encryptionReady, setEncryptionReady] = React.useState<boolean | null>(null);
   const [loading, setLoading] = React.useState(false);
@@ -229,8 +237,8 @@ export function AdminAIClient({ initialStatus }: { initialStatus: AdminAIStatus 
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ProviderForm provider="openai" status={status.openai} onRefresh={refresh} />
-        <ProviderForm provider="gemini" status={status.gemini} onRefresh={refresh} />
+        <ProviderForm provider="openai" status={status.openai} models={models.openai} onRefresh={refresh} />
+        <ProviderForm provider="gemini" status={status.gemini} models={models.gemini} onRefresh={refresh} />
       </div>
 
       <SectionCard title="Notas de segurança">

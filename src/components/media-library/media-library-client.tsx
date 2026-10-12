@@ -263,22 +263,18 @@ export function MediaLibrary({ userId }: MediaLibraryProps) {
   /** ---- ações inteligentes: levam a seleção para o Preview Social ---- */
   function criarComSelecao(formato: "post" | "carrossel" | "reel") {
     if (selectedItems.length === 0) return;
-    // A seleção viaja por sessionStorage: são poucos ids, não arquivos — o
-    // Preview busca a URL real na API. Evita reenviar mídia que já está lá.
-    try {
-      sessionStorage.setItem(
-        "inst-acessor:biblioteca-selecao",
-        JSON.stringify({
-          format: formato,
-          ids: selectedItems.map((i) => i.id),
-          urls: selectedItems.map((i) => ({ id: i.id, url: i.url, type: i.type })),
-        })
-      );
-    } catch {
-      toast("Não foi possível preparar a seleção.", "error");
-      return;
-    }
-    router.push("/preview-social?da=biblioteca");
+    // A seleção viaja no ENDEREÇO, não no `sessionStorage`: o Preview resolve a
+    // mídia no servidor a partir do id. Isso sobrevive a recarregar e a abrir
+    // em aba nova, e tira do cliente a decisão de qual arquivo pode ser usado.
+    //
+    // Só a PRIMEIRA mídia vai no `?mid=` — é ela que o Preview abre. As demais
+    // do carrossel são escolhidas dentro do Preview, pelo seletor da Biblioteca,
+    // onde a reordenação acontece. (Limitação real: o carrossel não vem
+    // pré-montado daqui; ver relatório.)
+    const primeira = selectedItems[0];
+    router.push(
+      `/preview-social?mid=${encodeURIComponent(primeira.id)}&formato=${formato}`
+    );
   }
 
   const filtroLabel = FILTERS.find((f) => f.id === filter)?.label ?? "Todas";

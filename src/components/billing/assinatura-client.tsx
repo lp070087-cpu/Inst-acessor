@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PromoCountdown } from "@/components/billing/promo-countdown";
+import { ConsumoPanel, type UsageSummaryView, type UsageHistoryItem } from "@/components/billing/consumo-panel";
 import {
   annualVsMonthly,
   formatBRL,
@@ -137,6 +138,19 @@ interface AssinaturaClientProps {
    * desconto — duas telas dizendo coisas diferentes sobre o mesmo dinheiro.
    */
   promo: PlanPromoDisplay;
+  /**
+   * Consumo do plano, lido no SERVIDOR (`getUsageSummary`). `null` = a leitura
+   * falhou; nesse caso o painel de consumo é OMITIDO em vez de mostrar zeros
+   * fabricados.
+   */
+  initialUsage?: UsageSummaryView | null;
+  /**
+   * Histórico de consumo (log de auditoria, `listUsageHistory`), lido no
+   * SERVIDOR e escopado por usuário. Lista vazia = nenhum evento registrado.
+   */
+  initialUsageHistory?: UsageHistoryItem[] | null;
+  /** Estado real do interruptor de franquia (medido vs. aplicado). */
+  limitsEnforcementEnabled?: boolean;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -218,6 +232,9 @@ export function AssinaturaClient({
   billingConfigured = false,
   billingLabel = null,
   promo,
+  initialUsage = null,
+  initialUsageHistory = [],
+  limitsEnforcementEnabled = false,
 }: AssinaturaClientProps) {
   const { toast } = useToast();
   const router = useRouter();
@@ -537,6 +554,15 @@ export function AssinaturaClient({
           </div>
         )}
       </section>
+
+      {/* ÁREA 1.5 — CONSUMO DO PLANO (medido no servidor; nada é inventado) */}
+      {initialUsage && (
+        <ConsumoPanel
+          summary={initialUsage}
+          history={initialUsageHistory ?? []}
+          enforcementEnabled={limitsEnforcementEnabled}
+        />
+      )}
 
       {/* ÁREA 2 — PLANOS DISPONÍVEIS */}
       <section id="planos-disponiveis" className="flex flex-col gap-3 scroll-mt-24">

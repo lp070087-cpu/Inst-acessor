@@ -6,6 +6,8 @@ import {
   requirePremiumPage,
 } from "@/lib/auth/guard";
 import { runAnalysis } from "@/lib/ai/services";
+import { getOpportunities } from "@/lib/ai/opportunities";
+import { PageHeader } from "@/components/layout/page-header";
 import { AnaliseClient } from "@/components/ai/analise-client";
 
 export const metadata: Metadata = {
@@ -25,25 +27,23 @@ export default async function AnaliseDesempenhoPage() {
   const { session } = await requireOnboardedSession();
   const userId = session.user.id;
 
-  // Carrega os dois perfis com dados reais dos snapshots.
-  const [instagram, tiktok] = await Promise.all([
+  // Carrega os dois perfis com dados reais dos snapshots, e as oportunidades
+  // derivadas dos MESMOS dados (sempre escopadas por userId). Nada é inventado.
+  const [instagram, tiktok, opportunities] = await Promise.all([
     runAnalysis(userId, "instagram", "30d"),
     runAnalysis(userId, "tiktok", "30d"),
+    getOpportunities(userId),
   ]);
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="font-display text-[26px] font-bold text-ink flex items-center gap-2.5">
-          <BarChart3 size={26} className="text-purple" />
-          Análise de Desempenho
-        </h1>
-        <p className="text-[13.5px] text-ink-soft mt-1">
-          Métricas reais dos seus perfis, por período. Nada é estimado.
-        </p>
-      </div>
+      <PageHeader
+        icon={BarChart3}
+        title="Análise de Desempenho"
+        description="Métricas reais dos seus perfis, por período. Nada é estimado."
+      />
 
-      <AnaliseClient initialData={{ instagram, tiktok }} />
+      <AnaliseClient initialData={{ instagram, tiktok }} opportunities={opportunities} />
     </div>
   );
 }

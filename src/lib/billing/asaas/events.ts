@@ -8,6 +8,8 @@ import type { ParsedAsaasEvent } from "./webhook";
 import { sanitizeAsaasPayload } from "./client";
 import { acceptableChargeAmounts } from "@/lib/billing/promo";
 import { getPromoConfig } from "@/lib/billing/promo-db";
+import { assessGrantCapacity } from "@/lib/billing/capacity-db";
+import { convertByEmail } from "@/lib/billing/waitlist-db";
 
 /**
  * ASAAS — PROCESSADOR DE EVENTOS (webhook) — OFICIAL
@@ -85,10 +87,23 @@ export async function handleAsaasEvent(
       },
     })) as unknown as { id: string };
   } catch {
-    const existing = (await bll.billingEvent.findUnique({
-      where: { eventId: parsed.eventId },
-      select: { id: true, processed: true },
-    })) as unknown as EventClaimRow | null;
+    // A consulta de fallback TAMBÉM pode falhar (ex.: banco fora do ar — foi uma
+    // exceção aqui que motivou o `create`). Antes ela era chamada sem `try`, e
+    // uma segunda falha ESCAPAVA da função: `POST /api/webhooks/asaas` lançava
+    // em vez de responder o 500 explícito documentado (regra 13), e o Asaas
+    // recebia um erro não classificado. Agora falha FECHADO e reprocessável.
+    let existing: EventClaimRow | null = null;
+    try {
+      existing = (await bll.billingEvent.findUnique({
+        where: { eventId: parsed.eventId },
+        select: { id: true, processed: true },
+      })) as unknown as EventClaimRow | null;
+    } catch (err) {
+      console.error("[asaas-events] banco indisponível ao reivindicar o evento", err);
+      // Nada foi gravado: falha reprocessável (o Asaas reenviará).
+      return { duplicate: false, failed: true, outcome: null };
+    }
+
     // Sem linha: erro transitório no create (não é violação de unique) → falha
     // reprocessável, não duplicado.
     if (!existing) return { duplicate: false, failed: true, outcome: null };
@@ -704,6 +719,17 @@ async function applyOrderLifecycle(
 async function applySubscriptionLifecycleOnly(
   parsed: ParsedAsaasEvent
 ): Promise<ApplyOutcome> {
+  // ESTORNO sem ordem local correspondente → revoga o acesso da cobrança
+  // estornada (regra 19). Tratado ANTES do guard `if (!sub)`, porque um estorno
+  // pode chegar sem assinatura vinculada (ex.: cobrança avulsa cujo
+  // `externalReference` não foi ecoado no objeto `payment`) e mesmo assim PRECISA
+  // revogar o grant. Sem este ramo, o evento caía no `default` → `noop`: o Asaas
+  // devolvia o dinheiro e o acesso local permanecia liberado até o fim do
+  // período — silenciosamente.
+  if (parsed.event === "PAYMENT_REFUNDED") {
+    return revokeRefundWithoutOrder(parsed);
+  }
+
   const sub = await findSubscriptionByExternalId(
     parsed.externalSubscriptionId ?? null,
     parsed.externalPaymentId ?? null
@@ -927,12 +953,34 @@ async function upsertChargeGrant(input: {
     return false;
   }
 
+  // GATE DEFENSIVO DE CAPACIDADE — apenas AUDITORIA, nunca bloqueio.
+  // Avaliado ANTES de criar o grant: mede se a concessão levaria a ocupação
+  // acima do teto (caso raro de a reserva do checkout ter expirado — TTL de
+  // 15 min — antes de o pagamento confirmar). Um pagamento confirmado JÁ foi
+  // cobrado: recusar acesso agora seria o pior desfecho possível, então o
+  // acesso é concedido de qualquer forma. Renovação não gera ruído: quem renova
+  // já é pagante ativo (ver `assessGrantCapacity`).
+  try {
+    await assessGrantCapacity({ email });
+  } catch {
+    /* auditoria best-effort: nunca derruba a concessão */
+  }
+
   try {
     await bll.accessGrant.create({ data: { ...data, email } });
   } catch {
     // @@unique([email, origin, externalPaymentId]) — concorrência: outra
     // entrega do mesmo evento venceu. NÃO reenvia (evita e-mail duplicado).
     return false;
+  }
+
+  // Se o comprador estava na LISTA DE ESPERA (com ou sem convite), o pagamento
+  // confirmado o marca como CONVERTED — o painel mostra a conversão real.
+  // Best-effort: falha não afeta o acesso.
+  try {
+    await convertByEmail(email);
+  } catch {
+    /* best-effort */
   }
 
   // Aviso de "acesso liberado" para comprador SEM conta (regra: o redirect do
@@ -989,6 +1037,52 @@ async function revokeAccessForRefund(
       });
     }
   }
+}
+
+/**
+ * ESTORNO sem ordem local correspondente (regra 19).
+ *
+ * A âncora é o `externalPaymentId` — um id gerado pelo PRÓPRIO Asaas, nunca pelo
+ * cliente. A existência de um grant cobrado com ESTE payment id específico é a
+ * prova suficiente para revogá-lo; não há valor a conferir aqui porque não há
+ * ordem (e sem ordem não há preço esperado). Revogar por este id NÃO pode afetar
+ * outra cobrança: o id é único por pagamento no Asaas.
+ *
+ * Revoga também a renovação (`autoRenew:false`) quando houver assinatura
+ * vinculada a esta cobrança. Períodos pagos por OUTRAS cobranças permanecem.
+ */
+async function revokeRefundWithoutOrder(
+  parsed: ParsedAsaasEvent
+): Promise<ApplyOutcome> {
+  const paymentId = parsed.externalPaymentId;
+  if (!paymentId) return "noop";
+
+  let revoked = false;
+
+  const grant = (await bll.accessGrant.findFirst({
+    where: { origin: "ASAAS", externalPaymentId: paymentId },
+  })) as unknown as { id: string } | null;
+  if (grant) {
+    await bll.accessGrant.update({
+      where: { id: grant.id },
+      data: { status: "CANCELED", expiresAt: new Date() },
+    });
+    revoked = true;
+  }
+
+  const sub = await findSubscriptionByExternalId(
+    parsed.externalSubscriptionId ?? null,
+    paymentId
+  );
+  if (sub) {
+    await bll.subscription.update({
+      where: { id: sub.id },
+      data: { status: "CANCELED", canceledAt: new Date(), autoRenew: false },
+    });
+    revoked = true;
+  }
+
+  return revoked ? "applied" : "noop";
 }
 
 // ---------------------------------------------------------------

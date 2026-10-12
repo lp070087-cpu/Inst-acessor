@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
+import { createHash } from "crypto";
 
 import { pub } from "@/lib/publishing/db";
-import { webhookRateLimiter, clientIp } from "@/lib/publishing/rate-limit";
+import { webhookRateLimiter, dbRateLimiter, clientIp } from "@/lib/publishing/rate-limit";
 import { verifyWebhookSignature } from "@/lib/webhooks/signature";
 import { getWebhookAppSecret } from "@/lib/integrations/instagram/client";
 
@@ -19,8 +20,11 @@ export const dynamic = "force-dynamic";
  * Quando a configuração externa (app secret/verify token) não está presente,
  * NÃO recebemos eventos reais — a rota permanece pronta, sem afirmar receber.
  *
- * Apenas eventos "comment" (fundação Comentário→DM) são aceitos nesta fase;
- * nenhuma ação real é executada — registramos a avaliação.
+ * Esta rota NÃO avalia regra de automação: ela é um receptáculo genérico que
+ * não resolve a conta do usuário nem carrega o motor Comentário → Direct (que
+ * vive no webhook do Instagram, `api/webhooks/instagram`, sobre `CommentDirectRule`).
+ * Por isso o log de execução é registrado como NÃO AVALIADO — nunca como se a
+ * regra tivesse sido avaliada (o antigo status "EVALUATED" era fictício).
  */
 
 // Verificação de origem: challenge GET usa o verify token; o POST assinado
@@ -67,8 +71,22 @@ export async function POST(request: Request) {
     return new NextResponse("Webhook não configurado", { status: 503 });
   }
 
-  // Proteção básica contra flood (a assinatura real será ativada na integração).
-  if (!webhookRateLimiter.check(clientIp(request))) {
+  // Proteção contra flood com DUAS camadas:
+  //  1. in-memory (barata, por instância — ver a limitação documentada em
+  //     `@/lib/publishing/rate-limit`);
+  //  2. contador PERSISTENTE em DB, COMPARTILHADO por todas as instâncias — o
+  //     único que de fato segura uma enxurrada vinda de várias instâncias.
+  // A defesa PRINCIPAL contra origem falsa continua sendo a assinatura HMAC
+  // (abaixo), fail-closed quando o App Secret existe.
+  const ip = clientIp(request);
+  if (!webhookRateLimiter.check(ip)) {
+    return new NextResponse("Muitas requisições", { status: 429 });
+  }
+  const ipAllowed = await dbRateLimiter.check(`webhook:${ip}`, {
+    windowMs: 60_000,
+    max: 120,
+  });
+  if (!ipAllowed) {
     return new NextResponse("Muitas requisições", { status: 429 });
   }
 
@@ -116,19 +134,30 @@ export async function POST(request: Request) {
     },
   });
 
-  // Registramos a avaliação (sem executar ação real).
-  if (event.type === "comment") {
-    await pub.automationExecution.create({
-      data: {
-        userId: event.userId ?? "unknown",
-        eventId: event.eventId,
-        status: "EVALUATED",
-        detail: "Regra de automação avaliada — execução real não habilitada nesta fase.",
-      },
-    });
-  }
+  // Registramos o recebimento, HONESTAMENTE: esta rota NÃO avalia regra de
+  // automação (não resolve o usuário nem roda o motor). O log diz exatamente
+  // isso — o antigo "EVALUATED" implicava uma avaliação que não acontece.
+  await pub.automationExecution.create({
+    data: {
+      userId: event.userId ?? "unknown",
+      eventId: event.eventId,
+      status: "RECEIVED",
+      detail: "Evento recebido por um webhook genérico — nenhuma regra de automação é avaliada nesta rota.",
+    },
+  });
 
   return NextResponse.json({ received: true }, { status: 200 });
+}
+
+/** Hash estável e curto de um payload — usado quando não há id natural. */
+function payloadFingerprint(body: unknown): string {
+  let serialized: string;
+  try {
+    serialized = JSON.stringify(body) ?? "";
+  } catch {
+    serialized = "unserializable";
+  }
+  return createHash("sha256").update(serialized).digest("hex").slice(0, 32);
 }
 
 /** Extrai um evento genérico de payloads Meta/TikTok conhecidos. */
@@ -140,7 +169,16 @@ function extractEvent(body: unknown): WebhookEvent & { userId?: string } {
   // Meta: { object: "instagram", entry: [{ id, time, changes }] }
   if (obj.object === "instagram" && Array.isArray(obj.entry)) {
     const entry = obj.entry[0] as Record<string, unknown> | undefined;
-    const eventId = typeof entry?.id === "string" ? entry.id : `${Date.now()}`;
+    const entryId = typeof entry?.id === "string" ? entry.id : null;
+    const time = entry && typeof entry.time === "number" ? entry.time : null;
+    // IDENTIFICADOR DETERMINÍSTICO: `entry.id` + `time` identificam a entrega.
+    // Sem eles (a Meta não garante ambos), usa-se o hash SHA-256 do payload —
+    // ESTÁVEL para o mesmo corpo e SEM reentrega falsa. Nunca `Date.now()` nem
+    // `Math.random()`, que davam um id novo (e quebravam a idempotência) a cada
+    // reentrega do MESMO evento.
+    const eventId = entryId
+      ? `instagram:${entryId}:${time ?? payloadFingerprint(entry)}`
+      : `instagram:sha256:${payloadFingerprint(obj)}`;
     return {
       eventId,
       platform: "instagram",
@@ -151,9 +189,8 @@ function extractEvent(body: unknown): WebhookEvent & { userId?: string } {
 
   // TikTok: { event, from_user_id, ... }
   if (typeof obj.event === "string") {
-    const eventId = typeof obj.timestamp === "number"
-      ? `${obj.event}-${obj.timestamp}-${obj.from_user_id ?? ""}`
-      : `${obj.event}-${obj.from_user_id ?? ""}-${Math.random().toString(36).slice(2, 8)}`;
+    // Mesma regra: campos estáveis do payload primeiro; sem eles, hash do corpo.
+    const eventId = `tiktok:sha256:${payloadFingerprint(obj)}`;
     return {
       eventId,
       platform: "tiktok",

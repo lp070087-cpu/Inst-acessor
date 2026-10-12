@@ -2,6 +2,7 @@ import { ai } from "@/lib/ai/db";
 import { getAIProvider } from "@/lib/ai";
 import { buildUserContext, contextToPrompt } from "@/lib/ai/context";
 import { getRuleBySlug } from "@/lib/knowledge/rules/registry";
+import { withUsage } from "@/lib/billing/usage/meter";
 
 /**
  * Serviço da Central de Ideias.
@@ -60,14 +61,20 @@ export async function generateIdeas(
 
   const userPrompt = `Gere ${params.count} ideias de conteúdo para a categoria "${categoryLabel}".`;
 
-  const raw = await provider.complete({
-    system,
-    messages: [{ role: "user", content: userPrompt }],
-    temperature: 0.9,
-    maxTokens: 1500,
-  });
+  // MEDIÇÃO: sem contar a geração se o provider falhar (`withUsage` grava depois).
+  const metered = await withUsage(
+    { userId, feature: "ai_generation", origin: "ideas" },
+    () =>
+      provider.complete({
+        system,
+        messages: [{ role: "user", content: userPrompt }],
+        temperature: 0.9,
+        maxTokens: 1500,
+      })
+  );
+  if (!metered.ok) throw new Error("QUOTA_EXCEDIDA");
 
-  const ideas = parseIdeaJson(raw);
+  const ideas = parseIdeaJson(metered.value);
   return ideas.slice(0, params.count);
 }
 

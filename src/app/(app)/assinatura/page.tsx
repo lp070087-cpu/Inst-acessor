@@ -4,6 +4,9 @@ import { CreditCard } from "lucide-react";
 import { requireOnboardedSession } from "@/lib/auth/guard";
 import { listPlans, getMySubscription, listMySubscriptions, getAccessStatus } from "@/lib/billing";
 import { getPlanPromoDisplay } from "@/lib/billing/promo-db";
+import { getUsageSummary, listUsageHistory } from "@/lib/billing/usage/meter";
+import { LIMITS_ENFORCEMENT_ENABLED } from "@/lib/billing/plans/limits";
+import { PageHeader } from "@/components/layout/page-header";
 import { AssinaturaClient } from "@/components/billing/assinatura-client";
 
 export const metadata: Metadata = {
@@ -22,25 +25,28 @@ export default async function AssinaturaPage() {
   // Antes, esta tela mostrava apenas o preço de catálogo — o cliente via
   // R$ 27,00 no card e era cobrado R$ 11,90 (ou o contrário, ao vencer o
   // prazo). A landing e o checkout já liam esta mesma configuração.
-  const [plans, current, history, access, promo] = await Promise.all([
+  const [plans, current, history, access, promo, usage, usageHistory] = await Promise.all([
     listPlans(),
     getMySubscription(userId),
     listMySubscriptions(userId),
     getAccessStatus(userId),
     getPlanPromoDisplay(),
+    // Consumo real do próprio usuário, lido no SERVIDOR (o navegador só exibe).
+    // Se a leitura falhar, `getUsageSummary` degrada com estado vazio honesto —
+    // nunca inventamos números de uso.
+    getUsageSummary(userId).catch(() => null),
+    // Histórico (log de auditoria), também no SERVIDOR e escopado por usuário.
+    // Sem registros → lista vazia; o painel mostra o estado vazio honesto.
+    listUsageHistory(userId).catch(() => []),
   ]);
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="font-display text-[26px] font-bold text-ink flex items-center gap-2.5">
-          <CreditCard size={26} className="text-purple" />
-          Minha Assinatura
-        </h1>
-        <p className="text-[13.5px] text-ink-soft mt-1">
-          Uma assinatura. Duas redes. Uma inteligência trabalhando no seu crescimento.
-        </p>
-      </div>
+      <PageHeader
+        icon={CreditCard}
+        title="Minha Assinatura"
+        description="Uma assinatura. Duas redes. Uma inteligência trabalhando no seu crescimento."
+      />
 
       <AssinaturaClient
         initialPlans={plans}
@@ -48,6 +54,9 @@ export default async function AssinaturaPage() {
         initialHistory={history}
         initialAccess={access}
         promo={promo}
+        initialUsage={usage}
+        initialUsageHistory={usageHistory}
+        limitsEnforcementEnabled={LIMITS_ENFORCEMENT_ENABLED}
       />
     </div>
   );

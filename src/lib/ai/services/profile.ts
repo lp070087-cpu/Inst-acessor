@@ -33,3 +33,53 @@ export async function getAIProfile(userId: string): Promise<AIProfileData | null
   if (!row) return null;
   return row as AIProfileData;
 }
+
+/** Campos de `AIProfile` que o próprio usuário pode corrigir. */
+const PROFILE_WRITABLE_FIELDS = [
+  "summary",
+  "niche",
+  "subNiche",
+  "objectives",
+  "communicationStyle",
+  "observedPatterns",
+  "preferredFormats",
+  "ctaPatterns",
+  "hookPatterns",
+  "postingFrequency",
+  "voiceTone",
+  "writingStyle",
+  "notes",
+] as const;
+
+export type AIProfileWritableField = (typeof PROFILE_WRITABLE_FIELDS)[number];
+
+/**
+ * CORREÇÃO do perfil pelo próprio usuário.
+ *
+ * Sempre escopado por `userId`: a rota só passa o id da sessão, então um
+ * usuário JAMAIS escreve no perfil de outro. Cria a linha quando ainda não
+ * existe (primeira correção) e faz upsert campo a campo — só os campos
+ * enviados são tocados, o resto permanece.
+ */
+export async function updateAIProfile(
+  userId: string,
+  fields: Partial<Record<AIProfileWritableField, string>>
+): Promise<AIProfileData | null> {
+  const data: Record<string, string | null> = {};
+  for (const key of PROFILE_WRITABLE_FIELDS) {
+    const value = fields[key];
+    if (value === undefined) continue;
+    const trimmed = value.trim();
+    data[key] = trimmed.length ? trimmed : null;
+  }
+
+  const existing = await ai.profile.findUnique({ where: { userId } });
+  const row = existing
+    ? await ai.profile.update({ where: { userId }, data })
+    : await ai.profile.create({ data: { userId, ...data } });
+  return row as AIProfileData;
+}
+
+/** Lista os campos corrigíveis — usado pela validação da rota. */
+export const AI_PROFILE_WRITABLE_FIELDS: readonly AIProfileWritableField[] =
+  PROFILE_WRITABLE_FIELDS;

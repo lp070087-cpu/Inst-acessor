@@ -74,6 +74,36 @@ async function safeFindMany<T>(delegate: Delegate<T> | undefined, args?: unknown
 const iso = (d: Date | null | undefined): string | null =>
   d instanceof Date && !Number.isNaN(d.getTime()) ? d.toISOString() : null;
 
+/**
+ * Lê as mídias coletadas do Instagram no formato aceito pelo motor puro
+ * (`MediaInput`). Exportada para que o plano semanal use a MESMA leitura — e
+ * nunca uma segunda versão dela. Não chama a API da Meta: só lê o que existe.
+ */
+export async function loadPlanningMedia(userId: string): Promise<MediaInput[]> {
+  const p = prisma as unknown as { instagramMedia?: Delegate<MediaRow> };
+  const media = await safeFindMany<MediaRow>(p.instagramMedia, {
+    where: { userId },
+    orderBy: { timestamp: "desc" },
+    take: 200,
+    select: {
+      igMediaId: true,
+      timestamp: true,
+      mediaType: true,
+      mediaProductType: true,
+      likeCount: true,
+      commentsCount: true,
+    },
+  });
+  return media.map((m) => ({
+    igMediaId: m.igMediaId,
+    timestamp: iso(m.timestamp),
+    mediaType: m.mediaType,
+    mediaProductType: m.mediaProductType,
+    likeCount: m.likeCount,
+    commentsCount: m.commentsCount,
+  }));
+}
+
 export async function getSmartCalendar(userId: string): Promise<SmartCalendarResult> {
   const p = prisma as unknown as {
     plannedContent?: Delegate<ContentRow>;
@@ -82,7 +112,7 @@ export async function getSmartCalendar(userId: string): Promise<SmartCalendarRes
     userGoal?: Delegate<GoalRow>;
   };
 
-  const [contents, media, snapshots, goals] = await Promise.all([
+  const [contents, mediaInput, snapshots, goals] = await Promise.all([
     safeFindMany<ContentRow>(p.plannedContent, {
       where: { userId },
       orderBy: { createdAt: "desc" },
@@ -96,19 +126,7 @@ export async function getSmartCalendar(userId: string): Promise<SmartCalendarRes
         title: true,
       },
     }),
-    safeFindMany<MediaRow>(p.instagramMedia, {
-      where: { userId },
-      orderBy: { timestamp: "desc" },
-      take: 200,
-      select: {
-        igMediaId: true,
-        timestamp: true,
-        mediaType: true,
-        mediaProductType: true,
-        likeCount: true,
-        commentsCount: true,
-      },
-    }),
+    loadPlanningMedia(userId),
     safeFindMany<SnapshotRow>(p.instagramSnapshot, {
       where: { userId },
       orderBy: { capturedAt: "desc" },
@@ -144,15 +162,6 @@ export async function getSmartCalendar(userId: string): Promise<SmartCalendarRes
     status: c.status,
     scheduledAt: iso(c.scheduledAt),
     title: c.title,
-  }));
-
-  const mediaInput: MediaInput[] = media.map((m) => ({
-    igMediaId: m.igMediaId,
-    timestamp: iso(m.timestamp),
-    mediaType: m.mediaType,
-    mediaProductType: m.mediaProductType,
-    likeCount: m.likeCount,
-    commentsCount: m.commentsCount,
   }));
 
   const snapshotInput: SnapshotInput[] = snapshots.map((s) => ({

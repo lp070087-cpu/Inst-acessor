@@ -42,7 +42,29 @@ export {
   buildWeeklyPlan,
   generateWeeklyPlanWithAI,
   type WeeklyPlanSuggestion,
+  type WeeklyPlanSuggestionItem,
+  type WeeklyPlanDay,
 } from "./weekly-plan";
+
+// Calendário Inteligente — motor puro (recomendações + desempenho por período)
+export {
+  buildSmartCalendar,
+  aggregateDayPeriods,
+  aggregateWeekdays,
+  periodForHour,
+  DAY_PERIOD_WINDOWS,
+  INSUFFICIENT_DATA_MESSAGE,
+  MIN_MEDIA_FOR_PERIOD_PATTERN,
+  MIN_PERIODS_FOR_BEST_TIME,
+  MIN_MEDIA_PER_RECOMMENDED_DAY,
+  type SmartCalendarResult,
+  type SmartRecommendation,
+  type SmartRecommendationKind,
+  type DayPeriodPerformance,
+  type DayPeriodAggregate,
+  type DayPeriodKey,
+  type WeekdayPattern,
+} from "./smart-calendar";
 
 // Ponte Preview Social → Calendário (Fase 6.5)
 export {
@@ -51,3 +73,11 @@ export {
   type ScheduleFromDraftInput,
   type ScheduleFromDraftResult,
 } from "./schedule-from-draft";
+
+// Aplicação real do plano semanal (aceitar sugestão de um dia, com dedup)
+export {
+  applyWeeklyPlanDay,
+  weeklyDayMarker,
+  type ApplyWeeklyDayInput,
+  type ApplyWeeklyDayResult,
+} from "./apply-weekly-day";

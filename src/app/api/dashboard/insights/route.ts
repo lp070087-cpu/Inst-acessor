@@ -31,7 +31,7 @@ export async function GET() {
       getMediaProductionData(userId),
     ]);
 
-    const result = await generateAIInsights(data, media);
+    const result = await generateAIInsights(userId, data, media);
 
     // "Sem IA" e "sem dados" são estados NORMAIS (200). Só a falha real da IA
     // vira 502 — e a distinção vem de `providerFailed`, não de texto.

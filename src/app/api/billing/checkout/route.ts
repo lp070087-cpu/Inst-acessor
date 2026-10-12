@@ -134,6 +134,25 @@ export async function POST(request: Request) {
     buyer,
   });
 
+  // SEM VAGA (teto atingido / vendas fechadas): NADA foi cobrado e nenhuma
+  // ordem foi criada. 409 com a mensagem do admin + `canJoinWaitlist` para o
+  // formulário oferecer a lista de espera. A decisão foi tomada no servidor.
+  if (!result.ok && result.reason === "capacity") {
+    return NextResponse.json(
+      {
+        ok: false,
+        status: result.status,
+        reason: "capacity",
+        message: result.message,
+        error: result.message,
+        checkoutUrl: null,
+        capacity: result.capacity ?? null,
+        canJoinWaitlist: true,
+      },
+      { status: 409 }
+    );
+  }
+
   if (!result.ok) {
     return NextResponse.json(
       {

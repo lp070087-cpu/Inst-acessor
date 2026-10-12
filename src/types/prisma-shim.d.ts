@@ -260,4 +260,21 @@ declare module "@prisma/client" {
     createdAt: Date;
     updatedAt: Date;
   }
+
+  /**
+   * LISTA DE ESPERA — capacidade de vendas (model aditivo).
+   * Espelha `model WaitlistEntry` em `prisma/schema.prisma`.
+   */
+  interface WaitlistEntry {
+    id: string;
+    name?: string | null;
+    email: string;
+    status: string;
+    invitedAt?: Date | null;
+    expiresAt?: Date | null;
+    notes?: string | null;
+    convertedAt?: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }
 }

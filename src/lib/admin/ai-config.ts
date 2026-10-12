@@ -26,7 +26,7 @@ import {
  * - `ai.openai.key`      → chave ENCRIPITADA (AES-256-GCM) + sufixo
  * - `ai.openai.model`    → "gpt-4o-mini" (padrão oficial)
  * - `ai.gemini.key`      → chave ENCRIPITADA (AES-256-GCM) + sufixo
- * - `ai.gemini.model`    → "gemini-1.5-flash" (padrão oficial)
+ * - `ai.gemini.model`    → "gemini-2.5-flash" (padrão oficial)
  *
  * Segurança:
  * - Chave NUNCA é devolvida ao frontend; apenas o sufixo mascarado
@@ -56,7 +56,8 @@ export {
 };
 
 export type AIProviderName = "openai" | "gemini";
-export type AIModelChoice = "gpt-4o-mini" | "gpt-4o" | "gemini-1.5-flash" | "gemini-1.5-pro";
+/** Derivado das listas oficiais — nunca duplicar os IDs aqui. */
+export type AIModelChoice = (typeof OPENAI_MODELS)[number] | (typeof GEMINI_MODELS)[number];
 
 export interface AIProviderStatus {
   configured: boolean;
@@ -247,8 +248,39 @@ export async function testAIProvider(input: {
       return { ok: true, message: "Conexão com OpenAI OK." };
     }
 
-    // Gemini: chamada mínima de geração (baixo custo).
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
+    // Gemini — DUAS checagens, para não depender de suposição.
+
+    // 1) LISTA DE MODELOS DISPONÍVEIS PARA A CHAVE. `GET /v1beta/models` é
+    //    GRATUITO (não é generateContent), então podemos provar quais modelos a
+    //    chave realmente enxerga — em vez de presumir que o ID na lista fixa
+    //    existe. Isto é o que faltava no diagnóstico do erro 404 original.
+    let available: string[] | null = null;
+    let listNote = "";
+    try {
+      const listRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key=${encodeURIComponent(key)}`,
+        { signal: AbortSignal.timeout(20_000) }
+      );
+      if (listRes.ok) {
+        const data = (await listRes.json()) as {
+          models?: { name?: string; supportedGenerationMethods?: string[] }[];
+        };
+        available = (data.models ?? [])
+          .filter((m) => (m.supportedGenerationMethods ?? []).includes("generateContent"))
+          .map((m) => String(m.name ?? "").replace(/^models\//, ""))
+          .filter(Boolean);
+      } else {
+        listNote = ` (não consegui listar os modelos: HTTP ${listRes.status})`;
+      }
+    } catch {
+      listNote = " (não consegui listar os modelos: falha de rede)";
+    }
+
+    // 2) CHAMADA MÍNIMA de geração — prova de que a chave TEM ACESSO ao modelo
+    //    escolhido. Listar não garante acesso (a família 2.5 é restrita).
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+      model
+    )}:generateContent?key=${encodeURIComponent(key)}`;
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -257,10 +289,51 @@ export async function testAIProvider(input: {
         generationConfig: { maxOutputTokens: 5 },
       }),
     });
+
+    // Diagnóstico: o modelo está na lista da chave? (sem revelar a chave)
+    const inList =
+      available == null
+        ? null
+        : available.includes(model);
+    const listDetail =
+      inList === true
+        ? ` O modelo "${model}" aparece na lista desta chave.`
+        : inList === false
+          ? ` O modelo "${model}" NÃO aparece na lista desta chave${listNote}.`
+          : listNote;
+
     if (!res.ok) {
-      return { ok: false, message: `Gemini retornou ${res.status}. Verifique a chave.` };
+      // ANTES: qualquer falha dizia "Verifique a chave" — e um 404 de modelo
+      // APOSENTADO (o caso real do `gemini-1.5-flash`) parecia problema de
+      // chave. Agora o status é traduzido para a causa provável, sem nunca
+      // interpolar a chave (ela vive na query string, não na mensagem).
+      if (res.status === 404) {
+        return {
+          ok: false,
+          message: `O modelo "${model}" não está disponível para esta chave (404). Escolha outro modelo na lista.${listDetail}`,
+        };
+      }
+      if (res.status === 400 || res.status === 403) {
+        return {
+          ok: false,
+          message: `Gemini recusou a requisição (${res.status}). Verifique a chave e se ela tem acesso ao modelo "${model}".${listDetail}`,
+        };
+      }
+      if (res.status === 429) {
+        return {
+          ok: false,
+          message: `Gemini recusou por limite de uso (429). Tente novamente em instantes.${listDetail}`,
+        };
+      }
+      return { ok: false, message: `Gemini retornou ${res.status}. Verifique a chave.${listDetail}` };
     }
-    return { ok: true, message: "Conexão com Gemini OK." };
+
+    const suffix = available && available.length > 0
+      ? ` Modelos disponíveis para esta chave: ${available.slice(0, 8).join(", ")}${
+          available.length > 8 ? ` (+${available.length - 8})` : ""
+        }.`
+      : listNote;
+    return { ok: true, message: `Conexão com Gemini OK (${model}).${suffix}` };
   } catch {
     return { ok: false, message: "Não foi possível alcançar o provider. Verifique a rede." };
   }

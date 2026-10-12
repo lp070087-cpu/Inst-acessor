@@ -158,6 +158,10 @@ export async function generateReply(input: GenerateInput): Promise<GenerateResul
     .join("\n");
 
   try {
+    // SEM MEDIÇÃO AQUI (intencional): a geração da resposta acontece DENTRO do
+    // fluxo de resposta a comentário já medido como `auto_reply` pelo medidor
+    // externo (`src/lib/comment-replies/engine.ts`). Medir aqui de novo
+    // contaria DUAS VEZES a mesma ação do usuário.
     const raw = await provider.complete({
       system,
       messages: [{ role: "user", content: userContent }],

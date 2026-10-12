@@ -5,13 +5,12 @@ import {
   requireOnboardedSession,
   requirePremiumPage,
 } from "@/lib/auth/guard";
+import { PageHeader } from "@/components/layout/page-header";
 import { aiConfigured } from "@/lib/ai";
 import { prisma } from "@/lib/db";
 import { getOrCreateRule } from "@/lib/comment-replies/db";
-import {
-  CommentRepliesClient,
-  type InitialRule,
-} from "@/components/comment-replies/comment-replies-client";
+import { RespostasInteligentesHub } from "@/components/comment-direct/respostas-inteligentes-hub";
+import type { InitialRule } from "@/components/comment-replies/comment-replies-client";
 import type { ReplyMode } from "@/lib/comment-replies/types";
 
 export const metadata: Metadata = {
@@ -31,7 +30,11 @@ export const dynamic = "force-dynamic";
  * Se não houver conexão, a tela mostra um CTA para /redes-sociais em vez de
  * esconder a funcionalidade.
  */
-export default async function RespostasInteligentesPage() {
+export default async function RespostasInteligentesPage({
+  searchParams,
+}: {
+  searchParams?: { section?: string };
+}) {
   // Módulo do plano: sem acesso premium, a própria página manda o usuário
   // para /acesso-restrito. A checagem vive na página (e não no layout)
   // porque só ela sabe a própria rota: não há header para ler nem um
@@ -76,23 +79,23 @@ export default async function RespostasInteligentesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="font-display text-[26px] font-bold text-ink flex items-center gap-2.5">
-          <MessageSquareHeart size={26} className="text-purple" />
-          Respostas Inteligentes
-        </h1>
-        <p className="text-[13.5px] text-ink-soft">
-          A IA lê os comentários dos seus posts, carrosséis e Reels, sugere a
-          resposta no seu tom e só publica o que você autorizar.
-        </p>
-      </div>
+      <PageHeader
+        icon={MessageSquareHeart}
+        title="Respostas Inteligentes"
+        description="A IA lê os comentários dos seus posts, carrosséis e Reels, sugere a resposta no seu tom e só publica o que você autorizar."
+      />
 
-      <CommentRepliesClient
+      <RespostasInteligentesHub
         connected={connected}
         instagramUsername={connection?.username ?? null}
         aiConfigured={configured}
         mediaCount={mediaCount}
         initialRule={initialRule}
+        initialSection={
+          searchParams?.section === "direct" || searchParams?.section === "automacoes"
+            ? searchParams.section
+            : "comentarios"
+        }
       />
     </div>
   );

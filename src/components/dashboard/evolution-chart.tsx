@@ -3,27 +3,27 @@
 import { useRef, useState } from "react";
 
 /**
- * GrÃ¡fico de evoluÃ§Ã£o em SVG nativo â€” sem dependÃªncias externas.
+ * Gráfico de evolução em SVG nativo — sem dependências externas.
  *
  * REGRAS DE HONESTIDADE DOS DADOS
  * -------------------------------
- * 1. A escala do eixo Y Ã© calculada SOMENTE a partir dos valores realmente
- *    plotados desta mÃ©trica. Nenhuma mÃ©trica empresta o domÃ­nio de outra.
- * 2. O eixo usa "ticks" redondos (passo 1/2/5 Ã— potÃªncia de 10). Antes o
- *    domÃ­nio era `min - 10%` a `max + 10%` do valor bruto, entÃ£o os rÃ³tulos
- *    do eixo eram nÃºmeros quebrados quaisquer (ex.: 333333 / 566667) em vez de
- *    uma escala legÃ­vel. Isso era um erro de ESCALA, nÃ£o de formataÃ§Ã£o.
- * 3. Ponto sem valor da mÃ©trica NÃƒO vira zero e NÃƒO Ã© removido da linha do
- *    tempo: ele Ã© apenas nÃ£o desenhado, e a posiÃ§Ã£o X dos demais Ã© preservada
- *    pelo Ã­ndice original do snapshot. Um buraco continua sendo um buraco.
- * 4. Com um Ãºnico ponto real nÃ£o existe evoluÃ§Ã£o a desenhar â€” mostramos o
- *    valor atual e dizemos que faltam sincronizaÃ§Ãµes.
+ * 1. A escala do eixo Y é calculada SOMENTE a partir dos valores realmente
+ *    plotados desta métrica. Nenhuma métrica empresta o domínio de outra.
+ * 2. O eixo usa "ticks" redondos (passo 1/2/5 × potência de 10). Antes o
+ *    domínio era `min - 10%` a `max + 10%` do valor bruto, então os rótulos
+ *    do eixo eram números quebrados quaisquer (ex.: 333333 / 566667) em vez de
+ *    uma escala legível. Isso era um erro de ESCALA, não de formatação.
+ * 3. Ponto sem valor da métrica NÃO vira zero e NÃO é removido da linha do
+ *    tempo: ele é apenas não desenhado, e a posição X dos demais é preservada
+ *    pelo índice original do snapshot. Um buraco continua sendo um buraco.
+ * 4. Com um único ponto real não existe evolução a desenhar — mostramos o
+ *    valor atual e dizemos que faltam sincronizações.
  */
 
 /**
- * Estrutura mÃ­nima que o grÃ¡fico lÃª de cada ponto.
- * UniÃ£o dos campos numÃ©ricos opcionais presentes nos pontos
- * do Instagram e do TikTok. Nada Ã© inventado: campos ausentes â†’ null.
+ * Estrutura mínima que o gráfico lê de cada ponto.
+ * União dos campos numéricos opcionais presentes nos pontos
+ * do Instagram e do TikTok. Nada é inventado: campos ausentes → null.
  */
 export type ChartEvolutionPoint = {
   label?: string;
@@ -37,7 +37,7 @@ export type ChartEvolutionPoint = {
   likesCount?: number | null;
 };
 
-/** MÃ©tricas exibÃ­veis no grÃ¡fico (chaves numÃ©ricas de ChartEvolutionPoint). */
+/** Métricas exibíveis no gráfico (chaves numéricas de ChartEvolutionPoint). */
 export type ChartMetricKey = Exclude<
   keyof ChartEvolutionPoint,
   "label" | "capturedAt"
@@ -46,23 +46,23 @@ export type ChartMetricKey = Exclude<
 const METRIC_LABELS: Record<string, string> = {
   followersCount: "seguidores",
   reach: "alcance",
-  impressions: "visualizaÃ§Ãµes",
+  impressions: "visualizações",
   profileViews: "visitas ao perfil",
-  mediaCount: "publicaÃ§Ãµes",
-  videoCount: "vÃ­deos",
+  mediaCount: "publicações",
+  videoCount: "vídeos",
   likesCount: "curtidas",
 };
 
 interface EvolutionChartProps {
   points: ChartEvolutionPoint[];
   metric: ChartMetricKey;
-  /** RÃ³tulo legÃ­vel da mÃ©trica (opcional â€” hÃ¡ um mapa interno de reserva). */
+  /** Rótulo legível da métrica (opcional — há um mapa interno de reserva). */
   metricLabel?: string;
 }
 
-/** Um ponto REAL da sÃ©rie â€” carrega o Ã­ndice original do snapshot. */
+/** Um ponto REAL da série — carrega o índice original do snapshot. */
 interface SeriesPoint {
-  /** Ãndice do snapshot em `points` (preserva o espaÃ§amento da linha do tempo). */
+  /** Índice do snapshot em `points` (preserva o espaçamento da linha do tempo). */
   index: number;
   value: number;
   label: string;
@@ -70,8 +70,8 @@ interface SeriesPoint {
 }
 
 export function EvolutionChart({ points, metric, metricLabel }: EvolutionChartProps) {
-  // SÃ©rie real: sÃ³ os snapshots que TÃŠM a mÃ©trica. O Ã­ndice original Ã© mantido
-  // para que a distÃ¢ncia entre os pontos continue representando a linha do tempo.
+  // Série real: só os snapshots que TÊM a métrica. O índice original é mantido
+  // para que a distância entre os pontos continue representando a linha do tempo.
   const series: SeriesPoint[] = [];
   for (let index = 0; index < points.length; index++) {
     const raw = points[index][metric];
@@ -84,15 +84,15 @@ export function EvolutionChart({ points, metric, metricLabel }: EvolutionChartPr
     });
   }
 
-  const name = metricLabel ?? METRIC_LABELS[metric] ?? "mÃ©trica";
+  const name = metricLabel ?? METRIC_LABELS[metric] ?? "métrica";
 
   // ---- Sem nenhum ponto real ----
   if (series.length === 0) {
     return (
       <ChartShell>
         <StateBlock
-          title="Sem dados para esta mÃ©trica"
-          description={`Nenhuma sincronizaÃ§Ã£o registrou ${name} no perÃ­odo selecionado. Nada Ã© estimado â€” sincronize para comeÃ§ar o histÃ³rico.`}
+          title="Sem dados para esta métrica"
+          description={`Nenhuma sincronização registrou ${name} no período selecionado. Nada é estimado — sincronize para começar o histórico.`}
         />
       </ChartShell>
     );
@@ -100,7 +100,7 @@ export function EvolutionChart({ points, metric, metricLabel }: EvolutionChartPr
 
   const last = series[series.length - 1];
 
-  // ---- Um Ãºnico ponto real: existe valor, NÃƒO existe evoluÃ§Ã£o ----
+  // ---- Um único ponto real: existe valor, NÃO existe evolução ----
   if (series.length === 1) {
     return (
       <ChartShell>
@@ -109,12 +109,12 @@ export function EvolutionChart({ points, metric, metricLabel }: EvolutionChartPr
             {formatExact(last.value)}
           </span>
           <span className="text-[12.5px] font-semibold text-ink-muted">
-            {name} Â· {last.label}
+            {name} · {last.label}
           </span>
         </div>
         <StateBlock
-          title="Precisamos de pelo menos 2 sincronizaÃ§Ãµes para mostrar sua evoluÃ§Ã£o."
-          description="Ainda nÃ£o hÃ¡ um ponto anterior com o qual comparar. Este Ã© o valor real do registro mais recente."
+          title="Precisamos de pelo menos 2 sincronizações para mostrar sua evolução."
+          description="Ainda não há um ponto anterior com o qual comparar. Este é o valor real do registro mais recente."
           bare
         />
       </ChartShell>
@@ -145,8 +145,8 @@ function Plot({ series, name, totalPoints }: { series: SeriesPoint[]; name: stri
   const lastIndex = series.length - 1;
   const last = series[lastIndex];
 
-  // X por POSIÃ‡ÃƒO na sÃ©rie real â€” o Ã­ndice original do snapshot define o
-  // espaÃ§amento, entÃ£o um snapshot sem a mÃ©trica cria um vÃ£o visÃ­vel.
+  // X por POSIÇÃO na série real — o índice original do snapshot define o
+  // espaçamento, então um snapshot sem a métrica cria um vão visível.
   const spanIndex = series[lastIndex].index - series[0].index || 1;
   const x = (i: number) =>
     PAD.left + ((series[i].index - series[0].index) / spanIndex) * plotW;
@@ -158,7 +158,7 @@ function Plot({ series, name, totalPoints }: { series: SeriesPoint[]; name: stri
     H - PAD.bottom
   ).toFixed(1)} L${coords[0].x.toFixed(1)},${(H - PAD.bottom).toFixed(1)} Z`;
 
-  // ---- VariaÃ§Ã£o: sÃ³ entre os DOIS Ãºltimos valores reais ----
+  // ---- Variação: só entre os DOIS últimos valores reais ----
   const first = series[0].value;
   const delta = last.value - first;
   const deltaPct =
@@ -185,19 +185,19 @@ function Plot({ series, name, totalPoints }: { series: SeriesPoint[]; name: stri
     return best;
   }
 
-  const ariaLabel = `EvoluÃ§Ã£o de ${name}: de ${formatExact(first)} para ${formatExact(
+  const ariaLabel = `Evolução de ${name}: de ${formatExact(first)} para ${formatExact(
     last.value
   )} em ${series.length} registros.`;
 
   return (
     <div className="flex flex-col gap-3">
-      {/* CabeÃ§alho: valor atual + variaÃ§Ã£o do perÃ­odo */}
+      {/* Cabeçalho: valor atual + variação do período */}
       <div className="flex items-baseline gap-3 flex-wrap">
         <span className="font-data font-bold text-[24px] text-ink">
           {formatCompact(last.value)}
         </span>
         <span className="text-[12.5px] font-semibold text-ink-muted">
-          {name} Â· {last.label}
+          {name} · {last.label}
         </span>
         <DeltaBadge delta={delta} deltaPct={deltaPct} />
       </div>
@@ -209,8 +209,8 @@ function Plot({ series, name, totalPoints }: { series: SeriesPoint[]; name: stri
           className="w-full max-w-full h-auto rounded-[16px]"
           role="img"
           aria-label={ariaLabel}
-          /* SÃ³ o mouse controla o hover. No toque, o gesto Ã© um toque simples
-             (onPointerDown) â€” assim a rolagem da pÃ¡gina nÃ£o Ã© sequestrada. */
+          /* Só o mouse controla o hover. No toque, o gesto é um toque simples
+             (onPointerDown) — assim a rolagem da página não é sequestrada. */
           onPointerMove={(e) => {
             if (e.pointerType !== "mouse") return;
             const i = pointerIndex(e.clientX);
@@ -245,10 +245,10 @@ function Plot({ series, name, totalPoints }: { series: SeriesPoint[]; name: stri
             `}</style>
           </defs>
 
-          {/* Grid + rÃ³tulos do eixo Y â€” "ticks" redondos */}
+          {/* Grid + rótulos do eixo Y — "ticks" redondos */}
           {ticks.map((tick) => {
             const gy = y(tick);
-            // Um rÃ³tulo muito prÃ³ximo da borda inferior colidiria com o eixo X.
+            // Um rótulo muito próximo da borda inferior colidiria com o eixo X.
             const showLabel = gy <= H - PAD.bottom + 1;
             return (
               <g key={tick}>
@@ -299,7 +299,7 @@ function Plot({ series, name, totalPoints }: { series: SeriesPoint[]; name: stri
             strokeLinejoin="round"
           />
 
-          {/* Pontos discretos â€” sÃ³ onde existe valor real */}
+          {/* Pontos discretos — só onde existe valor real */}
           {coords.map((c, i) => (
             <circle
               key={i}
@@ -313,9 +313,9 @@ function Plot({ series, name, totalPoints }: { series: SeriesPoint[]; name: stri
             />
           ))}
 
-          {/* RÃ³tulos do eixo X: primeiro, meio e Ãºltimo â€” cada um com o SEU
-              prÃ³prio snapshot (antes o Ã­ndice era do array filtrado e os
-              rÃ³tulos caÃ­am em pontos errados). */}
+          {/* Rótulos do eixo X: primeiro, meio e último — cada um com o SEU
+              próprio snapshot (antes o índice era do array filtrado e os
+              rótulos caíam em pontos errados). */}
           {uniqueIndices([0, Math.floor(series.length / 2), lastIndex]).map((i) => {
             const isFirst = i === 0;
             const isLast = i === lastIndex;
@@ -334,7 +334,7 @@ function Plot({ series, name, totalPoints }: { series: SeriesPoint[]; name: stri
           })}
         </svg>
 
-        {/* Tooltip (data, valor e variaÃ§Ã£o vs. ponto anterior) */}
+        {/* Tooltip (data, valor e variação vs. ponto anterior) */}
         {activePoint && (
           <div
             className="pointer-events-none absolute -top-1 z-10 rounded-[10px] bg-ink px-3 py-2 shadow-lg"
@@ -363,9 +363,9 @@ function Plot({ series, name, totalPoints }: { series: SeriesPoint[]; name: stri
         <p className="text-[11.5px] text-ink-muted">
           {totalPoints - series.length}{" "}
           {totalPoints - series.length === 1
-            ? "sincronizaÃ§Ã£o nÃ£o registrou"
-            : "sincronizaÃ§Ãµes nÃ£o registraram"}{" "}
-          {name} â€” esses pontos ficaram de fora da linha, sem virar zero.
+            ? "sincronização não registrou"
+            : "sincronizações não registraram"}{" "}
+          {name} — esses pontos ficaram de fora da linha, sem virar zero.
         </p>
       )}
     </div>
@@ -379,12 +379,12 @@ function Plot({ series, name, totalPoints }: { series: SeriesPoint[]; name: stri
 /**
  * Escala "bonita" para o eixo Y.
  *
- * O passo Ã© sempre 1/2/2,5/5 Ã— 10â¿ arredondado para INTEIRO (as mÃ©tricas do
- * painel sÃ£o contagens). Os limites sÃ£o encaixados em mÃºltiplos do passo, de
- * modo que TODO rÃ³tulo do eixo seja um nÃºmero redondo â€” a causa dos valores
- * quebrados do grÃ¡fico anterior era justamente nÃ£o existir esta etapa.
+ * O passo é sempre 1/2/2,5/5 × 10ⁿ arredondado para INTEIRO (as métricas do
+ * painel são contagens). Os limites são encaixados em múltiplos do passo, de
+ * modo que TODO rótulo do eixo seja um número redondo — a causa dos valores
+ * quebrados do gráfico anterior era justamente não existir esta etapa.
  *
- * Se a sÃ©rie for constante, abre-se uma faixa em volta do valor em vez de
+ * Se a série for constante, abre-se uma faixa em volta do valor em vez de
  * dividir por zero.
  */
 function buildScale(values: number[]): { min: number; max: number; ticks: number[] } {
@@ -402,7 +402,7 @@ function buildScale(values: number[]): { min: number; max: number; ticks: number
   const step = niceStep((rawMax - rawMin) / 4);
   let min = Math.floor(rawMin / step) * step;
   let max = Math.ceil(rawMax / step) * step;
-  // Garante pelo menos 2 faixas: sem isso uma sÃ©rie quase plana viraria uma
+  // Garante pelo menos 2 faixas: sem isso uma série quase plana viraria uma
   // linha colada na borda.
   if ((max - min) / step < 2) {
     min -= step;
@@ -418,7 +418,7 @@ function buildTicks(min: number, max: number, step: number): number[] {
   return out;
 }
 
-/** Passo redondo (mantissa 1/2/2,5/5 Ã— 10â¿), sempre inteiro e â‰¥ 1. */
+/** Passo redondo (mantissa 1/2/2,5/5 × 10ⁿ), sempre inteiro e ≥ 1. */
 function niceStep(raw: number): number {
   const safe = Math.max(raw, 1e-6);
   const mag = Math.pow(10, Math.floor(Math.log10(safe)));
@@ -432,10 +432,10 @@ function niceStep(raw: number): number {
 /* ------------------------------------------------------------------ */
 
 /**
- * Suaviza a linha com Catmull-Rom convertido em BÃ©zier, mantendo os pontos de
- * controle DENTRO da faixa Y do prÃ³prio segmento. Isso dÃ¡ a curva suave pedida
+ * Suaviza a linha com Catmull-Rom convertido em Bézier, mantendo os pontos de
+ * controle DENTRO da faixa Y do próprio segmento. Isso dá a curva suave pedida
  * sem que ela passe acima/abaixo dos valores reais (uma curva que "sai" do
- * dado Ã© uma mentira visual).
+ * dado é uma mentira visual).
  */
 function smoothPath(pts: { x: number; y: number }[]): string {
   if (pts.length < 2) return "";
@@ -468,7 +468,7 @@ function uniqueIndices(list: number[]): number[] {
 }
 
 /* ------------------------------------------------------------------ */
-/* ApresentaÃ§Ã£o                                                       */
+/* Apresentação                                                       */
 /* ------------------------------------------------------------------ */
 
 function ChartShell({ children }: { children: React.ReactNode }) {
@@ -498,7 +498,7 @@ function StateBlock({
   );
 }
 
-/** VariaÃ§Ã£o do perÃ­odo â€” sÃ³ existe quando hÃ¡ dois valores reais comparÃ¡veis. */
+/** Variação do período — só existe quando há dois valores reais comparáveis. */
 function DeltaBadge({ delta, deltaPct }: { delta: number; deltaPct: number | null }) {
   const up = delta >= 0;
   return (
@@ -507,7 +507,7 @@ function DeltaBadge({ delta, deltaPct }: { delta: number; deltaPct: number | nul
         up ? "bg-success-soft text-success" : "bg-danger-soft text-danger"
       }`}
     >
-      <span aria-hidden>{up ? "â–²" : "â–¼"}</span>
+      <span aria-hidden>{up ? "▲" : "▼"}</span>
       {deltaLabel(delta)}
       {deltaPct != null ? ` (${deltaPct >= 0 ? "+" : ""}${deltaPct.toFixed(1)}%)` : ""}
     </span>
@@ -524,7 +524,7 @@ function formatExact(n: number): string {
   return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 }).format(n);
 }
 
-/** AbreviaÃ§Ã£o compacta para os valores de destaque. */
+/** Abreviação compacta para os valores de destaque. */
 function formatCompact(n: number): string {
   const abs = Math.abs(n);
   if (abs >= 1_000_000) return `${trimZero(n / 1_000_000)}M`;
@@ -532,7 +532,7 @@ function formatCompact(n: number): string {
   return formatExact(n);
 }
 
-/** RÃ³tulo do eixo: nÃºmero redondo, com abreviaÃ§Ã£o sÃ³ em magnitudes grandes. */
+/** Rótulo do eixo: número redondo, com abreviação só em magnitudes grandes. */
 function formatAxis(n: number): string {
   const abs = Math.abs(n);
   if (abs >= 1_000_000) return `${trimZero(n / 1_000_000)}M`;

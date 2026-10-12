@@ -17,6 +17,15 @@ import {
   applySelfDisplayName,
   getPlatformSelection,
 } from "@/lib/gamification";
+/**
+ * `RankClient` (~4.100 linhas) é importado ESTATICAMENTE de propósito.
+ *
+ * Cogitei `next/dynamic` por causa do tamanho, mas aqui ele NÃO ajudaria: o
+ * App Router já dá a cada rota um chunk próprio, então o componente só é
+ * baixado por quem abre /rank. Como ele é o CONTEÚDO PRINCIPAL da página (não
+ * algo abaixo da dobra nem um modal), adiar viraria uma busca a mais para
+ * pintar a mesma tela. Fica como está — o ganho estaria em outro lugar.
+ */
 import { RankClient } from "@/components/gamification/rank-client";
 
 export const metadata: Metadata = {
@@ -27,11 +36,10 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function RankPage() {
-  // Módulo do plano: sem acesso premium, a própria página manda o usuário
-  // para /acesso-restrito. A checagem vive na página (e não no layout)
-  // porque só ela sabe a própria rota: não há header para ler nem um
-  // valor que possa se perder no caminho.
-  await requirePremiumPage();
+  // RANK — TODOS OS PLANOS podem alcançar TODOS os níveis. Nenhum Rank é
+  // bloqueado por assinatura (regra comercial definitiva). A página é
+  // acessível a qualquer usuário onboardado, sem checagem de plano.
+  // Elite e Master são capacidade, não requisito de Rank.
 
   const { session } = await requireOnboardedSession();
   const userId = session.user.id;

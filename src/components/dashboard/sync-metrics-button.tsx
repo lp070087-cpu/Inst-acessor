@@ -64,48 +64,52 @@ export function SyncMetricsButton({
     }
   }
 
+  // Rodapé do card da conta: botão à esquerda, último sync à direita. Mensagens
+  // de estado ocupam a linha de baixo para não empurrar o botão.
   return (
-    <div className="flex flex-col items-start gap-2">
-      <Button
-        onClick={handleSync}
-        disabled={state === "loading"}
-        size="sm"
-        variant="ghost"
-      >
-        {state === "loading" ? (
-          <RefreshCw size={15} className="animate-spin" />
-        ) : (
-          <RefreshCw size={15} />
-        )}
-        Atualizar métricas
-      </Button>
+    <div className="flex flex-col gap-2 w-full">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <Button
+          onClick={handleSync}
+          disabled={state === "loading"}
+          size="sm"
+          variant="ghost"
+        >
+          {state === "loading" ? (
+            <RefreshCw size={15} className="animate-spin" />
+          ) : (
+            <RefreshCw size={15} />
+          )}
+          Atualizar métricas
+        </Button>
 
-      {lastSyncAt && state === "idle" && (
-        <p className="inline-flex items-center gap-1.5 text-[12px] text-ink-muted">
-          <Clock size={13} />
-          Última sincronização:{" "}
-          {new Intl.DateTimeFormat("pt-BR", {
-            dateStyle: "short",
-            timeStyle: "short",
-          }).format(new Date(lastSyncAt))}
-        </p>
-      )}
+        {lastSyncAt && state === "idle" && (
+          <p className="inline-flex items-center gap-1.5 text-[12px] text-ink-muted">
+            <Clock size={13} className="flex-none" />
+            Última sincronização:{" "}
+            {new Intl.DateTimeFormat("pt-BR", {
+              dateStyle: "short",
+              timeStyle: "short",
+            }).format(new Date(lastSyncAt))}
+          </p>
+        )}
+      </div>
 
       {state === "success" && message && (
         <p className="inline-flex items-center gap-1.5 text-[12.5px] text-success font-medium">
-          <CheckCircle2 size={14} />
+          <CheckCircle2 size={14} className="flex-none" />
           {message}
         </p>
       )}
       {state === "cooldown" && message && (
         <p className="inline-flex items-center gap-1.5 text-[12.5px] text-warn font-medium">
-          <Clock size={14} />
+          <Clock size={14} className="flex-none" />
           {message}
         </p>
       )}
       {state === "error" && message && (
         <p className="inline-flex items-center gap-1.5 text-[12.5px] text-danger font-medium">
-          <AlertTriangle size={14} />
+          <AlertTriangle size={14} className="flex-none" />
           {message}
         </p>
       )}

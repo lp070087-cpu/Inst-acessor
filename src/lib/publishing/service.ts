@@ -18,6 +18,7 @@
 
 import { pub } from "./db";
 import { prisma } from "@/lib/db";
+import { recordUsage } from "@/lib/billing/usage/meter";
 import { enqueuePublication, getQueueItem, markProcessing, markPublished, markFailed, listQueue } from "./queue";
 import { decideRetry, logAttempt } from "./retry";
 import { getAdapter } from "./adapters";
@@ -410,6 +411,20 @@ export async function processQueueItem(
         data: { status: "PUBLICADO", publishedAt: result.publishedAt ? new Date(result.publishedAt) : new Date(), externalId: result.externalId },
       });
       await logAttempt({ userId, queueId, contentId: item.contentId, platform: item.platform, operation: "publish", status: "success", attempts: item.attempts + 1, externalId: result.externalId, provider: adapter.name });
+
+      // MEDIÇÃO de `publication` — registrada SOMENTE aqui, onde há confirmação
+      // REAL do provider. IDEMPOTÊNCIA: usamos o ID EXTERNO da publicação como
+      // `idempotencyKey`. `UsageEvent.idempotencyKey` é `@unique`, então uma
+      // re-tentativa da MESMA publicação (mesmo externalId) NÃO conta duas vezes
+      // — o segundo registro é descartado como `duplicate`. Uma falha de
+      // medição nunca derruba uma publicação que já foi entregue.
+      await recordUsage({
+        userId,
+        feature: "publication",
+        origin: `publish:${item.platform}`,
+        idempotencyKey: `pub:${result.externalId}`,
+      });
+
       return { ok: true, status: "PUBLICADO", queueId, externalId: result.externalId };
     }
 

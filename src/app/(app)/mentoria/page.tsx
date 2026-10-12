@@ -6,6 +6,7 @@ import {
   requirePremiumPage,
 } from "@/lib/auth/guard";
 import { listRecommendations } from "@/lib/ai/services";
+import { PageHeader } from "@/components/layout/page-header";
 import { MentoriaClient } from "@/components/ai/mentoria-client";
 
 export const metadata: Metadata = {
@@ -29,16 +30,11 @@ export default async function MentoriaPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="font-display text-[26px] font-bold text-ink flex items-center gap-2.5">
-          <GraduationCap size={26} className="text-purple" />
-          Mentoria
-        </h1>
-        <p className="text-[13.5px] text-ink-soft mt-1">
-          Recomendações com base no seu diagnóstico real — métricas e estrutura.
-          Sem conhecimento proprietário inventado.
-        </p>
-      </div>
+      <PageHeader
+        icon={GraduationCap}
+        title="Mentoria"
+        description="Recomendações com base no seu diagnóstico real — métricas e estrutura. Sem conhecimento proprietário inventado."
+      />
 
       <MentoriaClient
         initialCards={cards.map((c) => ({

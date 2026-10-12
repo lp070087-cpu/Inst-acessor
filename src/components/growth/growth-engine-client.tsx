@@ -141,7 +141,7 @@ export function GrowthEngineClient({ initial }: { initial: EnginePayload | null 
 
       {/* Missão do dia */}
       {mission?.action ? (
-        <div className="rounded-2xl bg-surface/80 border border-soft p-5 flex flex-col gap-3">
+        <div className="rounded-2xl bg-surface/80 border border-border-soft p-5 flex flex-col gap-3">
           <div className="flex items-center gap-2 text-purple font-semibold text-[13px] uppercase tracking-wide">
             <Target size={16} />
             Missão do dia
@@ -158,7 +158,7 @@ export function GrowthEngineClient({ initial }: { initial: EnginePayload | null 
           </div>
         </div>
       ) : (
-        <div className="rounded-2xl bg-surface/80 border border-soft p-5 flex flex-col gap-2">
+        <div className="rounded-2xl bg-surface/80 border border-border-soft p-5 flex flex-col gap-2">
           <div className="flex items-center gap-2 text-purple font-semibold text-[13px] uppercase tracking-wide">
             <Target size={16} />
             Missão do dia
@@ -176,7 +176,7 @@ export function GrowthEngineClient({ initial }: { initial: EnginePayload | null 
           </h3>
           <div className="grid gap-3 sm:grid-cols-3">
             {priorities.map((p) => (
-              <div key={p.level} className="rounded-2xl bg-white border border-soft p-4 flex flex-col gap-2">
+              <div key={p.level} className="rounded-2xl bg-card border border-border-soft p-4 flex flex-col gap-2">
                 <Badge tone={p.level === 1 ? "danger" : p.level === 2 ? "warning" : "info"}>
                   {PRIORITY_LABEL[p.level]}
                 </Badge>
@@ -202,7 +202,7 @@ export function GrowthEngineClient({ initial }: { initial: EnginePayload | null 
           </h3>
           <div className="flex flex-col gap-2">
             {insights.slice(0, 5).map((ins) => (
-              <div key={ins.id} className="rounded-xl bg-white border border-soft px-4 py-3 flex items-start gap-3">
+              <div key={ins.id} className="rounded-xl bg-card border border-border-soft px-4 py-3 flex items-start gap-3">
                 <Badge tone={SEVERITY_TONE[ins.severity] ?? "neutral"} size="sm">
                   {ins.severity}
                 </Badge>
@@ -225,7 +225,7 @@ export function GrowthEngineClient({ initial }: { initial: EnginePayload | null 
           </h3>
           <div className="flex flex-col gap-2">
             {automations.map((a) => (
-              <div key={a.id} className="rounded-xl bg-white border border-soft px-4 py-3 flex items-start gap-3">
+              <div key={a.id} className="rounded-xl bg-card border border-border-soft px-4 py-3 flex items-start gap-3">
                 <Badge tone={SEVERITY_TONE[a.severity] ?? "neutral"} size="sm">
                   {a.output === "alerta" ? "Alerta" : a.output === "recomendacao" ? "Recomendação" : "Ação"}
                 </Badge>
@@ -251,7 +251,7 @@ export function GrowthEngineClient({ initial }: { initial: EnginePayload | null 
           </h3>
           <div className="flex flex-col gap-3">
             {recommendations.map((rec) => (
-              <div key={rec.slug} className="rounded-2xl bg-white border border-soft p-4 flex flex-col gap-2">
+              <div key={rec.slug} className="rounded-2xl bg-card border border-border-soft p-4 flex flex-col gap-2">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <p className="text-[14px] font-semibold text-ink">{rec.oQue}</p>
                   <Badge tone={rec.priorityLevel === 1 ? "danger" : rec.priorityLevel === 2 ? "warning" : "info"}>
@@ -287,7 +287,7 @@ export function GrowthEngineClient({ initial }: { initial: EnginePayload | null 
           </h3>
           <div className="flex flex-col gap-2">
             {actions.slice(0, 8).map((a) => (
-              <div key={a.id} className="rounded-xl bg-white border border-soft px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+              <div key={a.id} className="rounded-xl bg-card border border-border-soft px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
                 <div className="flex flex-col gap-0.5 min-w-0">
                   <p className="text-[13px] font-semibold text-ink truncate">{a.title}</p>
                   <p className="text-[11.5px] text-ink-soft">
@@ -327,7 +327,7 @@ export function GrowthEngineClient({ initial }: { initial: EnginePayload | null 
           </h3>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             {(plan7 as Plan7).days.map((d: DayPlan) => (
-              <div key={d.day} className="rounded-2xl bg-white border border-soft p-3 flex flex-col gap-1.5">
+              <div key={d.day} className="rounded-2xl bg-card border border-border-soft p-3 flex flex-col gap-1.5">
                 <div className="flex items-center justify-between">
                   <Badge tone="neutral" size="xs">Dia {d.day}</Badge>
                   <span className="text-[10.5px] text-ink-muted">{d.date}</span>
@@ -355,7 +355,7 @@ export function GrowthEngineClient({ initial }: { initial: EnginePayload | null 
           </h3>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             {(plan30 as Plan30).weeks.map((w: Plan30["weeks"][number]) => (
-              <div key={w.week} className="rounded-2xl bg-white border border-soft p-3 flex flex-col gap-1.5">
+              <div key={w.week} className="rounded-2xl bg-card border border-border-soft p-3 flex flex-col gap-1.5">
                 <Badge tone="info" size="xs">Semana {w.week}</Badge>
                 <p className="text-[12.5px] font-semibold text-ink">{w.theme}</p>
                 <div className="flex flex-col gap-1">
@@ -376,7 +376,7 @@ export function GrowthEngineClient({ initial }: { initial: EnginePayload | null 
             <TrendingUp size={15} className="text-purple" />
             O que mudou
           </h3>
-          <div className="rounded-2xl bg-white border border-soft p-4 flex flex-col gap-1.5">
+          <div className="rounded-2xl bg-card border border-border-soft p-4 flex flex-col gap-1.5">
             {changes.map((c, i) => (
               <p key={i} className="text-[12.5px] text-ink-soft">• {c}</p>
             ))}

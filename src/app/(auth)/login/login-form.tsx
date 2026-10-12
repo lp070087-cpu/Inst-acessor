@@ -4,9 +4,16 @@ import * as React from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import { Loader2, Eye, EyeOff } from "lucide-react";
+import {
+  Loader2,
+  Eye,
+  EyeOff,
+  Mail,
+  Lock,
+  ArrowRight,
+  AlertCircle,
+} from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 
 function LoginFormInner() {
@@ -56,48 +63,43 @@ function LoginFormInner() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-5" noValidate>
+    <form onSubmit={onSubmit} className="lgn-form" noValidate>
       {error && (
-        <div className="rounded-[12px] bg-danger-softStrong border border-danger/20 px-4 py-3 text-[13px] text-danger">
-          {error}
+        <div className="lgn-error" role="alert">
+          <AlertCircle size={16} strokeWidth={2} aria-hidden="true" />
+          <span>{error}</span>
         </div>
       )}
 
-      <div className="flex flex-col gap-1.5">
-        <label
-          htmlFor="email"
-          className="text-[13px] font-semibold text-ink"
-        >
+      <div className="lgn-field lgn-in-1">
+        <label htmlFor="email" className="lgn-label">
           E-mail
         </label>
-        <input
-          id="email"
-          type="email"
-          autoComplete="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="voce@email.com"
-          className="h-12 rounded-[12px] border border-border bg-bg-ice px-4 text-[14.5px] text-ink placeholder:text-ink-muted focus:border-purple/50 focus:ring-2 focus:ring-purple/20 focus:outline-none transition-shadow"
-          required
-        />
+        <div className="lgn-input-wrap">
+          <span className="lgn-input-icon" aria-hidden="true">
+            <Mail size={17} strokeWidth={1.8} />
+          </span>
+          <input
+            id="email"
+            type="email"
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="voce@email.com"
+            className="lgn-input"
+            required
+          />
+        </div>
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <div className="flex items-center justify-between">
-          <label
-            htmlFor="password"
-            className="text-[13px] font-semibold text-ink"
-          >
-            Senha
-          </label>
-          <a
-            href="/login"
-            className="text-[12.5px] text-ink-soft hover:text-purple transition-colors"
-          >
-            Esqueci minha senha
-          </a>
-        </div>
-        <div className="relative">
+      <div className="lgn-field lgn-in-2">
+        <label htmlFor="password" className="lgn-label">
+          Senha
+        </label>
+        <div className="lgn-input-wrap">
+          <span className="lgn-input-icon" aria-hidden="true">
+            <Lock size={17} strokeWidth={1.8} />
+          </span>
           <input
             id="password"
             type={showPassword ? "text" : "password"}
@@ -105,7 +107,7 @@ function LoginFormInner() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
-            className="h-12 w-full rounded-[12px] border border-border bg-bg-ice pr-12 pl-4 text-[14.5px] text-ink placeholder:text-ink-muted focus:border-purple/50 focus:ring-2 focus:ring-purple/20 focus:outline-none transition-shadow"
+            className="lgn-input"
             required
           />
           <button
@@ -113,7 +115,7 @@ function LoginFormInner() {
             aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
             title={showPassword ? "Ocultar senha" : "Mostrar senha"}
             onClick={() => setShowPassword((v) => !v)}
-            className="absolute right-0 top-0 grid h-12 w-12 place-items-center text-ink-soft hover:text-purple transition-colors cursor-pointer"
+            className="lgn-eye"
           >
             {showPassword ? (
               <EyeOff size={19} strokeWidth={1.8} />
@@ -124,38 +126,49 @@ function LoginFormInner() {
         </div>
       </div>
 
-      <label className="flex cursor-pointer items-center gap-2.5 select-none">
-        <span className="relative grid place-items-center">
+      <div className="lgn-row lgn-in-3">
+        <label className="lgn-check">
           <input
             type="checkbox"
             checked={keepConnected}
             onChange={(e) => setKeepConnected(e.target.checked)}
-            className="peer h-[18px] w-[18px] appearance-none rounded-[6px] border border-border bg-bg-ice transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple/20 checked:border-purple checked:bg-purple"
           />
-          <svg
-            width="11"
-            height="11"
-            viewBox="0 0 12 12"
-            fill="none"
-            className="pointer-events-none absolute hidden peer-checked:block text-white"
-            aria-hidden="true"
-          >
-            <path
-              d="M2 6.2 4.8 9 10 3.4"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </span>
-        <span className="text-[13px] text-ink-soft">Manter conectado</span>
-      </label>
+          <span className="lgn-box" aria-hidden="true">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path
+                d="M2 6.2 4.8 9 10 3.4"
+                stroke="#1a0b28"
+                strokeWidth="2.1"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </span>
+          <span>Manter conectado</span>
+        </label>
 
-      <Button type="submit" size="lg" block disabled={loading}>
+        {/* Este link já existia no login antigo e aponta para a própria tela.
+            A recuperação de senha NÃO existe no backend, então NÃO foi
+            inventada aqui: mantido exatamente com o comportamento anterior. */}
+        <a href="/login" className="lgn-link">
+          Esqueci minha senha
+        </a>
+      </div>
+
+      <button
+        type="submit"
+        className="lgn-submit lgn-in-4"
+        disabled={loading}
+        aria-busy={loading}
+      >
         {loading && <Loader2 size={18} className="animate-spin" />}
         {loading ? "Entrando..." : "Entrar"}
-      </Button>
+        {!loading && (
+          <span className="lgn-arrow" aria-hidden="true">
+            <ArrowRight size={19} strokeWidth={2.1} />
+          </span>
+        )}
+      </button>
     </form>
   );
 }

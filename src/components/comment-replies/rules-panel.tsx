@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { FIELD_CLASS_FILLED } from "@/lib/ui/field";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/components/ui/toast";
@@ -352,7 +353,7 @@ export function RulesPanel({ rule, onPatch, busy, aiConfigured }: RulesPanelProp
             rows={2}
             maxLength={280}
             placeholder="Ex.: Obrigada pelo carinho! ❤️"
-            className="w-full rounded-md border border-border bg-surface px-3.5 py-2.5 text-[13.5px] text-ink outline-none focus:border-purple/50 resize-none"
+            className={FIELD_CLASS_FILLED + " resize-none"}
           />
 
           <div className="flex items-center gap-3 flex-wrap">
@@ -473,7 +474,7 @@ export function RulesPanel({ rule, onPatch, busy, aiConfigured }: RulesPanelProp
                 value={spUsername}
                 onChange={(e) => setSpUsername(e.target.value)}
                 placeholder="@amiga"
-                className="w-full rounded-[10px] border border-border bg-surface px-3 py-2 text-[13.5px] text-ink outline-none focus:border-purple/50"
+                className={FIELD_CLASS_FILLED}
               />
             </div>
             <div>
@@ -484,7 +485,7 @@ export function RulesPanel({ rule, onPatch, busy, aiConfigured }: RulesPanelProp
                 value={spName}
                 onChange={(e) => setSpName(e.target.value)}
                 placeholder="Como você chama esta pessoa"
-                className="w-full rounded-[10px] border border-border bg-surface px-3 py-2 text-[13.5px] text-ink outline-none focus:border-purple/50"
+                className={FIELD_CLASS_FILLED}
               />
             </div>
           </div>
@@ -499,7 +500,7 @@ export function RulesPanel({ rule, onPatch, busy, aiConfigured }: RulesPanelProp
               rows={2}
               maxLength={1200}
               placeholder="Ex.: Responda de forma descontraída e carinhosa, como falo com amigos próximos."
-              className="w-full rounded-md border border-border bg-surface px-3.5 py-2.5 text-[13.5px] text-ink outline-none focus:border-purple/50 resize-none"
+              className={FIELD_CLASS_FILLED + " resize-none"}
             />
           </div>
 
@@ -512,7 +513,7 @@ export function RulesPanel({ rule, onPatch, busy, aiConfigured }: RulesPanelProp
               onChange={(e) => setSpFixed(e.target.value)}
               maxLength={280}
               placeholder="Se preenchida, é usada sempre — sem passar pela IA."
-              className="w-full rounded-[10px] border border-border bg-surface px-3 py-2 text-[13.5px] text-ink outline-none focus:border-purple/50"
+              className={FIELD_CLASS_FILLED}
             />
           </div>
 

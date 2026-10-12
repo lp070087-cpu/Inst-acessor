@@ -46,9 +46,35 @@ export const BASE_PRICE_CENTS: Record<string, number> = Object.fromEntries(
 );
 
 /**
+ * Entrada de pré-venda de UM plano — forma UNIFICADA.
+ *
+ * Antes cada plano tinha seu próprio formato (`requiresNoPreviousPurchase` no
+ * semanal, `chargesAtPromoPrice` no mensal, `yearsAtPromoPrice` no anual), o que
+ * travava a configuração em três slugs. Com seis planos isso não escala: a
+ * forma única abaixo cobre todos, e os campos legados são traduzidos para ela.
+ */
+export interface PlanPromoEntry {
+  enabled: boolean;
+  promoPriceCents: number;
+  /**
+   * Quantas cobranças (do ciclo contratado) mantêm o desconto. `null` = a
+   * promoção vale só na primeira cobrança. No plano semanal (compra única) é
+   * sempre `null` — não existe renovação.
+   */
+  chargesAtPromoPrice: number | null;
+  /** Se `true`, a promoção só vale para quem nunca comprou nada. */
+  requiresNoPreviousPurchase: boolean;
+}
+
+/**
  * Pré-venda PADRÃO (P17). É o valor usado quando o admin ainda não gravou
  * nada — assim a promoção anunciada funciona desde o primeiro deploy, e o
  * admin pode sobrescrever/desligar pelo painel.
+ *
+ * Os preços dos planos NOVOS ficam IGUAIS ao cheio (desconto zero) até o
+ * proprietário escolher: não se inventa preço promocional. Como
+ * `promoPriceCents >= base` é recusado como desconto, isso significa
+ * "sem promoção" — o estado honesto até haver decisão comercial.
  */
 export const DEFAULT_PROMO: PromoConfig = {
   enabled: true,
@@ -70,6 +96,18 @@ export const DEFAULT_PROMO: PromoConfig = {
     /** Vale no PRIMEIRO ano; na renovação, preço cheio. */
     yearsAtPromoPrice: 1,
   },
+  // Mapa genérico — a forma que o painel admin escreve. Cobre os 6 planos.
+  plans: {
+    semanal: { enabled: true, promoPriceCents: 1190, chargesAtPromoPrice: null, requiresNoPreviousPurchase: true },
+    mensal: { enabled: true, promoPriceCents: 4590, chargesAtPromoPrice: 3, requiresNoPreviousPurchase: false },
+    anual: { enabled: true, promoPriceCents: 43290, chargesAtPromoPrice: 1, requiresNoPreviousPurchase: false },
+    // Novos: sem desconto configurado (promoPriceCents = cheio) até o dono decidir.
+    start: { enabled: false, promoPriceCents: 4300, chargesAtPromoPrice: 3, requiresNoPreviousPurchase: false },
+    essencial: { enabled: false, promoPriceCents: 8700, chargesAtPromoPrice: 3, requiresNoPreviousPurchase: false },
+    pro: { enabled: false, promoPriceCents: 12500, chargesAtPromoPrice: 3, requiresNoPreviousPurchase: false },
+    elite: { enabled: false, promoPriceCents: 17100, chargesAtPromoPrice: 3, requiresNoPreviousPurchase: false },
+    master: { enabled: false, promoPriceCents: 24800, chargesAtPromoPrice: 3, requiresNoPreviousPurchase: false },
+  },
   countdown: {
     active: false,
     /** ISO 8601 ou null = sem prazo. */
@@ -80,21 +118,26 @@ export const DEFAULT_PROMO: PromoConfig = {
 
 export interface PromoConfig {
   enabled: boolean;
+  /** LEGADO — mantido para ler dados já gravados. A escrita usa `plans`. */
   semanal: {
     enabled: boolean;
     promoPriceCents: number;
     requiresNoPreviousPurchase: boolean;
   };
+  /** LEGADO — mantido para ler dados já gravados. */
   mensal: {
     enabled: boolean;
     promoPriceCents: number;
     chargesAtPromoPrice: number;
   };
+  /** LEGADO — mantido para ler dados já gravados. */
   anual: {
     enabled: boolean;
     promoPriceCents: number;
     yearsAtPromoPrice: number;
   };
+  /** Mapa UNIFICADO por slug — cobre os seis planos. */
+  plans: Record<string, PlanPromoEntry>;
   countdown: {
     active: boolean;
     endsAt: string | null;
@@ -102,14 +145,60 @@ export interface PromoConfig {
   };
 }
 
+/** Entrada de pré-venda de um plano (sempre presente para o slug conhecido). */
+export function promoEntryFor(config: PromoConfig, slug: string): PlanPromoEntry {
+  return (
+    config.plans[slug] ?? {
+      enabled: false,
+      promoPriceCents: 0,
+      chargesAtPromoPrice: null,
+      requiresNoPreviousPurchase: false,
+    }
+  );
+}
+
+/**
+ * VALIDAÇÃO DE ESCRITA da configuração (admin) — recusa ANUNCIAR um "desconto"
+ * que não é desconto.
+ *
+ * Regra dura: para todo plano com a pré-venda LIGADA, o preço promocional tem de
+ * ser um inteiro positivo MENOR que o preço cheio do catálogo. Um valor ≥ cheio
+ * não é promoção, e a rota do admin o RECUSA em vez de gravar (a normalização do
+ * checkout continuaria cobrando o cheio, mas o painel anunciaria um desconto
+ * inexistente — o pior desfecho).
+ *
+ * Devolve a mensagem de erro, ou `null` quando a configuração é válida.
+ * Pura: não lê banco nem escreve nada.
+ */
+export function promoValidationError(config: PromoConfig): string | null {
+  if (!config.enabled) return null;
+  for (const plan of PLAN_CATALOG) {
+    const entry = promoEntryFor(config, plan.slug);
+    if (!entry.enabled) continue;
+    if (!isPositiveInt(entry.promoPriceCents) || entry.promoPriceCents >= plan.priceCents) {
+      return (
+        `O preço promocional do plano "${plan.name}" precisa ser MENOR que o preço ` +
+        `cheio (${formatBRL(plan.priceCents)}). Um valor igual ou maior não é ` +
+        "desconto e foi recusado."
+      );
+    }
+  }
+  return null;
+}
+
 /** Histórico REAL do comprador — contagens de pagamentos confirmados. */
 export interface BuyerHistory {
   /** Total de pagamentos confirmados, em qualquer plano. */
   confirmedPaymentsTotal: number;
-  /** Pagamentos confirmados no plano MENSAL. */
+  /** Pagamentos confirmados no plano MENSAL (legado). */
   confirmedMonthlyCharges: number;
-  /** Pagamentos confirmados no plano ANUAL. */
+  /** Pagamentos confirmados no plano ANUAL (legado). */
   confirmedYearlyCharges: number;
+  /**
+   * Pagamentos confirmados POR SLUG. Cobre os seis planos — as colunas legadas
+   * mensal/anual não conhecem `start`/`essencial`/`pro`/`elite`/`master`.
+   */
+  confirmedByPlan: Record<string, number>;
 }
 
 /** Motivo pelo qual a promoção NÃO se aplicou (para a UI poder ser explícita). */
@@ -221,6 +310,7 @@ export function parsePromoConfig(raw: unknown): PromoConfig {
         ? anu.yearsAtPromoPrice
         : DEFAULT_PROMO.anual.yearsAtPromoPrice,
     },
+    plans: parsePlanEntries(o, sem, men, anu),
     countdown: {
       active: cd.active === true,
       endsAt,
@@ -230,6 +320,85 @@ export function parsePromoConfig(raw: unknown): PromoConfig {
           : DEFAULT_PROMO.countdown.label,
     },
   };
+}
+
+/**
+ * Monta o mapa unificado `plans`.
+ *
+ * COMPATIBILIDADE: dados gravados antes desta mudança só têm `semanal`/`mensal`/
+ * `anual`. Quando `plans` não existe (ou não traz um slug), derivamos a entrada
+ * dos campos legados — assim uma configuração antiga continua valendo, sem
+ * exigir regravação. Se `plans[slug]` existir, ele MANDA (é a forma nova).
+ */
+function parsePlanEntries(
+  o: Record<string, unknown>,
+  sem: Record<string, unknown>,
+  men: Record<string, unknown>,
+  anu: Record<string, unknown>
+): Record<string, PlanPromoEntry> {
+  const rawPlans =
+    o.plans && typeof o.plans === "object" && !Array.isArray(o.plans)
+      ? (o.plans as Record<string, unknown>)
+      : {};
+
+  /** Lê uma entrada no formato NOVO, caindo no default do slug. */
+  const fromNew = (slug: string): PlanPromoEntry | null => {
+    const r = rawPlans[slug];
+    if (!r || typeof r !== "object" || Array.isArray(r)) return null;
+    const e = r as Record<string, unknown>;
+    const def = DEFAULT_PROMO.plans[slug];
+    return {
+      enabled: e.enabled === true,
+      promoPriceCents: isPositiveInt(e.promoPriceCents)
+        ? e.promoPriceCents
+        : def?.promoPriceCents ?? 0,
+      chargesAtPromoPrice:
+        e.chargesAtPromoPrice === null
+          ? null
+          : isPositiveInt(e.chargesAtPromoPrice)
+            ? e.chargesAtPromoPrice
+            : def?.chargesAtPromoPrice ?? null,
+      requiresNoPreviousPurchase: e.requiresNoPreviousPurchase === true,
+    };
+  };
+
+  // Campos legados → forma unificada (só para semanal/mensal/anual).
+  const legacy: Record<string, PlanPromoEntry> = {
+    semanal: {
+      enabled: sem.enabled === true,
+      promoPriceCents: isPositiveInt(sem.promoPriceCents)
+        ? sem.promoPriceCents
+        : DEFAULT_PROMO.semanal.promoPriceCents,
+      chargesAtPromoPrice: null,
+      requiresNoPreviousPurchase: sem.requiresNoPreviousPurchase !== false,
+    },
+    mensal: {
+      enabled: men.enabled === true,
+      promoPriceCents: isPositiveInt(men.promoPriceCents)
+        ? men.promoPriceCents
+        : DEFAULT_PROMO.mensal.promoPriceCents,
+      chargesAtPromoPrice: isPositiveInt(men.chargesAtPromoPrice)
+        ? men.chargesAtPromoPrice
+        : DEFAULT_PROMO.mensal.chargesAtPromoPrice,
+      requiresNoPreviousPurchase: false,
+    },
+    anual: {
+      enabled: anu.enabled === true,
+      promoPriceCents: isPositiveInt(anu.promoPriceCents)
+        ? anu.promoPriceCents
+        : DEFAULT_PROMO.anual.promoPriceCents,
+      chargesAtPromoPrice: isPositiveInt(anu.yearsAtPromoPrice)
+        ? anu.yearsAtPromoPrice
+        : DEFAULT_PROMO.anual.yearsAtPromoPrice,
+      requiresNoPreviousPurchase: false,
+    },
+  };
+
+  const out: Record<string, PlanPromoEntry> = {};
+  for (const slug of Object.keys(DEFAULT_PROMO.plans)) {
+    out[slug] = fromNew(slug) ?? legacy[slug] ?? DEFAULT_PROMO.plans[slug];
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -299,12 +468,22 @@ export function resolvePromoPrice(input: {
     return fullPrice(base, countdownEndsAt, false, "COUNTDOWN_ENCERRADO");
   }
 
-  if (slug === "semanal") {
-    const cfg = config.semanal;
-    if (!cfg.enabled) return fullPrice(base, countdownEndsAt, countdownRunning, "PLANO_SEM_PROMO");
-    if (cfg.promoPriceCents >= base) {
-      return fullPrice(base, countdownEndsAt, countdownRunning, "CONFIGURACAO_INVALIDA", true);
-    }
+  // Forma UNIFICADA: vale para os seis planos. Um slug fora do catálogo cai em
+  // `promoEntryFor` (desabilitado) e recebe preço cheio.
+  const cfg = promoEntryFor(config, slug);
+
+  if (!cfg.enabled) {
+    return fullPrice(base, countdownEndsAt, countdownRunning, "PLANO_SEM_PROMO");
+  }
+  if (cfg.promoPriceCents >= base) {
+    return fullPrice(base, countdownEndsAt, countdownRunning, "CONFIGURACAO_INVALIDA", true);
+  }
+
+  // Compra única (semanal): a promoção vale nesta compra, e só. Não há
+  // "cobranças seguintes" porque não há renovação.
+  const isOneTime = PLAN_CATALOG.find((p) => p.slug === slug)?.type === "ONE_TIME";
+
+  if (isOneTime) {
     if (cfg.requiresNoPreviousPurchase && history.confirmedPaymentsTotal > 0) {
       return fullPrice(base, countdownEndsAt, countdownRunning, "NAO_E_PRIMEIRA_COMPRA");
     }
@@ -315,7 +494,6 @@ export function resolvePromoPrice(input: {
       discountCents: base - cfg.promoPriceCents,
       label: "Pré-venda · primeira compra",
       skipReason: null,
-      // Plano de pagamento único: a promoção vale nesta compra, e só.
       remainingPromoCharges: null,
       configRejected: false,
       countdownEndsAt,
@@ -323,60 +501,28 @@ export function resolvePromoPrice(input: {
     };
   }
 
-  if (slug === "mensal") {
-    const cfg = config.mensal;
-    if (!cfg.enabled) return fullPrice(base, countdownEndsAt, countdownRunning, "PLANO_SEM_PROMO");
-    if (cfg.promoPriceCents >= base) {
-      return fullPrice(base, countdownEndsAt, countdownRunning, "CONFIGURACAO_INVALIDA", true);
-    }
-    const used = history.confirmedMonthlyCharges;
-    const remaining = cfg.chargesAtPromoPrice - used;
-    if (remaining <= 0) {
-      return fullPrice(base, countdownEndsAt, countdownRunning, "LIMITE_DE_COBRANCAS_ATINGIDO");
-    }
-    return {
-      basePriceCents: base,
-      priceCents: cfg.promoPriceCents,
-      applied: true,
-      discountCents: base - cfg.promoPriceCents,
-      label: `Pré-venda · ${remaining} de ${cfg.chargesAtPromoPrice} cobranças com desconto`,
-      skipReason: null,
-      remainingPromoCharges: remaining,
-      configRejected: false,
-      countdownEndsAt,
-      countdownRunning,
-    };
+  // Cobranças promocionais: quantas o desconto cobre. `null` = só a primeira.
+  const total = cfg.chargesAtPromoPrice ?? 1;
+  // Histórico REAL de cobranças confirmadas NESTE plano (as colunas legadas
+  // mensal/anual não cobrem os planos novos).
+  const used = history.confirmedByPlan[slug] ?? 0;
+  const remaining = total - used;
+  if (remaining <= 0) {
+    return fullPrice(base, countdownEndsAt, countdownRunning, "LIMITE_DE_COBRANCAS_ATINGIDO");
   }
 
-  if (slug === "anual") {
-    const cfg = config.anual;
-    if (!cfg.enabled) return fullPrice(base, countdownEndsAt, countdownRunning, "PLANO_SEM_PROMO");
-    if (cfg.promoPriceCents >= base) {
-      return fullPrice(base, countdownEndsAt, countdownRunning, "CONFIGURACAO_INVALIDA", true);
-    }
-    const used = history.confirmedYearlyCharges;
-    const remaining = cfg.yearsAtPromoPrice - used;
-    if (remaining <= 0) {
-      return fullPrice(base, countdownEndsAt, countdownRunning, "LIMITE_DE_COBRANCAS_ATINGIDO");
-    }
-    return {
-      basePriceCents: base,
-      priceCents: cfg.promoPriceCents,
-      applied: true,
-      discountCents: base - cfg.promoPriceCents,
-      label:
-        cfg.yearsAtPromoPrice === 1
-          ? "Pré-venda · primeiro ano"
-          : `Pré-venda · ${remaining} de ${cfg.yearsAtPromoPrice} anos com desconto`,
-      skipReason: null,
-      remainingPromoCharges: remaining,
-      configRejected: false,
-      countdownEndsAt,
-      countdownRunning,
-    };
-  }
-
-  return fullPrice(base, countdownEndsAt, countdownRunning, "PLANO_SEM_PROMO");
+  return {
+    basePriceCents: base,
+    priceCents: cfg.promoPriceCents,
+    applied: true,
+    discountCents: base - cfg.promoPriceCents,
+    label: `Pré-venda · ${remaining} de ${total} cobranças com desconto`,
+    skipReason: null,
+    remainingPromoCharges: remaining,
+    configRejected: false,
+    countdownEndsAt,
+    countdownRunning,
+  };
 }
 
 /**
@@ -469,38 +615,44 @@ export function planPromoDisplay(input: {
   if (!config.enabled) return off;
   if (config.countdown.active && countdownEndsAt && !countdownRunning) return off;
 
-  const cfg =
-    slug === "semanal" ? config.semanal : slug === "mensal" ? config.mensal : slug === "anual" ? config.anual : null;
-  if (!cfg || !cfg.enabled) return off;
+  const cfg = promoEntryFor(config, slug);
+  if (!cfg.enabled) return off;
   if (cfg.promoPriceCents >= base) return off;
 
-  const label =
-    slug === "semanal"
-      ? "Pré-venda · primeira compra"
-      : slug === "mensal"
-        ? `Pré-venda · ${config.mensal.chargesAtPromoPrice} primeiras cobranças`
-        : config.anual.yearsAtPromoPrice === 1
-          ? "Pré-venda · primeiro ano"
-          : `Pré-venda · ${config.anual.yearsAtPromoPrice} primeiros anos`;
+  // Compra única (semanal) vs assinatura — define o texto e o "depois".
+  const plan = PLAN_CATALOG.find((p) => p.slug === slug);
+  const isOneTime = plan?.type === "ONE_TIME";
+  // No plano com ciclo não-mensal a unidade é o ANO, não a cobrança genérica.
+  // Antes das mudanças o anual dizia "no primeiro ano"; manter esse texto é o
+  // que preserva a página de vendas exatamente como está.
+  const isYearly = plan?.billingInterval === "YEAR";
+  const total = cfg.chargesAtPromoPrice ?? 1;
+  const noun = isYearly ? (total === 1 ? "ano" : "anos") : total === 1 ? "cobrança" : "cobranças";
+
+  const label = isOneTime
+    ? "Pré-venda · primeira compra"
+    : isYearly
+      ? total === 1
+        ? "Pré-venda · primeiro ano"
+        : `Pré-venda · ${total} primeiros anos`
+      : total === 1
+        ? "Pré-venda · 1ª cobrança"
+        : `Pré-venda · ${total} primeiras cobranças`;
 
   // A CONDIÇÃO e o "DEPOIS" em texto. Derivados da config, para o card não
   // precisar (nem poder) reescrever as regras por conta própria.
   let qualifier: string | null;
   let afterText: string | null;
-  if (slug === "semanal") {
+  if (isOneTime) {
     // Compra ÚNICA: não existe "depois" — sem renovação automática.
-    qualifier = config.semanal.requiresNoPreviousPurchase
-      ? "somente na primeira compra"
-      : "por tempo limitado";
+    qualifier = cfg.requiresNoPreviousPurchase ? "somente na primeira compra" : "por tempo limitado";
     afterText = null;
-  } else if (slug === "mensal") {
-    const n = config.mensal.chargesAtPromoPrice;
-    qualifier = n === 1 ? "na 1ª cobrança" : `nas ${n} primeiras cobranças`;
-    afterText = `Depois ${formatBRL(base)}/mês`;
-  } else {
-    const n = config.anual.yearsAtPromoPrice;
-    qualifier = n === 1 ? "no primeiro ano" : `nos ${n} primeiros anos`;
+  } else if (isYearly) {
+    qualifier = total === 1 ? "no primeiro ano" : `nos ${total} primeiros anos`;
     afterText = `Renovação por ${formatBRL(base)}/ano`;
+  } else {
+    qualifier = total === 1 ? "na 1ª cobrança" : `nas ${total} primeiras ${noun}`;
+    afterText = `Depois ${formatBRL(base)}/mês`;
   }
 
   return {
@@ -570,15 +722,9 @@ export function acceptableChargeAmounts(input: {
   // configurada para aquele plano COMO DESCONTO. Um valor ≥ cheio não é
   // promoção e não amplia o que o webhook aceita.
   if (promoVigente) {
-    const cfg =
-      input.slug === "semanal"
-        ? input.config.semanal
-        : input.slug === "mensal"
-          ? input.config.mensal
-          : input.slug === "anual"
-            ? input.config.anual
-            : null;
-    if (cfg && cfg.enabled && isPositiveInt(cfg.promoPriceCents) && cfg.promoPriceCents < base) {
+    // Forma unificada — cobre os seis planos, não só os três legados.
+    const cfg = promoEntryFor(input.config, input.slug);
+    if (cfg.enabled && isPositiveInt(cfg.promoPriceCents) && cfg.promoPriceCents < base) {
       allowed.add(cfg.promoPriceCents);
     }
   }

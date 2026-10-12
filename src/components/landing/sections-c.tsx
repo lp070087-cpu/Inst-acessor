@@ -26,6 +26,9 @@ import {
   Send,
   BadgeCheck,
   Smile,
+  Eye,
+  Play,
+  Bookmark,
 } from "lucide-react";
 import { LogoMark } from "./sections-a";
 
@@ -477,6 +480,117 @@ export function AnaliseConteudos() {
             <p className="lnd-format-note">
               Reels concentram o maior alcance — carrosséis geram mais salvamentos por engajamento.
             </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ============================================================
+   PREVIEW SOCIAL — referência 09 de "pasta da ordem"
+   ------------------------------------------------------------
+   Apresentação comercial COMPACTA (não é a tela do aplicativo).
+   O visual segue a referência 09: à esquerda, os 4 recursos em
+   cards; à direita, uma moldura real de celular mostrando o post
+   como ele apareceria no feed. Reaproveita as classes
+   `.lnd-preview-*` e `.lnd-phone-*` que JÁ existiam no
+   `landing.css` (a seção original tinha sido removida da página,
+   mas o estilo ficou). Nenhuma funcionalidade nova é anunciada —
+   só o que o módulo Preview Social realmente entrega.
+   ============================================================ */
+const PREVIEW_ITENS = [
+  {
+    ic: Layers,
+    t: "Visualize antes de publicar",
+    d: "Veja como seu Reel, Story ou carrossel aparece no feed real.",
+  },
+  {
+    ic: Image,
+    t: "Múltiplos formatos",
+    d: "Carrossel, vídeo vertical, stories e fotos — tudo em preview fiel.",
+  },
+  {
+    ic: Share2,
+    t: "Monte a sequência",
+    d: "Organize os slides e a ordem antes de agendar.",
+  },
+  {
+    ic: Clock,
+    t: "Agende tudo",
+    d: "Programe para vários dias e edite depois pelo calendário.",
+  },
+];
+
+export function PreviewSocial() {
+  return (
+    <section className="lnd-section" id="preview-social">
+      <div className="lnd-container">
+        <div className="lnd-section-head lnd-center lnd-reveal">
+          <span className="lnd-eyebrow">Preview Social</span>
+          <h2 className="lnd-h2">
+            Veja como vai ficar <span className="lnd-grad">antes de publicar</span>
+          </h2>
+          <p className="lnd-lead">
+            Crie, pré-visualize e agende o conteúdo com a cara do seu perfil — sem surpresa na
+            hora de ir ao ar.
+          </p>
+        </div>
+
+        <div className="lnd-preview-wrap">
+          <div className="lnd-preview-list">
+            {PREVIEW_ITENS.map((p, i) => (
+              <div className="lnd-preview-item lnd-reveal" data-dir="left" data-delay={String(i + 1)} key={p.t}>
+                <span className="lnd-p-ic">
+                  <p.ic />
+                </span>
+                <span>
+                  <b>{p.t}</b>
+                  <span>{p.d}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Moldura de celular — demonstração visual do feed. Os rótulos
+              "sua.marca" e "Novo conteúdo no ar 🔥" são DEMONSTRAÇÃO, como as
+              demais prévias da página; nada representa dado do usuário. */}
+          <div className="lnd-phone lnd-reveal" data-dir="right">
+            <div className="lnd-phone-screen">
+              <div className="lnd-phone-status">
+                <span className="lnd-st-time">9:41</span>
+                <span className="lnd-st-island" aria-hidden="true" />
+                <span className="lnd-st-icons" aria-hidden="true">
+                  <i />
+                  <i />
+                  <i />
+                </span>
+              </div>
+              <div className="lnd-phone-top">
+                <span className="lnd-av">V</span>
+                <div>
+                  <div className="lnd-uname">sua.marca</div>
+                  <div className="lnd-usub">sugerido · 21h</div>
+                </div>
+              </div>
+              <div className="lnd-phone-media">
+                <Play />
+                <span className="lnd-vtag">Reel · 0:18</span>
+              </div>
+              <div className="lnd-phone-actions" aria-hidden="true">
+                <Heart />
+                <MessageCircle />
+                <Send />
+                <Bookmark />
+              </div>
+              <div className="lnd-phone-likes">
+                <b>1.284</b> curtidas
+              </div>
+              <div className="lnd-phone-caption">
+                <b>sua.marca</b> Novo conteúdo no ar 🔥{" "}
+                <span className="lnd-hl">#estrategia #instagram</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>

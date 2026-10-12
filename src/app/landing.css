@@ -153,8 +153,19 @@
   box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.15);
 }
 .lnd-section-head {
+  /* 760px: idêntico ao bloco de título da referência, medido no print
+     (duas linhas de H2 centradas ocupando 745px e 376px). */
   max-width: 760px;
-  margin-bottom: clamp(34px, 5vw, 52px);
+  /* Respiro DEPOIS do título, não antes do conteúdo.
+     ------------------------------------------------------------
+     Medido na referência: do fim do H2 até o topo dos cards vão ~122px
+     (99px até a pílula do título do card, que avança sobre a borda). O
+     Inst Acessor dava 52px — o título e os cards ficavam colados, e a
+     seção parecia apertada apesar de todo o resto estar na mesma escala.
+     A referência concentra o respiro aqui, entre cabeçalho e conteúdo, em
+     vez de só no padding da seção. 68px é o meio-termo: encurta a
+     distância sem transformar cada seção numa rolagem longa. */
+  margin-bottom: clamp(40px, 5.6vw, 68px);
 }
 .lnd-section-head.lnd-center {
   margin-inline: auto;
@@ -3247,11 +3258,106 @@
   color: var(--lnd-ink-2);
 }
 
-/* O contador vive dentro do card e acompanha a largura dele. */
+/* ---------- CONTADOR DA PRÉ-VENDA (card escuro) ----------
+   Formato da referência enviada pelo usuário ("referencia do cronometro.jpg"):
+   selo do lote + "ENCERRA EM:" e quatro unidades (DIAS · HORAS · MIN · SEG),
+   com número grande e rótulo abaixo, sobre fundo escuro.
+   Os VALORES continuam vindo do servidor (`PromoCountdown` / `endsAt` do
+   ADMIN) — aqui é só apresentação; nenhum número ou prazo é inventado. */
 .lnd-plan-countdown {
-  align-self: flex-start;
+  align-self: stretch;
   max-width: 100%;
-  flex-wrap: wrap;
+  width: 100%;
+}
+
+.lnd-countdown {
+  --lnd-cd-ink: #0e0e12;
+  --lnd-cd-soft: rgba(255, 255, 255, 0.62);
+  background: var(--lnd-cd-ink);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  padding: clamp(16px, 4vw, 22px) clamp(16px, 4vw, 24px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 18px 40px -22px rgba(14, 14, 18, 0.55);
+}
+
+.lnd-countdown-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.lnd-countdown-lote {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-family: "Sora", sans-serif;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.lnd-countdown-enc {
+  color: var(--lnd-cd-soft);
+  font-family: "Sora", sans-serif;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.lnd-countdown-clock {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.lnd-countdown-unit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.lnd-countdown-num {
+  font-family: "Sora", sans-serif;
+  font-size: clamp(30px, 9vw, 44px);
+  font-weight: 600;
+  line-height: 1;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+.lnd-countdown-lbl {
+  font-style: normal;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--lnd-cd-soft);
+}
+
+.lnd-countdown-sep {
+  flex: none;
+  align-self: flex-start;
+  padding-top: clamp(2px, 1vw, 6px);
+  color: rgba(255, 255, 255, 0.28);
+  font-family: "Sora", sans-serif;
+  font-size: clamp(24px, 7vw, 34px);
+  font-weight: 500;
+  line-height: 1;
 }
 
 /* Aviso de degradação: o banco não confirmou a config da pré-venda. */
@@ -3665,7 +3771,7 @@
   .lnd-chart-card { grid-column: span 2; }
   .lnd-goals-grid { grid-template-columns: repeat(2, 1fr); }
   .lnd-footer-grid { grid-template-columns: 1fr 1fr 1fr; }
-  .lnd-plans-grid { grid-template-columns: 1fr; max-width: 420px; margin-inline: auto; }
+  /* 6 planos: 3/col desktop → 2/col tablet; regra 1080px sobrescrita abaixo */
 }
 
 @media (max-width: 900px) {
@@ -3711,17 +3817,44 @@
   .lnd-fc-2 { right: -10px; }
 }
 
-/* ---------- TABLET — planos em 2 colunas ----------
-   Sem este degrau, três planos ficavam espremidos numa única linha em
-   telas de 641–1080px (iPad retrato) e só quebravam aos 1080px. */
+/* ---------- TABLET/MOBILE — 6 planos: 3/col desktop → 2/col tablet → 1/col mobile ----------
+   1080px-: 2 col (tablet). 640px-: 1 col (mobile). Sem max-width limitante. */
 @media (max-width: 1080px) {
   .lnd-plans-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     max-width: 100%;
   }
 }
+/* Cards "Em breve" — desaturados, sem hover lift; premium (Elite/Master) com borda sutil */
+.lnd-plan-card.lnd-plan-soon {
+  opacity: 0.92;
+  background: #fbfbfd;
+  border-color: #e8e8ef;
+}
+.lnd-plan-card.lnd-plan-soon:hover {
+  transform: none;
+  box-shadow: var(--lnd-shadow-sm);
+}
+.lnd-plan-badge-soon {
+  background: #6b7280;
+  box-shadow: none;
+}
+.lnd-plan-card.lnd-plan-premium {
+  border-color: rgba(99, 102, 241, 0.22);
+}
+.lnd-plan-cta-soon:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  background: #eef0f4;
+  border-color: #dde0e7;
+  color: var(--lnd-ink-3);
+}
+.lnd-plan-cta-soon:disabled:hover {
+  transform: none;
+}
 
 @media (max-width: 640px) {
+  .lnd-plans-grid { grid-template-columns: 1fr; }
   .lnd-root { --lnd-nav-h: 62px; }
   .lnd-section { padding-block: 54px; }
   .lnd-h2 { font-size: 28px; }
@@ -3990,6 +4123,18 @@
    apenas que o conteúdo interno acompanhe o alinhamento ao centro. */
 .lnd-hero-centered .lnd-hero-title {
   text-align: center;
+  /* Cada `.lnd-line-inner` é um bloco que QUEBRA dentro de si quando não
+     cabe na largura. Sem equilíbrio, a quebra sozinha deixava a primeira
+     linha com quatro palavras e as seguintes com uma ("planeja," /
+     "publica e" / "lê os resultados do seu" / "Instagram."). `balance`
+     distribui as palavras entre as linhas do próprio bloco — mesmo
+     recurso já usado em `.lnd-solucao-note .lnd-h2`, uma tela acima.
+     `pretty` fica no bloco de trás: onde `balance` não é suportado, ele
+     ao menos evita a última linha órfã. */
+  text-wrap: pretty;
+}
+.lnd-hero-centered .lnd-hero-title .lnd-line-inner {
+  text-wrap: balance;
 }
 .lnd-hero-centered .lnd-hero-kicker {
   margin-inline: auto;
@@ -6975,6 +7120,48 @@
   .lnd-pub-social-ic svg {
     animation: none;
   }
+
+  /* ANIMAÇÕES CONTÍNUAS — desligadas em prefers-reduced-motion.
+     ------------------------------------------------------------
+     O bloco acima já desligava várias animações, mas NÃO as que rodam para
+     sempre (`infinite`). Elas são as mais caras: continuam consumindo quadro e
+     bateria enquanto a página está aberta, mesmo parada — justamente no
+     aparelho fraco e na bateria fraca que o usuário pediu para respeitar.
+     Cada seletor abaixo corresponde a uma `animation: ... infinite` real
+     (conferido linha a linha); a animação some e o elemento continua visível
+     no estado final. */
+  .lnd-marquee-track,
+  .lnd-hero-kicker .lnd-pulse,
+  .lnd-float-chip,
+  .lnd-js .lnd-float-chip,
+  .lnd-ai-panel-header p::before,
+  .lnd-dots i,
+  .lnd-copy-box .lnd-cb-text.lnd-copy-loading::before,
+  .lnd-copy-box .lnd-cb-text.lnd-copy-loading::after,
+  .lnd-xp-milestone.lnd-current::before,
+  .lnd-pub-social-ic.lnd-pub-heart svg {
+    animation: none !important;
+  }
+
+  /* A faixa rolante mostra o conteúdo sem movimento: em vez de esconder, ela
+     fica estática mas legível (o `overflow: hidden` do pai já recorta). */
+  .lnd-marquee-track {
+    transform: none;
+  }
+}
+
+/* ---------- CUSTO DE RENDERIZAÇÃO FORA DA TELA ----------
+   `content-visibility: auto` faz o navegador PULAR o layout e a pintura das
+   seções que não estão na tela. É o ganho mais direto numa landing de 24
+   seções: o trabalho de render cai para o que está visível.
+   `contain-intrinsic-size` reserva uma altura estimada para a barra de
+   rolagem não "pular" quando a seção entra. A estimativa é só do espaço
+   reservado — nada visual depende dela, e o layout real substitui assim que a
+   seção aparece.
+   Não se aplica ao Hero (primeira dobra precisa render imediato). */
+.lnd-section:not(:first-of-type) {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 900px;
 }
 
 /* ---------- RESPONSIVO — novos blocos ---------- */
@@ -7425,5 +7612,541 @@
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
     padding-bottom: calc(20px + env(safe-area-inset-bottom));
+  }
+}
+
+/* ============================================================
+   RODADA DE ESTRATÉGIA — HERO COM DEMONSTRAÇÃO + OS 4 MOVIMENTOS
+   ------------------------------------------------------------
+   Origem: leitura da página de referência enviada pelo usuário
+   (`print de referencia/`) e do link anotado no mesmo diretório.
+
+   O que a referência faz e passou a valer aqui:
+   1. A promessa aparece na PRIMEIRA linha, com o produto NOMEADO.
+      Antes, o Hero explicava a categoria ("plataforma de análise e
+      crescimento") e deixava o nome do produto só no logotipo.
+   2. O produto é DEMONSTRADO logo abaixo do CTA — aqui, numa janela
+      com a interface real do app, no lugar de ilustração genérica.
+   3. Os recursos são agrupados por VERBO (criar, publicar, conversar,
+      crescer) em vez de listados em 20 blocos equivalentes: o visitante
+      entende o produto por etapas, não por inventário.
+
+   Nada aqui é cópia: marca, paleta, tipografia, textos e composição
+   continuam do Inst Acessor. Só o ESQUELETO de conversão foi adaptado.
+
+   Nenhuma cor nova: tudo sai dos tokens já declarados no topo deste
+   arquivo (`--lnd-*`).
+
+   ATENÇÃO a dois nomes: as classes desta seção usam o prefixo
+   `lnd-vmove` / `lnd-vmoves` de propósito. `.lnd-move-*` já pertence à
+   seção de Estratégia (bloco de "Plano de ação", ~linha 4125) e
+   reutilizar o nome misturaria duas composições diferentes.
+   ============================================================ */
+
+/* ---------- HERO: pílula dos quatro verbos ---------- */
+.lnd-hero-verbs {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-bottom: 26px;
+  padding: 7px 8px 7px 16px;
+  border-radius: var(--lnd-r-pill);
+  background: var(--lnd-card);
+  border: 1px solid var(--lnd-border);
+  box-shadow: var(--lnd-shadow-xs);
+}
+.lnd-hero-verbs .lnd-verbs-k {
+  font-family: var(--lnd-font-data);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--lnd-ink-3);
+}
+.lnd-hero-verbs .lnd-verbs-list {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.lnd-hero-verbs .lnd-verbs-list span {
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--lnd-purple);
+  background: var(--lnd-grad-soft);
+  border-radius: var(--lnd-r-pill);
+  padding: 5px 12px;
+  white-space: nowrap;
+}
+
+/* ---------- HERO: janela de demonstração ----------
+   Ocupa a largura de leitura do Hero, logo abaixo dos CTAs. Cada painel
+   dela corresponde a uma tela que existe no app; todo número leva o selo
+   "Exemplo" — nada aqui é resultado real de cliente. */
+.lnd-demo-wrap {
+  position: relative;
+  z-index: 1;
+  margin-top: clamp(44px, 6vw, 72px);
+  width: 100%;
+  max-width: 1040px;
+  margin-inline: auto;
+}
+.lnd-demo {
+  border-radius: var(--lnd-r-lg);
+  background: var(--lnd-card);
+  border: 1px solid var(--lnd-border);
+  box-shadow: var(--lnd-shadow-lg);
+  overflow: hidden;
+}
+.lnd-demo-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--lnd-surface);
+  border-bottom: 1px solid var(--lnd-border-soft);
+}
+.lnd-demo-dots {
+  display: inline-flex;
+  gap: 6px;
+  flex: none;
+}
+.lnd-demo-dots i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--lnd-border);
+}
+.lnd-demo-url {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  font-family: var(--lnd-font-data);
+  font-size: 12px;
+  color: var(--lnd-ink-3);
+  background: var(--lnd-card);
+  border: 1px solid var(--lnd-border-soft);
+  border-radius: var(--lnd-r-pill);
+  padding: 5px 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Selo próprio da janela. NÃO reaproveita `.lnd-demo-badge`, que já
+   existe para o rótulo "Demonstração" do Gerador de Copy (linha ~184) e
+   carrega o ponto âmbar + borda tracejada daquele contexto. */
+.lnd-demo-selo {
+  flex: none;
+  font-family: var(--lnd-font-data);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--lnd-ink-3);
+  border: 1px solid var(--lnd-border);
+  border-radius: var(--lnd-r-pill);
+  padding: 4px 10px;
+}
+.lnd-demo-body {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr) 250px;
+  gap: 1px;
+  background: var(--lnd-border-soft);
+}
+.lnd-demo-col {
+  background: var(--lnd-card);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.lnd-demo-col-side {
+  background: var(--lnd-bg);
+}
+.lnd-demo-col-title {
+  font-family: var(--lnd-font-data);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--lnd-ink-3);
+}
+.lnd-demo-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.lnd-demo-nav span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--lnd-ink-2);
+  border-radius: var(--lnd-r-xs);
+  padding: 7px 9px;
+}
+.lnd-demo-nav span i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--lnd-border);
+  flex: none;
+}
+.lnd-demo-nav span.lnd-on {
+  color: var(--lnd-purple);
+  background: var(--lnd-grad-soft);
+}
+.lnd-demo-nav span.lnd-on i {
+  background: var(--lnd-purple);
+}
+.lnd-demo-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.lnd-demo-topline b {
+  font-family: var(--lnd-font-display);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--lnd-ink);
+}
+.lnd-demo-chip {
+  font-family: var(--lnd-font-data);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--lnd-success);
+  background: var(--lnd-success-soft);
+  border-radius: var(--lnd-r-pill);
+  padding: 4px 10px;
+}
+.lnd-demo-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+.lnd-demo-day {
+  border: 1px solid var(--lnd-border-soft);
+  border-radius: var(--lnd-r-sm);
+  padding: 9px 6px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--lnd-card);
+}
+.lnd-demo-day span {
+  font-family: var(--lnd-font-data);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lnd-ink-3);
+}
+.lnd-demo-day b {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--lnd-ink);
+}
+.lnd-demo-day em {
+  font-style: normal;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lnd-purple);
+}
+.lnd-demo-day.lnd-best {
+  border-color: rgba(139, 92, 246, 0.35);
+  background: var(--lnd-grad-soft);
+}
+.lnd-demo-queue {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.lnd-demo-queue div {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--lnd-border-soft);
+  border-radius: var(--lnd-r-sm);
+  padding: 8px 10px;
+}
+.lnd-demo-queue div i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--lnd-info);
+}
+.lnd-demo-queue div.lnd-ok i {
+  background: var(--lnd-success);
+}
+.lnd-demo-queue div.lnd-wait i {
+  background: var(--lnd-warn);
+}
+.lnd-demo-queue div b {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--lnd-ink);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lnd-demo-queue div span {
+  font-family: var(--lnd-font-data);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lnd-ink-3);
+  flex: none;
+}
+.lnd-demo-kpis {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.lnd-demo-kpi {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid var(--lnd-border-soft);
+  border-radius: var(--lnd-r-sm);
+  padding: 9px 11px;
+  background: var(--lnd-card);
+}
+.lnd-demo-kpi span {
+  font-size: 11.5px;
+  color: var(--lnd-ink-2);
+}
+.lnd-demo-kpi b {
+  font-family: var(--lnd-font-data);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--lnd-ink);
+}
+.lnd-demo-note {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--lnd-ink-3);
+  text-align: center;
+}
+.lnd-demo-note svg {
+  flex: none;
+}
+
+@media (max-width: 900px) {
+  .lnd-demo-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* No celular a janela mostra o essencial: a coluna central (calendário
+     e fila) e os números. O menu lateral da janela é decoração de
+     desktop — escondê-lo evita uma lista de 5 itens sem função no toque. */
+  .lnd-demo-col-side:first-child {
+    display: none;
+  }
+}
+@media (max-width: 520px) {
+  .lnd-demo-week {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* ---------- SEÇÃO: CRIE · PUBLIQUE · CONVERSE · CRESÇA ---------- */
+/* Dois cards por linha, não quatro.
+   ------------------------------------------------------------
+   Medido na página de referência (`print de referencia/`): os cards
+   grandes ficam entre 550 e 580px de largura num container de 1120px —
+   duas ou três colunas, nunca quatro. Em quatro colunas cada card cai
+   para ~266px e o texto interno fica espremido, que é exatamente o que
+   esta rodada pede para evitar ("poucos cards grandes e bem
+   apresentados"). Em duas colunas o card vai a ~570px e o bloco interno
+   respira como na referência. */
+.lnd-vmoves {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(20px, 2vw, 28px);
+}
+.lnd-vmove {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  /* Padding e raio proporcionais ao card maior. A referência usa raio de
+     ~24px num card de ~577px (≈4,2% da largura); em ~570px isso dá ~24px,
+     que é o token `--lnd-r-lg` (22px). O `--lnd-r-md` (16px) era o raio de
+     quando o card tinha 266px de largura. */
+  padding: clamp(26px, 2.8vw, 36px) clamp(22px, 2.6vw, 32px) clamp(24px, 2.6vw, 32px);
+  border-radius: var(--lnd-r-lg);
+  border: 1px solid var(--lnd-border);
+  background: var(--lnd-card);
+  box-shadow: var(--lnd-shadow-xs);
+  transition:
+    transform 0.35s var(--lnd-ease-out),
+    box-shadow 0.35s ease,
+    border-color 0.35s ease;
+}
+.lnd-vmove:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--lnd-shadow-md);
+  border-color: rgba(139, 92, 246, 0.28);
+}
+.lnd-vmove-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.lnd-vmove-n {
+  font-family: var(--lnd-font-data);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--lnd-ink-3);
+}
+.lnd-vmove-ic {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--lnd-r-sm);
+  display: grid;
+  place-items: center;
+  background: var(--lnd-grad-soft);
+  color: var(--lnd-purple);
+  flex: none;
+}
+.lnd-vmove-verb {
+  font-family: var(--lnd-font-display);
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  background: var(--lnd-grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.lnd-vmove p {
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--lnd-ink-2);
+  /* Sem teto de linha de propósito. Medi a versão com `max-width: 48ch`
+     (375px) dentro do card de 586px: sobravam 149px de branco à direita e
+     o card parecia pela metade. As frases têm 110–130 caracteres, o que
+     em 14,5px ao longo de ~522px dá exatamente 2 linhas cheias em todos
+     os quatro cards — mais próximo do card da referência, cujo miolo
+     também é preenchido de ponta a ponta. */
+}
+.lnd-vmove-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid var(--lnd-border-soft);
+  padding-top: 14px;
+  margin-top: auto;
+}
+.lnd-vmove-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--lnd-ink);
+}
+.lnd-vmove-list li svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--lnd-purple);
+}
+.lnd-vmove--soon {
+  background: var(--lnd-bg);
+}
+.lnd-vmove-tag {
+  align-self: flex-start;
+  font-family: var(--lnd-font-data);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--lnd-warn);
+  background: var(--lnd-warn-soft);
+  border-radius: var(--lnd-r-pill);
+  padding: 3px 9px;
+}
+
+/* Abaixo de 900px duas colunas dariam ~370px por card — o card ainda
+   funciona, mas o parágrafo e a lista de 3 itens ficam apertados. Uma
+   coluna mantém a leitura confortável até o celular. */
+@media (max-width: 900px) {
+  .lnd-vmoves {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ============================================================
+   SELO — INTEGRAÇÃO VIA API OFICIAL DO INSTAGRAM
+   ------------------------------------------------------------
+   Elemento NOVO e ISOLADO. Não altera nenhuma regra existente: reaproveita
+   apenas as variáveis de tema já definidas no topo (`--lnd-*`), então segue a
+   identidade visual do Inst Acessor e muda junto se o tema mudar.
+   `pointer-events:none` porque é informativo — não deve capturar cliques nem
+   atrapalhar os CTAs do herói.
+   ============================================================ */
+.lnd-hero-apibadge {
+  position: absolute;
+  left: clamp(14px, 3vw, 40px);
+  bottom: clamp(14px, 3vw, 34px);
+  z-index: 3;
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--lnd-border);
+  background: color-mix(in srgb, var(--lnd-card) 82%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: var(--lnd-ink-2);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  white-space: nowrap;
+  max-width: calc(100vw - 28px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lnd-hero-apibadge svg {
+  color: var(--lnd-purple);
+  flex: none;
+}
+
+/* No celular o selo ocupa a largura disponível, centralizado, porque o rodapé
+   do herói fica estreito e um selo alinhado à esquerda competiria com o texto. */
+@media (max-width: 640px) {
+  .lnd-hero-apibadge {
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 12px;
+    font-size: 11px;
+    padding: 6px 11px;
   }
 }

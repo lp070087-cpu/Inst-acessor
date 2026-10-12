@@ -1528,9 +1528,12 @@ export function PreviewSocial({
           ) : (
             <div className="flex flex-col gap-2.5">
               {drafts.map((d) => (
+                // ITEM §10 — sem `border`: o item vive DENTRO de um card que já
+                // tem a MESMA borda `border-soft`, então desenhava uma caixa
+                // dentro da outra. O fundo `bg-bg-ice` já separa a linha.
                 <div
                   key={d.id}
-                  className="rounded-[12px] border border-border-soft bg-bg-ice px-3 py-2.5 flex items-center gap-3"
+                  className="rounded-[12px] bg-bg-ice px-3 py-2.5 flex items-center gap-3"
                 >
                   {d.mediaUrl ? (
                     d.mediaType === "image" ? (
@@ -1598,7 +1601,7 @@ export function PreviewSocial({
               {savedCopies.map((c) => (
                 <div
                   key={c.id}
-                  className="flex flex-col gap-2 rounded-[12px] border border-border-soft bg-bg-ice p-4"
+                  className="flex flex-col gap-2 rounded-[12px] bg-bg-ice p-4"
                 >
                   {/* BLOCO 5 — `min-w-0 flex-1` na coluna dos rótulos: é ela
                       que encolhe quando o rótulo do formato é longo; sem isso

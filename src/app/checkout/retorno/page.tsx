@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
+import { buttonClass } from "@/components/ui/button";
 import { findCheckoutOrderByReference } from "@/lib/billing/asaas/checkout-order";
 import type { CheckoutOrder } from "@/lib/billing/db";
 
@@ -172,7 +173,7 @@ export default async function RetornoPage({
             <>
               <Link
                 href="/primeiro-acesso"
-                className="inline-flex items-center justify-center gap-2 w-full rounded-pill bg-[linear-gradient(115deg,#F43F8E_0%,#A855F7_45%,#6366F1_100%)] bg-[length:160%_160%] text-white shadow-brand px-8 py-4 text-[16.5px] font-semibold hover:bg-[position:100%_100%] transition-all duration-300"
+                className={buttonClass({ variant: "primary", size: "lg", block: true })}
               >
                 Ativar meu acesso <ArrowRight size={18} />
               </Link>
@@ -187,7 +188,7 @@ export default async function RetornoPage({
             <>
               <Link
                 href={retryHref}
-                className="inline-flex items-center justify-center gap-2 w-full rounded-pill bg-[linear-gradient(115deg,#F43F8E_0%,#A855F7_45%,#6366F1_100%)] bg-[length:160%_160%] text-white shadow-brand px-8 py-4 text-[16.5px] font-semibold hover:bg-[position:100%_100%] transition-all duration-300"
+                className={buttonClass({ variant: "primary", size: "lg", block: true })}
               >
                 <Loader2 size={18} className="animate-spin" /> Verificar novamente
               </Link>
@@ -203,7 +204,7 @@ export default async function RetornoPage({
             <>
               <Link
                 href={checkoutHref}
-                className="inline-flex items-center justify-center gap-2 w-full rounded-pill bg-[linear-gradient(115deg,#F43F8E_0%,#A855F7_45%,#6366F1_100%)] bg-[length:160%_160%] text-white shadow-brand px-8 py-4 text-[16.5px] font-semibold hover:bg-[position:100%_100%] transition-all duration-300"
+                className={buttonClass({ variant: "primary", size: "lg", block: true })}
               >
                 Tentar novamente <ArrowRight size={18} />
               </Link>

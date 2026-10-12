@@ -74,6 +74,7 @@ export async function getBuyerHistory(userId: string | null | undefined): Promis
     confirmedPaymentsTotal: 0,
     confirmedMonthlyCharges: 0,
     confirmedYearlyCharges: 0,
+    confirmedByPlan: {},
   };
   if (!userId) return empty;
 
@@ -115,9 +116,12 @@ export async function getBuyerHistory(userId: string | null | undefined): Promis
     let total = 0;
     let monthly = 0;
     let yearly = 0;
+    const byPlan: Record<string, number> = {};
     for (const r of rows) {
       total++;
       const slug = r.planId ? slugByPlanId.get(r.planId) : undefined;
+      // Contagem POR SLUG — é o que a cobrança promocional dos planos novos usa.
+      if (slug) byPlan[slug] = (byPlan[slug] ?? 0) + 1;
       if (slug === "mensal") monthly++;
       else if (slug === "anual") yearly++;
     }
@@ -126,6 +130,7 @@ export async function getBuyerHistory(userId: string | null | undefined): Promis
       confirmedPaymentsTotal: total,
       confirmedMonthlyCharges: monthly,
       confirmedYearlyCharges: yearly,
+      confirmedByPlan: byPlan,
     };
   } catch {
     return empty;

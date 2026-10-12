@@ -5,7 +5,7 @@ import {
   requireOnboardedSession,
   requirePremiumPage,
 } from "@/lib/auth/guard";
-import { getAIProfile } from "@/lib/ai/services";
+import { getLearnedProfile } from "@/lib/ai/services";
 import { PageHeader } from "@/components/layout/page-header";
 import { ModuleTabs, INTELLIGENCE_MODULE_TABS } from "@/components/layout/module-tabs";
 import { PerfilInteligenciaClient } from "@/components/ai/perfil-inteligencia-client";
@@ -27,7 +27,11 @@ export default async function PerfilInteligenciaPage() {
   const { session } = await requireOnboardedSession();
   const userId = session.user.id;
 
-  const profile = await getAIProfile(userId);
+  // "A IA aprendeu sobre você": monta os cards a partir de dados REAIS do
+  // usuário (AIProfile + padrões observados persistidos + frequência das
+  // publicações coletadas). Campos sem fonte de dado aparecem com estado
+  // honesto de "ainda não temos dados" — nunca com valor inventado.
+  const learned = await getLearnedProfile(userId);
 
   return (
     <div className="flex flex-col gap-6">
@@ -39,29 +43,7 @@ export default async function PerfilInteligenciaPage() {
 
       <ModuleTabs tabs={INTELLIGENCE_MODULE_TABS} />
 
-      <PerfilInteligenciaClient
-        profile={
-          profile
-            ? {
-                id: profile.id,
-                summary: profile.summary ?? "",
-                niche: profile.niche ?? "",
-                subNiche: profile.subNiche ?? "",
-                objectives: profile.objectives ?? "",
-                communicationStyle: profile.communicationStyle ?? "",
-                observedPatterns: profile.observedPatterns ?? "",
-                preferredFormats: profile.preferredFormats ?? "",
-                ctaPatterns: profile.ctaPatterns ?? "",
-                hookPatterns: profile.hookPatterns ?? "",
-                postingFrequency: profile.postingFrequency ?? "",
-                voiceTone: profile.voiceTone ?? "",
-                writingStyle: profile.writingStyle ?? "",
-                notes: profile.notes ?? "",
-                updatedAt: profile.updatedAt.toISOString(),
-              }
-            : null
-        }
-      />
+      <PerfilInteligenciaClient data={learned} />
     </div>
   );
 }

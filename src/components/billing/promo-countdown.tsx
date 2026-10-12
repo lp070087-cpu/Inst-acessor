@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Clock } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -134,25 +133,45 @@ export function PromoCountdown({
   // cumpre.
   if (remaining.expired) return null;
 
+  // Rótulo do selo (ex.: "LOTE 1"), configurado pelo ADMIN. Nada é inventado:
+  // sem rótulo no banco, cai no texto histórico do produto.
   const prefix = (label?.trim() || "PRÉ-VENDA").toUpperCase();
+
+  // Quatro unidades no formato da referência: número grande + rótulo curto
+  // abaixo (DIAS · HORAS · MIN · SEG). Os valores são os MESMOS do cálculo
+  // acima — mudou apenas a apresentação.
+  const units = [
+    { value: pad(remaining.days), label: "DIAS" },
+    { value: pad(remaining.hours), label: "HORAS" },
+    { value: pad(remaining.minutes), label: "MIN" },
+    { value: pad(remaining.seconds), label: "SEG" },
+  ];
 
   return (
     <div
-      className={cn(
-        "inline-flex items-center gap-2 rounded-pill border border-ai/25 bg-ai-soft px-3 py-1.5",
-        className
-      )}
+      className={cn("lnd-countdown", className)}
       role="timer"
       aria-live="off"
+      // Texto acessível único: leitores de tela não precisam soletrar cada
+      // dígito separado por causa da divisão visual em unidades.
+      aria-label={`${prefix} — encerra em ${remaining.days} dias, ${remaining.hours} horas, ${remaining.minutes} minutos e ${remaining.seconds} segundos`}
     >
-      <Clock size={13} className="text-purple flex-none" />
-      <span className="text-[11px] font-bold tracking-wider text-purple">
-        {prefix} TERMINA EM
-      </span>
-      <span className="text-[12px] font-bold text-ink tabular-nums">
-        {pad(remaining.days)}d : {pad(remaining.hours)}h : {pad(remaining.minutes)}m :{" "}
-        {pad(remaining.seconds)}s
-      </span>
+      <div className="lnd-countdown-head">
+        <span className="lnd-countdown-lote">{prefix}</span>
+        <span className="lnd-countdown-enc">ENCERRA EM:</span>
+      </div>
+
+      <div className="lnd-countdown-clock" aria-hidden="true">
+        {units.map((u, i) => (
+          <React.Fragment key={u.label}>
+            {i > 0 && <span className="lnd-countdown-sep">:</span>}
+            <span className="lnd-countdown-unit">
+              <b className="lnd-countdown-num">{u.value}</b>
+              <i className="lnd-countdown-lbl">{u.label}</i>
+            </span>
+          </React.Fragment>
+        ))}
+      </div>
     </div>
   );
 }

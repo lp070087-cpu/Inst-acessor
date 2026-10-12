@@ -1,3 +1,5 @@
+import { cache } from "react";
+
 import { prisma } from "@/lib/db";
 
 /**
@@ -70,7 +72,7 @@ function safePct(
   return ((current - previous) / previous) * 100;
 }
 
-export async function getTikTokDashboardData(
+async function loadTikTokDashboardData(
   userId: string
 ): Promise<TikTokDashboardData> {
   const connection = await prisma.socialConnection.findFirst({
@@ -265,3 +267,6 @@ function computeTimeline(
 
   return { biggestFollowerPeak, biggestDailyGain, biggestDailyLoss };
 }
+
+/** Memoizado por requisição — ver `getDashboardInstagramData` para o motivo. */
+export const getTikTokDashboardData = cache(loadTikTokDashboardData);

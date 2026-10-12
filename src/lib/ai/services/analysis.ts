@@ -1,5 +1,6 @@
 import { getDashboardInstagramData, type EvolutionPoint } from "@/lib/dashboard/instagram-data";
 import { getTikTokDashboardData } from "@/lib/dashboard/tiktok-data";
+import { withUsage } from "@/lib/billing/usage/meter";
 
 /**
  * Análise de Desempenho — 7/30/90 dias.
@@ -40,7 +41,28 @@ function iso(d: Date): string {
   return d.toISOString();
 }
 
+/**
+ * Análise de desempenho com MEDIÇÃO.
+ *
+ * `runAnalysisUnmetered` faz o trabalho; este wrapper registra UMA unidade de
+ * `profile_analysis` — mas SÓ depois que a análise terminou com sucesso
+ * (`withUsage` grava após o `await`). Uma falha de leitura NÃO consome franquia.
+ * Uma falha de medição nunca derruba a análise: `recordUsage` engole o erro.
+ */
 export async function runAnalysis(
+  userId: string,
+  platform: Platform,
+  period: AnalysisPeriod
+): Promise<AnalysisResult> {
+  const metered = await withUsage(
+    { userId, feature: "profile_analysis", origin: "analise-desempenho" },
+    () => runAnalysisUnmetered(userId, platform, period)
+  );
+  if (!metered.ok) throw new Error("QUOTA_EXCEDIDA");
+  return metered.value;
+}
+
+async function runAnalysisUnmetered(
   userId: string,
   platform: Platform,
   period: AnalysisPeriod

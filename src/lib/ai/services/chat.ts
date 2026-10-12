@@ -3,6 +3,8 @@ import type { AIConversationWithMessages } from "@/lib/ai/db";
 import { getAIProvider } from "@/lib/ai";
 import { buildKnowledgeContext, knowledgeContextToPrompt } from "@/lib/knowledge/context-builder";
 import { absenceRules } from "@/lib/ai/context";
+import { strategistPrompt } from "@/lib/ai/persona";
+import { withUsage } from "@/lib/billing/usage/meter";
 
 /**
  * Serviço do chat IA Acessor.
@@ -169,7 +171,7 @@ export async function sendChatMessage(
     query: opts.message,
   });
   const system = [
-    "Você é a IA Acessor, assistente do Inst Acessor para creators e pequenos negócios no Instagram e TikTok.",
+    strategistPrompt(),
     "Use apenas os dados fornecidos no contexto e o CONHECIMENTO OFICIAL indicado. NÃO invente métricas, seguidores, alcance nem conhecimento proprietário.",
     absenceRules(),
     TONE_RULES,
@@ -188,10 +190,17 @@ export async function sendChatMessage(
     content: m.content,
   }));
 
-  // 5) Chama o provider
+  // 5) Chama o provider — MEDIDO: só conta a geração DEPOIS do sucesso. Se o
+  // provider falhar, `withUsage` NÃO grava (uma falha técnica não consome
+  // franquia) e o erro sobe como antes.
   let assistantReply: string;
   try {
-    assistantReply = await provider.complete({ system, messages });
+    const metered = await withUsage(
+      { userId, feature: "ai_generation", origin: "chat" },
+      () => provider.complete({ system, messages })
+    );
+    if (!metered.ok) throw new Error("QUOTA_EXCEDIDA");
+    assistantReply = metered.value;
   } catch (err) {
     // Se o provider falhar, ainda assim registra a mensagem do usuário e relança.
     console.error("[ai/chat] falha no provider", err);
