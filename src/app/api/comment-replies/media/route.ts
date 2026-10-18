@@ -1,3 +1,4 @@
+import { withPremiumApi } from "@/lib/auth/premium-api";
 import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/db";
@@ -25,7 +26,7 @@ export const dynamic = "force-dynamic";
  * dessa publicação (`comments`), permitindo à tela mostrar o que existe sem
  * depender de a Meta liberar a leitura ao vivo.
  */
-export async function GET(request: Request) {
+async function GETHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -127,3 +128,5 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Não foi possível carregar as publicações." }, { status: 500 });
   }
 }
+
+export const GET = withPremiumApi(GETHandler);

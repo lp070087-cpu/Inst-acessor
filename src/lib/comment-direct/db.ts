@@ -285,6 +285,7 @@ export async function upsertDirectLog(input: {
 }): Promise<DirectLogRow> {
   const existing = await findDirectLog(input.mediaId, input.commentId);
   if (existing) {
+    if (input.status === "PENDING") return existing;
     // Já existe registro: NÃO reescreve o status de um SENT (a idempotência
     // manda). Só completa dados que faltavam.
     if (existing.status === "SENT") return existing;

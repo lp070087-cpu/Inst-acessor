@@ -1,3 +1,4 @@
+import { withPremiumApi } from "@/lib/auth/premium-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -12,7 +13,7 @@ export const dynamic = "force-dynamic";
  * PATCH  /api/ideas?id=...&status=FAVORITA — muda status
  * DELETE /api/ideas?id=... — exclui
  */
-export async function GET() {
+async function GETHandler() {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -38,7 +39,7 @@ export async function GET() {
   }
 }
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -90,7 +91,7 @@ export async function POST(request: Request) {
   }
 }
 
-export async function PATCH(request: Request) {
+async function PATCHHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -113,7 +114,7 @@ export async function PATCH(request: Request) {
   }
 }
 
-export async function DELETE(request: Request) {
+async function DELETEHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -130,3 +131,8 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "Erro ao excluir ideia." }, { status: 500 });
   }
 }
+
+export const GET = withPremiumApi(GETHandler);
+export const POST = withPremiumApi(POSTHandler);
+export const PATCH = withPremiumApi(PATCHHandler);
+export const DELETE = withPremiumApi(DELETEHandler);

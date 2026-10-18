@@ -1,3 +1,4 @@
+import { withPremiumApi } from "@/lib/auth/premium-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -21,9 +22,9 @@ export const dynamic = "force-dynamic";
  *
  * A sugestão da IA NUNCA é enviada por aqui sem o texto final aprovado.
  */
-export async function POST(
+async function POSTHandler(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await requireSession();
@@ -42,7 +43,7 @@ export async function POST(
       );
     }
 
-    const result = await sendManualReply(userId, params.id, parsed.data.text, {
+    const result = await sendManualReply(userId, (await params).id, parsed.data.text, {
       approvedFromSuggestion: parsed.data.approvedFromSuggestion,
       suggestion: parsed.data.suggestion ?? null,
     });
@@ -65,3 +66,5 @@ export async function POST(
     return NextResponse.json({ error: "Não foi possível enviar a mensagem." }, { status: 500 });
   }
 }
+
+export const POST = withPremiumApi(POSTHandler);

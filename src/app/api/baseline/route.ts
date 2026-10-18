@@ -1,3 +1,4 @@
+import { withSessionApi } from "@/lib/auth/session-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -11,7 +12,7 @@ export const dynamic = "force-dynamic";
  * Retorna o baseline individual do perfil (comparar sempre com o próprio
  * histórico, nunca com números universais).
  */
-export async function GET(request: Request) {
+async function GETHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -30,3 +31,5 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Não foi possível calcular o baseline." }, { status: 500 });
   }
 }
+
+export const GET = withSessionApi(GETHandler);

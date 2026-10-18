@@ -1,3 +1,4 @@
+import { withPremiumApi } from "@/lib/auth/premium-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -10,7 +11,7 @@ export const dynamic = "force-dynamic";
  * POST /api/calendar/duplicate?id=... — duplica um conteúdo planejado.
  * Session-required + owner-checked.
  */
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -33,3 +34,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Erro ao duplicar conteúdo." }, { status: 500 });
   }
 }
+
+export const POST = withPremiumApi(POSTHandler);

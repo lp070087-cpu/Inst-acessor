@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { withSessionApi } from "@/lib/auth/session-api";
 
 import { requireSession } from "@/lib/auth/guard";
 import { saveDraftSchema } from "@/lib/validators/ai";
@@ -12,7 +13,7 @@ export const dynamic = "force-dynamic";
  * PATCH  /api/drafts?id=... — atualiza um rascunho
  * DELETE /api/drafts?id=... — exclui
  */
-export async function GET() {
+async function GETHandler() {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -37,7 +38,7 @@ export async function GET() {
   }
 }
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -84,7 +85,7 @@ export async function POST(request: Request) {
   }
 }
 
-export async function PATCH(request: Request) {
+async function PATCHHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -113,7 +114,7 @@ export async function PATCH(request: Request) {
   }
 }
 
-export async function DELETE(request: Request) {
+async function DELETEHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -130,3 +131,8 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "Erro ao excluir rascunho." }, { status: 500 });
   }
 }
+
+export const GET = withSessionApi(GETHandler);
+export const POST = withSessionApi(POSTHandler);
+export const PATCH = withSessionApi(PATCHHandler);
+export const DELETE = withSessionApi(DELETEHandler);

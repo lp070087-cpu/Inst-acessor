@@ -42,6 +42,9 @@ export interface AsaasPayment {
   status?: AsaasPaymentStatusValue | null;
   dueDate?: string | null;
   paidDate?: string | null;
+  paymentDate?: string | null;
+  clientPaymentDate?: string | null;
+  confirmedDate?: string | null;
   invoiceUrl?: string | null;
   bankSlipUrl?: string | null;
   pixQrCodeUrl?: string | null;
@@ -80,16 +83,12 @@ export interface AsaasSubscription {
 // ------------------------------------------------------------
 // Cobrança criada (resposta do POST /payments)
 // ------------------------------------------------------------
-export interface AsaasPaymentCreated extends AsaasPayment {
-  // Sem campos extras — herdamos de AsaasPayment.
-}
+export type AsaasPaymentCreated = AsaasPayment;
 
 // ------------------------------------------------------------
 // Assinatura criada (resposta do POST /subscriptions)
 // ------------------------------------------------------------
-export interface AsaasSubscriptionCreated extends AsaasSubscription {
-  // Sem campos extras — herdamos de AsaasSubscription.
-}
+export type AsaasSubscriptionCreated = AsaasSubscription;
 
 // ------------------------------------------------------------
 // Checkout hospedado oficial (POST /v3/checkouts)
@@ -266,7 +265,10 @@ export const ASAAS_KNOWN_EVENTS = [
   "PAYMENT_RECEIVED",
   "PAYMENT_OVERDUE",
   "PAYMENT_CANCELED",
+  "PAYMENT_DELETED",
   "PAYMENT_REFUNDED",
+  "PAYMENT_CHARGEBACK_REQUESTED",
+  "PAYMENT_CHARGEBACK_DISPUTE",
   // Conclusão do Checkout (confirmado na doc oficial). NÃƒO libera acesso por
   // conta própria: a liberação continua vindo de PAYMENT_CONFIRMED/
   // PAYMENT_RECEIVED. Serve para reconciliar o status do CheckoutOrder.

@@ -1,3 +1,4 @@
+import { withSessionApi } from "@/lib/auth/session-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -19,7 +20,7 @@ export const dynamic = "force-dynamic";
  *
  * NÃO persiste nada — recálculo a cada GET (mesmo comportamento de /api/alertas).
  */
-export async function GET(request: Request) {
+async function GETHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -63,3 +64,5 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: http.message, code: http.code }, { status: http.status });
   }
 }
+
+export const GET = withSessionApi(GETHandler);

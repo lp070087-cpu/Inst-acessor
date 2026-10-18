@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth/config";
 import { prisma } from "@/lib/db";
 import { isOfficialAdminEmail } from "@/lib/auth/admin-access";
 import { resolvePremiumAccess } from "@/lib/access/premium";
+import { hasVerifiedIdentity } from "./identity";
 
 /**
  * Retorna a sessão autenticada ou redireciona para /login.
@@ -83,10 +84,10 @@ export async function requireAdminSession(): Promise<{
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { email: true, status: true },
+    select: { email: true, status: true, emailVerified: true, firstAccessCompleted: true },
   });
 
-  if (!user || user.status !== "ACTIVE" || !isOfficialAdminEmail(user.email)) {
+  if (!user || user.status !== "ACTIVE" || !hasVerifiedIdentity(user) || !isOfficialAdminEmail(user.email)) {
     redirect("/dashboard");
   }
 

@@ -1,3 +1,4 @@
+import { withPremiumApi } from "@/lib/auth/premium-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -16,9 +17,9 @@ export const dynamic = "force-dynamic";
  * A IA usa apenas a FAQ cadastrada + o histórico da conversa. Sem IA, cai para
  * a FAQ que casar; sem FAQ, não sugere nada (não inventa).
  */
-export async function POST(
+async function POSTHandler(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await requireSession();
@@ -34,7 +35,7 @@ export async function POST(
       return NextResponse.json({ error: "Dados inválidos." }, { status: 400 });
     }
 
-    const result = await suggestReply(userId, params.id, {
+    const result = await suggestReply(userId, (await params).id, {
       lastIncomingText: parsed.data.lastIncomingText ?? null,
     });
 
@@ -48,3 +49,5 @@ export async function POST(
     return NextResponse.json({ error: "Não foi possível gerar a sugestão." }, { status: 500 });
   }
 }
+
+export const POST = withPremiumApi(POSTHandler);

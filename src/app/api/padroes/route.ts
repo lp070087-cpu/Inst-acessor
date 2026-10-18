@@ -1,3 +1,4 @@
+import { withSessionApi } from "@/lib/auth/session-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -17,7 +18,7 @@ export const dynamic = "force-dynamic";
  *   POST /api/padroes                     → cria insight (OBSERVED/INFERRED/CONFIRMED_BY_EXPERIMENT)
  *   DELETE /api/padroes?id=...            → remove
  */
-export async function GET(request: Request) {
+async function GETHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -41,7 +42,7 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -79,7 +80,7 @@ export async function POST(request: Request) {
   }
 }
 
-export async function DELETE(request: Request) {
+async function DELETEHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -96,3 +97,7 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "Não foi possível excluir padrão." }, { status: 500 });
   }
 }
+
+export const GET = withSessionApi(GETHandler);
+export const POST = withSessionApi(POSTHandler);
+export const DELETE = withSessionApi(DELETEHandler);

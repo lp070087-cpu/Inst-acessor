@@ -1,3 +1,4 @@
+import { withAdminApi } from "@/lib/auth/admin-api";
 import { NextResponse } from "next/server";
 
 import { requireAdminSession } from "@/lib/auth/guard";
@@ -28,7 +29,7 @@ export const runtime = "nodejs";
  * lotada (ver `decideCapacity`, regra do convite).
  */
 
-export async function GET() {
+async function GETHandler() {
   await requireAdminSession();
   if (!waitlistAvailable()) {
     return NextResponse.json(
@@ -58,7 +59,7 @@ export async function GET() {
   }
 }
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   await requireAdminSession();
   if (!waitlistAvailable()) {
     return NextResponse.json(
@@ -122,3 +123,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Não foi possível concluir a ação." }, { status: 500 });
   }
 }
+
+export const GET = withAdminApi(GETHandler);
+
+export const POST = withAdminApi(POSTHandler);

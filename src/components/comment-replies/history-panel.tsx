@@ -67,6 +67,8 @@ function statusMeta(status: string): { label: string; tone: "success" | "warning
       return { label: "Enviado", tone: "success", Icon: CheckCircle2 };
     case "PENDING":
       return { label: "Pendente", tone: "warning", Icon: Clock };
+    case "PROCESSING":
+      return { label: "Em envio ou conferência", tone: "warning", Icon: Clock };
     case "IGNORED":
       return { label: "Ignorado", tone: "neutral", Icon: EyeOff };
     case "ERROR":

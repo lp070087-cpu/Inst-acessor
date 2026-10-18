@@ -303,7 +303,7 @@ export async function attemptCheckoutReservation(
 
           // Serializa reservas concorrentes com um lock TRANSACIONAL. O lock é
           // liberado automaticamente no commit/rollback — nenhum estado vaza.
-          await t.$executeRaw`SELECT pg_advisory_xact_lock(${ADVISORY_LOCK_KEY_1}, ${ADVISORY_LOCK_KEY_2})`;
+          await t.$executeRaw`SELECT pg_advisory_xact_lock(${ADVISORY_LOCK_KEY_1}::integer, ${ADVISORY_LOCK_KEY_2}::integer)`;
 
           // 1) Configuração (dentro da transação = snapshot consistente).
           const row = await t.systemSetting.findUnique({ where: { key: CAPACITY_SETTING_KEY } });

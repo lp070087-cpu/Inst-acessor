@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 import "./login.css";
@@ -39,7 +40,7 @@ export function LoginExperience({ children }: { children: ReactNode }) {
   return (
     <div className="lgn-root">
       <main className="lgn-stage">
-        <a href="/" className="lgn-brand">
+        <Link href="/" className="lgn-brand">
           <span className="lgn-brand-badge">
             <svg
               width="20"
@@ -61,7 +62,7 @@ export function LoginExperience({ children }: { children: ReactNode }) {
             Inst{" "}
             <em className="not-italic text-grad font-extrabold">Acessor</em>
           </span>
-        </a>
+        </Link>
 
         <section className="lgn-circle">
           {/* LÂMINAS DO FUNDO — filamentos concêntricos.

@@ -590,7 +590,7 @@ export function PublishingClient({ initial }: PublishingClientProps) {
             <Clock size={14} /> {queue.length} {queue.length === 1 ? "item" : "itens"}
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" variant="outline" onClick={handleProcess} disabled={processingId !== null}>
             {processingId === "__process__" ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
             Processar vencidos
@@ -617,7 +617,7 @@ export function PublishingClient({ initial }: PublishingClientProps) {
               )}
             >
               {STATUS_LABEL[f] ?? f}
-              <span className="ml-1.5 opacity-80 text-[11px]">({counts[f] ?? 0})</span>
+              <span className="ml-1.5 text-[11px]">({counts[f] ?? 0})</span>
             </button>
           ))}
         </div>

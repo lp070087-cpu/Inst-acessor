@@ -16,8 +16,14 @@
 /** URL pública aceita pelas plataformas (http/https). */
 export function isPublicMediaUrl(url: string | null | undefined): boolean {
   if (!url) return false;
-  const trimmed = url.trim();
-  return trimmed.startsWith("http://") || trimmed.startsWith("https://");
+  try {
+    const parsed = new URL(url.trim());
+    const host = parsed.hostname.toLowerCase();
+    return parsed.protocol === "https:" && !parsed.username && !parsed.password &&
+      (!parsed.port || parsed.port === "443") && host.includes(".") &&
+      !/^[\d.]+$/.test(host) && !host.includes(":") &&
+      !/(^|\.)(localhost|local|internal|test|invalid|example)$/.test(host);
+  } catch { return false; }
 }
 
 /** Detecção de data URL (upload local do browser). */

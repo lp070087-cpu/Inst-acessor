@@ -18,12 +18,13 @@
 
 import { pub } from "./db";
 import { prisma } from "@/lib/db";
+import { resolvePremiumAccess } from "@/lib/access/premium";
 import { recordUsage } from "@/lib/billing/usage/meter";
-import { enqueuePublication, getQueueItem, markProcessing, markPublished, markFailed, listQueue } from "./queue";
+import { enqueuePublication, getQueueItem, markProcessing, markPublished, markFailed, listQueue, cancelQueueItem, quarantineExpiredPublications } from "./queue";
 import { decideRetry, logAttempt } from "./retry";
 import { getAdapter } from "./adapters";
 import { friendlyMessage, sanitizeMessage, toPublishError } from "./errors";
-import { MAX_AUTO_ATTEMPTS, type PublishPayload } from "./types";
+import { MAX_AUTO_ATTEMPTS, type PublishPayload, type PublishResult } from "./types";
 
 // ------------------------------------------------------------
 // Tipos públicos
@@ -230,10 +231,8 @@ export async function cancelScheduledContent(
   if (!item) return { ok: false, error: "Item não encontrado." };
   if (item.status === "PUBLICADO") return { ok: false, error: "Já publicado — não é possível cancelar." };
 
-  const updated = await pub.queue.update({
-    where: { id: queueId },
-    data: { status: "CANCELADO", nextAttemptAt: null },
-  });
+  const updated = await cancelQueueItem(userId, queueId);
+  if (!updated) return { ok: false, error: "Publicação em processamento ou aguardando conferência; não é possível cancelar." };
 
   await logAttempt({
     userId,
@@ -322,6 +321,7 @@ export interface ProcessQueueResult {
  * sempre via adapter com confirmação real.
  */
 export async function processQueue(limit = 20): Promise<ProcessQueueResult> {
+  await quarantineExpiredPublications();
   const now = new Date();
 
   const due = (await pub.queue.findMany({
@@ -366,8 +366,12 @@ export async function processQueueItem(
   userId: string,
   queueId: string
 ): Promise<PublishContentResult> {
+  const owner = await prisma.user.findUnique({ where: { id: userId }, select: { status: true } });
+  if (!owner || owner.status !== "ACTIVE" || !(await resolvePremiumAccess(userId)).hasAccess) {
+    return { ok: false, errorCode: "AUTH", errorMessage: "Conta sem autorização ativa para publicar." };
+  }
   // Marca como PROCESSANDO (guarda contra corrida/cancelamento).
-  const marked = await markProcessing(queueId);
+  const marked = await markProcessing(userId, queueId);
   if (!marked) {
     return { ok: false, errorCode: "VALIDATION", errorMessage: "Não foi possível processar este item." };
   }
@@ -401,7 +405,18 @@ export async function processQueueItem(
 
   // Publica via adapter (pode retornar INTEGRATION_NOT_CONFIGURED).
   try {
-    const result = await adapter.publish(payload);
+    const previous = item.externalId
+      ? await adapter.getStatus({ contentId: item.contentId, platform: item.platform, externalId: item.externalId })
+      : null;
+    const result: PublishResult = previous
+      ? {
+          ok: previous.ok && previous.status === "LIVE",
+          externalId: item.externalId ?? undefined,
+          publishedAt: previous.publishedAt,
+          errorCode: previous.status === "PROCESSING" ? "RETRYABLE" : previous.errorCode ?? "PERMANENT",
+          errorMessage: previous.errorMessage ?? "Aguardando confirmação da publicação já enviada.",
+        }
+      : await adapter.publish(payload);
 
     if (result.ok && result.externalId) {
       // Confirmação REAL do provider.

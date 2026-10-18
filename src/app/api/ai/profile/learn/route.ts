@@ -1,3 +1,4 @@
+import { withPremiumApi } from "@/lib/auth/premium-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -17,7 +18,7 @@ export const dynamic = "force-dynamic";
  *
  * Tudo escopado por `session.user.id`. Nada é lido nem gravado de outro usuário.
  */
-export async function POST() {
+async function POSTHandler() {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -57,3 +58,5 @@ export async function POST() {
     );
   }
 }
+
+export const POST = withPremiumApi(POSTHandler);

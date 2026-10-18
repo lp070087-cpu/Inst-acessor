@@ -181,7 +181,7 @@ async function getUsageLocked(
       };
       const [ns, key] = userLockKey(userId);
       // Lock só desta transação: some no commit/rollback, sem cleanup.
-      await txc.$executeRawUnsafe("SELECT pg_advisory_xact_lock($1, $2)", ns, key);
+      await txc.$executeRawUnsafe("SELECT pg_advisory_xact_lock($1::integer, $2::integer)", ns, key);
 
       const readOne = async (window: "DAY" | "CYCLE", k: string) => {
         const row = await txc.usageCounter.findUnique({
@@ -339,7 +339,7 @@ export async function reserveUsage(input: {
         };
       };
       const [ns, lk] = userLockKey(userId);
-      await txc.$executeRawUnsafe("SELECT pg_advisory_xact_lock($1, $2)", ns, lk);
+      await txc.$executeRawUnsafe("SELECT pg_advisory_xact_lock($1::integer, $2::integer)", ns, lk);
 
       const readOne = async (window: "DAY" | "CYCLE", k: string) => {
         const row = await txc.usageCounter.findUnique({

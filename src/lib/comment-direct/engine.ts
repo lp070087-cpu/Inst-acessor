@@ -1,5 +1,8 @@
 import { matchesTrigger, SKIP_REASONS, type SkipReason } from "./triggers";
 import { recordUsage } from "@/lib/billing/usage/meter";
+import { prisma } from "@/lib/db";
+import { resolvePremiumAccess } from "@/lib/access/premium";
+import { claimDirectDelivery } from "./delivery-claim";
 import {
   activeRulesForMedia,
   alreadyMessagedUser,
@@ -77,6 +80,10 @@ function skipped(reason: SkipReason, rule: DirectRuleRow | null, matched: string
  * idempotência e impediria uma regra seguinte de casar o mesmo comentário.
  */
 export async function evaluateComment(input: EvaluateInput): Promise<EvaluateOutcome> {
+  const owner = await prisma.user.findUnique({ where: { id: input.userId }, select: { status: true } });
+  if (!owner || owner.status !== "ACTIVE" || !(await resolvePremiumAccess(input.userId)).hasAccess) {
+    return { ruleId: null, status: "BLOCKED", reason: "Conta sem autorização ativa.", matchedTrigger: null, externalMessageId: null };
+  }
   // ---- IDEMPOTÊNCIA, ANTES DE QUALQUER COISA ----
   // Um único registro por (mediaId, commentId) governa tudo: se já existe, o
   // comentário já foi avaliado (enviado, ignorado ou simulado) e não se reavalia.
@@ -266,6 +273,11 @@ export async function evaluateComment(input: EvaluateInput): Promise<EvaluateOut
         matchedTrigger: log.matchedTrigger,
         externalMessageId: log.externalMessageId,
       };
+    }
+
+    if (!(await claimDirectDelivery({ logId: log.id, userId: input.userId, ruleId: rule.id,
+      commenterId: input.commenterId, onePerUser: rule.onePerUser, dailyLimit: rule.dailyLimit }))) {
+      return { ruleId: rule.id, status: "BLOCKED", reason: "Envio já reservado ou limite atingido.", matchedTrigger: log.matchedTrigger, externalMessageId: log.externalMessageId };
     }
 
     // ---- ENVIO ----

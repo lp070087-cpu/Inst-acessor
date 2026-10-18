@@ -1,3 +1,4 @@
+import { withPremiumApi } from "@/lib/auth/premium-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -23,7 +24,7 @@ const copyRateLimiter = createRateLimiter({ windowMs: 60_000, max: 30 });
  * POST /api/ai/generate-copy
  * Gera uma copy via IA (sem salvar). Salvar → /api/copy.
  */
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -70,3 +71,5 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export const POST = withPremiumApi(POSTHandler);

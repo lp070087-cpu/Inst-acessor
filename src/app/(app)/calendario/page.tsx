@@ -55,6 +55,7 @@ export default async function CalendarPage() {
 
       <CalendarClient
         initial={{
+          renderedAt: new Date().toISOString(),
           contents: contents.map((c) => ({
             id: c.id,
             platform: c.platform,

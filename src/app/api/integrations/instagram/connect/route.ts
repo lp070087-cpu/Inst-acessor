@@ -1,3 +1,4 @@
+import { withSessionApi } from "@/lib/auth/session-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -17,7 +18,7 @@ export const dynamic = "force-dynamic";
  * A interface do SaaS mostra apenas "Conectar Instagram"; a autenticação
  * da Meta (infraestrutura) acontece internamente, no servidor.
  */
-export async function GET() {
+async function GETHandler() {
   let session;
   try {
     session = await requireSession();
@@ -80,3 +81,5 @@ export async function GET() {
     );
   }
 }
+
+export const GET = withSessionApi(GETHandler);

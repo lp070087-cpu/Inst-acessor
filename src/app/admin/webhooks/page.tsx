@@ -110,7 +110,7 @@ export default async function AdminWebhooksPage() {
   let kiwifyEnvUrl = KIWIFY_PROD_URL;
   let kactoEnvUrl = KACTO_PROD_URL;
   try {
-    const h = headers();
+    const h = await headers();
     const host = h.get("host");
     if (host) {
       const proto = h.get("x-forwarded-proto") === "http" ? "http" : "https";

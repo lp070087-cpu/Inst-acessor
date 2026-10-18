@@ -1,3 +1,4 @@
+import { withPremiumApi } from "@/lib/auth/premium-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -7,7 +8,7 @@ import { updateTemplateSchema } from "@/lib/validators/comment-replies";
 export const dynamic = "force-dynamic";
 
 /** PATCH /api/comment-replies/templates/[id] — edita um template do usuário. */
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+async function PATCHHandler(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireSession();
     const body = await request.json();
@@ -19,7 +20,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       );
     }
 
-    const template = await updateTemplate(session.user.id, params.id, parsed.data);
+    const template = await updateTemplate(session.user.id, (await params).id, parsed.data);
     if (!template) {
       return NextResponse.json({ error: "Resposta não encontrada." }, { status: 404 });
     }
@@ -31,10 +32,10 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 }
 
 /** DELETE /api/comment-replies/templates/[id] — remove um template do usuário. */
-export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
+async function DELETEHandler(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireSession();
-    const ok = await deleteTemplate(session.user.id, params.id);
+    const ok = await deleteTemplate(session.user.id, (await params).id);
     if (!ok) {
       return NextResponse.json({ error: "Resposta não encontrada." }, { status: 404 });
     }
@@ -44,3 +45,7 @@ export async function DELETE(_request: Request, { params }: { params: { id: stri
     return NextResponse.json({ error: "Não foi possível remover a resposta." }, { status: 500 });
   }
 }
+
+export const PATCH = withPremiumApi(PATCHHandler);
+
+export const DELETE = withPremiumApi(DELETEHandler);

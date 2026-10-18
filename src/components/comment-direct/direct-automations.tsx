@@ -97,6 +97,7 @@ interface DirectAutomationsProps {
 }
 
 const STATUS_TONE: Record<string, "success" | "warning" | "danger" | "neutral" | "info"> = {
+  PROCESSING: "warning",
   SENT: "success",
   SKIPPED: "neutral",
   BLOCKED: "warning",
@@ -106,6 +107,7 @@ const STATUS_TONE: Record<string, "success" | "warning" | "danger" | "neutral" |
 };
 
 const STATUS_LABEL: Record<string, string> = {
+  PROCESSING: "Em envio ou conferência",
   SENT: "Enviada",
   SKIPPED: "Ignorada",
   BLOCKED: "Bloqueada",

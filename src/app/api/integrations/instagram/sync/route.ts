@@ -1,3 +1,4 @@
+import { withSessionApi } from "@/lib/auth/session-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -23,7 +24,7 @@ export const dynamic = "force-dynamic";
  * 12. atualiza lastSyncAt
  * 13. retorna resumo SEGURO (sem token)
  */
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   let session;
   try {
     session = await requireSession();
@@ -54,3 +55,5 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ ok: true, summary: result.summary });
 }
+
+export const POST = withSessionApi(POSTHandler);

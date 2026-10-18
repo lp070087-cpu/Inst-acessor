@@ -1,3 +1,4 @@
+import { withSessionApi } from "@/lib/auth/session-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -26,7 +27,7 @@ export const dynamic = "force-dynamic";
  * Session-required + owner-check.
  */
 
-export async function GET(request: Request) {
+async function GETHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -69,7 +70,7 @@ export async function GET(request: Request) {
  * A criação de regra legada foi ENCERRADA: uma regra que ninguém avalia é uma
  * promessa falsa ao usuário. Redireciona para o motor real.
  */
-export async function POST() {
+async function POSTHandler() {
   return NextResponse.json(
     {
       error:
@@ -81,7 +82,7 @@ export async function POST() {
   );
 }
 
-export async function DELETE(request: Request) {
+async function DELETEHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -104,3 +105,9 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "Não foi possível excluir a regra." }, { status: 500 });
   }
 }
+
+export const GET = withSessionApi(GETHandler);
+
+export const POST = withSessionApi(POSTHandler);
+
+export const DELETE = withSessionApi(DELETEHandler);

@@ -1,3 +1,4 @@
+import { withSessionApi } from "@/lib/auth/session-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -11,7 +12,7 @@ export const dynamic = "force-dynamic";
  *   POST /api/rank/conquistas            → dispara verificação de desbloqueio
  *                                          (concede XP da conquista UMA vez)
  */
-export async function GET(request: Request) {
+async function GETHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -33,7 +34,7 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST() {
+async function POSTHandler() {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -49,3 +50,7 @@ export async function POST() {
     );
   }
 }
+
+export const GET = withSessionApi(GETHandler);
+
+export const POST = withSessionApi(POSTHandler);

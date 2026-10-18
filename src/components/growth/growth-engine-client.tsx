@@ -307,7 +307,7 @@ export function GrowthEngineClient({ initial }: { initial: EnginePayload | null 
                     </Button>
                   )}
                   {a.status === "PENDING" && (
-                    <Button size="sm" variant="ghost" onClick={() => updateAction(a.id, "DISMISSED")}>
+                    <Button size="sm" variant="ghost" aria-label={`Dispensar ação: ${a.title}`} onClick={() => updateAction(a.id, "DISMISSED")}>
                       <XCircle size={13} />
                     </Button>
                   )}

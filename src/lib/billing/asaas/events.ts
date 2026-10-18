@@ -1,4 +1,7 @@
 import type { Subscription } from "@prisma/client";
+import { prisma, withDatabaseTransaction } from "@/lib/db";
+import { afterDatabaseCommit } from "@/lib/db-context";
+import { hasVerifiedIdentity } from "@/lib/auth/identity";
 import { bll, type CheckoutOrder } from "@/lib/billing/db";
 import { getPlanById } from "@/lib/billing/plans";
 import { normalizeEmail } from "@/lib/first-access/core";
@@ -68,6 +71,22 @@ const DAY_MS = 86_400_000;
 export async function handleAsaasEvent(
   parsed: ParsedAsaasEvent
 ): Promise<HandleAsaasEventResult> {
+  try {
+    return await withDatabaseTransaction(async () => {
+      // Serialize all billing effects, including distinct events for one charge.
+      // Transaction-scoped lock is released by PostgreSQL on commit/crash.
+      await prisma.$executeRaw`SELECT pg_advisory_xact_lock(740001::bigint)`;
+      const result = await applyAsaasEvent(parsed);
+      if (result.failed) throw new Error("Billing event transaction failed");
+      return result;
+    });
+  } catch {
+    console.error("[asaas-events] transação não concluída; evento pode ser reenviado");
+    return { duplicate: false, failed: true, outcome: null };
+  }
+}
+
+async function applyAsaasEvent(parsed: ParsedAsaasEvent): Promise<HandleAsaasEventResult> {
   // 1) CLAIM (processed:false) — idempotência por eventId único.
   //    Se o eventId já existir com processed:false (falha anterior), REPROCESSA
   //    a mesma linha em vez de tratar como duplicado (regra 13: falhas ficam
@@ -75,7 +94,12 @@ export async function handleAsaasEvent(
   let claim: { id: string };
   let isRetry = false;
   try {
-    claim = (await bll.billingEvent.create({
+    const existing = await bll.billingEvent.findUnique({ where: { eventId: parsed.eventId } });
+    if (existing?.processed) return { duplicate: true, failed: false, outcome: null };
+    if (existing) {
+      claim = { id: existing.id };
+      isRetry = true;
+    } else claim = (await bll.billingEvent.create({
       data: {
         eventId: parsed.eventId,
         provider: "asaas",
@@ -99,7 +123,7 @@ export async function handleAsaasEvent(
         select: { id: true, processed: true },
       })) as unknown as EventClaimRow | null;
     } catch (err) {
-      console.error("[asaas-events] banco indisponível ao reivindicar o evento", err);
+      console.error("[asaas-events] banco indisponível ao reivindicar o evento");
       // Nada foi gravado: falha reprocessável (o Asaas reenviará).
       return { duplicate: false, failed: true, outcome: null };
     }
@@ -124,7 +148,7 @@ export async function handleAsaasEvent(
   } catch (err) {
     // Falha ao aplicar → MANTÉM processed:false (regra 13) + aplica erro no
     // payload para auditoria. A rota responde 5xx → o Asaas reenviará.
-    console.error("[asaas-events] falha ao aplicar evento", parsed.event, err);
+    console.error("[asaas-events] falha ao aplicar evento", parsed.event);
     try {
       const prior = isRetry
         ? (((await bll.billingEvent.findUnique({
@@ -139,8 +163,7 @@ export async function handleAsaasEvent(
           payload: {
             ...((sanitizeAsaasPayload(parsed.raw) as object | null) ?? {}),
             ...(prior as object),
-            applyError:
-              err instanceof Error ? err.message : "Erro ao aplicar evento",
+            applyError: "Falha transacional ao aplicar evento",
             retryCount:
               typeof (prior as { retryCount?: unknown }).retryCount === "number"
                 ? ((prior as { retryCount: number }).retryCount + 1)
@@ -150,7 +173,7 @@ export async function handleAsaasEvent(
         },
       });
     } catch (e2) {
-      console.error("[asaas-events] falha ao registrar erro do evento", e2);
+      console.error("[asaas-events] falha ao registrar erro do evento");
     }
     return { duplicate: false, failed: true, outcome: null };
   }
@@ -171,7 +194,8 @@ export async function handleAsaasEvent(
       },
     });
   } catch (err) {
-    console.error("[asaas-events] falha ao finalizar registro do evento", err);
+    console.error("[asaas-events] falha ao finalizar registro do evento");
+    return { duplicate: false, failed: true, outcome: null };
   }
 
   return { duplicate: false, failed: false, outcome };
@@ -187,6 +211,19 @@ async function dispatch(parsed: ParsedAsaasEvent): Promise<ApplyOutcome> {
 
   // 1) Eventos de pagamento confirmado → fluxo principal (ordem ou renovação).
   if (parsed.event === "PAYMENT_CONFIRMED" || parsed.event === "PAYMENT_RECEIVED") {
+    if (parsed.externalPaymentId) {
+      const grant = await bll.accessGrant.findFirst({ where: { origin: "ASAAS", externalPaymentId: parsed.externalPaymentId } });
+      if (grant) return "duplicate_payment";
+      const revoked = await bll.billingEvent.findFirst({ where: {
+        provider: "asaas", processed: true,
+        type: { in: ["PAYMENT_REFUNDED", "PAYMENT_CHARGEBACK_REQUESTED", "PAYMENT_CHARGEBACK_DISPUTE"] },
+        OR: [
+          { eventId: { in: ["PAYMENT_REFUNDED", "PAYMENT_CHARGEBACK_REQUESTED", "PAYMENT_CHARGEBACK_DISPUTE"].map((type) => `${type}:${parsed.externalPaymentId}`) } },
+          { payload: { path: ["payment", "id"], equals: parsed.externalPaymentId } },
+        ],
+      } });
+      if (revoked) return "ignored";
+    }
     if (order) return applyOrderPayment(parsed, order);
     return applySubscriptionRenewalOnly(parsed);
   }
@@ -285,7 +322,7 @@ async function applyOrderPayment(
   if (parsed.amountCents !== order.expectedAmountCents) return "ignored";
 
   const plan = await getPlanById(order.planId ?? order.planSlug);
-  if (!plan || !plan.active) return "ignored";
+  if (!plan || plan.slug !== order.planSlug) return "ignored";
 
   // AQUI ESTAVA O DEFEITO DA PRÉ-VENDA (P17/P21).
   // Antes: `if (plan.priceCents !== order.expectedAmountCents) return "ignored"`.
@@ -298,9 +335,8 @@ async function applyOrderPayment(
   // A conferência correta é contra o CONJUNTO de valores legítimos daquele
   // plano (cheio + promocional vigente), que é exatamente o conjunto que o
   // checkout poderia ter cobrado. Valor fora dele continua recusado.
-  if (!(await isChargeAmountLegitimate(plan.slug, plan.priceCents, parsed.amountCents))) {
-    return "ignored";
-  }
+  // The immutable server-created order is the price agreement. A promotion
+  // expiring or sales being disabled later must not invalidate a paid order.
   if (!parsed.externalPaymentId) return "ignored"; // sem âncora estável
 
   // ---- Replay exato do mesmo pagamento → não duplica (regra 17) ----
@@ -398,7 +434,7 @@ async function applyRecurringCharge(input: {
 
   // Localiza a assinatura (âncora de extensão). Se o comprador ainda não tem
   // conta, não há Subscription local — o grant por e-mail é a âncora.
-  let sub = await findSubscriptionByExternalId(
+  const sub = await findSubscriptionByExternalId(
     parsed.externalSubscriptionId ?? order.externalSubscriptionId ?? null,
     order.externalPaymentId ?? null
   );
@@ -526,13 +562,15 @@ async function applySubscriptionRenewalOnly(
   if (!sub) return "noop";
 
   const plan = await getPlanById(sub.planId);
-  if (!plan || !plan.active) return "ignored";
+  if (!plan) return "ignored";
   if (parsed.amountCents === null) return "ignored";
   // Renovação SEM ordem local: aqui o preço de referência é o do catálogo, mas a
   // pré-venda também precisa valer — quem assinou no valor promocional é cobrado
   // assim pelo Asaas, e recusar essa cobrança apagaria o acesso de quem pagou.
   // Mesmo conjunto fechado do checkout (cheio + promocional vigente).
-  if (!(await isChargeAmountLegitimate(plan.slug, plan.priceCents, parsed.amountCents))) {
+  if (sub.amountCents != null && sub.amountCents > 0
+    ? parsed.amountCents !== sub.amountCents
+    : !(await isChargeAmountLegitimate(plan.slug, plan.priceCents, parsed.amountCents))) {
     return "ignored";
   }
   if (!parsed.externalPaymentId) return "ignored";
@@ -612,7 +650,8 @@ async function applyOrderLifecycle(
   order: CheckoutOrder
 ): Promise<ApplyOutcome> {
   switch (parsed.event) {
-    case "PAYMENT_CANCELED": {
+    case "PAYMENT_CANCELED":
+    case "PAYMENT_DELETED": {
       if (order.status === "PAID") return "noop"; // pago não é desfeito aqui
       await bll.checkoutOrder.update({
         where: { id: order.id },
@@ -624,8 +663,9 @@ async function applyOrderLifecycle(
       return "applied";
     }
 
-    case "PAYMENT_REFUNDED": {
-      if (order.status !== "PAID") return "noop";
+    case "PAYMENT_REFUNDED":
+    case "PAYMENT_CHARGEBACK_REQUESTED":
+    case "PAYMENT_CHARGEBACK_DISPUTE": {
       await revokeAccessForRefund(order, parsed);
       await bll.checkoutOrder.update({
         where: { id: order.id },
@@ -726,7 +766,7 @@ async function applySubscriptionLifecycleOnly(
   // revogar o grant. Sem este ramo, o evento caía no `default` → `noop`: o Asaas
   // devolvia o dinheiro e o acesso local permanecia liberado até o fim do
   // período — silenciosamente.
-  if (parsed.event === "PAYMENT_REFUNDED") {
+  if (["PAYMENT_REFUNDED", "PAYMENT_CHARGEBACK_REQUESTED", "PAYMENT_CHARGEBACK_DISPUTE"].includes(parsed.event)) {
     return revokeRefundWithoutOrder(parsed);
   }
 
@@ -767,14 +807,11 @@ interface Buyer {
 
 async function resolveOrCreateBuyer(order: CheckoutOrder): Promise<Buyer> {
   const email = normalizeEmail(order.email) ?? order.email;
-  if (order.userId) {
-    return { userId: order.userId, email, userExists: true };
-  }
   const user = (await bll.user.findUnique({
     where: { email },
-    select: { id: true },
-  })) as unknown as { id: string } | null;
-  return { userId: user?.id ?? null, email, userExists: Boolean(user) };
+    select: { id: true, emailVerified: true, firstAccessCompleted: true },
+  })) as unknown as { id: string; emailVerified: Date | null; firstAccessCompleted: boolean } | null;
+  return { userId: hasVerifiedIdentity(user) ? user!.id : null, email, userExists: Boolean(user) };
 }
 
 // ---------------------------------------------------------------
@@ -897,11 +934,7 @@ async function upsertPaidPayment(input: {
   if (existing) {
     await bll.payment.update({ where: { id: existing.id }, data });
   } else {
-    try {
-      await bll.payment.create({ data });
-    } catch {
-      /* Payment.eventId @@unique — um concorrente pode ter criado; segue */
-    }
+    await bll.payment.create({ data });
   }
 }
 
@@ -966,13 +999,7 @@ async function upsertChargeGrant(input: {
     /* auditoria best-effort: nunca derruba a concessão */
   }
 
-  try {
-    await bll.accessGrant.create({ data: { ...data, email } });
-  } catch {
-    // @@unique([email, origin, externalPaymentId]) — concorrência: outra
-    // entrega do mesmo evento venceu. NÃO reenvia (evita e-mail duplicado).
-    return false;
-  }
+  await bll.accessGrant.create({ data: { ...data, email } });
 
   // Se o comprador estava na LISTA DE ESPERA (com ou sem convite), o pagamento
   // confirmado o marca como CONVERTED — o painel mostra a conversão real.
@@ -989,13 +1016,11 @@ async function upsertChargeGrant(input: {
   // o processamento do webhook nem impedir a liberação já concedida. Só é
   // disparado na CRIAÇÃO de um grant novo (nunca em replay/atualização).
   if (!buyer.userId && email) {
-    void sendAccessReleasedEmail({
+    afterDatabaseCommit(() => sendAccessReleasedEmail({
       to: email,
       planName,
       appUrl: `${getAppBaseUrl()}/primeiro-acesso`,
-    }).catch(() => {
-      /* nunca derruba o fluxo */
-    });
+    }));
   }
 
   return true;

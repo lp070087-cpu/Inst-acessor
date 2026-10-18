@@ -1,3 +1,4 @@
+import { withPremiumApi } from "@/lib/auth/premium-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -23,7 +24,7 @@ const chatRateLimiter = createRateLimiter({ windowMs: 60_000, max: 60 });
  * Envia uma mensagem ao chat IA Acessor. Cria a conversa se necessário.
  * Requer sessão + input Zod. Sem provider configurado → estado controlado.
  */
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -86,3 +87,5 @@ function serializeConversation(conv: {
     })),
   };
 }
+
+export const POST = withPremiumApi(POSTHandler);

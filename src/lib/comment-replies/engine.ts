@@ -1,6 +1,8 @@
 ﻿import { aiConfigured } from "@/lib/ai";
 import { getAIProfile } from "@/lib/ai/services/profile";
 import { prisma } from "@/lib/db";
+import { resolvePremiumAccess } from "@/lib/access/premium";
+import { claimCommentReply } from "./delivery-claim";
 import { recordUsage } from "@/lib/billing/usage/meter";
 import { classifyComment } from "./classify";
 import { analyzeEmptyReason, type AnalyzeEmptyReason } from "./empty-reason";
@@ -598,6 +600,10 @@ export async function sendApprovedReply(
   finalReply: string,
   origin: "MANUAL" | "AUTO" = "MANUAL"
 ): Promise<{ ok: boolean; error?: string; code?: string; replyId?: string }> {
+  const owner = await prisma.user.findUnique({ where: { id: userId }, select: { status: true } });
+  if (!owner || owner.status !== "ACTIVE" || !(await resolvePremiumAccess(userId)).hasAccess) {
+    return { ok: false, error: "Conta sem autorização ativa.", code: "access" };
+  }
   const log = await findLogById(userId, logId);
 
   if (!log) return { ok: false, error: "Registro não encontrado.", code: "not_found" };
@@ -643,6 +649,8 @@ export async function sendApprovedReply(
     return { ok: false, error: info?.message ?? "Sem conexão com o Instagram.", code: info?.code ?? "no_connection" };
   }
 
+  if (!(await claimCommentReply(userId, logId))) return { ok: false, error: "Resposta em envio, aguardando conferência ou limitada.", code: "processing" };
+
   try {
     const { externalReplyId } = await replyToComment(log.commentId, text, credentials);
 
@@ -673,7 +681,7 @@ export async function sendApprovedReply(
         ? err
         : new CommentCapabilityError("api", "Não foi possível publicar a resposta.");
 
-    await updateLog(userId, logId, { status: "ERROR", errorCode: info.code });
+    await updateLog(userId, logId, { status: "ERROR", errorCode: "reconciliation_required" });
 
     // Pausa conforme a natureza do erro — sem laço infinito de tentativas.
     const pause = pauseForError(info.code);

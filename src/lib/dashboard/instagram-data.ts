@@ -388,7 +388,7 @@ function computeTimeline(
   }
 
   let bestReachDay: { date: string; value: number } | null = null;
-  let bestEngagementDay: { date: string; value: number } | null = null;
+  const bestEngagementDay: { date: string; value: number } | null = null;
   let biggestFollowerPeak: { date: string; value: number } | null = null;
   let biggestDailyGain: { date: string; value: number } | null = null;
   let biggestDailyLoss: { date: string; value: number } | null = null;

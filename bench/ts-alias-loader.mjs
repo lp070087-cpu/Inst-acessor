@@ -30,6 +30,7 @@ function withExtension(url) {
 }
 
 export async function resolve(specifier, context, next) {
+  if (specifier === "next/server") return next("next/server.js", context);
   // Alias do projeto: @/ → src/
   if (specifier.startsWith("@/")) {
     return next(withExtension(SRC + specifier.slice(2)), context);

@@ -49,9 +49,10 @@ export const dynamic = "force-dynamic";
 export default async function CheckoutPage({
   searchParams,
 }: {
-  searchParams: { plano?: string; planId?: string };
+  searchParams: Promise<{ plano?: string; planId?: string }>;
 }) {
-  const raw = searchParams?.planId ?? searchParams?.plano ?? "";
+  const query = await searchParams;
+  const raw = query?.planId ?? query?.plano ?? "";
 
   const [session, plans] = await Promise.all([getSession(), listPlans()]);
   const authedEmail = session?.user?.email ?? null;

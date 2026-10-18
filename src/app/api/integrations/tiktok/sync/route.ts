@@ -1,3 +1,4 @@
+import { withSessionApi } from "@/lib/auth/session-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -9,7 +10,7 @@ export const dynamic = "force-dynamic";
  * Sincroniza os dados do TikTok do usuário autenticado.
  * Fluxo todo no servidor: valida sessão → sync (token nunca vai ao cliente).
  */
-export async function POST() {
+async function POSTHandler() {
   let session;
   try {
     session = await requireSession();
@@ -39,3 +40,5 @@ export async function POST() {
 
   return NextResponse.json({ ok: true, summary: result.summary });
 }
+
+export const POST = withSessionApi(POSTHandler);

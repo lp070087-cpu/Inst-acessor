@@ -17,6 +17,7 @@ import { AppLogo } from "@/components/layout/app-logo";
 import { SidebarNavItem } from "@/components/layout/sidebar-nav-item";
 import { Avatar } from "@/components/ui/avatar";
 import { IconButton } from "@/components/ui/icon-button";
+import { useDialogFocus } from "@/components/ui/use-dialog-focus";
 
 /** Largura recolhida/expandida da sidebar (rail x full). */
 const STORAGE_KEY = "inst-acessor:sidebar-collapsed";
@@ -145,6 +146,8 @@ export function AppSidebar({
   const displayAvatar = account ? account.avatar : user?.image ?? null;
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = React.useState(false);
+  const drawerRef = React.useRef<HTMLElement>(null);
+  useDialogFocus(mobileOpen, drawerRef, () => setMobileOpen(false));
   const [collapsed, setCollapsed] = React.useState(false);
   // id do grupo -> expandido? Ausência = "usar o padrão" (ativo abre, resto fecha).
   const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>({});
@@ -357,7 +360,7 @@ export function AppSidebar({
           {/* BLOCO 5 — safe area também aqui: no iPhone o drawer encosta nas
               bordas superior e inferior da tela, e o último item do menu ("Sair")
               ficava sob a barra de gestos. `env()` é 0 nos outros navegadores. */}
-          <aside className="absolute inset-y-0 left-0 w-[85%] max-w-[320px] bg-card border-r border-border-soft shadow-lg flex flex-col pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] animate-[fade-slide_.3s_var(--ease-out)]">
+          <aside ref={drawerRef} role="dialog" aria-modal="true" aria-label="Menu de navegação" tabIndex={-1} className="absolute inset-y-0 left-0 w-[85%] max-w-[320px] bg-card border-r border-border-soft shadow-lg flex flex-col pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] animate-[fade-slide_.3s_var(--ease-out)]">
             <div className="flex items-center justify-between h-16 px-5 border-b border-border-soft flex-none">
               <AppLogo />
               <IconButton label="Fechar menu" onClick={() => setMobileOpen(false)}>

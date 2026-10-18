@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Send } from "lucide-react";
 
-import { requireOnboardedSession } from "@/lib/auth/guard";
+import { requireOnboardedSession, requirePremiumPage } from "@/lib/auth/guard";
 import { listQueue } from "@/lib/publishing";
 import { listPlannedContent } from "@/lib/planning";
 import { PageHeader } from "@/components/layout/page-header";
@@ -15,6 +15,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function PublishingPage() {
+  await requirePremiumPage();
   const { session } = await requireOnboardedSession();
   const userId = session.user.id;
 

@@ -1,3 +1,4 @@
+import { withSessionApi } from "@/lib/auth/session-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -19,7 +20,7 @@ export const dynamic = "force-dynamic";
  * GET /api/rank — dados consolidados da página /rank (Fase 5).
  * Protegido por sessão. Todos os dados pertencem ao usuário autenticado.
  */
-export async function GET() {
+async function GETHandler() {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -141,3 +142,5 @@ export async function GET() {
     return NextResponse.json({ error: "Não foi possível carregar o ranking." }, { status: 500 });
   }
 }
+
+export const GET = withSessionApi(GETHandler);

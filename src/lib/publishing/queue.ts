@@ -73,11 +73,11 @@ export async function enqueuePublication(input: EnqueueInput): Promise<EnqueueRe
 
   if (existing) {
     // Só atualiza se ainda não foi publicado/falhou definitivamente.
-    if (existing.status === "PUBLICADO" || existing.status === "CANCELADO") {
+    if (["PUBLICADO", "CANCELADO", "PROCESSANDO"].includes(existing.status) || existing.errorCode === "RECONCILIATION_REQUIRED") {
       return { ok: false, error: "Este conteúdo já foi publicado ou cancelado." };
     }
-    await pub.queue.update({
-      where: { contentId_platform: { contentId, platform } },
+    const changed = await pub.queue.updateMany({
+      where: { id: existing.id, userId, status: { in: ["AGENDADO", "FALHOU"] }, OR: [{ errorCode: null }, { errorCode: { not: "RECONCILIATION_REQUIRED" } }] },
       data: {
         format,
         scheduledAt: data.scheduledAt,
@@ -87,6 +87,7 @@ export async function enqueuePublication(input: EnqueueInput): Promise<EnqueueRe
         errorMessage: null,
       },
     });
+    if (changed.count !== 1) return { ok: false, error: "A publicação mudou de estado. Atualize a página." };
     return { ok: true, queueId: existing.id };
   }
 
@@ -197,33 +198,42 @@ export async function cancelQueueItem(userId: string, queueId: string): Promise<
     status: string;
   } | null;
   if (!existing || existing.userId !== userId) return null;
-  if (existing.status === "PUBLICADO") return getQueueItem(userId, queueId);
-
-  const updated = await pub.queue.update({
-    where: { id: queueId },
-    data: { status: "CANCELADO" },
+  if (!["AGENDADO", "FALHOU"].includes(existing.status)) return null;
+  const changed = await pub.queue.updateMany({
+    where: { id: queueId, userId, status: { in: ["AGENDADO", "FALHOU"] }, OR: [{ errorCode: null }, { errorCode: { not: "RECONCILIATION_REQUIRED" } }] },
+    data: { status: "CANCELADO", nextAttemptAt: null },
   });
-  return toView(updated as unknown as Parameters<typeof toView>[0]);
+  return changed.count === 1 ? getQueueItem(userId, queueId) : null;
 }
 
 /** Marca um item como PROCESSANDO e registra a tentativa (guard). */
-export async function markProcessing(queueId: string): Promise<boolean> {
-  const existing = (await pub.queue.findUnique({ where: { id: queueId } })) as unknown as {
-    status: string;
-  } | null;
-  if (!existing) return false;
-  if (existing.status === "CANCELADO") return false;
-  await pub.queue.update({
-    where: { id: queueId },
+export async function markProcessing(userId: string, queueId: string): Promise<boolean> {
+  const claimed = await pub.queue.updateMany({
+    where: {
+      id: queueId, userId,
+      status: { in: ["AGENDADO", "FALHOU"] },
+      AND: [{ OR: [{ errorCode: null }, { errorCode: { not: "RECONCILIATION_REQUIRED" } }] }],
+      OR: [{ nextAttemptAt: null }, { nextAttemptAt: { lte: new Date() } }],
+    },
     data: { status: "PROCESSANDO", lastAttemptAt: new Date(), idempotencyKey: randomIdempotencyKey() },
   });
-  return true;
+  return claimed.count === 1;
+}
+
+/** A dead worker may have succeeded remotely. Quarantine instead of republishing. */
+export async function quarantineExpiredPublications(): Promise<number> {
+  const result = await pub.queue.updateMany({
+    where: { status: "PROCESSANDO", lastAttemptAt: { lt: new Date(Date.now() - 10 * 60_000) } },
+    data: { status: "FALHOU", nextAttemptAt: null, errorCode: "RECONCILIATION_REQUIRED",
+      errorMessage: "Confirme o resultado na rede social antes de tentar novamente." },
+  });
+  return result.count;
 }
 
 /** Marca como PUBLICADO com confirmação real (externalId). */
 export async function markPublished(queueId: string, externalId: string): Promise<void> {
-  await pub.queue.update({
-    where: { id: queueId },
+  const result = await pub.queue.updateMany({
+    where: { id: queueId, status: "PROCESSANDO" },
     data: {
       status: "PUBLICADO",
       externalId,
@@ -232,6 +242,7 @@ export async function markPublished(queueId: string, externalId: string): Promis
       errorMessage: null,
     },
   });
+  if (result.count !== 1) throw new Error("Publication claim no longer active; reconciliation required");
 }
 
 /** Marca como FALHOU (com erro classificado) e agenda backoff se retryável. */
@@ -252,7 +263,11 @@ export async function markFailed(
   // Persiste um id externo de processo (ex.: publish_id do TikTok) mesmo em
   // falha retryável, para a próxima tentativa não duplicar a publicação.
   if (externalId) data.externalId = externalId;
-  if (retryable && attempts < MAX_AUTO_ATTEMPTS) {
+  if (errorCode === "RETRYABLE" && !externalId) {
+    data.errorCode = "RECONCILIATION_REQUIRED";
+    data.errorMessage = "Resultado do envio incerto. Confira a rede social antes de tentar novamente.";
+    data.nextAttemptAt = null;
+  } else if (retryable && attempts < MAX_AUTO_ATTEMPTS) {
     // Backoff: 5min, 15min, 45min (exponencial simples).
     const delayMs = 5 * 60 * 1000 * Math.pow(3, attempts - 1);
     data.status = "AGENDADO";
@@ -262,7 +277,7 @@ export async function markFailed(
   } else {
     data.nextAttemptAt = null;
   }
-  await pub.queue.update({ where: { id: queueId }, data });
+  await pub.queue.updateMany({ where: { id: queueId, status: "PROCESSANDO" }, data });
 }
 
 function randomIdempotencyKey(): string {

@@ -1,3 +1,4 @@
+import { withAdminApi } from "@/lib/auth/admin-api";
 import { NextResponse } from "next/server";
 
 import { requireAdminSession } from "@/lib/auth/guard";
@@ -20,7 +21,7 @@ function isGatewayId(v: unknown): v is GatewayId {
   return typeof v === "string" && (ALL_GATEWAYS as string[]).includes(v);
 }
 
-export async function GET() {
+async function GETHandler() {
   await requireAdminSession();
   try {
     const config = await getGatewayConfig();
@@ -32,7 +33,7 @@ export async function GET() {
   }
 }
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const { session } = await requireAdminSession();
   let body: unknown;
   try {
@@ -215,3 +216,7 @@ export async function POST(request: Request) {
     { status: 400 }
   );
 }
+
+export const GET = withAdminApi(GETHandler);
+
+export const POST = withAdminApi(POSTHandler);

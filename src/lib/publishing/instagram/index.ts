@@ -276,10 +276,8 @@ async function checkMediaReachable(url: string): Promise<{ ok: true } | { ok: fa
     return { ok: false, host: "(url inválida)", status: 0 };
   }
   try {
-    const res = await fetch(url, { method: "GET", signal: AbortSignal.timeout(15000) });
-    // 2xx/3xx = a Meta consegue baixar. 200 parcial também serve.
-    if (res.ok || (res.status >= 300 && res.status < 400)) return { ok: true };
-    return { ok: false, host, status: res.status };
+    const { probePublicMedia } = await import("../media-reachability");
+    return await probePublicMedia(url) ? { ok: true } : { ok: false, host, status: 0 };
   } catch {
     return { ok: false, host, status: 0 };
   }
@@ -397,7 +395,7 @@ async function publishInstagram(payload: PublishPayload, userId: string): Promis
     }
 
     // 4b) Cria o container (único ou pai do carrossel).
-    let creationBody: Record<string, string> = { access_token: accessToken };
+    const creationBody: Record<string, string> = { access_token: accessToken };
     if (parent.mediaType === "CAROUSEL") {
       creationBody.media_type = "CAROUSEL";
       creationBody.children = containerIds.join(",");

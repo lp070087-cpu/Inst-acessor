@@ -204,6 +204,7 @@ interface CopyVersion {
 }
 
 interface CalendarInitialData {
+  renderedAt: string;
   contents: ContentItem[];
   weekly: WeeklyData;
   ideas: IdeaData[];
@@ -294,7 +295,15 @@ export function CalendarClient({ initial }: CalendarClientProps) {
   const { toast } = useToast();
   const [contents, setContents] = React.useState<ContentItem[]>(initial.contents);
   const [view, setView] = React.useState<"month" | "week" | "list">("month");
-  const [anchor, setAnchor] = React.useState<Date>(new Date());
+  // Shared initial calendar day prevents server/client clocks and time zones
+  // from producing different markup. Local day is applied after hydration.
+  const initialDay = React.useMemo(() => {
+    const stamp = new Date(initial.renderedAt);
+    return new Date(stamp.getUTCFullYear(), stamp.getUTCMonth(), stamp.getUTCDate());
+  }, [initial.renderedAt]);
+  const [anchor, setAnchor] = React.useState<Date>(initialDay);
+  const [todayDate, setTodayDate] = React.useState<Date>(initialDay);
+  React.useEffect(() => { const local = new Date(); setAnchor(local); setTodayDate(local); }, []);
   const [loading, setLoading] = React.useState(false);
 
   // Filtros
@@ -620,7 +629,7 @@ export function CalendarClient({ initial }: CalendarClientProps) {
           >
             <ChevronRight size={17} />
           </button>
-          <span className="text-[14px] font-display font-bold text-ink capitalize ml-2 w-36 text-right">
+          <span className="text-[14px] font-display font-bold text-ink capitalize ml-1 min-w-0 flex-1 sm:w-36 text-right">
             {anchorLabel}
           </span>
         </div>
@@ -629,6 +638,7 @@ export function CalendarClient({ initial }: CalendarClientProps) {
       {/* Filtros */}
       <div className="flex flex-wrap items-center gap-2.5">
         <select
+          aria-label="Filtrar por plataforma"
           value={fPlatform}
           onChange={(e) => setFPlatform(e.target.value)}
           className="px-3 py-2 rounded-pill bg-card border border-border-soft text-[13px] font-semibold text-ink focus:outline-none focus:ring-2 focus:ring-purple/30 cursor-pointer"
@@ -638,6 +648,7 @@ export function CalendarClient({ initial }: CalendarClientProps) {
           <option value="tiktok">TikTok</option>
         </select>
         <select
+          aria-label="Filtrar por formato"
           value={fFormat}
           onChange={(e) => setFFormat(e.target.value)}
           className="px-3 py-2 rounded-pill bg-card border border-border-soft text-[13px] font-semibold text-ink focus:outline-none focus:ring-2 focus:ring-purple/30 cursor-pointer"
@@ -648,6 +659,7 @@ export function CalendarClient({ initial }: CalendarClientProps) {
           ))}
         </select>
         <select
+          aria-label="Filtrar por status"
           value={fStatus}
           onChange={(e) => setFStatus(e.target.value)}
           className="px-3 py-2 rounded-pill bg-card border border-border-soft text-[13px] font-semibold text-ink focus:outline-none focus:ring-2 focus:ring-purple/30 cursor-pointer"
@@ -658,6 +670,7 @@ export function CalendarClient({ initial }: CalendarClientProps) {
           ))}
         </select>
         <select
+          aria-label="Filtrar por meta"
           value={fGoal}
           onChange={(e) => setFGoal(e.target.value)}
           className="px-3 py-2 rounded-pill bg-card border border-border-soft text-[13px] font-semibold text-ink focus:outline-none focus:ring-2 focus:ring-purple/30 cursor-pointer"
@@ -668,6 +681,7 @@ export function CalendarClient({ initial }: CalendarClientProps) {
           ))}
         </select>
         <select
+          aria-label="Filtrar por objetivo"
           value={fObjective}
           onChange={(e) => setFObjective(e.target.value)}
           className="px-3 py-2 rounded-pill bg-card border border-border-soft text-[13px] font-semibold text-ink focus:outline-none focus:ring-2 focus:ring-purple/30 cursor-pointer"
@@ -678,6 +692,7 @@ export function CalendarClient({ initial }: CalendarClientProps) {
           ))}
         </select>
         <select
+          aria-label="Filtrar por experimento"
           value={fExperiment}
           onChange={(e) => setFExperiment(e.target.value)}
           className="px-3 py-2 rounded-pill bg-card border border-border-soft text-[13px] font-semibold text-ink focus:outline-none focus:ring-2 focus:ring-purple/30 cursor-pointer"
@@ -688,6 +703,7 @@ export function CalendarClient({ initial }: CalendarClientProps) {
           ))}
         </select>
         <select
+          aria-label="Filtrar por período"
           value={fPeriod}
           onChange={(e) => setFPeriod(e.target.value)}
           className="px-3 py-2 rounded-pill bg-card border border-border-soft text-[13px] font-semibold text-ink focus:outline-none focus:ring-2 focus:ring-purple/30 cursor-pointer"
@@ -726,7 +742,7 @@ export function CalendarClient({ initial }: CalendarClientProps) {
             // grade ganha uma largura mínima legível e ROLA dentro do próprio
             // card (padrão de calendário em mobile), em vez de espremer as
             // células ou empurrar a página inteira para os lados.
-            <div className="overflow-x-auto -mx-1 px-1">
+            <div className="overflow-x-auto -mx-1 px-1" tabIndex={0} role="region" aria-label="Calendário mensal com rolagem horizontal">
             <div className="grid grid-cols-7 gap-1.5 bg-card border border-border-soft rounded-lg shadow-xs p-2 sm:p-3 min-w-[520px]">
               {["D", "S", "T", "Q", "Q", "S", "S"].map((d, i) => (
                 <div key={i} className="text-center text-[11px] font-bold uppercase tracking-wider text-ink-muted py-1">
@@ -736,7 +752,7 @@ export function CalendarClient({ initial }: CalendarClientProps) {
               {monthGrid.map((cell, i) => {
                 const key = dayKey(cell.date);
                 const items = byDay.get(key) ?? [];
-                const today = key === dayKey(new Date());
+                const today = key === dayKey(todayDate);
                 return (
                   <div
                     key={i}
@@ -746,7 +762,7 @@ export function CalendarClient({ initial }: CalendarClientProps) {
                       // `min-width:auto` por padrão — um título longo vazava da
                       // célula em vez de ser truncado, empurrando a página.
                       "min-h-[86px] min-w-0 overflow-hidden rounded-md border p-1.5 flex flex-col gap-1",
-                      cell.inMonth ? "bg-bg" : "bg-transparent opacity-40",
+                      cell.inMonth ? "bg-bg" : "bg-transparent",
                       today && "ring-2 ring-purple/40"
                     )}
                   >

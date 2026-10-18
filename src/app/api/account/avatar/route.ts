@@ -1,3 +1,4 @@
+import { withSessionApi } from "@/lib/auth/session-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -37,7 +38,7 @@ export const dynamic = "force-dynamic";
 /** Folga sobre o teto: um data URL de N bytes ocupa ~N*4/3 em base64 + cabeçalho. */
 const MAX_BODY_BYTES = Math.ceil((MAX_AVATAR_BYTES * 4) / 3) + 1024;
 
-export async function PUT(request: Request) {
+async function PUTHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -91,7 +92,7 @@ export async function PUT(request: Request) {
   }
 }
 
-export async function DELETE() {
+async function DELETEHandler() {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -112,3 +113,6 @@ export async function DELETE() {
     );
   }
 }
+
+export const PUT = withSessionApi(PUTHandler);
+export const DELETE = withSessionApi(DELETEHandler);

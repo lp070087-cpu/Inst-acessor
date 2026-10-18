@@ -1,3 +1,4 @@
+import { withAdminApi } from "@/lib/auth/admin-api";
 import { NextResponse } from "next/server";
 
 import { requireAdminSession } from "@/lib/auth/guard";
@@ -75,7 +76,7 @@ function previewFor(config: ReturnType<typeof parsePromoConfig>, now: string) {
   });
 }
 
-export async function GET() {
+async function GETHandler() {
   await requireAdminSession();
   try {
     const config = await getPromoConfig();
@@ -96,7 +97,7 @@ export async function GET() {
   }
 }
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const { session } = await requireAdminSession();
 
   let body: unknown;
@@ -184,3 +185,7 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export const GET = withAdminApi(GETHandler);
+
+export const POST = withAdminApi(POSTHandler);

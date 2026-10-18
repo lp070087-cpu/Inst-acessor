@@ -32,16 +32,8 @@ export function isOfficialAdminEmail(email: string | null | undefined): boolean 
   const normalized = normalizeAdminEmail(email);
   if (!normalized) return false;
 
-  // E-mail canônico (sempre autorizado).
-  if (normalized === OFFICIAL_ADMIN_EMAIL) return true;
-
-  // Sobrescrita por variável de ambiente (opcional). Se o DONO definir
-  // ADMIN_EMAIL, apenas esse e-mail (normalizado) também é aceito. Nunca
-  // criamos um segundo administrador: sem env, o canônico é o único.
   const envAdmin = (process.env.ADMIN_EMAIL ?? "").trim().toLowerCase();
-  if (envAdmin && normalized === envAdmin) return true;
-
-  return false;
+  return normalized === (envAdmin || OFFICIAL_ADMIN_EMAIL);
 }
 
 /**
@@ -49,8 +41,6 @@ export function isOfficialAdminEmail(email: string | null | undefined): boolean 
  * Apenas o canônico e, opcionalmente, o ADMIN_EMAIL do ambiente.
  */
 export function authorizedAdminEmails(): string[] {
-  const emails = [OFFICIAL_ADMIN_EMAIL];
   const envAdmin = (process.env.ADMIN_EMAIL ?? "").trim().toLowerCase();
-  if (envAdmin && envAdmin !== OFFICIAL_ADMIN_EMAIL) emails.push(envAdmin);
-  return emails;
+  return [envAdmin || OFFICIAL_ADMIN_EMAIL];
 }

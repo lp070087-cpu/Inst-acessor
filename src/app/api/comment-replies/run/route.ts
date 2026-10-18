@@ -1,3 +1,4 @@
+import { withPremiumApi } from "@/lib/auth/premium-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -20,7 +21,7 @@ export const dynamic = "force-dynamic";
  * Todos os limites (por execução, hora, dia e intervalo mínimo) são aplicados
  * dentro de `runAutomation`.
  */
-export async function POST() {
+async function POSTHandler() {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -46,3 +47,5 @@ export async function POST() {
     return NextResponse.json({ error: "Não foi possível executar a automação." }, { status: 500 });
   }
 }
+
+export const POST = withPremiumApi(POSTHandler);

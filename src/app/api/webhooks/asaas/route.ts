@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "crypto";
 
-import { webhookRateLimiter, clientIp } from "@/lib/publishing/rate-limit";
+import { webhookRateLimiter, dbRateLimiter, clientIp } from "@/lib/publishing/rate-limit";
 import { getAsaasConfig } from "@/lib/billing/asaas/config";
 import { parseAsaasWebhook } from "@/lib/billing/asaas/webhook";
 import { handleAsaasEvent } from "@/lib/billing/asaas/events";
@@ -75,6 +75,10 @@ export async function POST(request: Request) {
   if (!token || !safeEqual(token, cfg.webhookToken)) {
     console.warn("[asaas-webhook] token inválido ou ausente — evento ignorado");
     return NextResponse.json({ error: "Não autorizado." }, { status: 403 });
+  }
+
+  if (!(await dbRateLimiter.check(`asaas-webhook:${clientIp(request)}`, { windowMs: 60_000, max: 120 }))) {
+    return NextResponse.json({ error: "Entrega temporariamente limitada." }, { status: 429 });
   }
 
   // 4) Corpo bruto → JSON.

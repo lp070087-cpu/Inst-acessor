@@ -278,11 +278,13 @@ export function ConsumoPanel({
       ) : (
         <div className="rounded-[10px] bg-surface px-4 py-3 flex items-start gap-2 text-[12.5px] text-ink-soft">
           <Info size={14} className="flex-none mt-0.5 text-purple" />
+          <p className="min-w-0 flex-1">
           Os limites de franquia estão sendo{" "}
           <strong className="font-semibold text-ink">medidos</strong>, mas ainda{" "}
           <strong className="font-semibold text-ink">não bloqueiam</strong> nenhuma operação. Os
           números acima são reais (contagem de uso), servem para diagnóstico e serão aplicados
           somente após a ativação comercial oficial.
+          </p>
         </div>
       )}
     </section>

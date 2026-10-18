@@ -531,6 +531,7 @@ function RnkBar({
     <div
       className={cn("rnk-bar", `rnk-bar-${size}`)}
       role="progressbar"
+      aria-label="Progresso percentual"
       aria-valuenow={pct}
       aria-valuemin={0}
       aria-valuemax={100}
@@ -711,7 +712,7 @@ const RANK_CSS = `
   --rnk-ink:var(--ink);
   --rnk-soft:var(--ink-2);
   --rnk-muted:var(--ink-3);
-  --rnk-green:#10B981;
+  --rnk-green:#047857;
   --rnk-green-soft:rgba(16,185,129,.12);
   --rnk-amber:#F59E0B;
   --rnk-grad:linear-gradient(115deg,#F43F8E 0%,#A855F7 48%,#6366F1 100%);

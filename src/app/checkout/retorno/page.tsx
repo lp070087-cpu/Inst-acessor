@@ -100,9 +100,9 @@ function formatStatus(order: CheckoutOrder): {
 export default async function RetornoPage({
   searchParams,
 }: {
-  searchParams: { referencia?: string };
+  searchParams: Promise<{ referencia?: string }>;
 }) {
-  const ref = (searchParams?.referencia ?? "").trim();
+  const ref = ((await searchParams)?.referencia ?? "").trim();
 
   let order: CheckoutOrder | null = null;
   if (ref) {

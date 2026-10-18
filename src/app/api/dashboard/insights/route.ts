@@ -1,3 +1,4 @@
+import { withSessionApi } from "@/lib/auth/session-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -21,7 +22,7 @@ export const dynamic = "force-dynamic";
  *   - falha REAL da IA → 502, para o cliente distinguir de "não configurada";
  *   - nenhum número é inventado em nenhum caminho.
  */
-export async function GET() {
+async function GETHandler() {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -53,3 +54,5 @@ export async function GET() {
     );
   }
 }
+
+export const GET = withSessionApi(GETHandler);

@@ -115,10 +115,13 @@ export async function GET(request: Request) {
 
   // Marca o state como consumido imediatamente (single-use).
   try {
-    await prisma.oAuthState.update({
-      where: { id: oauthState.id },
+    const claimed = await prisma.oAuthState.updateMany({
+      where: { id: oauthState.id, consumed: false, expiresAt: { gt: new Date() } },
       data: { consumed: true },
     });
+    if (claimed.count !== 1) {
+      return NextResponse.redirect(`${base}${REDIRECT_ERROR}invalid_state`);
+    }
   } catch (err) {
     console.error("[instagram-callback] falha ao consumir state", err);
     await resetOrRestore(userId);

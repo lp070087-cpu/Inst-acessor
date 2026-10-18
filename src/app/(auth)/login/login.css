@@ -922,3 +922,7 @@ body:has(.lgn-root) {
     transition-duration: 0.001s !important;
   }
 }
+
+.lgn-brand .text-grad {
+  background-image: linear-gradient(115deg, #f9a8d4, #c4b5fd, #a5b4fc);
+}

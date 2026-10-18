@@ -1,3 +1,4 @@
+import { withPremiumApi } from "@/lib/auth/premium-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -25,7 +26,7 @@ export const dynamic = "force-dynamic";
  * A UI usa isto para escolher entre a tela real e o estado "integração
  * pendente". NUNCA devolve token nem escopo cru ao cliente além do necessário.
  */
-export async function GET() {
+async function GETHandler() {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -66,3 +67,5 @@ export async function GET() {
     return NextResponse.json({ error: "Não foi possível carregar o estado da integração." }, { status: 500 });
   }
 }
+
+export const GET = withPremiumApi(GETHandler);

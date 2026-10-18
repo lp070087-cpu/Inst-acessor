@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { databaseContext } from "./db-context";
 
 /**
  * CLIENTE PRISMA ÚNICO — inclusive em produção
@@ -21,10 +22,42 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-export const prisma =
+const baseClient =
   globalForPrisma.prisma ??
   new PrismaClient({
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
   });
 
-globalForPrisma.prisma = prisma;
+globalForPrisma.prisma = baseClient;
+
+// All repositories share the transaction of the current async operation.
+// There is no process-global reassignment: concurrent requests stay isolated.
+export const prisma = new Proxy(baseClient, {
+  get(target, property) {
+    const client = databaseContext.getStore()?.client ?? target;
+    const value = Reflect.get(client, property);
+    if (typeof property === "string" && !property.startsWith("$") && value && typeof value === "object") {
+      return new Proxy(value, {
+        get(_delegate, method) {
+          const active = databaseContext.getStore()?.client ?? target;
+          const delegate = Reflect.get(active, property);
+          const member = Reflect.get(delegate, method);
+          return typeof member === "function" ? member.bind(delegate) : member;
+        },
+      });
+    }
+    return typeof value === "function" ? value.bind(client) : value;
+  },
+});
+
+export async function withDatabaseTransaction<T>(operation: () => Promise<T>): Promise<T> {
+  if (databaseContext.getStore()) return operation();
+  const afterCommit: Array<() => Promise<unknown>> = [];
+  const result = await baseClient.$transaction(
+    (client) => databaseContext.run({ client, afterCommit }, operation),
+    { maxWait: 5000, timeout: 30000 },
+  );
+  // Notification failure does not undo a committed financial record.
+  await Promise.allSettled(afterCommit.map((effect) => effect()));
+  return result;
+}

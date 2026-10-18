@@ -1,3 +1,4 @@
+import { withAdminApi } from "@/lib/auth/admin-api";
 import { NextResponse } from "next/server";
 
 import { requireAdminSession } from "@/lib/auth/guard";
@@ -20,7 +21,7 @@ const adminGrantRateLimiter = createRateLimiter({ windowMs: 60_000, max: 20 });
  *   - Não toca em dados de pagamento Asaas.
  *   - Registra origem ADMIN_MANUAL, quem executou, início e expiração.
  */
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const { session } = await requireAdminSession();
   const adminId = session.user.id;
 
@@ -64,3 +65,5 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ ok: true, result });
 }
+
+export const POST = withAdminApi(POSTHandler);

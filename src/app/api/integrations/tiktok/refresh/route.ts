@@ -1,3 +1,4 @@
+import { withSessionApi } from "@/lib/auth/session-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -21,7 +22,7 @@ export const dynamic = "force-dynamic";
  * - Descriptografa no servidor, renova, re-encripta e persiste.
  * - NUNCA retorna token ao cliente.
  */
-export async function POST() {
+async function POSTHandler() {
   let session;
   try {
     session = await requireSession();
@@ -138,3 +139,5 @@ function isInvalidRefreshToken(err: unknown): boolean {
   }
   return false;
 }
+
+export const POST = withSessionApi(POSTHandler);

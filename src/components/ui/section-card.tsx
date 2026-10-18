@@ -27,8 +27,8 @@ export function SectionCard({
       {...props}
     >
       {(title || action) && (
-        <div className="flex items-start justify-between gap-4 px-5 pt-5 pb-1">
-          <div>
+        <div className="flex flex-col sm:flex-row items-start justify-between gap-4 px-5 pt-5 pb-1">
+          <div className="min-w-0 flex-1">
             {title && (
               <h3 className="font-display text-[16px] font-semibold text-ink">
                 {title}
@@ -38,7 +38,7 @@ export function SectionCard({
               <p className="text-[13px] text-ink-soft mt-0.5">{description}</p>
             )}
           </div>
-          {action && <div className="flex items-center gap-2 flex-none">{action}</div>}
+          {action && <div className="flex flex-wrap items-center gap-2 flex-none max-w-full">{action}</div>}
         </div>
       )}
       {children && <div className="px-5 py-4">{children}</div>}

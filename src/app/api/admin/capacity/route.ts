@@ -1,3 +1,4 @@
+import { withAdminApi } from "@/lib/auth/admin-api";
 import { NextResponse } from "next/server";
 
 import { requireAdminSession } from "@/lib/auth/guard";
@@ -16,7 +17,7 @@ export const dynamic = "force-dynamic";
  * NENHUMA migration. Esta é a ÚNICA forma de ligar/desligar uma vaga, e ela só
  * é acessível ao ADMIN. O bloqueio real acontece em `startPublicCheckout`.
  */
-export async function GET() {
+async function GETHandler() {
   await requireAdminSession();
   try {
     const config = await getCapacityConfig();
@@ -30,7 +31,7 @@ export async function GET() {
   }
 }
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   await requireAdminSession();
 
   let body: unknown;
@@ -55,3 +56,7 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export const GET = withAdminApi(GETHandler);
+
+export const POST = withAdminApi(POSTHandler);

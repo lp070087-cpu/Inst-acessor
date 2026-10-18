@@ -1,17 +1,27 @@
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { NextResponse } from "next/server";
 
-import { requireSession } from "@/lib/auth/guard";
+import { getSession } from "@/lib/auth/config";
+import { resolvePremiumAccess } from "@/lib/access/premium";
+import { isOwnedUploadPath, UPLOAD_CONTENT_TYPES } from "@/lib/media/upload-policy";
+import { dbRateLimiter } from "@/lib/publishing/rate-limit";
+import { isSameOriginMutation } from "@/lib/auth/request-origin";
 
 export const dynamic = "force-dynamic";
 
 const MAX_UPLOAD_SIZE = 500 * 1024 * 1024; // 500 MB
 
 export async function POST(request: Request) {
+  if (!isSameOriginMutation(request)) return NextResponse.json({ error: "Origem não autorizada." }, { status: 403 });
   try {
     // Somente usuário autenticado pode solicitar autorização de upload.
-    const session = await requireSession();
+    const session = await getSession();
+    if (!session?.user?.id) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+    if (!(await resolvePremiumAccess(session.user.id)).hasAccess) return NextResponse.json({ error: "Acesso ao plano necessário." }, { status: 403 });
     const userId = session.user.id;
+    if (!(await dbRateLimiter.check(`upload:${userId}`, { windowMs: 60_000, max: 10 }))) {
+      return NextResponse.json({ error: "Muitos uploads. Tente novamente em instantes." }, { status: 429 });
+    }
 
     const body = (await request.json()) as HandleUploadBody;
 
@@ -21,22 +31,12 @@ export async function POST(request: Request) {
 
     async onBeforeGenerateToken(pathname) {
   // Cada usuário fica isolado dentro da própria pasta no Blob.
-  const safePathname = pathname
-  .replace(/^\/+/, "")
-  .replace(/[^a-zA-Z0-9._/-]/g, "-");
-
-if (!safePathname) {
-  throw new Error("Nome de arquivo inválido.");
-}
-
-const expectedPrefix = `inst-acessor/${userId}/`;
-
-if (!safePathname.startsWith(expectedPrefix)) {
+if (!isOwnedUploadPath(pathname, userId)) {
   throw new Error("Destino de upload não autorizado.");
 }
 
 return {
-  allowedContentTypes: ["image/*", "video/*"],
+  allowedContentTypes: UPLOAD_CONTENT_TYPES,
   maximumSizeInBytes: MAX_UPLOAD_SIZE,
   addRandomSuffix: true,
   allowOverwrite: false,
@@ -46,7 +46,7 @@ return {
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error("[upload/media] falha no upload", error);
+    console.error("[upload/media] falha ao autorizar upload");
 
     return NextResponse.json(
       { error: "Não foi possível autorizar o upload da mídia." },

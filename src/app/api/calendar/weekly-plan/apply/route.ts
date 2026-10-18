@@ -1,3 +1,4 @@
+import { withPremiumApi } from "@/lib/auth/premium-api";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -22,7 +23,7 @@ const bodySchema = z.object({
  * do plano real; o cliente só diz QUAL dia. Dedup por marcador de semana —
  * clicar de novo não duplica. Session-required + owner-checked.
  */
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -66,3 +67,5 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export const POST = withPremiumApi(POSTHandler);

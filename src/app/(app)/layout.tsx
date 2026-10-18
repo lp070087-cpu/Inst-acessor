@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireSession } from "@/lib/auth/guard";
 import { isOfficialAdminEmail } from "@/lib/auth/admin-access";
+import { hasVerifiedIdentity } from "@/lib/auth/identity";
 import { resolvePremiumAccess } from "@/lib/access/premium";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { ToastProvider } from "@/components/ui/toast";
@@ -27,10 +28,11 @@ export default async function AppLayout({
     // Estado do usuário no banco (fase "Primeiro Acesso").
     prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { id: true, email: true, firstAccessCompleted: true, passwordHash: true },
+      select: { id: true, email: true, emailVerified: true, firstAccessCompleted: true, passwordHash: true },
     } as unknown as never) as unknown as Promise<{
       id: string;
       email: string | null;
+      emailVerified: Date | null;
       firstAccessCompleted: boolean;
       passwordHash: string | null;
     } | null>,
@@ -60,7 +62,7 @@ export default async function AppLayout({
   // regra oficial (`isOfficialAdminEmail`) usando o e-mail do BANCO (fonte da
   // verdade — idêntico ao `requireAdminSession`). Apenas o e-mail canônico
   // normalizado recebe o item "Admin" no menu. Clientes comuns nunca veem.
-  const isAdmin = isOfficialAdminEmail(user?.email ?? null);
+  const isAdmin = hasVerifiedIdentity(user) && isOfficialAdminEmail(user?.email ?? null);
 
   // PRIMEIRO ACESSO — o fluxo de ativação (criar a própria senha) só se aplica
   // a usuários com um grant pendente (PENDING_FIRST_ACCESS) que AINDA NÃO

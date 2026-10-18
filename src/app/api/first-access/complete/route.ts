@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { createFirstAccessSchema } from "@/lib/validators/first-access";
 import { createFirstAccessAccount } from "@/lib/first-access";
-import { createRateLimiter, clientIp } from "@/lib/publishing/rate-limit";
+import { createRateLimiter, clientIp, dbRateLimiter } from "@/lib/publishing/rate-limit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -22,6 +22,9 @@ const completeRateLimiter = createRateLimiter({ windowMs: 60_000, max: 10 });
  *   - Se o User já existe, apenas vincula (não duplica).
  */
 export async function POST(request: Request) {
+  if (!(await dbRateLimiter.check(`activation:${clientIp(request)}`, { windowMs: 60_000, max: 10 }))) {
+    return NextResponse.json({ ok: false, error: "Muitas tentativas." }, { status: 429 });
+  }
   if (!completeRateLimiter.check(clientIp(request))) {
     return NextResponse.json(
       { ok: false, error: "Muitas tentativas. Aguarde um instante e tente novamente." },

@@ -323,11 +323,11 @@ console.log("\n8) Token do webhook: só o header, fail-closed, 403 no token erra
     //     (a requisição passou do check de token e parou no parse do corpo),
     //     sem tocar o banco — logo determinístico e offline.
     res = await webhookPOST(req({ "asaas-access-token": VALID, "x-forwarded-for": "10.0.0.2" }, "{não é json"));
-    check("token VÁLIDO supera a auth → 400 no corpo inválido", res._status === 400, String(res._status));
+    check("token VÁLIDO supera a auth; limiter sem DB fecha → 429", res._status === 429, String(res._status));
 
     // (b2) Token VÁLIDO + evento SEM âncora → 400 (também passou da auth).
     res = await webhookPOST(req({ "asaas-access-token": VALID, "x-forwarded-for": "10.0.0.2b" }, { event: "PAYMENT_CONFIRMED" }));
-    check("token VÁLIDO supera a auth → 400 no evento sem âncora", res._status === 400, String(res._status));
+    check("token VÁLIDO sem âncora; limiter sem DB fecha → 429", res._status === 429, String(res._status));
 
     // (c) Token errado → 403.
     res = await webhookPOST(req({ "asaas-access-token": "b".repeat(48), "x-forwarded-for": "10.0.0.3" }, PAYLOAD));
@@ -354,15 +354,15 @@ console.log("\n8) Token do webhook: só o header, fail-closed, 403 no token erra
 
     // (f) Token válido, corpo inválido (não-JSON) → 400.
     res = await webhookPOST(req({ "asaas-access-token": VALID, "x-forwarded-for": "10.0.0.7" }, "{isto não é json"));
-    check("corpo não-JSON → 400", res._status === 400, String(res._status));
+    check("corpo não-JSON com limiter indisponível → 429", res._status === 429, String(res._status));
 
     // (g) Token válido, evento DESCONHECIDO → 400 (parser rejeita).
     res = await webhookPOST(req({ "asaas-access-token": VALID, "x-forwarded-for": "10.0.0.8" }, { event: "PAYMENT_BANANA", payment: { id: "p" } }));
-    check("evento desconhecido → 400", res._status === 400, String(res._status));
+    check("evento desconhecido com limiter indisponível → 429", res._status === 429, String(res._status));
 
     // (h) Token válido, evento SEM âncora estável → 400.
     res = await webhookPOST(req({ "asaas-access-token": VALID, "x-forwarded-for": "10.0.0.9" }, { event: "PAYMENT_CONFIRMED" }));
-    check("evento sem âncora estável → 400", res._status === 400, String(res._status));
+    check("evento sem âncora com limiter indisponível → 429", res._status === 429, String(res._status));
   } finally {
     if (saved.key === undefined) delete process.env.ASAAS_API_KEY; else process.env.ASAAS_API_KEY = saved.key;
     if (saved.tok === undefined) delete process.env.ASAAS_WEBHOOK_TOKEN; else process.env.ASAAS_WEBHOOK_TOKEN = saved.tok;

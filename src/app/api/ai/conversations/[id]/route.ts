@@ -1,3 +1,4 @@
+import { withPremiumApi } from "@/lib/auth/premium-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -10,15 +11,15 @@ export const dynamic = "force-dynamic";
  * DELETE /api/ai/conversations/[id]
  * Exclui uma conversa (cascade nas mensagens). Só o dono.
  */
-export async function DELETE(
+async function DELETEHandler(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
 
-    const ok = await deleteConversation(userId, params.id);
+    const ok = await deleteConversation(userId, (await params).id);
     if (!ok) {
       return NextResponse.json({ error: "Conversa não encontrada" }, { status: 404 });
     }
@@ -43,9 +44,9 @@ export async function DELETE(
  * 404 = conversa inexistente ou de outro usuário
  * 200 = título REALMENTE gravado, devolvido para a UI não confiar no que digitou
  */
-export async function PATCH(
+async function PATCHHandler(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await requireSession();
@@ -60,7 +61,7 @@ export async function PATCH(
       );
     }
 
-    const updated = await renameConversation(userId, params.id, parsed.data.title);
+    const updated = await renameConversation(userId, (await params).id, parsed.data.title);
     if (!updated) {
       return NextResponse.json({ error: "Conversa não encontrada" }, { status: 404 });
     }
@@ -74,3 +75,7 @@ export async function PATCH(
     );
   }
 }
+
+export const DELETE = withPremiumApi(DELETEHandler);
+
+export const PATCH = withPremiumApi(PATCHHandler);

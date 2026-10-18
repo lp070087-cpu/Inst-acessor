@@ -1,3 +1,4 @@
+import { withPremiumApi } from "@/lib/auth/premium-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -21,7 +22,7 @@ export const dynamic = "force-dynamic";
  * 404 quando a publicação não existe OU não pertence ao usuário (o filtro por
  * `userId` está na consulta, então não há como vazar mídia de outra conta).
  */
-export async function GET(request: Request) {
+async function GETHandler(request: Request) {
   try {
     const session = await requireSession();
     const mediaId = new URL(request.url).searchParams.get("mediaId");
@@ -58,3 +59,5 @@ export async function GET(request: Request) {
     );
   }
 }
+
+export const GET = withPremiumApi(GETHandler);

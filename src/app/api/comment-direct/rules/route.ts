@@ -1,3 +1,4 @@
+import { withPremiumApi } from "@/lib/auth/premium-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -16,7 +17,7 @@ export const dynamic = "force-dynamic";
  * é validada pelo núcleo puro `validateTriggerConfig` ANTES de gravar — um
  * gatilho inválido nunca chega ao banco.
  */
-export async function GET() {
+async function GETHandler() {
   try {
     const session = await requireSession();
     const rules = await listDirectRules(session.user.id);
@@ -27,7 +28,7 @@ export async function GET() {
   }
 }
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -76,3 +77,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Não foi possível criar a automação." }, { status: 500 });
   }
 }
+
+export const GET = withPremiumApi(GETHandler);
+
+export const POST = withPremiumApi(POSTHandler);

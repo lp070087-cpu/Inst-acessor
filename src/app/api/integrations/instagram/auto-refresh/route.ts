@@ -1,3 +1,4 @@
+import { withSessionApi } from "@/lib/auth/session-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -16,7 +17,7 @@ export const dynamic = "force-dynamic";
  * Diferente do sync manual, não devolve erro 4xx para estados normais
  * (desconectado / ainda fresco): são respostas ESPERADAS, não falhas.
  */
-export async function POST() {
+async function POSTHandler() {
   let session;
   try {
     session = await requireSession();
@@ -39,3 +40,5 @@ export async function POST() {
     return NextResponse.json({ refreshed: false, skipped: "error" }, { status: 500 });
   }
 }
+
+export const POST = withSessionApi(POSTHandler);

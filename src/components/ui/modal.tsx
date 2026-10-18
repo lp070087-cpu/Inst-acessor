@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { IconButton } from "@/components/ui/icon-button";
+import { useDialogFocus } from "./use-dialog-focus";
 
 interface ModalProps {
   open: boolean;
@@ -34,6 +35,9 @@ export function Modal({
 }: ModalProps) {
   const [mounted, setMounted] = React.useState(false);
 
+  const dialogRef = React.useRef<HTMLDivElement>(null);
+  const titleId = React.useId();
+  useDialogFocus(open && mounted, dialogRef, onClose);
   React.useEffect(() => {
     setMounted(true);
   }, []);
@@ -71,7 +75,10 @@ export function Modal({
       <div
         role="dialog"
         aria-modal="true"
-        aria-labelledby={title ? "modal-title" : undefined}
+        ref={dialogRef}
+        tabIndex={-1}
+        aria-label={title ? undefined : "Janela de diálogo"}
+        aria-labelledby={title ? titleId : undefined}
         className={cn(
           "relative z-10 w-full bg-card border border-border-soft rounded-xl shadow-lg animate-[fade-slide_.3s_var(--ease-out)]",
           "flex flex-col max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2rem)] min-w-0",
@@ -83,7 +90,7 @@ export function Modal({
           <div className="min-w-0">
             {title && (
               <h2
-                id="modal-title"
+                id={titleId}
                 className="font-display text-[18px] font-bold text-ink break-words"
               >
                 {title}

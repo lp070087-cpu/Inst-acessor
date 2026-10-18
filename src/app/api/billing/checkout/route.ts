@@ -6,6 +6,7 @@ import { getPlanById } from "@/lib/billing/plans";
 import { startPublicCheckout } from "@/lib/billing/asaas/checkout-order";
 import { normalizeEmail } from "@/lib/first-access/core";
 import { publicCheckoutSchema } from "@/lib/validators/billing";
+import { dbRateLimiter, clientIp } from "@/lib/publishing/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,9 @@ export const dynamic = "force-dynamic";
  * - Sem `ASAAS_API_KEY` → estado controlado (nenhuma URL fake, nada cobrado).
  */
 export async function POST(request: Request) {
+  if (!(await dbRateLimiter.check(`checkout:${clientIp(request)}`, { windowMs: 60_000, max: 10 }))) {
+    return NextResponse.json({ error: "Muitas tentativas. Aguarde um instante." }, { status: 429 });
+  }
   let session: Awaited<ReturnType<typeof getSession>> | null = null;
   try {
     session = await getSession();

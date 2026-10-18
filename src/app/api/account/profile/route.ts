@@ -1,3 +1,4 @@
+import { withSessionApi } from "@/lib/auth/session-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -52,7 +53,7 @@ function has(body: Body, key: keyof Body): boolean {
   return Object.prototype.hasOwnProperty.call(body, key);
 }
 
-export async function PATCH(request: Request) {
+async function PATCHHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -230,3 +231,5 @@ export async function PATCH(request: Request) {
     );
   }
 }
+
+export const PATCH = withSessionApi(PATCHHandler);

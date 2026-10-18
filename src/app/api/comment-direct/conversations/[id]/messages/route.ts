@@ -1,3 +1,4 @@
+import { withPremiumApi } from "@/lib/auth/premium-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -11,13 +12,13 @@ export const dynamic = "force-dynamic";
  * Mensagens de uma conversa do usuário. Complementa com a leitura oficial
  * quando a permissão permite; em qualquer falha, devolve o persistido.
  */
-export async function GET(
+async function GETHandler(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await requireSession();
-    const result = await getConversationMessages(session.user.id, params.id);
+    const result = await getConversationMessages(session.user.id, (await params).id);
 
     if (!result.ok && result.code === "not_found") {
       return NextResponse.json({ error: result.error }, { status: 404 });
@@ -29,3 +30,5 @@ export async function GET(
     return NextResponse.json({ error: "Não foi possível carregar as mensagens." }, { status: 500 });
   }
 }
+
+export const GET = withPremiumApi(GETHandler);

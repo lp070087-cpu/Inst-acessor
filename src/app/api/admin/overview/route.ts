@@ -1,3 +1,4 @@
+import { withAdminApi } from "@/lib/auth/admin-api";
 import { NextResponse } from "next/server";
 
 import { requireAdminSession } from "@/lib/auth/guard";
@@ -9,7 +10,7 @@ export const dynamic = "force-dynamic";
  * GET /api/admin/overview
  * Métricas reais do Dashboard administrativo. NUNCA inventa números.
  */
-export async function GET() {
+async function GETHandler() {
   await requireAdminSession();
 
   try {
@@ -23,3 +24,5 @@ export async function GET() {
     );
   }
 }
+
+export const GET = withAdminApi(GETHandler);

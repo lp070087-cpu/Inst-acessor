@@ -218,7 +218,7 @@ export function deriveStreak(
   for (const r of rows) days.add(fmtDay(r.createdAt));
 
   // Dias corridos (se hoje ainda não tem XP, conta a partir de ontem).
-  let cursor = startOfDay(today);
+  const cursor = startOfDay(today);
   if (!days.has(fmtDay(cursor))) cursor.setDate(cursor.getDate() - 1);
   let streak = 0;
   while (days.has(fmtDay(cursor))) {

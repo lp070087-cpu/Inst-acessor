@@ -18,8 +18,9 @@
 
 import { prisma } from "@/lib/db";
 import { hashPassword } from "@/lib/auth/password";
+import { hasVerifiedIdentity } from "@/lib/auth/identity";
 import {
-  AccessGrantStatus,
+  type AccessGrantStatus,
   ACCESS_GRANT_STATUSES,
   EMAIL_NOT_ELIGIBLE_MESSAGE,
   FIRST_ACCESS_TOKEN_TTL_MINUTES,
@@ -355,8 +356,8 @@ export async function verifyFirstAccessToken(token: string): Promise<VerifyToken
 
   const existingUser = (await fa.user.findUnique({
     where: { email: row.email },
-    select: { id: true, passwordHash: true },
-  })) as unknown as { id: string; passwordHash: string | null } | null;
+    select: { id: true, passwordHash: true, emailVerified: true, firstAccessCompleted: true },
+  })) as unknown as { id: string; passwordHash: string | null; emailVerified: Date | null; firstAccessCompleted: boolean } | null;
 
   return {
     ok: true,
@@ -369,7 +370,7 @@ export async function verifyFirstAccessToken(token: string): Promise<VerifyToken
       expiresAt: grant.expiresAt ? grant.expiresAt.toISOString() : null,
       status: effectiveGrantStatus(grant.status, grant.expiresAt, new Date()),
     },
-    userExists: Boolean(existingUser?.passwordHash),
+    userExists: Boolean(existingUser?.passwordHash && hasVerifiedIdentity(existingUser)),
   };
 }
 
@@ -380,6 +381,24 @@ export async function verifyFirstAccessToken(token: string): Promise<VerifyToken
  * - Consome o token de uso único (replay-safe).
  */
 export async function createFirstAccessAccount(input: {
+  token: string;
+  password: string;
+  confirmPassword: string;
+}): Promise<CreateFirstAccessAccountResult> {
+  const { withDatabaseTransaction } = await import("@/lib/db");
+  let rejected: CreateFirstAccessAccountResult | undefined;
+  try {
+    return await withDatabaseTransaction(async () => {
+      const result = await createFirstAccessAccountInTransaction(input);
+      if (!result.ok) { rejected = result; throw new Error("Activation rejected"); }
+      return result;
+    });
+  } catch {
+    return rejected ?? { ok: false, code: "INVALID_TOKEN", error: "Não foi possível concluir a ativação. Tente novamente." };
+  }
+}
+
+async function createFirstAccessAccountInTransaction(input: {
   token: string;
   password: string;
   confirmPassword: string;
@@ -410,10 +429,11 @@ export async function createFirstAccessAccount(input: {
 
   // Consome o token ANTES de prosseguir (uso único — replay falha).
   try {
-    await fa.firstAccessToken.update({
-      where: { id: row.id },
+    const claimed = await fa.firstAccessToken.updateMany({
+      where: { id: row.id, consumed: false, usedAt: null, expiresAt: { gt: new Date() } },
       data: { consumed: true, usedAt: new Date() },
     });
+    if (claimed.count !== 1) return { ok: false, code: "INVALID_TOKEN", error: "Este link expirou ou já foi usado." };
   } catch {
     return { ok: false, code: "INVALID_TOKEN", error: "Este link expirou ou já foi usado." };
   }
@@ -439,7 +459,8 @@ export async function createFirstAccessAccount(input: {
   if (existing) {
     userId = existing.id;
     // Se não tinha senha (conta órfã criada por webhook), define agora.
-    if (!existing.passwordHash) {
+    const identity = await prisma.user.findUnique({ where: { id: userId }, select: { emailVerified: true, firstAccessCompleted: true } });
+    if (!existing.passwordHash || (!identity?.emailVerified && !identity?.firstAccessCompleted)) {
       await fa.user.update({
         where: { id: userId },
         data: { passwordHash },
@@ -470,6 +491,7 @@ export async function createFirstAccessAccount(input: {
     data: {
       firstAccessCompleted: true,
       firstAccessCompletedAt: now,
+      emailVerified: now,
     },
   });
 

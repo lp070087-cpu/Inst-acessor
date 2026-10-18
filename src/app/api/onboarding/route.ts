@@ -1,10 +1,11 @@
+import { withSessionApi } from "@/lib/auth/session-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
 import { onboardingSchema } from "@/lib/validators/auth";
 
-export async function PUT(request: Request) {
+async function PUTHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -59,3 +60,5 @@ export async function PUT(request: Request) {
     );
   }
 }
+
+export const PUT = withSessionApi(PUTHandler);

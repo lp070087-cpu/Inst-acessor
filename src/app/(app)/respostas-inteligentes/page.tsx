@@ -33,8 +33,9 @@ export const dynamic = "force-dynamic";
 export default async function RespostasInteligentesPage({
   searchParams,
 }: {
-  searchParams?: { section?: string };
+  searchParams?: Promise<{ section?: string }>;
 }) {
+  const query = await searchParams;
   // Módulo do plano: sem acesso premium, a própria página manda o usuário
   // para /acesso-restrito. A checagem vive na página (e não no layout)
   // porque só ela sabe a própria rota: não há header para ler nem um
@@ -92,8 +93,8 @@ export default async function RespostasInteligentesPage({
         mediaCount={mediaCount}
         initialRule={initialRule}
         initialSection={
-          searchParams?.section === "direct" || searchParams?.section === "automacoes"
-            ? searchParams.section
+          query?.section === "direct" || query?.section === "automacoes"
+            ? query.section
             : "comentarios"
         }
       />

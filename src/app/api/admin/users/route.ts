@@ -1,3 +1,4 @@
+import { withAdminApi } from "@/lib/auth/admin-api";
 import { NextResponse } from "next/server";
 
 import { requireAdminSession } from "@/lib/auth/guard";
@@ -14,7 +15,7 @@ const adminUsersRateLimiter = createRateLimiter({ windowMs: 60_000, max: 30 });
  * GET /api/admin/users?q=...&limit=...
  * Lista usuários (somente ADMIN). Busca opcional por nome/e-mail.
  */
-export async function GET(request: Request) {
+async function GETHandler(request: Request) {
   await requireAdminSession();
 
   try {
@@ -65,7 +66,7 @@ export async function GET(request: Request) {
  * - Nunca é possível alterar o papel de um ADMIN (exceto promover, que é
  *   permitido — porém sem poder rebaixar outro admin).
  */
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const { session } = await requireAdminSession();
   const adminId = session.user.id;
 
@@ -168,3 +169,7 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export const GET = withAdminApi(GETHandler);
+
+export const POST = withAdminApi(POSTHandler);

@@ -33,8 +33,6 @@ export const dynamic = "force-dynamic";
 // do token no GET (causa real de 403 "Verificação falhou" com token válido).
 const VERIFY_TOKEN = (process.env.INSTAGRAM_WEBHOOK_VERIFY_TOKEN ?? "").trim();
 // Prioridade do novo app: INSTAGRAM_APP_SECRET → META_APP_SECRET (compat).
-const APP_SECRET = getWebhookAppSecret();
-const CONFIGURED = Boolean(VERIFY_TOKEN);
 
 interface WebhookEvent {
   eventId?: string;
@@ -66,8 +64,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  // Não configurado → não recebe eventos reais.
-  if (!CONFIGURED) {
+  const appSecret = getWebhookAppSecret();
+  if (!appSecret) {
     return new NextResponse("Webhook não configurado", { status: 503 });
   }
 
@@ -82,24 +80,16 @@ export async function POST(request: Request) {
   if (!webhookRateLimiter.check(ip)) {
     return new NextResponse("Muitas requisições", { status: 429 });
   }
+  const rawBody = await request.text();
+  if (!verifyWebhookSignature(rawBody, request.headers.get("x-hub-signature-256"), appSecret)) {
+    return new NextResponse("Assinatura inválida", { status: 403 });
+  }
   const ipAllowed = await dbRateLimiter.check(`webhook:${ip}`, {
     windowMs: 60_000,
     max: 120,
   });
   if (!ipAllowed) {
     return new NextResponse("Muitas requisições", { status: 429 });
-  }
-
-  // Verificação de origem: quando o App Secret está configurado, exigimos a
-  // assinatura X-Hub-Signature-256 (padrão Meta). Sem App Secret, aceitamos
-  // apenas payloads com challenge previamente validado — protegido por rate limit.
-  const rawBody = await request.text();
-  if (APP_SECRET) {
-    const signature = request.headers.get("x-hub-signature-256");
-    if (!verifyWebhookSignature(rawBody, signature, APP_SECRET)) {
-      console.warn("[publishing-webhook] assinatura inválida — evento ignorado");
-      return new NextResponse("Assinatura inválida", { status: 403 });
-    }
   }
 
   let body: unknown;
@@ -113,6 +103,12 @@ export async function POST(request: Request) {
   const event = extractEvent(body);
   if (!event.eventId) {
     return new NextResponse("Evento sem identificador", { status: 400 });
+  }
+
+  // This legacy receiver cannot safely infer an owner. The dedicated Instagram
+  // and TikTok receivers resolve ownership; never persist a fictional FK.
+  if (!event.userId) {
+    return NextResponse.json({ received: true, ignored: true, reason: "unresolved_owner" });
   }
 
   const existing = await pub.automationEvent.findUnique({

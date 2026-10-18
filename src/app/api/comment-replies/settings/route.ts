@@ -1,3 +1,4 @@
+import { withPremiumApi } from "@/lib/auth/premium-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -13,7 +14,7 @@ export const dynamic = "force-dynamic";
  *
  * Somente o dono do registro acessa. Nenhum token é exposto.
  */
-export async function GET() {
+async function GETHandler() {
   try {
     const session = await requireSession();
     const rule = await getOrCreateRule(session.user.id);
@@ -24,7 +25,7 @@ export async function GET() {
   }
 }
 
-export async function PATCH(request: Request) {
+async function PATCHHandler(request: Request) {
   try {
     const session = await requireSession();
     const body = await request.json();
@@ -47,3 +48,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Não foi possível salvar a configuração." }, { status: 500 });
   }
 }
+
+export const GET = withPremiumApi(GETHandler);
+
+export const PATCH = withPremiumApi(PATCHHandler);

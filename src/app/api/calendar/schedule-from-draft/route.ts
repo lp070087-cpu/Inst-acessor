@@ -1,3 +1,4 @@
+import { withPremiumApi } from "@/lib/auth/premium-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -26,7 +27,7 @@ const scheduleSchema = z.object({
  * Cria um ou mais PlannedContent a partir de um rascunho do Preview Social.
  * Session-required + owner-check do rascunho. Agendamento INTERNO apenas.
  */
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -63,3 +64,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Erro ao agendar." }, { status: 500 });
   }
 }
+
+export const POST = withPremiumApi(POSTHandler);

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { dbRateLimiter, clientIp } from "@/lib/publishing/rate-limit";
 
 import {
   getTikTokWebhookSecret,
@@ -102,6 +103,9 @@ export async function POST(request: Request) {
     return new NextResponse("Assinatura inválida", { status });
   }
 
+  if (!(await dbRateLimiter.check(`tiktok-webhook:${clientIp(request)}`, { windowMs: 60_000, max: 120 }))) {
+    return new NextResponse("Entrega temporariamente limitada", { status: 429 });
+  }
   let payload: unknown;
   try {
     payload = JSON.parse(rawBody);
@@ -120,7 +124,6 @@ export async function POST(request: Request) {
     `[tiktok-webhook] evento recebido event=${(payload as { event: string }).event}`
   );
 
-  // TODO(Fase 3.5): enfileirar o processamento dos eventos.
-  // Por ora, apenas reconhece e responde 200 para o TikTok não reenviar.
-  return NextResponse.json({ received: true }, { status: 200 });
+  // Do not acknowledge events that have not been durably processed.
+  return NextResponse.json({ received: false, status: "PROCESSING_NOT_AVAILABLE" }, { status: 503 });
 }

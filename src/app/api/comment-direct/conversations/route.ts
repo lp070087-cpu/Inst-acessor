@@ -1,3 +1,4 @@
+import { withPremiumApi } from "@/lib/auth/premium-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -16,7 +17,7 @@ export const dynamic = "force-dynamic";
  *
  * Rate-limited por usuário: uma sincronização é uma chamada à Meta.
  */
-export async function GET() {
+async function GETHandler() {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -43,3 +44,5 @@ export async function GET() {
     return NextResponse.json({ error: "Não foi possível carregar as conversas." }, { status: 500 });
   }
 }
+
+export const GET = withPremiumApi(GETHandler);

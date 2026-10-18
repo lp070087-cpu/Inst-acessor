@@ -1,3 +1,4 @@
+import { withAdminApi } from "@/lib/auth/admin-api";
 import { NextResponse } from "next/server";
 
 import { requireAdminSession } from "@/lib/auth/guard";
@@ -24,7 +25,7 @@ interface AccessGrantRow {
  * Mostra e-mail, origem, plano, período, status e primeiro acesso.
  * Nunca expõe tokens/passwordHash.
  */
-export async function GET() {
+async function GETHandler() {
   await requireAdminSession();
 
   const rows = (await bll.accessGrant.findMany({
@@ -48,3 +49,5 @@ export async function GET() {
     })),
   });
 }
+
+export const GET = withAdminApi(GETHandler);

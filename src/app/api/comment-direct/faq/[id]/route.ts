@@ -1,3 +1,4 @@
+import { withPremiumApi } from "@/lib/auth/premium-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -7,9 +8,9 @@ import { updateFaqSchema } from "@/lib/validators/comment-direct";
 export const dynamic = "force-dynamic";
 
 /** PATCH / DELETE de uma FAQ — owner-check por `userId`. */
-export async function PATCH(
+async function PATCHHandler(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await requireSession();
@@ -31,7 +32,7 @@ export async function PATCH(
         : {}),
     };
 
-    const faq = await updateFaq(session.user.id, params.id, data);
+    const faq = await updateFaq(session.user.id, (await params).id, data);
     if (!faq) return NextResponse.json({ error: "Resposta não encontrada." }, { status: 404 });
     return NextResponse.json({ ok: true, faq });
   } catch (err) {
@@ -40,13 +41,13 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(
+async function DELETEHandler(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await requireSession();
-    const removed = await deleteFaq(session.user.id, params.id);
+    const removed = await deleteFaq(session.user.id, (await params).id);
     if (!removed) return NextResponse.json({ error: "Resposta não encontrada." }, { status: 404 });
     return NextResponse.json({ ok: true });
   } catch (err) {
@@ -54,3 +55,7 @@ export async function DELETE(
     return NextResponse.json({ error: "Não foi possível excluir a resposta." }, { status: 500 });
   }
 }
+
+export const PATCH = withPremiumApi(PATCHHandler);
+
+export const DELETE = withPremiumApi(DELETEHandler);

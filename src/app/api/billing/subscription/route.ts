@@ -1,3 +1,4 @@
+import { withSessionApi } from "@/lib/auth/session-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -17,7 +18,7 @@ export const dynamic = "force-dynamic";
  * GET    /api/billing/subscription — assinatura atual + status de acesso
  * PATCH  /api/billing/subscription — cancela renovação futura (owner-checked)
  */
-export async function GET() {
+async function GETHandler() {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -35,7 +36,7 @@ export async function GET() {
   }
 }
 
-export async function PATCH(request: Request) {
+async function PATCHHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -66,3 +67,6 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Erro ao cancelar renovação." }, { status: 500 });
   }
 }
+
+export const GET = withSessionApi(GETHandler);
+export const PATCH = withSessionApi(PATCHHandler);

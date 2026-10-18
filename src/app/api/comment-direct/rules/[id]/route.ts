@@ -1,3 +1,4 @@
+import { withPremiumApi } from "@/lib/auth/premium-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -14,15 +15,15 @@ export const dynamic = "force-dynamic";
  * Owner-check por `userId` em TODAS as operações: uma regra de outro usuário é
  * um 404, nunca um acesso.
  */
-export async function PATCH(
+async function PATCHHandler(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
 
-    const owned = await findDirectRule(userId, params.id);
+    const owned = await findDirectRule(userId, (await params).id);
     if (!owned) return NextResponse.json({ error: "Automação não encontrada." }, { status: 404 });
 
     const body = await request.json();
@@ -57,7 +58,7 @@ export async function PATCH(
     // `paused: true` vira uma pausa de 24h sem desligar a regra; `false` limpa.
     const pausedUntil = paused === true ? new Date(Date.now() + 24 * 60 * 60 * 1000) : paused === false ? null : undefined;
 
-    const rule = await updateDirectRule(userId, params.id, {
+    const rule = await updateDirectRule(userId, (await params).id, {
       ...rest,
       ...(rest.triggerTerms ? { triggerTerms: rest.triggerTerms.map((t) => t.trim()).filter(Boolean) } : {}),
       ...(rest.messageText ? { messageText: rest.messageText.trim() } : {}),
@@ -71,13 +72,13 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(
+async function DELETEHandler(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await requireSession();
-    const removed = await deleteDirectRule(session.user.id, params.id);
+    const removed = await deleteDirectRule(session.user.id, (await params).id);
     if (!removed) return NextResponse.json({ error: "Automação não encontrada." }, { status: 404 });
     return NextResponse.json({ ok: true });
   } catch (err) {
@@ -85,3 +86,7 @@ export async function DELETE(
     return NextResponse.json({ error: "Não foi possível excluir a automação." }, { status: 500 });
   }
 }
+
+export const PATCH = withPremiumApi(PATCHHandler);
+
+export const DELETE = withPremiumApi(DELETEHandler);

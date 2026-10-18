@@ -1,3 +1,4 @@
+import { withPremiumApi } from "@/lib/auth/premium-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -15,7 +16,7 @@ export const dynamic = "force-dynamic";
  * Session-required + owner-checked. Idempotente (constraint única).
  * NUNCA inventa resultados — apenas prepara a medição futura.
  */
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -42,7 +43,7 @@ export async function POST(request: Request) {
   }
 }
 
-export async function DELETE(request: Request) {
+async function DELETEHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -62,3 +63,7 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "Erro ao remover experimento." }, { status: 500 });
   }
 }
+
+export const POST = withPremiumApi(POSTHandler);
+
+export const DELETE = withPremiumApi(DELETEHandler);

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { dbRateLimiter, clientIp } from "@/lib/publishing/rate-limit";
 
 import { prisma } from "@/lib/db";
 import { getWebhookAppSecret } from "@/lib/integrations/instagram/client";
@@ -126,6 +127,10 @@ export async function POST(request: Request) {
     return new NextResponse("Assinatura inválida", { status: 403 });
   }
 
+  if (!(await dbRateLimiter.check(`instagram-webhook:${clientIp(request)}`, { windowMs: 60_000, max: 120 }))) {
+    return new NextResponse("Entrega temporariamente limitada", { status: 429 });
+  }
+
   // ---- 7. só agora o corpo é interpretado ----
   let payload: unknown;
   try {
@@ -159,7 +164,7 @@ export async function POST(request: Request) {
     // mesmo evento em loop, sem resolver nada (mídia ainda não sincronizada,
     // conta não mapeada, evento desconhecido). `received: true` já vem no
     // próprio resultado da entrega.
-    return NextResponse.json({ received: true, ...result }, { status: 200 });
+    return NextResponse.json({ received: result.errors === 0, ...result }, { status: result.errors > 0 ? 500 : 200 });
   } catch (err) {
     // Falha inesperada NOSSA (banco fora, por exemplo): 500 para a Meta
     // reentregar — mas sem stack trace e sem corpo sensível.

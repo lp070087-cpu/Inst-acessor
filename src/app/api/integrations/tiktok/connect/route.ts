@@ -1,3 +1,4 @@
+import { withSessionApi } from "@/lib/auth/session-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -18,7 +19,7 @@ const APP_BASE = process.env.AUTH_URL || "http://localhost:3000";
  *
  * Client Secret do TikTok NUNCA vai ao frontend.
  */
-export async function GET() {
+async function GETHandler() {
   let session;
   try {
     session = await requireSession();
@@ -73,3 +74,5 @@ export async function GET() {
     return NextResponse.redirect(new URL("/redes-sociais?error=unknown", APP_BASE));
   }
 }
+
+export const GET = withSessionApi(GETHandler);

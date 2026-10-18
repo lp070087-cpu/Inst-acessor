@@ -8,6 +8,8 @@
 
 # Next.js
 /.next/
+/.next-e2e/
+/.audit-worktree/
 /out/
 
 # Build
