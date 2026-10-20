@@ -1,0 +1,1693 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id                     String                     @id @default(cuid())
+  name                   String?
+  email                  String                     @unique
+  emailVerified          DateTime?
+  image                  String?
+  passwordHash           String?
+  role                   Role                       @default(USER)
+  status                 UserStatus                 @default(ACTIVE)
+  createdAt              DateTime                   @default(now())
+  updatedAt              DateTime                   @updatedAt
+  asaasCustomerId        String?                    @unique
+  firstAccessCompleted   Boolean                    @default(false)
+  firstAccessCompletedAt DateTime?
+  tourCompleted          Boolean                    @default(false)
+  tourCompletedAt        DateTime?
+  aiConversations        AIConversation[]
+  aiMessages             AIMessage[]
+  aiProfile              AIProfile?
+  accessGrants           AccessGrant[]
+  accounts               Account[]
+  commentReplyLogs       CommentReplyLog[]
+  commentRules           CommentAutomationRule[]
+  replyTemplates         ReplyTemplate[]
+  specialProfiles        SpecialProfileRule[]
+  automationEvents       AutomationEvent[]
+  automationExecutions   AutomationExecution[]
+  automationRules        AutomationRule[]
+  billingEvents          BillingEvent[]
+  CheckoutOrder          CheckoutOrder[]
+  contentCopyVersions    ContentCopyVersion[]
+  contentIdeas           ContentIdea[]
+  firstAccessTokens      FirstAccessToken[]
+  generatedCopies        GeneratedCopy[]
+  GrowthAction           GrowthAction[]
+  growthExperiments      GrowthExperiment[]
+  igMedias               InstagramMedia[]
+  igMediaMetrics         InstagramMediaMetric[]
+  igComments             InstagramComment[]
+  igProfiles             InstagramProfile[]
+  igSnapshots            InstagramSnapshot[]
+  mentorshipRecs         MentorshipRecommendation[]
+  oauthStates            OAuthState[]
+  passkeyCredentials     PasskeyCredential[]
+  payments               Payment[]
+  plannedContents        PlannedContent[]
+  profileInsights        ProfileInsight[]
+  profileScores          ProfileScore[]
+  profileScoreSnapshots  ProfileScoreSnapshot[]
+  publishLogs            PublishLog[]
+  publishQueue           PublishQueue[]
+  sessions               Session[]
+  connections            SocialConnection[]
+  socialDrafts           SocialDraft[]
+  subscriptions          Subscription[]
+  syncLogs               SyncLog[]
+  tiktokProfiles         TikTokProfile[]
+  tiktokSnapshots        TikTokSnapshot[]
+  tiktokVideos           TikTokVideo[]
+  userAchievements       UserAchievement[]
+  userGoals              UserGoal[]
+  userLevel              UserLevel?
+  preferences            UserPreferences?
+  profile                UserProfile?
+  xpLogs                 XpLog[]
+  mediaAssets            MediaAsset[]
+  commentDirectRules     CommentDirectRule[]
+  commentDirectLogs      CommentDirectLog[]
+  usageCounters          UsageCounter[]
+  usageEvents            UsageEvent[]
+  directConversations    DirectConversation[]
+  directMessages         DirectMessage[]
+  directFaqs             DirectFaq[]
+  directAgentActions     DirectAgentAction[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model UserProfile {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  displayName         String?
+  username            String?
+  avatar              String?
+  niche               String?
+  subNiche            String?
+  objective           String?
+  onboardingCompleted Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserPreferences {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  locale    String   @default("pt-BR")
+  timezone  String   @default("America/Sao_Paulo")
+  dashboard Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model SocialConnection {
+  id                String            @id @default(cuid())
+  userId            String
+  platform          String
+  externalAccountId String?
+  username          String?
+  accountType       String            @default("BUSINESS")
+  status            ConnectionStatus  @default(DISCONNECTED)
+  tokenEncrypted    String?
+  tokenExpiresAt    DateTime?
+  scopes            String?
+  /// Última sincronização de DADOS bem-sucedida (não o momento do OAuth).
+  lastSyncAt        DateTime?
+  /// Última tentativa de sincronização (mesmo quando falhou). Permite explicar
+  /// por que os dados estão antigos sem confundir com "nunca tentei".
+  lastSyncAttemptAt DateTime?
+  /// Código do último erro de sincronização (ex.: "190" token expirado).
+  lastSyncErrorCode String?
+  /// Estado REAL da leitura de comentários: null = nunca tentou;
+  /// true = funcionou; false = a Meta recusou (escopo não aprovado).
+  commentsAvailable Boolean?
+  commentsErrorCode String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  igProfiles        InstagramProfile?
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tiktokProfiles    TikTokProfile?
+  commentReplyLogs  CommentReplyLog[]
+  commentDirectLogs CommentDirectLog[]
+
+  @@unique([userId, platform])
+  @@index([platform])
+}
+
+model OAuthState {
+  id           String   @id @default(cuid())
+  userId       String
+  provider     String   @default("instagram")
+  state        String   @unique
+  consumed     Boolean  @default(false)
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  codeVerifier String?
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([state])
+}
+
+model InstagramProfile {
+  id                 String              @id @default(cuid())
+  userId             String
+  socialConnectionId String              @unique
+  igAccountId        String              @unique
+  username           String?
+  name               String?
+  followersCount     Int?
+  followsCount       Int?
+  mediaCount         Int?
+  profilePictureUrl  String?
+  biography          String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  medias             InstagramMedia[]
+  connection         SocialConnection    @relation(fields: [socialConnectionId], references: [id], onDelete: Cascade)
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  snapshots          InstagramSnapshot[]
+
+  @@index([userId])
+  @@index([igAccountId])
+}
+
+model InstagramSnapshot {
+  id             String           @id @default(cuid())
+  profileId      String
+  userId         String
+  capturedAt     DateTime         @default(now())
+  followersCount Int?
+  followsCount   Int?
+  mediaCount     Int?
+  reach          Int?
+  impressions    Int?
+  profileViews   Int?
+  engagement     Int?
+  profile        InstagramProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, capturedAt])
+  @@index([profileId, capturedAt])
+}
+
+model InstagramMedia {
+  id            String                 @id @default(cuid())
+  profileId     String
+  userId        String
+  igMediaId     String                 @unique
+  mediaType     String?
+  permalink     String?
+  caption       String?
+  timestamp     DateTime?
+  likeCount     Int?
+  commentsCount Int?
+  mediaUrl      String?
+  thumbnailUrl  String?
+  /// FEED | REELS | STORY | AD — quando a API informar (null = não informado).
+  mediaProductType String?
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+  profile       InstagramProfile       @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  user          User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  metrics       InstagramMediaMetric[]
+  comments      InstagramComment[]
+
+  @@index([userId, timestamp])
+}
+
+model InstagramMediaMetric {
+  id            String         @id @default(cuid())
+  /// Unique: uma linha de métricas por publicação (upsert por sincronização).
+  mediaId       String         @unique
+  userId        String
+  igMediaId     String
+  reached       Int?
+  impressions   Int?
+  shares        Int?
+  saves         Int?
+  comments      Int?
+  likes         Int?
+  videoViews    Int?
+  videoViewTime Int?
+  capturedAt    DateTime       @default(now())
+  media         InstagramMedia @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([mediaId, capturedAt])
+}
+
+/// Comentário REAL lido da API do Instagram e persistido.
+///
+/// Antes desta tabela o projeto só guardava `CommentReplyLog` (a NOSSA resposta),
+/// nunca o comentário recebido — por isso a tela de Respostas Inteligentes não
+/// tinha de onde ler comentários sem chamar a API a cada abertura.
+///
+/// Idempotência: `igCommentId` é único (o ID externo da Meta). Sincronizar duas
+/// vezes ATUALIZA o mesmo registro, nunca duplica.
+model InstagramComment {
+  id        String @id @default(cuid())
+  userId    String
+  mediaId   String
+  /// ID externo da Meta — chave de idempotência.
+  igCommentId String @unique
+
+  authorUsername String?
+  authorId       String?
+  /// Texto do comentário como a API retornou (null quando ela não envia).
+  text           String?
+  /// Momento em que o comentário foi feito no Instagram (null se não informado).
+  timestamp      DateTime?
+  /// true quando a conta conectada é a autora do comentário.
+  isOwn          Boolean @default(false)
+  /// Quantidade de respostas já existentes neste comentário (quando a API informa).
+  repliesCount   Int?
+  /// Momento da última leitura deste comentário na API.
+  syncedAt       DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  media InstagramMedia @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  user  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, timestamp])
+  @@index([mediaId, timestamp])
+}
+
+model SyncLog {
+  id          String   @id @default(cuid())
+  userId      String
+  platform    String
+  status      String
+  message     String?
+  itemsSynced Int?
+  durationMs  Int?
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, platform, createdAt])
+}
+
+model TikTokProfile {
+  id                 String           @id @default(cuid())
+  userId             String
+  socialConnectionId String           @unique
+  tiktokUserId       String           @unique
+  username           String?
+  displayName        String?
+  avatarUrl          String?
+  followersCount     Int?
+  followingCount     Int?
+  videoCount         Int?
+  likesCount         Int?
+  bio                String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  connection         SocialConnection @relation(fields: [socialConnectionId], references: [id], onDelete: Cascade)
+  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  snapshots          TikTokSnapshot[]
+  videos             TikTokVideo[]
+
+  @@index([userId])
+  @@index([tiktokUserId])
+}
+
+model TikTokSnapshot {
+  id             String        @id @default(cuid())
+  profileId      String
+  userId         String
+  capturedAt     DateTime      @default(now())
+  followersCount Int?
+  followingCount Int?
+  videoCount     Int?
+  likesCount     Int?
+  viewsCount     Int?
+  profileViews   Int?
+  profile        TikTokProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, capturedAt])
+  @@index([profileId, capturedAt])
+}
+
+model TikTokVideo {
+  id            String        @id @default(cuid())
+  profileId     String
+  userId        String
+  tiktokVideoId String        @unique
+  title         String?
+  coverUrl      String?
+  videoUrl      String?
+  embedUrl      String?
+  likeCount     Int?
+  commentCount  Int?
+  shareCount    Int?
+  playCount     Int?
+  timestamp     DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  profile       TikTokProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, timestamp])
+}
+
+model AIConversation {
+  id        String      @id @default(cuid())
+  userId    String
+  title     String
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  AIMessage[]
+
+  @@index([userId, updatedAt])
+}
+
+model AIMessage {
+  id             String         @id @default(cuid())
+  conversationId String
+  userId         String
+  role           String
+  content        String
+  createdAt      DateTime       @default(now())
+  conversation   AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@index([userId])
+}
+
+model AIProfile {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  summary            String?
+  niche              String?
+  subNiche           String?
+  objectives         String?
+  communicationStyle String?
+  observedPatterns   String?
+  preferredFormats   String?
+  ctaPatterns        String?
+  hookPatterns       String?
+  postingFrequency   String?
+  voiceTone          String?
+  writingStyle       String?
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model GeneratedCopy {
+  id              String           @id @default(cuid())
+  userId          String
+  platform        String
+  format          String
+  objective       String?
+  tone            String?
+  audience        String?
+  context         String?
+  content         String
+  hookType        String?
+  structure       String?
+  isFavorite      Boolean          @default(false)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plannedContents PlannedContent[]
+
+  @@index([userId, createdAt])
+}
+
+model ContentIdea {
+  id              String           @id @default(cuid())
+  userId          String
+  category        String
+  title           String
+  format          String?
+  objective       String?
+  context         String?
+  rationale       String?
+  status          String           @default("NOVA")
+  platform        String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plannedContents PlannedContent[]
+
+  @@index([userId, status])
+  @@index([userId, createdAt])
+}
+
+model SocialDraft {
+  id              String           @id @default(cuid())
+  userId          String
+  platform        String
+  mediaType       String           @default("image")
+  mediaUrl        String?
+  caption         String?
+  hashtags        String?
+  format          String?
+  /// ENQUADRAMENTO do preview, em JSON curto: `{"zoom":1.4,"offsetX":0.1,"offsetY":-0.2}`.
+  ///
+  /// Existe para o recorte escolhido SOBREVIVER ao salvar/reabrir/recarregar —
+  /// antes ele vivia só no estado da tela e se perdia no F5.
+  ///
+  /// LIMITE DECLARADO: isto guarda a INTENÇÃO de enquadramento para o preview.
+  /// O arquivo publicado continua sendo o ORIGINAL — o recorte não é aplicado
+  /// ao binário (isso exigiria renderização/transcodificação, etapa separada).
+  /// Ver `src/components/ai/use-media-framing.ts`.
+  framing         String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  plannedContents PlannedContent[]
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model MentorshipRecommendation {
+  id          String   @id @default(cuid())
+  userId      String
+  category    String
+  priority    String   @default("MEDIA")
+  problem     String
+  explanation String?
+  action      String?
+  evidence    String?
+  ruleSlug    String?
+  test        String?
+  result      String?
+  status      String   @default("NOVA")
+  source      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([userId, createdAt])
+}
+
+model ProfileScore {
+  id                   String                 @id @default(cuid())
+  userId               String
+  platform             String
+  overall              Int
+  growth               Int?
+  engagement           Int?
+  reach                Int?
+  consistency          Int?
+  frequency            Int?
+  content              Int?
+  factors              Json?
+  version              String                 @default("growth-score-v1")
+  coverage             Int?
+  weighting            Json?
+  createdAt            DateTime               @default(now())
+  user                 User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ProfileScoreSnapshot ProfileScoreSnapshot[]
+
+  @@index([userId, platform, createdAt])
+}
+
+model ProfileScoreSnapshot {
+  id        String       @id @default(cuid())
+  userId    String
+  platform  String
+  scoreId   String
+  overall   Int
+  createdAt DateTime     @default(now())
+  score     ProfileScore @relation(fields: [scoreId], references: [id], onDelete: Cascade)
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, platform, createdAt])
+}
+
+model KnowledgeVersion {
+  id        String          @id @default(cuid())
+  version   Int             @unique @default(1)
+  label     String?
+  active    Boolean         @default(true)
+  createdAt DateTime        @default(now())
+  rules     KnowledgeRule[]
+
+  @@index([active])
+}
+
+model KnowledgeModule {
+  id          String          @id @default(cuid())
+  number      Int
+  slug        String          @unique
+  title       String
+  description String?
+  version     Int             @default(1)
+  active      Boolean         @default(true)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  rules       KnowledgeRule[]
+
+  @@unique([number, version])
+  @@index([active])
+}
+
+model KnowledgeRule {
+  id         String            @id @default(cuid())
+  slug       String
+  moduleId   String?
+  module     Int
+  title      String
+  category   String
+  content    String
+  type       String
+  priority   String            @default("MEDIA")
+  tags       String[]
+  version    Int               @default(1)
+  versionId  String?
+  active     Boolean           @default(true)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  moduleRef  KnowledgeModule?  @relation(fields: [moduleId], references: [id])
+  versionRef KnowledgeVersion? @relation(fields: [versionId], references: [id])
+
+  @@unique([slug, version])
+  @@index([category])
+  @@index([module])
+  @@index([active])
+}
+
+model GrowthExperiment {
+  id              String                     @id @default(cuid())
+  userId          String
+  platform        String
+  hypothesis      String
+  variable        String
+  baseline        String?
+  status          String                     @default("DRAFT")
+  startedAt       DateTime?
+  endedAt         DateTime?
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+  observations    ExperimentObservation[]
+  variants        ExperimentVariant[]
+  user            User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plannedContents PlannedContentExperiment[]
+
+  @@index([userId, status])
+  @@index([userId, createdAt])
+}
+
+model ExperimentVariant {
+  id           String           @id @default(cuid())
+  experimentId String
+  contentId    String?
+  variation    String?
+  hookType     String?
+  format       String?
+  theme        String?
+  structure    String?
+  createdAt    DateTime         @default(now())
+  experiment   GrowthExperiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+
+  @@index([experimentId])
+}
+
+model ExperimentObservation {
+  id           String           @id @default(cuid())
+  experimentId String
+  metric       String
+  before       Float?
+  after        Float?
+  delta        Float?
+  conclusion   String?
+  confidence   String?
+  createdAt    DateTime         @default(now())
+  experiment   GrowthExperiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+
+  @@index([experimentId])
+}
+
+model ProfileInsight {
+  id           String   @id @default(cuid())
+  userId       String
+  platform     String
+  type         String
+  summary      String
+  detail       String?
+  ruleSlug     String?
+  experimentId String?
+  confidence   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type])
+  @@index([userId, createdAt])
+}
+
+model UserLevel {
+  id            String    @id @default(cuid())
+  userId        String    @unique
+  xp            Int       @default(0)
+  level         Int       @default(1)
+  totalXpEarned Int       @default(0)
+  lastLevelUpAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([level])
+  @@index([xp])
+}
+
+model XpLog {
+  id        String   @id @default(cuid())
+  userId    String
+  source    String
+  refId     String
+  amount    Int
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, source, refId])
+  @@index([userId, createdAt])
+  @@index([source, refId])
+}
+
+model Achievement {
+  id          String            @id @default(cuid())
+  slug        String            @unique
+  title       String
+  description String
+  category    String
+  xpReward    Int
+  threshold   Int
+  unit        String?
+  tier        String            @default("BRONZE")
+  hidden      Boolean           @default(false)
+  version     Int               @default(1)
+  active      Boolean           @default(true)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  users       UserAchievement[]
+
+  @@index([category])
+  @@index([active])
+}
+
+model UserAchievement {
+  id            String      @id @default(cuid())
+  userId        String
+  achievementId String
+  progress      Int         @default(0)
+  unlocked      Boolean     @default(false)
+  unlockedAt    DateTime?
+  xpGranted     Boolean     @default(false)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievementId])
+  @@index([userId, unlocked])
+  @@index([achievementId])
+}
+
+model PublishQueue {
+  id             String         @id @default(cuid())
+  userId         String
+  contentId      String
+  platform       String
+  format         String
+  status         String         @default("AGENDADO")
+  scheduledAt    DateTime?
+  attempts       Int            @default(0)
+  lastAttemptAt  DateTime?
+  nextAttemptAt  DateTime?
+  errorCode      String?
+  errorMessage   String?
+  externalId     String?
+  provider       String?
+  idempotencyKey String?
+  /// Immutable media/caption/order for this scheduling intent; no credentials.
+  payloadSnapshot Json?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  content        PlannedContent @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([contentId, platform])
+  @@index([userId, status])
+  @@index([status, scheduledAt])
+  @@index([status, nextAttemptAt])
+}
+
+model PublishLog {
+  id           String   @id @default(cuid())
+  userId       String
+  queueId      String?
+  contentId    String?
+  platform     String
+  operation    String
+  status       String
+  attempts     Int      @default(0)
+  errorCode    String?
+  errorMessage String?
+  externalId   String?
+  provider     String?
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([queueId])
+  @@index([platform, status])
+}
+
+model AutomationRule {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  trigger   String
+  platform  String   @default("instagram")
+  keywords  String[]
+  action    String   @default("dm")
+  enabled   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, enabled])
+}
+
+model AutomationEvent {
+  id        String   @id @default(cuid())
+  userId    String
+  eventId   String   @unique
+  platform  String
+  type      String
+  payload   Json?
+  processed Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model AutomationExecution {
+  id        String   @id @default(cuid())
+  userId    String
+  ruleId    String?
+  eventId   String?
+  status    String   @default("EVALUATED")
+  detail    String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model GrowthAction {
+  id                   String    @id @default(cuid())
+  userId               String
+  platform             String
+  title                String
+  description          String?
+  reason               String?
+  priority             String    @default("MEDIA")
+  status               String    @default("PENDING")
+  dueAt                DateTime?
+  completedAt          DateTime?
+  dismissedAt          DateTime?
+  sourceSignal         String?
+  sourceRecommendation String?
+  metricToWatch        String?
+  baselineValue        Float?
+  resultValue          Float?
+  resultNote           String?
+  xpGranted            Boolean   @default(false)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([userId, priority])
+  @@index([userId, dueAt])
+  @@index([sourceSignal, userId])
+}
+
+model PasskeyCredential {
+  id           String    @id @default(cuid())
+  userId       String
+  credentialId String    @unique
+  publicKey    String
+  transports   String?
+  deviceName   String?
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime?
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Plan {
+  id              String          @id @default(cuid())
+  slug            String          @unique
+  name            String
+  priceCents      Int
+  currency        String          @default("BRL")
+  type            String          @default("ONE_TIME")
+  billingInterval String?
+  durationDays    Int?
+  description     String?
+  features        String[]
+  badge           String?
+  active          Boolean         @default(true)
+  sortOrder       Int             @default(0)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  CheckoutOrder   CheckoutOrder[]
+  subscriptions   Subscription[]
+
+  @@index([active])
+}
+
+model Subscription {
+  id                     String         @id @default(cuid())
+  userId                 String
+  planId                 String
+  status                 String         @default("PENDING")
+  billingType            String         @default("ONE_TIME")
+  billingInterval        String?
+  startAt                DateTime?
+  expiresAt              DateTime?
+  autoRenew              Boolean        @default(false)
+  nextBillingAt          DateTime?
+  canceledAt             DateTime?
+  provider               String?
+  externalCustomerId     String?
+  externalSubscriptionId String?
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
+  accessSource           String?
+  amountCents            Int?
+  currency               String         @default("BRL")
+  externalPaymentId      String?
+  grantedByAdminId       String?
+  idempotencyKey         String?        @unique
+  paidAt                 DateTime?
+  billingEvents          BillingEvent[]
+  payments               Payment[]
+  plan                   Plan           @relation(fields: [planId], references: [id])
+  user                   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([planId])
+  @@index([userId, expiresAt])
+  @@index([externalSubscriptionId])
+}
+
+model Payment {
+  id                String        @id @default(cuid())
+  userId            String
+  planId            String?
+  subscriptionId    String?
+  amountCents       Int
+  currency          String        @default("BRL")
+  status            String        @default("PENDING")
+  provider          String?
+  externalPaymentId String?
+  paidAt            DateTime?
+  createdAt         DateTime      @default(now())
+  eventId           String?       @unique
+  eventType         String?
+  subscription      Subscription? @relation(fields: [subscriptionId], references: [id])
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([subscriptionId])
+  @@index([externalPaymentId])
+}
+
+model BillingEvent {
+  id             String        @id @default(cuid())
+  eventId        String        @unique
+  provider       String        @default("asaas")
+  type           String
+  userId         String?
+  subscriptionId String?
+  payload        Json?
+  processed      Boolean       @default(false)
+  processedAt    DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  Subscription   Subscription? @relation(fields: [subscriptionId], references: [id])
+  User           User?         @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([subscriptionId])
+  @@index([processed])
+}
+
+model AccessGrant {
+  id                     String    @id @default(cuid())
+  email                  String
+  userId                 String?
+  planId                 String?
+  planName               String?
+  origin                 String
+  status                 String    @default("PENDING_FIRST_ACCESS")
+  startAt                DateTime
+  expiresAt              DateTime?
+  grantedByAdminId       String?
+  externalPaymentId      String?
+  externalSubscriptionId String?
+  firstAccessCompleted   Boolean   @default(false)
+  firstAccessCompletedAt DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  user                   User?     @relation(fields: [userId], references: [id])
+
+  @@unique([email, origin, externalPaymentId])
+  @@index([email, status])
+  @@index([userId, status])
+}
+
+model FirstAccessToken {
+  id        String    @id @default(cuid())
+  email     String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  consumed  Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  userId    String?
+  user      User?     @relation(fields: [userId], references: [id])
+
+  @@index([email])
+}
+
+model UserGoal {
+  id              String           @id @default(cuid())
+  userId          String
+  category        String
+  title           String
+  description     String?
+  targetValue     Float?
+  currentValue    Float?
+  unit            String?
+  platform        String?
+  status          String           @default("ATIVA")
+  deadline        DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  plannedContents PlannedContent[]
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([userId, category])
+}
+
+model PlannedContent {
+  id           String                     @id @default(cuid())
+  userId       String
+  platform     String                     @default("instagram")
+  format       String                     @default("reel")
+  title        String
+  theme        String?
+  objective    String?
+  status       String                     @default("RASCUNHO")
+  scheduledAt  DateTime?
+  publishedAt  DateTime?
+  externalId   String?
+  notes        String?
+  hypothesis   String?
+  createdAt    DateTime                   @default(now())
+  updatedAt    DateTime                   @updatedAt
+  ideaId       String?
+  copyId       String?
+  draftId      String?
+  goalId       String?
+  copyVersions ContentCopyVersion[]
+  copy         GeneratedCopy?             @relation(fields: [copyId], references: [id])
+  draft        SocialDraft?               @relation(fields: [draftId], references: [id])
+  goal         UserGoal?                  @relation(fields: [goalId], references: [id])
+  idea         ContentIdea?               @relation(fields: [ideaId], references: [id])
+  user         User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  experiments  PlannedContentExperiment[]
+  publishQueue PublishQueue[]
+
+  @@index([userId, status])
+  @@index([userId, scheduledAt])
+  @@index([userId, platform])
+  @@index([ideaId])
+  @@index([copyId])
+  @@index([goalId])
+}
+
+model PlannedContentExperiment {
+  id           String           @id @default(cuid())
+  contentId    String
+  experimentId String
+  createdAt    DateTime         @default(now())
+  content      PlannedContent   @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  experiment   GrowthExperiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+
+  @@unique([contentId, experimentId])
+  @@index([experimentId])
+}
+
+model ContentCopyVersion {
+  id             String         @id @default(cuid())
+  userId         String
+  contentId      String
+  version        Int
+  content        String
+  note           String?
+  createdAt      DateTime       @default(now())
+  plannedContent PlannedContent @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([contentId, version])
+  @@index([userId, contentId])
+}
+
+model SystemSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([key])
+}
+
+// ============================================================
+// LISTA DE ESPERA — capacidade de vendas
+// ------------------------------------------------------------
+// Model NOVO e 100% ADITIVO (ver migration 20261008120000_lista_de_espera).
+// A identidade é o E-MAIL NORMALIZADO (@unique) — entrar duas vezes é
+// idempotente. `status`: WAITING | INVITED | CONVERTED | EXPIRED.
+// Um convite vigente (status INVITED e expiresAt no futuro) SEGURA uma vaga,
+// o que permite ao admin liberar uma vaga específica com a loja lotada.
+// ============================================================
+
+model WaitlistEntry {
+  id          String    @id @default(cuid())
+  name        String?
+  email       String    @unique
+  status      String    @default("WAITING")
+  invitedAt   DateTime?
+  expiresAt   DateTime?
+  notes       String?
+  convertedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status])
+  @@index([status, expiresAt])
+  @@index([createdAt])
+}
+
+model CheckoutOrder {
+  // `@default(cuid())` — CAUSA DO ERRO 500 EM PRODUÇÃO (POST /api/billing/checkout).
+  // Este era o ÚNICO model do schema sem default de id. O fluxo público cria a
+  // ordem com `bll.checkoutOrder.create()` sem informar `id`, e o Prisma exige
+  // o campo obrigatório na entrada → PrismaClientValidationError ANTES de o
+  // checkout do Asaas ser chamado. O Postgres já tem a coluna como
+  // `TEXT NOT NULL` e o valor é gerado no CLIENTE (cuid), então esta correção
+  // NÃO exige migration nem altera nada no banco.
+  id                     String    @id @default(cuid())
+  email                  String
+  name                   String?
+  userId                 String?
+  planId                 String?
+  planSlug               String
+  planName               String?
+  expectedAmountCents    Int
+  currency               String    @default("BRL")
+  billingType            String
+  billingInterval        String?
+  status                 String    @default("PENDING")
+  externalReference      String    @unique
+  externalCheckoutId     String?
+  externalPaymentId      String?
+  externalSubscriptionId String?
+  createdAt              DateTime  @default(now())
+  // `@updatedAt` — SEGUNDA metade do mesmo erro 500. Este era o único model do
+  // schema cujo `updatedAt` não tinha `@updatedAt`; a coluna no Postgres é
+  // `NOT NULL` e sem default no banco, então o Prisma também exigia esse campo
+  // na entrada do create (e não o preenchia sozinho nos updates). É diretiva
+  // de CLIENTE: não altera a coluna nem exige migration.
+  updatedAt              DateTime  @updatedAt
+  paidAt                 DateTime?
+  audit                  Json?
+  Plan                   Plan?     @relation(fields: [planId], references: [id])
+  User                   User?     @relation(fields: [userId], references: [id])
+
+  @@index([email])
+  @@index([externalPaymentId])
+  @@index([planSlug])
+  @@index([status])
+  @@index([userId])
+}
+
+// ============================================================
+// RESPOSTAS INTELIGENTES A COMENTÁRIOS (Instagram)
+// ------------------------------------------------------------
+// Reutiliza a SocialConnection já existente — NÃO cria conexão nova
+// nem OAuth próprio. O token continua no SocialConnection, cifrado.
+// 100% aditivo: nada aqui altera models existentes.
+// ============================================================
+
+/// Configuração da automação de respostas do usuário.
+model CommentAutomationRule {
+  id       String  @id @default(cuid())
+  userId   String
+  name     String
+  enabled  Boolean @default(false)
+  platform String  @default("instagram")
+
+  /// Alcance da regra: "all" | "post" | "reel" | "carousel" | "media"
+  targetType String  @default("all")
+  /// Quando targetType = "media", restringe a uma publicação específica.
+  mediaId    String?
+
+  /// MANUAL | APPROVAL | AUTO
+  replyMode        String  @default("MANUAL")
+  approvalRequired Boolean @default(true)
+
+  maxRepliesPerRun       Int @default(10)
+  maxRepliesPerHour      Int @default(20)
+  maxRepliesPerDay       Int @default(60)
+  minimumIntervalSeconds Int @default(30)
+
+  /// Pausa global desta automação (botão "Pausar Respostas Inteligentes").
+  paused Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  templates ReplyTemplate[]
+  logs      CommentReplyLog[]
+
+  @@index([userId, enabled])
+  @@map("comment_automation_rule")
+}
+
+/// Resposta exemplo/fixa cadastrada pelo usuário (referência de estilo).
+model ReplyTemplate {
+  id     String  @id @default(cuid())
+  userId String
+  ruleId String?
+
+  text String
+  /// Categoria sugerida: emoji | elogio | agradecimento | pergunta | outro
+  category String  @default("outro")
+  /// true  → usar EXATAMENTE este texto
+  /// false → usar como EXEMPLO de estilo para a IA variar
+  exactReply Boolean @default(false)
+  active     Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rule CommentAutomationRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+
+  @@index([userId, active])
+  @@map("reply_template")
+}
+
+/// Pessoa específica com tratamento próprio (prioridade máxima).
+model SpecialProfileRule {
+  id     String @id @default(cuid())
+  userId String
+
+  /// Sem "@", normalizado em minúsculas.
+  instagramUsername String
+  displayName       String?
+  category          String?
+
+  customInstructions String
+  /// Se preenchido, responde exatamente isto (ignora a IA).
+  fixedReply         String?
+  /// Se true, usa IA com as instruções; se false e houver fixedReply, só a fixa.
+  useAI              Boolean @default(true)
+
+  priority Int     @default(10)
+  active   Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, instagramUsername])
+  @@index([userId, active])
+  @@map("special_profile_rule")
+}
+
+/// Log/controle de cada comentário analisado. É a fonte de IDEMPOTÊNCIA:
+/// um comentário só pode ter UM registro em estado SENT por (userId, commentId).
+model CommentReplyLog {
+  id                 String @id @default(cuid())
+  userId             String
+  socialConnectionId String
+
+  mediaId String
+  /// Unique junto com mediaId — nunca responder duas vezes ao mesmo comentário.
+  commentId String
+
+  commenterUsername String
+  originalComment   String
+  /// Classificação do comentário (emoji | elogio | sensivel | spam | ...).
+  commentCategory   String?
+
+  generatedReply String?
+  finalReply     String?
+
+  /// PENDING | APPROVED | SENT | IGNORED | ERROR | SKIPPED
+  status String @default("PENDING")
+
+  /// Antes do envio: origem da sugestão (IA | TEMPLATE_FIXO | PERFIL_ESPECIAL | EMOJI).
+  /// Depois do envio: como foi enviada (MANUAL | AUTO) — é o que os filtros
+  /// "manuais"/"automáticos" do histórico consultam.
+  sourceRule String?
+
+  externalReplyId String?
+  errorCode       String?
+
+  createdAt  DateTime  @default(now())
+  approvedAt DateTime?
+  sentAt     DateTime?
+
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  socialConnection SocialConnection @relation(fields: [socialConnectionId], references: [id], onDelete: Cascade)
+  rule             CommentAutomationRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+  ruleId           String?
+
+  @@unique([mediaId, commentId])
+  @@index([userId, status])
+  @@index([userId, createdAt])
+  @@map("comment_reply_log")
+}
+
+// ============================================================
+// COMENTÁRIO → DIRECT + CENTRAL DE DM (Instagram)
+// ------------------------------------------------------------
+// 100% aditivo. Reutiliza a SocialConnection e o token JÁ existentes — nenhum
+// segundo OAuth. Tudo aqui foi desenhado para funcionar SÓ contra os endpoints
+// oficiais da Meta; quando a permissão não estiver concedida, os dados ficam
+// vazios de verdade (nunca thread inventada) e a UI mostra "integração pendente".
+// ============================================================
+
+/// Configuração da automação Comentário → Direct (mensagem privada de resposta
+/// a um comentário). Nasce SEMPRE desligada (`enabled=false`): nunca dispara sem
+/// o usuário ativar de propósito.
+model CommentDirectRule {
+  id       String  @id @default(cuid())
+  userId   String
+  name     String
+  enabled  Boolean @default(false)
+  platform String  @default("instagram")
+
+  /// Publicação alvo. `null` = todas as publicações (combinado com `scope`).
+  mediaId      String?
+  mediaCaption String?
+
+  /// Escopo de aplicação: "all" | "media" (uma publicação).
+  scope String @default("all")
+
+  /// EXACT_WORD | ANY_OF_LIST | CONTAINS_TEXT | ANY_COMMENT (ver triggers.ts).
+  triggerType  String
+  triggerTerms String[]
+
+  /// Texto enviado no Direct. Passou por `validateTriggerConfig`.
+  messageText String
+
+  /// Teto de envios/dia por regra (limite defensivo contra disparo em massa).
+  dailyLimit Int @default(50)
+  /// No máximo UMA mensagem por pessoa (recomendado pela política da Meta).
+  onePerUser Boolean @default(true)
+  /// Pausa temporária sem desligar a regra (ex.: após rate limit).
+  pausedUntil DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, enabled])
+  @@index([userId, mediaId])
+  @@map("comment_direct_rule")
+}
+
+/// Histórico + IDEMPOTÊNCIA da automação Comentário → Direct.
+/// `@@unique([mediaId, commentId])` é a garantia final: a Meta reentrega o
+/// mesmo webhook, e sem isto a mesma pessoa receberia a mensagem duas vezes.
+model CommentDirectLog {
+  id                 String @id @default(cuid())
+  userId             String
+  socialConnectionId String
+  ruleId             String?
+
+  mediaId   String
+  commentId String
+
+  commenterId       String?
+  commenterUsername String?
+
+  originalComment String
+  matchedTrigger  String?
+  sentMessage     String?
+
+  /// PENDING | SENT | SKIPPED | BLOCKED | DUPLICATE | ERROR
+  status String @default("PENDING")
+  /// Motivo exato quando o status não é SENT (ver SKIP_REASONS).
+  reason String?
+
+  externalMessageId String?
+  errorCode         String?
+
+  createdAt DateTime  @default(now())
+  sentAt    DateTime?
+
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  socialConnection SocialConnection @relation(fields: [socialConnectionId], references: [id], onDelete: Cascade)
+
+  @@unique([mediaId, commentId])
+  @@index([userId, status])
+  @@index([userId, createdAt])
+  @@map("comment_direct_log")
+}
+
+/// Conversa do Direct (thread). Só existe quando a Meta entrega a conversa de
+/// verdade — nunca é criada com dado inventado.
+model DirectConversation {
+  id                 String @id @default(cuid())
+  userId             String
+  socialConnectionId String
+
+  /// ID da conversa no Instagram (`/{ig-user-id}/conversations`).
+  igConversationId String @unique
+  /// ID externo do contato (IGSID). `null` quando a Meta não o informa.
+  participantId       String?
+  participantUsername String?
+  participantName     String?
+
+  /// Epoch (ms) da última atividade, como a Meta informa. `null` = não informado.
+  lastMessageAt DateTime?
+  /// Estado que a Meta reportar (quando houver).
+  unreadCount Int?
+  /// Último texto visto — apenas EXIBIÇÃO; a mensagem real vive em DirectMessage.
+  lastMessagePreview String?
+
+  /// `false` = criada a partir de metadados, mas a janela de 24h da Meta já
+  /// fechou: a UI deixa claro que não é possível responder sem message tag.
+  windowOpen Boolean?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  DirectMessage[]
+
+  @@index([userId, lastMessageAt])
+  @@map("direct_conversation")
+}
+
+/// Mensagem do Direct. Guardamos o que a Meta entregou (webhook `messages` ou
+/// leitura oficial) — nunca uma mensagem fabricada.
+model DirectMessage {
+  id             String @id @default(cuid())
+  userId         String
+  conversationId String
+
+  /// ID externo da mensagem (idempotência do webhook).
+  igMessageId String @unique
+
+  /// INBOUND (recebida) | OUTBOUND (enviada pela conta) | UNKNOWN.
+  direction String @default("INBOUND")
+  /// Texto. `null` quando a mensagem não é de texto (anexo, story reply…).
+  text      String?
+  /// Tipo do anexo quando houver, sem baixar/duplicar mídia de terceiros.
+  attachmentType String?
+
+  /// Momento informado pela Meta (epoch → Date). `null` se não interpretável.
+  sentAt DateTime?
+
+  /// `true` quando a mensagem veio do nosso próprio envio manual/aprovado.
+  fromUs Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation DirectConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, sentAt])
+  @@index([userId, sentAt])
+  @@map("direct_message")
+}
+
+/// FAQ automático — perguntas frequentes e respostas cadastradas pelo usuário.
+/// Usado para sugerir resposta no painel de conversa (NUNCA envia sozinho).
+model DirectFaq {
+  id     String @id @default(cuid())
+  userId String
+
+  /// Pergunta/assunto (ex.: "Preço", "Horário de atendimento").
+  question String
+  /// Resposta canônica, aprovada pelo usuário.
+  answer   String
+  /// Palavras que casam a pergunta (normalizadas com `normalizeText`).
+  keywords String[]
+  category String @default("geral")
+  active   Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, active])
+  @@map("direct_faq")
+}
+
+/// Log de AÇÕES da IA nas conversas (sugestão, aprovação, hand-off).
+/// Existe para auditoria: toda sugestão/ação fica registrada com o que a IA viu
+/// e o que o humano decidiu. Nunca guarda token nem conteúdo de terceiro.
+model DirectAgentAction {
+  id     String @id @default(cuid())
+  userId String
+
+  /// Linha de conversa/mensagem envolvida, quando aplicável.
+  conversationId String?
+  messageId      String?
+
+  /// SUGGEST | APPROVE | REJECT | HANDOFF | AUTOREPLY_BLOCKED
+  action String
+  /// Texto sugerido pela IA (quando action = SUGGEST).
+  suggestion String?
+  /// Texto efetivamente enviado/aprovado.
+  finalText  String?
+  /// Por que a automação NÃO enviou sozinha (ex.: janela fechada, permissão).
+  reason String?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("direct_agent_action")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum ConnectionStatus {
+  DISCONNECTED
+  CONNECTING
+  CONNECTED
+  ERROR
+}
+
+/// BIBLIOTECA DE MÍDIA — arquivos que o usuário enviou uma vez e reutiliza.
+///
+/// Por que existe: o upload do Preview Social guarda o arquivo no Vercel Blob e
+/// o caminho no RASCUNHO (`SocialDraft.mediaUrl`). Isso amarra o arquivo a um
+/// rascunho: trocar de rascunho perde a referência e o usuário reenvia a MESMA
+/// foto. Aqui o arquivo passa a ter existência própria — enviado uma vez,
+/// reaproveitado em quantos conteúdos quiser, sem upload duplicado.
+///
+/// O binário NÃO mora no banco: fica no Blob. Esta tabela guarda a referência
+/// (`url` pública e `pathname` na Blob).
+model MediaAsset {
+  id           String   @id @default(cuid())
+  userId       String
+  /// URL pública no Vercel Blob — é ela que o preview usa.
+  url          String
+  /// Caminho dentro do Blob (`inst-acessor/<userId>/...`). Serve para localizar
+  /// e remover o binário depois. NUNCA é montado a partir de dado do cliente
+  /// sem validação de prefixo.
+  pathname     String?
+  /// IMAGE | VIDEO — derivado do mimeType, nunca informado solto pelo cliente.
+  type         String
+  mimeType     String?
+  size         Int?
+  originalName String?
+  /// Título do arquivo na biblioteca. `null` → a UI usa `originalName`.
+  title        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// A listagem é SEMPRE por usuário e em ordem de envio — este índice cobre
+  /// exatamente a consulta da tela, inclusive a paginação por cursor.
+  @@index([userId, createdAt])
+  @@map("media_asset")
+}
+
+// ============================================================
+// MEDIÇÃO DE FRANQUIA (consumo por plano)
+// ------------------------------------------------------------
+// O Inst Acessor não tinha NENHUM medidor de uso. Estes dois models são a base
+// para (a) o painel do usuário mostrar consumo/saldo, e (b) o bloqueio por
+// franquia quando o proprietário aprovar a ativação comercial.
+//
+// 100% ADITIVO: duas tabelas novas, nenhuma existente é tocada.
+//
+// Por que DOIS models:
+//   • UsageEvent      → o LOG (auditoria): cada consumo com data, capacidade e
+//                       quantidade. É a fonte da verdade para "quantas
+//                       gerações de IA neste ciclo/período". Também guarda o
+//                       idempotencyKey para impedir contagem dupla em retry.
+//   • UsageCounter    → o AGREGADO por (janela, capacidade): leitura rápida
+//                       para o painel e para o gate de limite, sem varrer o log.
+// ============================================================
+
+/// Consumo REAL de uma capacidade. Inserido no SERVIDOR, nunca pelo navegador.
+model UsageEvent {
+  id     String @id @default(cuid())
+  userId String
+  /// Geração de IA | resposta automática | análise | publicação.
+  feature String
+  /// Quantas unidades consumidas (normalmente 1; análise de perfil pode ser 1).
+  amount  Int    @default(1)
+  /// Contexto opcional (ex.: "copy", "ideias", "diagnostico"). Não guarda dado sensível.
+  origin  String?
+  /// Chave de IDEMPOTÊNCIA do evento externo. Única quando presente: um retry
+  /// do mesmo pagamento/publicação não conta duas vezes.
+  idempotencyKey String? @unique
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Consultas do gate/contador: sempre por usuário+capacidade e recortando data.
+  @@index([userId, feature, createdAt])
+  @@index([userId, createdAt])
+}
+
+/// Agregado por janela. `window` = "DAY" (reinicia 00:00 America/Sao_Paulo) ou
+/// "CYCLE" (o ciclo contratado). `key` é a chave concreta ("2026-10-08" ou o
+/// id do ciclo) — assim a virada de janela é automática: uma chave nova começa
+/// em zero, sem job de reset.
+model UsageCounter {
+  id     String @id @default(cuid())
+  userId String
+  feature String
+  window  String
+  key     String
+  used    Int    @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Um contador por (usuário, capacidade, janela, chave) — o upsert incrementa.
+  @@unique([userId, feature, window, key])
+  @@index([userId, window, key])
+}
+
+/// Durable TikTok inbox: only normalized metadata and irreversible envelope hashes.
+/// No original payload, client key, token, message, email or display name is stored.
+model SocialWebhookInbox {
+  id                String   @id @default(cuid())
+  eventKey          String   @unique
+  rawHash           String
+  eventName         String
+  occurredAt        DateTime
+  accountHash       String
+  connectionId      String?
+  connectionVersion DateTime?
+  reason            Int?
+  state             String   @default("PENDING")
+  attempts          Int      @default(0)
+  leaseToken        String?
+  leaseUntil        DateTime?
+  nextAttemptAt     DateTime @default(now())
+  processedAt       DateTime?
+  errorCode         String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([state, nextAttemptAt])
+  @@index([state, leaseUntil])
+}

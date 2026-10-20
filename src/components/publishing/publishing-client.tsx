@@ -777,18 +777,18 @@ export function PublishingClient({ initial }: PublishingClientProps) {
                 {q.externalId && (
                   <div className="rounded-md bg-success-soft border border-success/15 px-3 py-2 text-[12.5px] text-success flex items-center gap-2">
                     <CheckCircle2 size={14} className="flex-none" />
-                    <span>Confirmado pela plataforma · id externo {q.externalId}</span>
+                    <span>{q.status === "PUBLICADO" ? "Confirmado pela plataforma" : "Processo remoto em acompanhamento"} · id externo {q.externalId}</span>
                   </div>
                 )}
 
                 <div className="flex flex-wrap items-center gap-2">
-                  {q.status === "FALHOU" && (
+                  {q.status === "FALHOU" && q.errorCode !== "RECONCILIATION_REQUIRED" && (
                     <Button size="xs" variant="outline" onClick={() => handleAction(q.id, "retry")} disabled={processingId === q.id}>
                       {processingId === q.id ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
                       Re-tentar
                     </Button>
                   )}
-                  {(q.status === "AGENDADO" || q.status === "FALHOU") && (
+                  {(q.status === "AGENDADO" || q.status === "FALHOU") && q.errorCode !== "RECONCILIATION_REQUIRED" && (
                     <Button size="xs" variant="ghost" onClick={() => handleAction(q.id, "cancel")} disabled={processingId === q.id}>
                       <XCircle size={13} />
                       Cancelar

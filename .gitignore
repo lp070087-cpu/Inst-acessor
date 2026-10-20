@@ -9,6 +9,7 @@
 # Next.js
 /.next/
 /.next-e2e/
+/.next-demo/
 /.audit-worktree/
 /out/
 
@@ -38,6 +39,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+/debug.log
 
 # Editor
 .vscode/*

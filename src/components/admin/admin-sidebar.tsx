@@ -68,6 +68,12 @@ const adminNav: AdminNavItem[] = [
     icon: Webhook,
     description: "Status dos endpoints de notificação",
   },
+  {
+    label: "Pré-lançamento",
+    href: "/admin/pre-lancamento",
+    icon: Users,
+    description: "Inscrições e avisos de abertura",
+  },
 ];
 
 export function AdminSidebar({

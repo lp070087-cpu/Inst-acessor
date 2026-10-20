@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { dbRateLimiter, clientIp } from "@/lib/publishing/rate-limit";
+import { ingestTikTokEvent, normalizeTikTokEvent, TIKTOK_INBOX_LIMITS } from "@/lib/integrations/tiktok/webhook-inbox";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 import {
   getTikTokWebhookSecret,
@@ -8,11 +12,11 @@ import {
 } from "@/lib/webhooks/signature";
 
 /**
- * Webhook do TikTok — preparado estruturalmente.
+ * Webhook do TikTok — inbox durável, explicitamente desativada por padrão.
  *
  * GET  → valida o desafio de verificação do TikTok (echostr).
  * POST → verifica a ASSINATURA HMAC (`TikTok-Signature`) sobre o corpo bruto e,
- *        só então, reconhece o evento.
+ *        só então, normaliza e persiste. Recebimento não significa aplicação.
  *
  * ATENÇÃO:
  * - Não configurar URL falsa no portal do TikTok ainda — só ativar quando
@@ -74,7 +78,7 @@ export async function POST(request: Request) {
   // FAIL-CLOSED: enquanto o webhook não estiver configurado, nenhum evento é
   // processado. Evita aceitar payloads não autenticados quando a Fase 3.5
   // passar a agir sobre eles.
-  if (!configuredVerifyToken()) {
+  if (process.env.TIKTOK_WEBHOOK_INBOX_ENABLED !== "true" || !process.env.TIKTOK_CLIENT_KEY?.trim()) {
     console.error("[tiktok-webhook] webhook não configurado — evento recusado");
     return new NextResponse("Webhook não configurado", { status: 503 });
   }
@@ -82,7 +86,25 @@ export async function POST(request: Request) {
   // O corpo bruto é lido ANTES do parse: a assinatura é calculada sobre os
   // BYTES EXATOS recebidos (um parse+reserialize alteraria espaços/ordem e
   // invalidaria a assinatura).
-  const rawBody = await request.text();
+  // Bound bytes while reading, before allocating an unbounded JSON payload.
+  const reader = request.body?.getReader();
+  if (!reader) return new NextResponse("Payload inválido", { status: 400 });
+  const chunks: Uint8Array[] = [];
+  let bytes = 0;
+  try {
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      bytes += chunk.value.byteLength;
+      if (bytes > TIKTOK_INBOX_LIMITS.bodyBytes) {
+        await reader.cancel();
+        return new NextResponse("Payload excede o limite", { status: 413 });
+      }
+      chunks.push(chunk.value);
+    }
+  } catch { return new NextResponse("Payload inválido", { status: 400 }); }
+  finally { reader.releaseLock(); }
+  const rawBody = Buffer.concat(chunks).toString("utf8");
 
   // ---- ASSINATURA (`TikTok-Signature`, formato `t=...,s=...`) ----
   // Ordem obrigatória: segredo → header → assinatura, TUDO antes do JSON.parse.
@@ -106,24 +128,20 @@ export async function POST(request: Request) {
   if (!(await dbRateLimiter.check(`tiktok-webhook:${clientIp(request)}`, { windowMs: 60_000, max: 120 }))) {
     return new NextResponse("Entrega temporariamente limitada", { status: 429 });
   }
-  let payload: unknown;
+  let event: ReturnType<typeof normalizeTikTokEvent>;
   try {
-    payload = JSON.parse(rawBody);
+    event = normalizeTikTokEvent(rawBody, process.env.TIKTOK_CLIENT_KEY!.trim());
   } catch {
     return new NextResponse("Payload inválido", { status: 400 });
   }
 
-  // Estrutura esperada do TikTok:
-  // { event: "PublishVideo", ... }
-  if (typeof payload !== "object" || payload === null || !("event" in payload)) {
-    console.warn("[tiktok-webhook] payload fora do formato esperado");
-    return new NextResponse("Payload inválido", { status: 400 });
+  try {
+    const saved = await ingestTikTokEvent(event);
+    // Acknowledgement means durable receipt only. Unsupported contracts remain
+    // quarantined; it never means a social post or message was successful.
+    return NextResponse.json({ received: true, durable: true, status: saved.state });
+  } catch {
+    console.error("[tiktok-webhook] recebimento durável não concluído");
+    return NextResponse.json({ received: false }, { status: 503 });
   }
-
-  console.info(
-    `[tiktok-webhook] evento recebido event=${(payload as { event: string }).event}`
-  );
-
-  // Do not acknowledge events that have not been durably processed.
-  return NextResponse.json({ received: false, status: "PROCESSING_NOT_AVAILABLE" }, { status: 503 });
 }

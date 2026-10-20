@@ -778,6 +778,8 @@ model PublishQueue {
   externalId     String?
   provider       String?
   idempotencyKey String?
+  /// Immutable media/caption/order for this scheduling intent; no credentials.
+  payloadSnapshot Json?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
   content        PlannedContent @relation(fields: [contentId], references: [id], onDelete: Cascade)
@@ -1662,4 +1664,99 @@ model UsageCounter {
   /// Um contador por (usuário, capacidade, janela, chave) — o upsert incrementa.
   @@unique([userId, feature, window, key])
   @@index([userId, window, key])
+}
+
+/// Durable TikTok inbox: only normalized metadata and irreversible envelope hashes.
+/// No original payload, client key, token, message, email or display name is stored.
+model SocialWebhookInbox {
+  id                String   @id @default(cuid())
+  eventKey          String   @unique
+  rawHash           String
+  eventName         String
+  occurredAt        DateTime
+  accountHash       String
+  connectionId      String?
+  connectionVersion DateTime?
+  reason            Int?
+  state             String   @default("PENDING")
+  attempts          Int      @default(0)
+  leaseToken        String?
+  leaseUntil        DateTime?
+  nextAttemptAt     DateTime @default(now())
+  processedAt       DateTime?
+  errorCode         String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([state, nextAttemptAt])
+  @@index([state, leaseUntil])
+}
+
+// Pre-launch contacts are separate from the legacy product WaitlistEntry.
+model LaunchSubscriber {
+  id String @id @default(cuid())
+  name String
+  email String @unique
+  whatsapp String @unique
+  planSlug String
+  source String
+  status String @default("PENDING")
+  emailConsent Boolean
+  whatsappConsent Boolean
+  verificationHash String? @unique
+  verificationExpiresAt DateTime?
+  unsubscribeHash String? @unique
+  unsubscribeSecret String
+  verifiedAt DateTime?
+  unsubscribedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  consents LaunchConsent[]
+  notifications LaunchNotification[]
+  @@index([status, createdAt])
+}
+
+model LaunchConsent {
+  id String @id @default(cuid())
+  subscriberId String
+  channel String
+  granted Boolean
+  version String
+  source String
+  createdAt DateTime @default(now())
+  subscriber LaunchSubscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  @@index([subscriberId, createdAt])
+}
+
+model LaunchCampaign {
+  id String @id @default(cuid())
+  key String @unique
+  channel String
+  status String @default("PREPARED")
+  createdAt DateTime @default(now())
+  notifications LaunchNotification[]
+}
+
+model LaunchNotification {
+  id String @id @default(cuid())
+  idempotencyKey String @unique
+  subscriberId String
+  campaignId String?
+  kind String
+  channel String
+  status String @default("HELD")
+  // Encrypted tokens, never a public API response; no worker is enabled.
+  privatePayload String?
+  attempts Int @default(0)
+  leaseToken String?
+  leaseUntil DateTime?
+  providerId String?
+  errorCode String?
+  sentAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  subscriber LaunchSubscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  campaign LaunchCampaign? @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  @@index([status, leaseUntil])
+  @@index([campaignId, status])
 }

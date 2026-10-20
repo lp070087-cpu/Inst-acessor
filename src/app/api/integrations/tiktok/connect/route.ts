@@ -5,6 +5,7 @@ import { requireSession } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
 import { randomState } from "@/lib/crypto";
 import { buildAuthUrl, createPkce, IntegrationConfigError } from "@/lib/integrations/tiktok";
+import { getTikTokAuthorizationScopes } from "@/lib/integrations/tiktok/oauth";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,11 @@ const APP_BASE = process.env.AUTH_URL || "http://localhost:3000";
  *
  * Client Secret do TikTok NUNCA vai ao frontend.
  */
-async function GETHandler() {
+async function GETHandler(request: Request) {
+  const publishing = new URL(request.url).searchParams.get("publishing") === "1";
+  if (publishing && process.env.TIKTOK_PUBLISHING_ENABLED !== "true") {
+    return NextResponse.redirect(new URL("/redes-sociais?error=tiktok-publishing-disabled", APP_BASE));
+  }
   let session;
   try {
     session = await requireSession();
@@ -63,7 +68,7 @@ async function GETHandler() {
       update: { status: "CONNECTING" },
     });
 
-    const authUrl = buildAuthUrl(state, codeChallenge);
+    const authUrl = buildAuthUrl(state, codeChallenge, getTikTokAuthorizationScopes(publishing));
     return NextResponse.redirect(authUrl);
   } catch (error) {
     if (error instanceof IntegrationConfigError) {

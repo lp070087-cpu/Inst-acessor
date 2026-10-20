@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { imageGeometry } from "@/lib/media-editor/image-export";
 import { Image as ImageIcon, Clapperboard, ChevronLeft, ChevronRight } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -58,9 +59,11 @@ export interface PreviewSlide {
   url: string;
   type: "image" | "video";
   framing: Framing;
+ originalUrl?:string;exportedUrl?:string;rotation?:number;brightness?:number;contrast?:number;
 }
 
 interface PreviewFrameProps {
+ aspectRatio?:string;
   format: PreviewFormat;
   slides: PreviewSlide[];
   activeIndex: number;
@@ -76,6 +79,7 @@ interface PreviewFrameProps {
 
 export function PreviewFrame({
   format,
+  aspectRatio,
   slides,
   activeIndex,
   onIndexChange,
@@ -90,6 +94,10 @@ export function PreviewFrame({
   const isReel = format === "reel";
   const isCarousel = format === "carrossel";
   const hasNav = isCarousel && slides.length > 1;
+ const [dimensions,setDimensions]=React.useState({width:1,height:1});
+ const ratio=aspectRatio?aspectRatio.split(':').map(Number).reduce((a,b)=>a/b):FORMAT_ASPECT[format];
+ const frameWidth=1000,frameHeight=1000/ratio;
+
 
   /**
    * ENQUADRAMENTO DURANTE O ARRASTE — estado LOCAL, não o do pai.
@@ -110,6 +118,7 @@ export function PreviewFrame({
   // Fora do arraste, o que vale é o valor do PAI (troca de slide, zoom pelo
   // slider, "Centralizar", rascunho reaberto). O local é só o do gesto em curso.
   const effectiveFraming = liveFraming ?? slide?.framing ?? { zoom: 1, offsetX: 0, offsetY: 0 };
+ const geometry=imageGeometry(dimensions.width,dimensions.height,frameWidth,frameHeight,slide?.rotation??0,effectiveFraming.zoom);
 
   // Sai do modo local assim que o pai confirma o valor — sem isso o componente
   // ficaria preso ao último arraste e ignoraria mudanças externas.
@@ -195,12 +204,12 @@ export function PreviewFrame({
           {/* ---------- ÁREA DE MÍDIA (única parte que muda de proporção) ---------- */}
           <div
             className="relative w-full bg-surface overflow-hidden"
-            style={{ aspectRatio: String(FORMAT_ASPECT[format]) }}
+            style={{ aspectRatio: aspectRatio?.replace(":","/") || String(FORMAT_ASPECT[format]) }}
           >
             {slide ? (
               <div
                 className={cn(
-                  "w-full h-full",
+                  "relative w-full h-full",
                   interactive && "cursor-grab active:cursor-grabbing touch-none"
                 )}
                 onPointerDown={interactive ? onDrag : undefined}
@@ -213,8 +222,9 @@ export function PreviewFrame({
                     alt="Mídia do preview"
                     draggable={false}
                     decoding="async"
-                    className="w-full h-full object-cover select-none"
-                    style={framingStyle(slide.framing)}
+                    onLoad={e=>setDimensions({width:e.currentTarget.naturalWidth,height:e.currentTarget.naturalHeight})}
+ className="absolute select-none max-w-none"
+                    style={{width:`${geometry.width/frameWidth*100}%`,height:`${geometry.height/frameHeight*100}%`,left:`${50+effectiveFraming.offsetX*100}%`,top:`${50+effectiveFraming.offsetY*100}%`,transform:`translate(-50%,-50%) rotate(${slide.rotation??0}deg)`,filter:`brightness(${slide.brightness??1}) contrast(${slide.contrast??1})`}}
                   />
                 ) : (
                   /* SEM autoPlay: um preview que toca sozinho decodifica vídeo
@@ -224,7 +234,7 @@ export function PreviewFrame({
                   <video
                     src={slide.url}
                     className="w-full h-full object-cover"
-                    style={framingStyle(slide.framing)}
+                    style={{...framingStyle(effectiveFraming), transform:`${framingStyle(effectiveFraming).transform} rotate(${slide.rotation??0}deg)`,filter:`brightness(${slide.brightness??1}) contrast(${slide.contrast??1})`}}
                     muted
                     playsInline
                     preload="metadata"

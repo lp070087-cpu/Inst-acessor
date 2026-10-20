@@ -6,6 +6,10 @@ import { listQueue } from "@/lib/publishing";
 import { listPlannedContent } from "@/lib/planning";
 import { PageHeader } from "@/components/layout/page-header";
 import { PublishingClient } from "@/components/publishing/publishing-client";
+import { ReconciliationPanel } from "@/components/publishing/reconciliation-panel";
+import { prisma } from "@/lib/db";
+import { isOfficialAdminEmail } from "@/lib/auth/admin-access";
+import { hasVerifiedIdentity } from "@/lib/auth/identity";
 
 export const metadata: Metadata = {
   title: "Central de Publicação",
@@ -18,6 +22,8 @@ export default async function PublishingPage() {
   await requirePremiumPage();
   const { session } = await requireOnboardedSession();
   const userId = session.user.id;
+  const actor = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, status: true, emailVerified: true, firstAccessCompleted: true } });
+  const canReconcile = !!actor && actor.status === "ACTIVE" && hasVerifiedIdentity(actor) && isOfficialAdminEmail(actor.email);
 
   // Fila de publicação + conteúdos planejados (para exibir título/mídia).
   const [queue, contents] = await Promise.all([
@@ -64,6 +70,7 @@ export default async function PublishingPage() {
           })),
         }}
       />
+      {canReconcile && <ReconciliationPanel />}
     </div>
   );
 }

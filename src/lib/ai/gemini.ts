@@ -38,6 +38,8 @@ export class GeminiProvider implements AIProvider {
   }
 
   async complete(opts: AICompletionOptions): Promise<string> {
+    if (!this.apiKey.trim()) throw new AIProviderError("http", "Gemini não configurado neste ambiente.");
+    try {
     // TETOS DEFENSIVOS: mesmo racional do provider OpenAI — trunca system e
     // mensagens antes de montar o request, para o custo por token ter limite.
     const systemText = capSystem(opts.system);
@@ -45,19 +47,21 @@ export class GeminiProvider implements AIProvider {
       ? [{ role: "user" as const, parts: [{ text: systemText }] }]
       : [];
 
-    const parts = capMessages(opts.messages).map((m) => ({
+    const parts = capMessages(opts.messages, systemText).map((m) => ({
       role: m.role === "assistant" ? "model" : "user",
       parts: [{ text: m.content }],
     }));
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
       this.model
-    )}:generateContent?key=${encodeURIComponent(this.apiKey)}`;
+    )}:generateContent`;
 
     const res = await fetch(url, {
       method: "POST",
+      redirect: "error",
+      cache: "no-store",
       signal: AbortSignal.timeout(AI_TIMEOUT_MS),
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "x-goog-api-key": this.apiKey },
       body: JSON.stringify({
         contents: [...system, ...parts],
         generationConfig: {
@@ -68,8 +72,7 @@ export class GeminiProvider implements AIProvider {
     });
 
     if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      // Nunca interpolar a chave: ela vive na query string, não na mensagem.
+      // Never propagate provider bodies: they may contain reflected inputs.
       // 429 é tratado DISTINTAMENTE: mensagem clara e SEM retry — insistir
       // piora o bloqueio e multiplica custo.
       if (res.status === 429) {
@@ -81,7 +84,7 @@ export class GeminiProvider implements AIProvider {
       }
       throw new AIProviderError(
         "http",
-        `Gemini API error ${res.status}: ${text.slice(0, 200)}`,
+        `O Gemini recusou a solicitação (HTTP ${res.status}). Verifique a configuração e a disponibilidade do provedor.`,
         res.status
       );
     }
@@ -95,5 +98,9 @@ export class GeminiProvider implements AIProvider {
       .trim();
     if (!content) throw new AIProviderError("empty", "Gemini retornou resposta vazia");
     return content;
+    } catch (error) {
+      if (error instanceof AIProviderError) throw error;
+      throw new AIProviderError("http", "Não foi possível concluir a solicitação ao Gemini. Tente novamente mais tarde.");
+    }
   }
 }

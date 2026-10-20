@@ -37,6 +37,7 @@ import type {
   PublishCancelResult,
 } from "../types";
 import { publishHttp, PublishHttpError } from "../http";
+import { applyInstagramThumbnail } from "../thumbnail";
 import {
   buildCaption,
   buildInstagramContainers,
@@ -44,7 +45,7 @@ import {
   INSTAGRAM_CAPTION_LIMIT,
   isPublicMediaUrl,
   isVideoMime,
-  mapInstagramStatus,
+  verifiedInstagramMedia,
 } from "../media";
 import { resolvePublishConnection, type ConnectionResolution } from "../connection";
 
@@ -412,6 +413,8 @@ async function publishInstagram(payload: PublishPayload, userId: string): Promis
       creationBody.caption = caption;
     }
 
+    applyInstagramThumbnail(creationBody, parent.mediaType, payload.coverTimeMs);
+
     pubLog("CREATE_CONTAINER_STARTED", {
       contentId: payload.contentId,
       platform: "instagram",
@@ -601,16 +604,15 @@ async function getInstagramStatus(
   }
 
   try {
-    const data = await publishHttp<{ id?: string; status_code?: string; error?: { message?: string } }>(
-      containerStatusUrl(query.externalId),
-      // A consulta de status EXIGE credencial: sem o header a Graph API
-      // responde erro de token (code 190) e todo poll caía no `catch` genérico,
-      // devolvendo PROCESSING para sempre. Usa o mesmo `Authorization: Bearer`
-      // de `waitForContainer` (nunca o token na query, para não vazar em log).
+    const data = await publishHttp<unknown>(
+      graphUrl(`${encodeURIComponent(query.externalId)}?fields=id,media_type,permalink,timestamp,owner`),
+      // Read the published media object, not a creation container. Owner and
+      // timestamp must be present; unsupported fields fail closed until tested
+      // with the authorized Instagram Login account. Never resend media_publish.
       { method: "GET", headers: { Authorization: `Bearer ${connection.accessToken}` } }
     );
-    const status = mapInstagramStatus(data?.status_code);
-    return { ok: status === "LIVE", status, externalId: data?.id ?? query.externalId };
+    const confirmed = verifiedInstagramMedia(data, query.externalId, connection.externalAccountId);
+    return confirmed ? { ok: true, status: "LIVE", ...confirmed } : { ok: false, status: "PROCESSING" };
   } catch (err) {
     if (err instanceof PublishHttpError) {
       // 404 = container não existe / expirado.

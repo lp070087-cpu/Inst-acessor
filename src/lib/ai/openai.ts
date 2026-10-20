@@ -38,17 +38,21 @@ export class OpenAIProvider implements AIProvider {
   }
 
   async complete(opts: AICompletionOptions): Promise<string> {
+    if (!this.apiKey.trim()) throw new AIProviderError("http", "OpenAI não configurada neste ambiente.");
+    try {
     // TETOS DEFENSIVOS: trunca system e mensagens antes de montar o request.
     // Um prompt gigante (histórico longo/legenda enorme) multiplicaria o custo
     // por token sem limite. A ordem das mensagens é preservada.
     const system = capSystem(opts.system);
-    const capped = capMessages(opts.messages);
+    const capped = capMessages(opts.messages, system);
     const messages = system
       ? [{ role: "system" as const, content: system }, ...capped]
       : capped;
 
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
+      redirect: "error",
+      cache: "no-store",
       signal: AbortSignal.timeout(AI_TIMEOUT_MS),
       headers: {
         "Content-Type": "application/json",
@@ -63,9 +67,8 @@ export class OpenAIProvider implements AIProvider {
     });
 
     if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      // A mensagem de erro da API nunca contém a chave; o texto é truncado
-      // e a chave jamais é interpolada aqui.
+      // Provider bodies may reflect prompts or credentials. Do not propagate
+      // them into application logs or responses.
       // 429 (rate limit) é tratado DISTINTAMENTE: mensagem clara e SEM retry —
       // insistir piora o bloqueio e multiplica custo.
       if (res.status === 429) {
@@ -77,7 +80,7 @@ export class OpenAIProvider implements AIProvider {
       }
       throw new AIProviderError(
         "http",
-        `OpenAI API error ${res.status}: ${text.slice(0, 200)}`,
+        `A OpenAI recusou a solicitação (HTTP ${res.status}). Verifique a configuração e a disponibilidade do provedor.`,
         res.status
       );
     }
@@ -88,5 +91,9 @@ export class OpenAIProvider implements AIProvider {
     const content = data.choices?.[0]?.message?.content?.trim();
     if (!content) throw new AIProviderError("empty", "OpenAI retornou resposta vazia");
     return content;
+    } catch (error) {
+      if (error instanceof AIProviderError) throw error;
+      throw new AIProviderError("http", "Não foi possível concluir a solicitação à OpenAI. Tente novamente mais tarde.");
+    }
   }
 }

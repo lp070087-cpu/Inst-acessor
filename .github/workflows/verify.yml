@@ -4,28 +4,47 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: isolated-validation-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
   verify:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
     env:
       DATABASE_URL: postgresql://audit:audit@127.0.0.1:1/inst_acessor_audit
       DIRECT_URL: postgresql://audit:audit@127.0.0.1:1/inst_acessor_audit
       NEXT_TELEMETRY_DISABLED: '1'
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: npm
+      - name: Check isolated runner capacity
+        run: node -e 'const os=require("node:os"); console.log(JSON.stringify({node:process.version,totalGiB:os.totalmem()/2**30,freeGiB:os.freemem()/2**30})); if(os.freemem()<2*2**30)process.exit(1)'
       - run: npm ci
       - run: npm run verify:schema
       - run: npm run verify:types
       - run: npm run verify:lint
-      - run: npm run test:offline
-      - run: npm run test:integration
       - run: npm run verify:build
-      - run: npx playwright install --with-deps chromium
+      - run: npx --no-install playwright install --with-deps chromium
+      - run: node bench/test-launch-landing-ui.mjs
+      - run: npm run test:offline
+      - run: node bench/safe-run.mjs product
+      - run: node bench/safe-run.mjs preview-config
+      - run: node bench/safe-run.mjs tiktok-options
+      - run: node bench/safe-run.mjs ai-security
+      - run: node bench/safe-run.mjs launch-waitlist
+      - run: npm run test:integration
+      - run: node bench/integration-publishing.mjs
+      - run: node bench/integration-publishing.mjs password-reset
+      - run: node bench/integration-tiktok.mjs
+      - run: node bench/integration-launch-waitlist.mjs --migration=20261020190000_launch_waitlist
+      - run: node bench/test-media-render-browser.mjs
+      - run: node bench/integration-editor.mjs
       - run: node bench/safe-run.mjs e2e
       - uses: actions/upload-artifact@v4
         if: always()
@@ -34,4 +53,12 @@ jobs:
           path: |
             outputs/verification
             outputs/screenshots
+            outputs/editor-validation
+            outputs/password-reset.log
+            outputs/publication-migrations.log
+            outputs/publishing-reconciliation.log
+            outputs/editor-publishing.log
+            outputs/gamification-concurrency.log
+            !outputs/**/synthetic-session.json
+            !outputs/**/storage-state*.json
           retention-days: 7

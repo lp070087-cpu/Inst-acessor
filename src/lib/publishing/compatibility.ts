@@ -84,7 +84,8 @@ export interface MediaLimits {
 
 export const PLATFORM_MEDIA_LIMITS: Record<string, MediaLimits> = {
   instagram: {
-    maxItems: 10,
+    // Internal product decision, independent of the provider's maximum.
+    maxItems: 7,
     maxSizeMb: 100,
   },
   tiktok: {
@@ -96,7 +97,7 @@ export const PLATFORM_MEDIA_LIMITS: Record<string, MediaLimits> = {
 /** Formato esperado de mídia por plataforma/formato. */
 export function expectedMediaType(platform: string, format: string): "image" | "video" | "any" {
   if (format === "reel" || format === "video") return "video";
-  if (format === "story") return "video"; // stories podem ser foto ou vídeo — flexível
+  if (platform === "instagram" && format === "story") return "any";
   if (platform === "tiktok") return "video";
   return "image";
 }

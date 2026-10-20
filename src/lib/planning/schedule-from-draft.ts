@@ -1,5 +1,7 @@
 import { pl } from "@/lib/planning/db";
-import { prisma } from "@/lib/db";
+import { prisma, withDatabaseTransaction } from "@/lib/db";
+import { scheduleContent } from "@/lib/publishing/service";
+import { resolvePremiumAccess } from "@/lib/access/premium";
 import { grantXp, checkAndUnlockAchievements } from "@/lib/gamification";
 
 /**
@@ -12,7 +14,7 @@ import { grantXp, checkAndUnlockAchievements } from "@/lib/gamification";
  *   SEM recorrência infinita, SEM duplicação silenciosa (confirma antes).
  * - 6.5.13: editar conteúdo programado a partir do calendário.
  *
- * Tudo é agendamento INTERNO — nada é enviado a Meta/TikTok.
+ * Grava calendário e fila atomicamente; somente o worker futuro envia à rede.
  * Owner-check: o `userId` da sessão é a fonte de verdade.
  */
 
@@ -31,6 +33,8 @@ export interface ScheduleFromDraftInput {
   ideaId?: string | null;
   copyId?: string | null;
   goalId?: string | null;
+  /** Explicit publishing intent; ordinary calendar planning never creates jobs. */
+  enqueueForPublishing?: boolean;
 }
 
 export interface ScheduleFromDraftResult {
@@ -56,14 +60,24 @@ export async function scheduleFromDraft(
   if (!draft || draft.userId !== userId) {
     return { ok: false, created: 0, contents: [], error: "Rascunho não encontrado" };
   }
+  if (input.enqueueForPublishing && !(await resolvePremiumAccess(userId)).hasAccess) {
+    return { ok: false, created: 0, contents: [], error: "Seu plano não permite programar publicações." };
+  }
 
-  if (!scheduledAtList.length) {
+  if (!scheduledAtList.length || scheduledAtList.length > 30 || scheduledAtList.some(value => !/(Z|[+-]\d{2}:\d{2})$/.test(value) || !Number.isFinite(Date.parse(value)))) {
     return { ok: false, created: 0, contents: [], error: "Nenhuma data informada" };
   }
 
-  const contents: { id: string; scheduledAt: string | null }[] = [];
-  for (const scheduledAt of scheduledAtList) {
-    const created = (await pl.content.create({
+  const dates = [...new Set(scheduledAtList.map(value => new Date(value).toISOString()))];
+  const contents = await withDatabaseTransaction(async () => {
+    // Same draft/instant retries must reuse the original queue, including two
+    // concurrent HTTP requests. Never reset a published or quarantined item.
+    await prisma.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${userId}), hashtext(${draftId}))::text`;
+    const result: { id: string; scheduledAt: string | null }[] = [];
+    for (const scheduledAt of dates) {
+      const existing = await prisma.plannedContent.findFirst({ where: { userId, draftId, platform, format,
+        scheduledAt: new Date(scheduledAt), status: { not: "CANCELADO" } }, orderBy: { createdAt: "asc" } });
+      const created = existing ?? (await pl.content.create({
       data: {
         userId,
         platform,
@@ -80,16 +94,25 @@ export async function scheduleFromDraft(
         goalId: input.goalId ?? null,
       },
     })) as unknown as { id: string; scheduledAt: Date | null };
-    contents.push({
+      const queue = await prisma.publishQueue.findUnique({ where: { contentId_platform: { contentId: created.id, platform } } });
+      if (input.enqueueForPublishing && !queue && existing?.status !== "PUBLICADO") {
+        const queued = await scheduleContent({ userId, contentId: created.id, platform, format, scheduledAt });
+        if (!queued.ok) throw new Error(queued.errorMessage ?? "Não foi possível gravar a fila de publicação.");
+      }
+    result.push({
       id: created.id,
       scheduledAt: created.scheduledAt ? created.scheduledAt.toISOString() : null,
     });
-  }
+    }
+    return result;
+  });
 
   // XP real (idempotente): uma única concessão por agendamento em lote.
   if (contents.length > 0) {
-    await grantXp(userId, "planejar-conteudo", `draft-${draftId}`);
-    await checkAndUnlockAchievements(userId);
+    try {
+      await grantXp(userId, "planejar-conteudo", `draft-${draftId}`);
+      await checkAndUnlockAchievements(userId);
+    } catch { console.error("[schedule-from-draft] atualização de conquistas pendente"); }
   }
 
   return { ok: true, created: contents.length, contents };

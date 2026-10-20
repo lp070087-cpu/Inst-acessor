@@ -49,31 +49,34 @@ export function clampMaxTokens(requested?: number): number {
 export function capSystem(system: string | undefined): string | undefined {
   if (system == null) return system;
   if (system.length <= AI_MAX_SYSTEM_CHARS) return system;
-  return `${system.slice(0, AI_MAX_SYSTEM_CHARS)}\n[contexto truncado]`;
+  return truncate(system, AI_MAX_SYSTEM_CHARS, "\n[contexto truncado]");
+}
+
+function truncate(text: string, maxChars: number, marker: string): string {
+  if (text.length <= maxChars) return text;
+  if (maxChars <= marker.length) return text.slice(0, Math.max(0, maxChars));
+  return `${text.slice(0, maxChars - marker.length)}${marker}`;
 }
 
 /**
  * Aplica os tetos às mensagens: trunca cada uma e, se o total ainda passar do
  * teto, mantém as mais RECENTES até caber. A ordem relativa é preservada.
  */
-export function capMessages(messages: AIMessageInput[]): AIMessageInput[] {
+export function capMessages(messages: AIMessageInput[], system?: string): AIMessageInput[] {
+  const available = AI_MAX_INPUT_CHARS - (capSystem(system)?.length ?? 0);
   const perMessageCapped = messages.map((m) => ({
     ...m,
-    content:
-      m.content.length > AI_MAX_MESSAGE_CHARS
-        ? `${m.content.slice(0, AI_MAX_MESSAGE_CHARS)}\n[conteúdo truncado]`
-        : m.content,
+    content: truncate(m.content, AI_MAX_MESSAGE_CHARS, "\n[conteúdo truncado]"),
   }));
 
   const total = perMessageCapped.reduce((n, m) => n + m.content.length, 0);
-  if (total <= AI_MAX_INPUT_CHARS) return perMessageCapped;
+  if (total <= available) return perMessageCapped;
 
   const kept: AIMessageInput[] = [];
   let sum = 0;
   for (let i = perMessageCapped.length - 1; i >= 0; i--) {
     const msg = perMessageCapped[i];
-    // Sempre mantém pelo menos a mensagem mais recente, mesmo que sozinha passe.
-    if (sum + msg.content.length > AI_MAX_INPUT_CHARS && kept.length > 0) break;
+    if (sum + msg.content.length > available) break;
     kept.unshift(msg);
     sum += msg.content.length;
   }

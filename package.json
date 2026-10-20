@@ -5,6 +5,8 @@
   "description": "Inst Acessor — inteligência para o crescimento do seu Instagram",
   "scripts": {
     "dev": "next dev",
+    "dev:demo": "node bench/demo-dev.mjs",
+    "test:demo": "node bench/test-demo-policy.mjs && node bench/test-demo.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

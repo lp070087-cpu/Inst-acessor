@@ -1,5 +1,6 @@
 ﻿import type { PlanView } from "@/lib/billing/plans";
 import { getAppBaseUrl } from "@/lib/config/site";
+import type { AsaasConfig } from "./config";
 import type {
   AsaasBillingTypeValue,
   AsaasCheckoutRequest,
@@ -178,16 +179,73 @@ export function buildHostedCheckoutRequest(input: {
   return request;
 }
 
+function checkoutHosts(baseUrl: string): string[] | null {
+  const effectiveBase = baseUrl.replace(/\/+$/, "");
+  return effectiveBase === "https://api-sandbox.asaas.com/v3" ? ["sandbox.asaas.com"]
+    : effectiveBase === "https://api.asaas.com/v3" ? ["asaas.com", "www.asaas.com"] : null;
+}
+
+/** Pure preflight shared by order creation and ID-only URL construction.
+ * Explicit origin is required; environment labels never override the effective API URL. */
+export function getAsaasCheckoutOrigin(config: Pick<AsaasConfig, "baseUrl" | "checkoutOrigin">, sandboxOnly = false): string | null {
+  if (sandboxOnly && config.baseUrl.replace(/\/+$/, "") !== "https://api-sandbox.asaas.com/v3") return null;
+  const hosts = checkoutHosts(config.baseUrl);
+  if (!hosts || !config.checkoutOrigin) return null;
+  try {
+    const origin = new URL(config.checkoutOrigin);
+    if (origin.protocol !== "https:" || !hosts.includes(origin.hostname) || origin.username || origin.password ||
+        origin.port || origin.search || origin.hash || origin.pathname !== "/") return null;
+    return origin.origin;
+  } catch { return null; }
+}
+
 /**
  * Extrai a URL pública do checkout da resposta do Asaas.
- * Retorna null se a resposta não trouxer URL (fail-closed — nunca inventa).
+ * Aceita aliases históricos ou ID com origem explicitamente configurada.
+ * Sem destino comprovável, retorna null (fail-closed).
  */
 export function extractCheckoutUrl(
-  response: AsaasCheckoutResponse
+  response: AsaasCheckoutResponse,
+  config?: Pick<AsaasConfig, "baseUrl" | "checkoutOrigin">
 ): string | null {
-  const url = response.link ?? response.url ?? response.checkoutUrl ?? null;
-  if (!url || typeof url !== "string" || url.trim().length === 0) return null;
-  return url.trim();
+  // Historical responses expose different aliases. A blank/malformed alias
+  // must not hide a valid one, and provider data must not become an arbitrary
+  // browser redirect. Exact hosts reject lookalikes, credentials and subdomains.
+  let hosts = new Set(["asaas.com", "www.asaas.com", "sandbox.asaas.com"]);
+  if (config) {
+    // Environment labels can be overridden. Trust only the effective API URL.
+    const allowed = checkoutHosts(config.baseUrl);
+    if (!allowed) return null;
+    hosts = new Set(allowed);
+  }
+  for (const candidate of [response.link, response.url, response.checkoutUrl]) {
+    if (typeof candidate !== "string" || !candidate.trim()) continue;
+    try {
+      const url = new URL(candidate.trim());
+      if (url.protocol !== "https:" || !hosts.has(url.hostname) ||
+          url.username || url.password || url.port || url.hash) continue;
+      if (url.pathname !== "/checkoutSession/show" || !url.searchParams.get("id")?.trim()) continue;
+      // Checkout URLs do not need an arbitrary return destination. The return
+      // journey is configured in the server-created callback, not this URL.
+      if ([...url.searchParams.keys()].length !== 1 || !url.searchParams.has("id")) continue;
+      return url.href;
+    } catch {
+      // Try the next historical alias; fail closed if none is usable.
+    }
+  }
+  // Current API documentation describes an ID-only response. Never infer a
+  // production destination when the hosted origin has not been configured.
+  // Sandbox must have its own explicitly confirmed hosted origin.
+  if (config && typeof response.id === "string" &&
+      /^[A-Za-z0-9_-]{1,128}$/.test(response.id)) {
+    const origin = getAsaasCheckoutOrigin(config);
+    if (origin) {
+      const checkout = new URL("/checkoutSession/show", origin);
+      checkout.searchParams.set("id", response.id);
+      return checkout.href;
+    }
+  }
+  return null;
 }
 
 

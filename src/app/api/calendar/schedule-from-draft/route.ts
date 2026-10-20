@@ -1,4 +1,4 @@
-import { withPremiumApi } from "@/lib/auth/premium-api";
+import { withSessionApi } from "@/lib/auth/session-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -14,18 +14,19 @@ const scheduleSchema = z.object({
   title: z.string().min(1).max(200),
   objective: z.string().max(120).optional().default(""),
   scheduledAtList: z
-    .array(z.string().min(1))
+    .array(z.string().datetime({ offset: true }))
     .min(1, "Informe ao menos uma data/horário")
     .max(30, "Máximo de 30 agendamentos por lote"),
   ideaId: z.string().nullable().optional(),
   copyId: z.string().nullable().optional(),
   goalId: z.string().nullable().optional(),
+  enqueueForPublishing: z.boolean().optional().default(false),
 });
 
 /**
  * POST /api/calendar/schedule-from-draft
  * Cria um ou mais PlannedContent a partir de um rascunho do Preview Social.
- * Session-required + owner-check do rascunho. Agendamento INTERNO apenas.
+ * Session-required + owner-check. Calendário e fila persistem juntos; sem envio imediato.
  */
 async function POSTHandler(request: Request) {
   try {
@@ -52,6 +53,7 @@ async function POSTHandler(request: Request) {
       ideaId: parsed.data.ideaId,
       copyId: parsed.data.copyId,
       goalId: parsed.data.goalId,
+      enqueueForPublishing: parsed.data.enqueueForPublishing,
     });
 
     if (!result.ok) {
@@ -65,4 +67,4 @@ async function POSTHandler(request: Request) {
   }
 }
 
-export const POST = withPremiumApi(POSTHandler);
+export const POST = withSessionApi(POSTHandler);

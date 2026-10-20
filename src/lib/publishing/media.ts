@@ -203,26 +203,33 @@ export function buildInstagramContainers(payload: {
 // ------------------------------------------------------------
 
 export interface TikTokPostRequestBody {
-  post_info: { title: string; privacy_level: "SELF_ONLY" | "PUBLIC_TO_EVERYONE"; disable_duet: boolean; disable_comment: boolean; disable_stitch: boolean };
+  post_info: { title: string; privacy_level: import("@/lib/integrations/tiktok/creator-info").TikTokPublishingOptions["privacy"]; disable_duet: boolean; disable_comment: boolean; disable_stitch: boolean;
+    brand_content_toggle: boolean; brand_organic_toggle: boolean; is_aigc: boolean; video_cover_timestamp_ms?: number };
   source_info: { source: "PULL_FROM_URL"; video_url: string };
 }
 
 /**
  * Monta o corpo da Content Posting API (video/init) do TikTok.
- * - `privacy_level`: PUBLIC_TO_EVERYONE é o padrão para postagens do produto.
+ * - Metadata is explicit: the builder never chooses a privacy default.
  * - Mídia: apenas 1 vídeo com URL pública (foto/carrossel não é suportado).
  */
 export function buildTikTokPostBody(
   caption: string,
-  mediaUrl: string
+  mediaUrl: string,
+  options: import("@/lib/integrations/tiktok/creator-info").TikTokPublishingOptions,
+  coverTimeMs?: number
 ): TikTokPostRequestBody {
   return {
     post_info: {
       title: trimToLimit(caption, TIKTOK_DESC_LIMIT),
-      privacy_level: "PUBLIC_TO_EVERYONE",
-      disable_duet: false,
-      disable_comment: false,
-      disable_stitch: false,
+      privacy_level: options.privacy,
+      disable_duet: !options.allowDuet,
+      disable_comment: !options.allowComment,
+      disable_stitch: !options.allowStitch,
+      brand_content_toggle: options.thirdPartyBrand,
+      brand_organic_toggle: options.ownBrand,
+      is_aigc: options.aiGenerated,
+      ...(coverTimeMs !== undefined && Number.isSafeInteger(coverTimeMs) && coverTimeMs >= 0 && coverTimeMs < options.durationSec * 1000 ? { video_cover_timestamp_ms: coverTimeMs } : {}),
     },
     source_info: {
       source: "PULL_FROM_URL",
@@ -248,18 +255,51 @@ export function mapTikTokStatus(status: string | null | undefined): "LIVE" | "PR
   return "PROCESSING";
 }
 
+/** Official fetch-status envelope uses data.status, never data.state. */
+export function readTikTokFetchStatus(response: unknown): "LIVE" | "PROCESSING" | "ERROR" {
+  if (!response || typeof response !== "object") return "PROCESSING";
+  const result = response as Record<string, unknown>;
+  if (result.error && typeof result.error === "object") {
+    const code = (result.error as Record<string, unknown>).code;
+    if (code !== undefined && code !== "ok" && code !== 0) return "PROCESSING";
+  }
+  const data = result.data;
+  if (!data || typeof data !== "object") return "PROCESSING";
+  const status = (data as Record<string, unknown>).status;
+  if (status === "PUBLISH_COMPLETE") return "LIVE";
+  if (status === "FAILED") return "ERROR";
+  return "PROCESSING";
+}
+
 /**
  * Mapeia o status_code oficial da Graph API do Instagram para o estado
- * interno. Apenas FINISHED é considerado LIVE.
+ * interno. FINISHED significa pronto para publicar; somente PUBLISHED confirma
+ * que o container foi publicado. O ID do container ainda não é o ID da mídia.
  */
 export function mapInstagramStatus(
   statusCode: string | null | undefined
 ): "LIVE" | "PROCESSING" | "ERROR" | "NOT_FOUND" {
   const s = (statusCode ?? "").toUpperCase();
-  if (s === "FINISHED") return "LIVE";
+  if (s === "PUBLISHED") return "LIVE";
   if (s === "ERROR") return "ERROR";
   if (s === "EXPIRED") return "ERROR";
-  if (s === "IN_PROGRESS" || s === "PUBLISHED") return "PROCESSING";
+  if (s === "IN_PROGRESS" || s === "FINISHED") return "PROCESSING";
   if (!s) return "PROCESSING";
   return "PROCESSING";
+}
+
+/** Fail closed: a readable container is never evidence of a published media ID. */
+export function verifiedInstagramMedia(data: unknown, mediaId: string, accountId: string): { externalId: string; publishedAt: string } | null {
+  if (!data || typeof data !== "object") return null;
+  const row = data as Record<string, unknown>;
+  const owner = row.owner && typeof row.owner === "object" ? (row.owner as Record<string, unknown>).id : row.owner;
+  if (row.id !== mediaId || owner !== accountId || row.status_code !== undefined
+    || !["IMAGE", "VIDEO", "CAROUSEL_ALBUM"].includes(String(row.media_type))
+    || typeof row.timestamp !== "string" || !Number.isFinite(Date.parse(row.timestamp))
+    || typeof row.permalink !== "string") return null;
+  try {
+    const link = new URL(row.permalink);
+    if (link.protocol !== "https:" || !["instagram.com", "www.instagram.com"].includes(link.hostname) || link.username || link.password) return null;
+  } catch { return null; }
+  return { externalId: mediaId, publishedAt: new Date(row.timestamp).toISOString() };
 }

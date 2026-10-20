@@ -17,7 +17,7 @@
  */
 
 import { pub } from "./db";
-import { prisma } from "@/lib/db";
+import { prisma, withDatabaseTransaction } from "@/lib/db";
 import { resolvePremiumAccess } from "@/lib/access/premium";
 import { recordUsage } from "@/lib/billing/usage/meter";
 import { enqueuePublication, getQueueItem, markProcessing, markPublished, markFailed, listQueue, cancelQueueItem, quarantineExpiredPublications } from "./queue";
@@ -25,6 +25,23 @@ import { decideRetry, logAttempt } from "./retry";
 import { getAdapter } from "./adapters";
 import { friendlyMessage, sanitizeMessage, toPublishError } from "./errors";
 import { MAX_AUTO_ATTEMPTS, type PublishPayload, type PublishResult } from "./types";
+import { parseEditorProject, validateEditorOwnership, editorMediaItems } from "@/lib/media-editor/project";
+import { z } from "zod";
+import { ownedBlobPath } from "@/lib/media/upload-policy";
+import { validateVideoProject, videoDuration } from "@/lib/media-editor/video-project";
+import { tiktokPublishingOptionsSchema } from "@/lib/integrations/tiktok/creator-info";
+
+const snapshotSchema = z.object({ contentId: z.string().min(1), platform: z.string().min(1), format: z.string().min(1),
+  caption: z.string().max(2200), hashtags: z.string().max(500).optional(), mediaUrl: z.string(),
+  mediaCount: z.number().int().min(0).max(7), mimeType: z.string().optional(),
+  coverTimeMs: z.number().int().min(0).max(180000).optional(),
+  tiktokOptions: tiktokPublishingOptionsSchema.optional(),
+  mediaItems: z.array(z.object({ mediaUrl: z.string(), mimeType: z.string().optional(), mediaType: z.enum(["image", "video"]).optional() })).max(7).optional() });
+
+function ownedPayload(payload: PublishPayload, userId: string) {
+  return (!payload.mediaUrl || !!ownedBlobPath(payload.mediaUrl, userId))
+    && (payload.mediaItems ?? []).every(item => !!ownedBlobPath(item.mediaUrl, userId));
+}
 
 // ------------------------------------------------------------
 // Tipos públicos
@@ -98,6 +115,8 @@ async function buildPayload(
   let mediaCount = extra?.mediaCount ?? 0;
   let mimeType = extra?.mimeType;
   let mediaItems = extra?.mediaItems;
+  let coverTimeMs: number | undefined;
+  let tiktokOptions: PublishPayload["tiktokOptions"];
 
   if (!caption && content.draftId) {
     const draft = (await prisma.socialDraft.findUnique({
@@ -109,6 +128,7 @@ async function buildPayload(
       mediaUrl: string | null;
       mediaType: string;
       items?: unknown;
+      framing?: string | null;
     } | null;
     if (draft && draft.userId === userId) {
       caption = draft.caption ?? "";
@@ -123,6 +143,23 @@ async function buildPayload(
           mediaType: it.mediaType === "video" ? ("video" as const) : ("image" as const),
         }));
       }
+      const project = parseEditorProject(draft.framing);
+      if (project) {
+        tiktokOptions = project.tiktokOptions;
+        if (project.videoProject && !project.videoRendered) throw new Error("Exporte o vídeo editado antes de publicar.");
+        if (!validateEditorOwnership(project, userId) || project.slides.some(slide => slide.type === "image" && !slide.exportedUrl)) {
+          throw new Error("Exporte as imagens editadas e salve o rascunho antes de publicar.");
+        }
+        if (project.videoProject) {
+          const video = validateVideoProject(JSON.parse(project.videoProject));
+          coverTimeMs = Math.round(Math.min(video.coverTime, Math.max(0, videoDuration(video) - 0.03)) * 1000);
+        }
+        mediaItems = editorMediaItems(project).map(it => ({ mediaUrl: it.url,
+          mimeType: it.type === "video" ? "video/mp4" : "image/jpeg", mediaType: it.type }));
+        mediaCount = mediaItems.length;
+        mediaUrl = mediaItems[0]?.mediaUrl ?? "";
+        mimeType = mediaItems[0]?.mimeType;
+      }
     }
   }
 
@@ -136,6 +173,8 @@ async function buildPayload(
     mediaCount,
     mimeType,
     mediaItems,
+    coverTimeMs,
+    tiktokOptions,
   };
 }
 
@@ -144,28 +183,34 @@ async function buildPayload(
 // ------------------------------------------------------------
 
 export async function publishContent(input: PublishContentInput): Promise<PublishContentResult> {
+  const owner = await prisma.user.findUnique({ where: { id: input.userId }, select: { status: true } });
+  if (!owner || owner.status !== "ACTIVE" || !(await resolvePremiumAccess(input.userId)).hasAccess) {
+    return { ok: false, errorCode: "AUTH", errorMessage: "Conta sem autorização ativa para publicar." };
+  }
   const content = await loadContent(input.userId, input.contentId);
   if (!content) {
     return { ok: false, errorCode: "VALIDATION", errorMessage: "Conteúdo não encontrado." };
   }
-
-  const payload = await buildPayload(input.userId, content, {
-    caption: input.caption,
-    hashtags: input.hashtags,
-    mediaUrl: input.mediaUrl,
-    mediaCount: input.mediaCount,
-    mimeType: input.mimeType,
-    mediaItems: input.mediaItems,
-  });
+  if (!content.draftId) return { ok: false, errorCode: "VALIDATION", errorMessage: "Salve o rascunho com sua mídia antes de publicar." };
+  if (input.platform !== content.platform || input.format !== content.format) return { ok: false, errorCode: "VALIDATION", errorMessage: "Salve o formato e a plataforma no conteúdo antes de publicar." };
+  let payload: PublishPayload;
+  try { payload = await buildPayload(input.userId, content); }
+  catch { return { ok: false, errorCode: "VALIDATION", errorMessage: "Exporte as edições e salve o rascunho antes de publicar." }; }
+  // The worker must read exactly the persisted draft, never silently discard transient edits.
+  if ((input.caption && input.caption !== payload.caption) || (input.hashtags && input.hashtags !== payload.hashtags)
+    || (input.mediaUrl && input.mediaUrl !== payload.mediaUrl)) {
+    return { ok: false, errorCode: "VALIDATION", errorMessage: "Salve as alterações no rascunho antes de publicar." };
+  }
 
   const adapter = getAdapter(input.platform);
   if (!adapter) {
     return { ok: false, errorCode: "VALIDATION", errorMessage: "Plataforma não suportada." };
   }
+  if (!ownedPayload(payload, input.userId)) return { ok: false, errorCode: "VALIDATION", errorMessage: "A mídia deve pertencer à sua Biblioteca." };
 
   // Validação local (sem rede).
   const validation = adapter.validate(payload);
-  if (!validation.valid) {
+  if (!validation.valid || !snapshotSchema.safeParse(payload).success || !ownedPayload(payload, input.userId)) {
     return { ok: false, errorCode: "VALIDATION", errorMessage: validation.errors[0] ?? "Conteúdo inválido." };
   }
 
@@ -176,6 +221,7 @@ export async function publishContent(input: PublishContentInput): Promise<Publis
     platform: input.platform,
     format: input.format,
     scheduledAt: new Date().toISOString(),
+    payloadSnapshot: payload,
   });
   if (!enqueued.ok || !enqueued.queueId) {
     return { ok: false, errorCode: "VALIDATION", errorMessage: enqueued.error ?? "Não foi possível enfileirar." };
@@ -194,12 +240,29 @@ export async function scheduleContent(input: ScheduleContentInput): Promise<Publ
     return { ok: false, errorCode: "VALIDATION", errorMessage: "Conteúdo não encontrado." };
   }
 
+  const owner = await prisma.user.findUnique({ where: { id: input.userId }, select: { status: true } });
+  if (!owner || owner.status !== "ACTIVE" || !(await resolvePremiumAccess(input.userId)).hasAccess) {
+    return { ok: false, errorCode: "AUTH", errorMessage: "Conta sem autorização ativa para programar publicações." };
+  }
+  if (!content.draftId || input.platform !== content.platform || input.format !== content.format
+    || !input.scheduledAt || !/(Z|[+-]\d{2}:\d{2})$/.test(input.scheduledAt) || !Number.isFinite(Date.parse(input.scheduledAt))) {
+    return { ok: false, errorCode: "VALIDATION", errorMessage: "Salve o rascunho e informe uma data com fuso horário." };
+  }
+  let payload: PublishPayload;
+  try { payload = await buildPayload(input.userId, content); }
+  catch { return { ok: false, errorCode: "VALIDATION", errorMessage: "Exporte e salve as edições antes de programar." }; }
+  const adapter = getAdapter(input.platform);
+  if (!adapter || !adapter.validate(payload).valid || !snapshotSchema.safeParse(payload).success || !ownedPayload(payload, input.userId)) {
+    return { ok: false, errorCode: "VALIDATION", errorMessage: "Confira a legenda e as mídias da sua Biblioteca." };
+  }
+
   const enqueued = await enqueuePublication({
     userId: input.userId,
     contentId: input.contentId,
     platform: input.platform,
     format: input.format,
     scheduledAt: input.scheduledAt,
+    payloadSnapshot: payload,
   });
   if (!enqueued.ok) {
     return { ok: false, errorCode: "VALIDATION", errorMessage: enqueued.error ?? "Não foi possível agendar." };
@@ -386,13 +449,35 @@ export async function processQueueItem(
     return { ok: false, errorCode: "VALIDATION", errorMessage: "Plataforma não suportada." };
   }
 
-  const payload = await buildPayload(userId, {
+  let payload: PublishPayload;
+  try {
+    const stored = await prisma.publishQueue.findUnique({ where: { id: queueId }, select: { payloadSnapshot: true, idempotencyKey: true } });
+    if (stored?.payloadSnapshot != null) {
+      const parsed = snapshotSchema.parse(stored.payloadSnapshot);
+      if (parsed.contentId !== item.contentId || parsed.platform !== item.platform || parsed.format !== item.format || !ownedPayload(parsed, userId)) throw new Error("Snapshot inválido");
+      payload = parsed;
+    } else {
+      // Legacy rows cannot recover their historical draft. Capture the current
+      // owner-checked version once under the claim and record that limitation.
+      payload = await buildPayload(userId, {
     id: item.contentId,
     platform: item.platform,
     format: item.format,
     draftId: item.contentId ? await getDraftId(userId, item.contentId) : null,
     copyId: null,
-  });
+      });
+      if (!ownedPayload(payload, userId)) throw new Error("Mídia sem propriedade");
+      const captured = await prisma.publishQueue.updateMany({ where: { id: queueId, status: "PROCESSANDO", idempotencyKey: stored?.idempotencyKey },
+        data: { payloadSnapshot: JSON.parse(JSON.stringify(payload)) } });
+      if (captured.count !== 1) throw new Error("Claim alterado");
+      await logAttempt({ userId, queueId, contentId: item.contentId, platform: item.platform, operation: "snapshot_legacy", status: "success", attempts: item.attempts,
+        errorMessage: "Fila legada: snapshot criado do rascunho atual; versão histórica indisponível." });
+    }
+  } catch {
+    const message = "Não foi possível preparar a mídia. Exporte e salve as edições do rascunho.";
+    await markFailed(queueId, "VALIDATION", message, item.attempts + 1, false);
+    return { ok: false, status: "FALHOU", queueId, errorCode: "VALIDATION", errorMessage: message };
+  }
 
   // Validação local antes de tocar o provider.
   const validation = adapter.validate(payload);
@@ -420,12 +505,14 @@ export async function processQueueItem(
 
     if (result.ok && result.externalId) {
       // Confirmação REAL do provider.
-      await markPublished(queueId, result.externalId);
-      await prisma.plannedContent.update({
-        where: { id: item.contentId },
-        data: { status: "PUBLICADO", publishedAt: result.publishedAt ? new Date(result.publishedAt) : new Date(), externalId: result.externalId },
+      await withDatabaseTransaction(async () => {
+        await markPublished(queueId, result.externalId!);
+        await prisma.plannedContent.update({
+          where: { id: item.contentId },
+          data: { status: "PUBLICADO", publishedAt: result.publishedAt ? new Date(result.publishedAt) : new Date(), externalId: result.externalId },
+        });
+        await logAttempt({ userId, queueId, contentId: item.contentId, platform: item.platform, operation: "publish", status: "success", attempts: item.attempts + 1, externalId: result.externalId, provider: adapter.name });
       });
-      await logAttempt({ userId, queueId, contentId: item.contentId, platform: item.platform, operation: "publish", status: "success", attempts: item.attempts + 1, externalId: result.externalId, provider: adapter.name });
 
       // MEDIÇÃO de `publication` — registrada SOMENTE aqui, onde há confirmação
       // REAL do provider. IDEMPOTÊNCIA: usamos o ID EXTERNO da publicação como

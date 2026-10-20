@@ -144,7 +144,7 @@ export const saveDraftSchema = z.object({
    * só cabem os três números — qualquer coisa maior é dado inesperado, não uma
    * configuração válida.
    */
-  framing: z.string().max(200).optional(),
+  framing: z.string().max(65536).optional(),
 });
 
 export type SaveDraftInput = z.infer<typeof saveDraftSchema>;

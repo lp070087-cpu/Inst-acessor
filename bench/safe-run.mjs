@@ -51,9 +51,34 @@ if (mode === 'offline') {
   ok = await run(mode, [tool('next', 'dist/bin/next'), 'lint', '--no-cache']);
 } else if (mode === 'schema') {
   ok = await run(mode, [tool('prisma', 'build/index.js'), 'validate']);
+} else if (mode === 'generate') {
+  // Generates only the local client, with unreachable fictitious database URLs.
+  ok = await run(mode, [tool('prisma', 'build/index.js'), 'generate']);
+} else if (mode === 'product') {
+  for (const name of ['test-media-editor', 'test-video-project', 'test-social-capabilities', 'test-instagram-status', 'test-asaas-checkout-contract', 'test-ai-budget', 'test-tiktok-inbox', 'test-tiktok-status', 'test-reel-cover']) {
+    ok = await run(name, ['--import', './bench/register-ts-alias.mjs', `bench/${name}.mjs`]) && ok;
+  }
+  ok = await run('test-publishing-scheduler', ['bench/test-publishing-scheduler.mjs']) && ok;
+} else if (mode === 'preview-config') {
+  ok = await run(mode, ['bench/test-preview-config.mjs']);
+} else if (mode === 'tiktok-options') {
+  ok = await run(mode, ['--import', './bench/register-ts-alias.mjs', 'bench/test-tiktok-publishing-options.mjs']);
+} else if (mode === 'ai-security') {
+  ok = await run(mode, ['--import', './bench/register-ts-alias.mjs', 'bench/test-ai-provider-security.mjs']);
+} else if (mode === 'launch-waitlist') {
+  ok = await run(mode, ['--import', './bench/register-ts-alias.mjs', 'bench/test-launch-waitlist.mjs']);
 } else if (mode === 'baseline') {
   ok = await run(mode, [tool('prisma', 'build/index.js'), 'migrate', 'diff', '--from-empty', '--to-schema-datamodel', 'bench/fixtures/prebilling-schema.prisma', '--script']);
 } else if (mode === 'build') {
+  ok = await run(mode, [tool('next', 'dist/bin/next'), 'build']);
+ } else if (mode === 'build-product-serial') {
+  // Lint finishes before Next starts its type worker; no verification is skipped.
+  env.NEXT_OUTPUT_DIR = 'outputs/product-build';
+  ok = await run('lint-product-serial', [tool('next', 'dist/bin/next'), 'lint', '--no-cache']);
+  if (ok) ok = await run(mode, [tool('next', 'dist/bin/next'), 'build', '--no-lint']);
+} else if (mode === 'build-product') {
+  // Exclusive ignored output, never shared with dev or the previous delivery.
+  env.NEXT_OUTPUT_DIR = 'outputs/product-build';
   ok = await run(mode, [tool('next', 'dist/bin/next'), 'build']);
 } else if (['integration', 'e2e', 'e2e-edge', 'e2e-regression', 'e2e-growth'].includes(mode)) {
   // This driver starts its own allowlisted, disposable PostgreSQL cluster.

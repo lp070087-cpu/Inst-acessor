@@ -1,0 +1,33 @@
+# Local artifacts and credentials must not be uploaded by the CLI.
+/.env*
+/.git
+/.vercel/
+/node_modules/
+/.next*/
+/.*-test-build/
+/.bench-build-premium/
+/outputs/
+/coverage/
+/bench/
+/docs/
+/.agents/
+/.claude/
+/AGENTS.md
+/apresentacao/
+/pasta da ordem/
+/print de referencia/
+/Link de referencia do login/
+**/*.log
+**/*.tsbuildinfo
+**/.session*
+/prisma/*.db
+/prisma/*.db-journal
+# Local reference exports and historical inspection artifacts.
+/admin-*.txt
+/backup-landing-atual.diff
+/page-landing-atual-backup.tsx
+/prisma-delta-final.sql
+/prisma-diff-neon.sql
+/schema-neon-atual.prisma
+/RELATORIO-*.md
+/referencia do cronometro.jpg

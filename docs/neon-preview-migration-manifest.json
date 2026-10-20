@@ -1,0 +1,58 @@
+{
+  "date": "2026-10-19",
+  "project": "winter-queen-11288843",
+  "branch": "br-summer-cake-b6dp3hnt",
+  "database": "neondb",
+  "compute": "ep-muddy-resonance-b6dt5n2n",
+  "authorization": "GRANTED_EXACT_TARGET_ONLY_2026-10-20",
+  "conditions": "Dedicated pool/direct connections verified; unchanged schema; stop on unexpected content; no seed/reset/db push/production",
+  "execution": "NOT_EXECUTED",
+  "migrations": [
+    {
+      "migration": "20260901000000_baseline_historico",
+      "sha256": "412E724BCA1DC47D9E4966727E0D848158DBBFA1FB957BC20D4254026A1A03DA"
+    },
+    {
+      "migration": "20260912130000_admin_billing_primeiro_acesso",
+      "sha256": "11779B11A432C66228BF34B3810BCAAFA9BE5020882D3B1BBDDE1F6DEBD8770D"
+    },
+    {
+      "migration": "20260915120000_instagram_media_produto_comentarios",
+      "sha256": "96ED61332F6AA70B8C55A86D143DB76A88A24E9359574B7325B67DE54DB7D6E2"
+    },
+    {
+      "migration": "20261005120000_biblioteca_de_midia",
+      "sha256": "84CD2BBD306B58452EADF723A9F67E14C31A83F27DD5BB3657D261D0696F1C12"
+    },
+    {
+      "migration": "20261005121000_rascunho_enquadramento",
+      "sha256": "6890C8E824FFDD0AF464A6691D24D9AA17C5D4A26966CB4E66F832AB1DFDBC83"
+    },
+    {
+      "migration": "20261008120000_comentario_direct_e_central_dm",
+      "sha256": "9FDBD56B828F49BA787045156EB17BA7DED47477E94B817330ED2A51D399D2C0"
+    },
+    {
+      "migration": "20261008130000_lista_de_espera",
+      "sha256": "1D1470CA688438024423FC79F4C3BE04A9BC6698EE5EE6B8A6622B5A5AE3CC4A"
+    },
+    {
+      "migration": "20261008140000_medicao_de_franquia",
+      "sha256": "8C0351F0E1A31C309F79441B8D663AF6C530EE5308AFFE4C2E07753A4410F7A5"
+    },
+    {
+      "migration": "20261017190000_alinhamento_historico",
+      "sha256": "3F9E9D04D4116C7E3F5619E2B12E136C38AB78D395ECC95FC8C230CCB5804C95"
+    },
+    {
+      "migration": "20261018190000_social_webhook_inbox",
+      "sha256": "985175A3066B9630F8820FA777B6A3707222271D61FEE6AB3CA6924BDE7BE064"
+    },
+    {
+      "migration": "20261018200000_publication_snapshots",
+      "sha256": "162DEA59A5EF4FFDCC82BEB8B72C70EB51EB2B1D109DDC0647AD9F213198DDDC"
+    }
+  ],
+  "schemaSnapshot": "bench/fixtures/neon-approved-eleven.prisma",
+  "schemaSha256": "EAF865DE972AF9DFF445580386A2418E9B5794321F4E07AB5BC94905DC56E6C2"
+}

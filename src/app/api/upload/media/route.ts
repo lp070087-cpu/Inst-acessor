@@ -19,7 +19,9 @@ export async function POST(request: Request) {
     if (!session?.user?.id) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
     if (!(await resolvePremiumAccess(session.user.id)).hasAccess) return NextResponse.json({ error: "Acesso ao plano necessário." }, { status: 403 });
     const userId = session.user.id;
-    if (!(await dbRateLimiter.check(`upload:${userId}`, { windowMs: 60_000, max: 10 }))) {
+    // Seven carousel originals plus seven non-destructive exports need 14 tokens.
+    // Keep a bounded per-user limit while allowing one complete editor save.
+    if (!(await dbRateLimiter.check(`upload:${userId}`, { windowMs: 60_000, max: 20 }))) {
       return NextResponse.json({ error: "Muitos uploads. Tente novamente em instantes." }, { status: 429 });
     }
 

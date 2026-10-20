@@ -10,6 +10,7 @@ import {
 import { quotaForPlan } from "@/lib/billing/plans/limits";
 import { getPlanPromoDisplay } from "@/lib/billing/promo-db";
 import { PromoCountdown } from "@/components/billing/promo-countdown";
+import { WaitlistPlanLink } from "./launch-waitlist";
 import {
   ArrowRight,
   CheckCircle2,
@@ -333,7 +334,7 @@ export function Seguranca() {
 // — marketing apenas; o gate real continua no checkout server-side.
 
 /** Ordem de exibição na landing: 6 vendáveis (legados mensal/anual fora). */
-const LANDING_PLAN_ORDER = ["semanal", "start", "essencial", "pro", "elite", "master"] as const;
+const LANDING_PLAN_ORDER = ["semanal", "mensal", "anual"] as const;
 
 export async function Planos() {
   // Preview inclusivo: mostra `active: false` como card "Em breve" em vez de
@@ -477,6 +478,7 @@ export async function Planos() {
                     <ArrowRight />
                   </a>
                 )}
+                <WaitlistPlanLink slug={p.slug} label={shortName} />
               </div>
             );
           })}

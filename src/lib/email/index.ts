@@ -95,6 +95,7 @@ async function sendViaResend(input: {
   subject: string;
   html: string;
   text: string;
+  sensitiveLink?: boolean;
 }): Promise<SendEmailResult> {
   const apiKey = readResendApiKey();
   if (!apiKey) {
@@ -110,6 +111,7 @@ async function sendViaResend(input: {
   try {
     const res = await fetch(RESEND_URL, {
       method: "POST",
+      ...(input.sensitiveLink ? { redirect: "error" as const } : {}),
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
@@ -162,6 +164,7 @@ async function dispatch(
     subject: string;
     html: string;
     text: string;
+    sensitiveLink?: boolean;
   }
 ): Promise<SendEmailResult> {
   switch (provider) {
@@ -297,4 +300,19 @@ export async function sendAccessReleasedEmail(
     html,
     text: `Acesso liberado.\n\n${data.planName ? `Plano ${data.planName} confirmado.` : "Seu acesso foi confirmado."}\nAtive em: ${data.appUrl}`,
   });
+}
+
+/** Recovery-specific template: no purchase claim and no credential/link logging. */
+export async function sendPasswordResetEmail(data: { to: string; resetUrl: string; expiresInMinutes: number }): Promise<SendEmailResult> {
+  const provider = readProvider();
+  // Recovery never inherits the production sender fallback used by older flows.
+  if (provider === "none" || !readResendApiKey() || !process.env.EMAIL_FROM?.trim()) return { ok: false, status: "NOT_CONFIGURED" };
+  const html = `<!DOCTYPE html><html lang="pt-BR"><body style="font-family:Arial,Helvetica,sans-serif;color:#1A1D29;padding:24px">
+    <h1>Recupere seu acesso ao Inst Acessor</h1>
+    <p>Foi solicitada uma redefinição de senha. Este link é pessoal, de uso único e expira em ${data.expiresInMinutes} minutos.</p>
+    <p><a href="${esc(data.resetUrl)}" style="color:#A855F7">Criar nova senha</a></p>
+    <p>Se você não solicitou a alteração, ignore esta mensagem. Sua senha não foi alterada.</p>
+    </body></html>`;
+  return dispatch(provider, { to: data.to, subject: "Recupere seu acesso ao Inst Acessor", html, sensitiveLink: true,
+    text: `Foi solicitada uma redefinição de senha no Inst Acessor. Link pessoal, de uso único, válido por ${data.expiresInMinutes} minutos:\n${data.resetUrl}\nSe não foi você, ignore esta mensagem. Sua senha não foi alterada.` });
 }

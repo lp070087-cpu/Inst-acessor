@@ -18,6 +18,7 @@ import { pub } from "./db";
 import { prisma } from "@/lib/db";
 import { MAX_AUTO_ATTEMPTS, type QueueStatus } from "./types";
 import { toPublishError } from "./errors";
+import type { PublishPayload } from "./types";
 
 export interface EnqueueInput {
   userId: string;
@@ -25,6 +26,7 @@ export interface EnqueueInput {
   platform: string;
   format: string;
   scheduledAt?: string | null;
+  payloadSnapshot?: PublishPayload;
 }
 
 export interface EnqueueResult {
@@ -69,15 +71,16 @@ export async function enqueuePublication(input: EnqueueInput): Promise<EnqueueRe
     errorMessage: null,
     externalId: null,
     provider: null,
+    ...(input.payloadSnapshot ? { payloadSnapshot: JSON.parse(JSON.stringify(input.payloadSnapshot)) } : {}),
   };
 
   if (existing) {
     // Só atualiza se ainda não foi publicado/falhou definitivamente.
-    if (["PUBLICADO", "CANCELADO", "PROCESSANDO"].includes(existing.status) || existing.errorCode === "RECONCILIATION_REQUIRED") {
-      return { ok: false, error: "Este conteúdo já foi publicado ou cancelado." };
+    if (existing.externalId || ["PUBLICADO", "CANCELADO", "PROCESSANDO"].includes(existing.status) || existing.errorCode === "RECONCILIATION_REQUIRED") {
+      return { ok: false, error: "Este conteúdo já iniciou o envio, foi publicado ou cancelado. Confira o histórico antes de alterar." };
     }
     const changed = await pub.queue.updateMany({
-      where: { id: existing.id, userId, status: { in: ["AGENDADO", "FALHOU"] }, OR: [{ errorCode: null }, { errorCode: { not: "RECONCILIATION_REQUIRED" } }] },
+      where: { id: existing.id, userId, externalId: null, status: { in: ["AGENDADO", "FALHOU"] }, OR: [{ errorCode: null }, { errorCode: { not: "RECONCILIATION_REQUIRED" } }] },
       data: {
         format,
         scheduledAt: data.scheduledAt,
@@ -85,6 +88,7 @@ export async function enqueuePublication(input: EnqueueInput): Promise<EnqueueRe
         nextAttemptAt: data.nextAttemptAt,
         errorCode: null,
         errorMessage: null,
+        ...(input.payloadSnapshot ? { payloadSnapshot: JSON.parse(JSON.stringify(input.payloadSnapshot)) } : {}),
       },
     });
     if (changed.count !== 1) return { ok: false, error: "A publicação mudou de estado. Atualize a página." };

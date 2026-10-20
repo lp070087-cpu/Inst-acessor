@@ -60,6 +60,10 @@ export interface PublishPayload {
   mediaCount?: number;
   /** MIME type da capa quando conhecido (image/jpeg, video/mp4...). */
   mimeType?: string;
+  /** Reel cover frame in milliseconds, derived from the persisted edited project. */
+  coverTimeMs?: number;
+  /** Explicit TikTok metadata/consent; persisted with the immutable queue snapshot. */
+  tiktokOptions?: import("@/lib/integrations/tiktok/creator-info").TikTokPublishingOptions;
   /** Mídias extras (carrossel) — cada item com url e mime. */
   mediaItems?: {
     mediaUrl: string;

@@ -44,7 +44,7 @@ export interface AIProvider {
  *   • `empty`      → o provedor respondeu 200 mas sem conteúdo utilizável.
  *   • `http`       → qualquer outro status não-ok.
  *
- * A mensagem NUNCA contém a chave da API (ela só aparece no header/URL).
+ * A mensagem não deve incluir a chave nem corpos de erro do provedor.
  */
 export class AIProviderError extends Error {
   code: "rate_limit" | "empty" | "http";

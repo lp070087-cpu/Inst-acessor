@@ -147,10 +147,7 @@ function LoginFormInner() {
           <span>Manter conectado</span>
         </label>
 
-        {/* Este link já existia no login antigo e aponta para a própria tela.
-            A recuperação de senha NÃO existe no backend, então NÃO foi
-            inventada aqui: mantido exatamente com o comportamento anterior. */}
-        <a href="/login" className="lgn-link">
+        <a href="/recuperar-senha" className="lgn-link">
           Esqueci minha senha
         </a>
       </div>

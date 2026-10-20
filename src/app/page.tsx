@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 
 import "./landing.css";
+import "@/components/landing/launch-waitlist.css";
 
 import { LandingClient } from "@/components/landing/landing-client";
+import { LaunchWaitlist } from "@/components/landing/launch-waitlist";
 import {
   Nav,
   Hero,
@@ -115,6 +117,7 @@ export default async function HomePage() {
 
       {/* ===== FECHAMENTO COMERCIAL — só o necessário ===== */}
       <Planos />
+      <LaunchWaitlist />
       <Faq />
       <CtaFinal />
 

@@ -14,6 +14,10 @@ import type { TikTokTokenPayload } from "./types";
 const TIKTOK_OAUTH_BASE = "https://www.tiktok.com/v2/auth/authorize";
 const TIKTOK_TOKEN_URL = "https://open.tiktokapis.com/v2/oauth/token/";
 const DEFAULT_SCOPES = "user.info.basic,video.list";
+/** Publishing permission is opt-in; requesting it never proves approval/grant. */
+export function getTikTokAuthorizationScopes(publishing = false): string {
+  return publishing ? `${DEFAULT_SCOPES},video.publish` : DEFAULT_SCOPES;
+}
 
 /** Gera um code_verifier e seu code_challenge (PKCE S256). */
 export function createPkce(): { codeVerifier: string; codeChallenge: string } {
@@ -89,7 +93,7 @@ export async function exchangeCodeForToken(
       refreshToken: data.refresh_token ?? null,
       openId: data.open_id,
       unionId: data.union_id ?? null,
-      scopes: data.scope ?? DEFAULT_SCOPES,
+      scopes: data.scope ?? "",
     };
   } catch (error) {
     // Erro tipado (inclui o `TikTokApiError` lançado por `tiktokApiPost`) é

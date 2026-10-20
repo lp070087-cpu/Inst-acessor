@@ -7,7 +7,7 @@ import { attemptCheckoutReservation } from "@/lib/billing/capacity-db";
 import { normalizeEmail } from "@/lib/first-access/core";
 import { asaasClient, AsaasHttpError } from "./client";
 import { getAsaasConfig } from "./config";
-import { buildHostedCheckoutRequest, extractCheckoutUrl } from "./hosted-checkout";
+import { buildHostedCheckoutRequest, extractCheckoutUrl, getAsaasCheckoutOrigin } from "./hosted-checkout";
 import { getGatewayConfig } from "@/lib/billing/gateways/config";
 import type { AsaasCheckoutResponse } from "./types";
 
@@ -135,6 +135,20 @@ export async function startPublicCheckout(input: {
       ok: false,
       status: "INTEGRATION_NOT_CONFIGURED",
       message: "Pagamento online em configuração.",
+      order: null,
+      checkoutUrl: null,
+      externalCheckoutId: null,
+    };
+  }
+  // Check before plan/price reads, capacity reservation, order creation or HTTP.
+  // The current API may return only an ID: every checkout therefore requires
+  // an explicit hosted origin even when older responses include a direct link.
+  if (!getAsaasCheckoutOrigin(cfg, process.env.VERCEL_ENV === "preview")) {
+    console.error("[asaas-checkout-order] configuração de ASAAS_CHECKOUT_ORIGIN/ASAAS_BASE_URL inválida ou ausente");
+    return {
+      ok: false,
+      status: "INTEGRATION_NOT_CONFIGURED",
+      message: "Pagamento online indisponível: a origem e o ambiente de checkout precisam ser configurados com segurança. Contate o suporte.",
       order: null,
       checkoutUrl: null,
       externalCheckoutId: null,
@@ -337,7 +351,7 @@ export async function startPublicCheckout(input: {
     };
   }
 
-  const checkoutUrl = extractCheckoutUrl(checkout);
+  const checkoutUrl = extractCheckoutUrl(checkout, cfg);
 
   // 6) Persiste o id do checkout externo + URL (status segue PENDING).
   try {
