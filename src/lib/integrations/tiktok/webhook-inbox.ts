@@ -51,13 +51,21 @@ export async function ingestTikTokEvent(event: NormalizedTikTokEvent) {
   const supported = event.eventName === "authorization.removed";
   const state = supported && connection ? "PENDING" : "QUARANTINED";
   const errorCode = !supported ? "UNSUPPORTED_EVENT" : !connection ? "UNKNOWN_OR_AMBIGUOUS_ACCOUNT" : null;
-  // Atomic upsert does not reset state, attempts or an active claim on redelivery.
-  return prisma.socialWebhookInbox.upsert({ where: { eventKey: event.eventKey }, update: {}, create: {
-    eventKey: event.eventKey, rawHash: event.rawHash, eventName: event.eventName,
-    occurredAt: event.occurredAt, accountHash: event.accountHash, reason: event.reason,
-    connectionId: connection?.id ?? null, connectionVersion: connection?.updatedAt ?? null,
-    state, errorCode,
-  }, select: { id: true, state: true } });
+  // Redelivery never resets state, attempts or an active claim. With an empty
+  // `update` Prisma reads before inserting, so concurrent redeliveries can lose
+  // the insert race (P2002); the winner's row is then the inbox entry.
+  const select = { id: true, state: true } as const;
+  try {
+    return await prisma.socialWebhookInbox.upsert({ where: { eventKey: event.eventKey }, update: {}, create: {
+      eventKey: event.eventKey, rawHash: event.rawHash, eventName: event.eventName,
+      occurredAt: event.occurredAt, accountHash: event.accountHash, reason: event.reason,
+      connectionId: connection?.id ?? null, connectionVersion: connection?.updatedAt ?? null,
+      state, errorCode,
+    }, select });
+  } catch (error) {
+    if ((error as { code?: string } | null)?.code !== "P2002") throw error;
+    return prisma.socialWebhookInbox.findUniqueOrThrow({ where: { eventKey: event.eventKey }, select });
+  }
 }
 
 /** Compare-and-swap claim. A reclaimed lease always receives a new fencing token. */
