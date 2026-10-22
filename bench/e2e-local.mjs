@@ -93,7 +93,7 @@ try {
   const registeredUser = await prisma.user.findUnique({ where: { email: registration.email }, include: { profile: true } });
   findings.push({ interaction: 'onboarding-persisted', passed: !!registeredUser?.profile?.onboardingCompleted });
   await onboardingContext.close();
-  const sizes = growthOnly ? [[1440,900],[390,844]] : edge || focused ? [[1440,900],[390,844],[320,568]] : [[1280,720],[1440,900],[1920,1080],[320,568],[360,800],[390,844],[412,915],[568,320],[800,360],[844,390],[915,412],[768,1024],[1024,768]];
+  const sizes = growthOnly ? [[1440,900],[390,844]] : edge || focused ? [[1440,900],[390,844],[320,568]] : [[1280,720],[1440,900],[1920,1080],[320,568],[360,800],[375,667],[390,844],[412,915],[430,932],[568,320],[800,360],[844,390],[915,412],[768,1024],[1024,768]];
   for (const [width, height] of growthOnly ? [] : sizes) {
     const viewportContext = await browser.newContext({ viewport: { width, height }, isMobile: width < 600, hasTouch: width < 600, reducedMotion: 'reduce' });
     await viewportContext.route('**/*', routeLocal);
@@ -161,7 +161,7 @@ try {
       for (const [width, height] of name === 'premium' ? sizes : [[1440,900],[390,844]]) {
         await memberPage.setViewportSize({ width, height });
         const extraPages = !growthOnly && name === 'premium' && [1440, 390].includes(width) ? focused || edge ? ['/rank','/growth','/gerador-de-copy','/ideias','/mentoria'] : ['/score','/rank','/growth','/gerador-de-copy','/ideias','/mentoria','/perfil-de-inteligencia','/preview-social','/automacoes','/analise-de-desempenho','/redes-sociais','/configuracoes','/perfil','/sobre','/calendario-inteligente'] : [];
-        for (const path of growthOnly ? ['/growth'] : ['/dashboard','/calendario','/biblioteca-de-midia','/ia-acessor','/respostas-inteligentes','/assinatura','/publishing', ...extraPages, ...(name === 'admin' ? ['/admin'] : [])]) {
+        for (const path of growthOnly ? ['/growth'] : ['/dashboard','/calendario','/biblioteca-de-midia','/ia-acessor','/respostas-inteligentes','/assinatura','/publishing', ...extraPages, ...(name === 'admin' ? ['/admin','/admin/pre-lancamento'] : [])]) {
         const response = await memberPage.goto(`${base}${path}`, { waitUntil: 'networkidle' });
         const overflow = await memberPage.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
         await memberPage.screenshot({ path: resolve(screenshots, `${name}-${path.slice(1)}-${width}x${height}.png`), fullPage: true });
