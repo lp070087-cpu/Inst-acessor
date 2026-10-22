@@ -6,6 +6,8 @@ import { TikTokPublishingOptionsPanel } from "@/components/ai/tiktok-publishing-
 import { tiktokContentBinding, tiktokPublishingIssue, type TikTokPublishingOptions } from "@/lib/integrations/tiktok/creator-info";
 import { parseEditorProject, MAX_EDITOR_SLIDES, type EditorProject, type EditorSlide } from "@/lib/media-editor/project";
 import { exportEditedImage } from "@/lib/media-editor/image-export";
+import { FIXED_RATIO, ratioAllowed, type CropFormat } from "@/lib/media-editor/image-crop";
+import { ImageCropEditor } from "@/components/ai/image-crop-editor";
 import { upload } from "@vercel/blob/client";
 import {
   Eye,
@@ -230,6 +232,17 @@ export function PreviewSocial({
  const filesBySlide = React.useRef(new Map<string, File>());
  const [editingDraftId,setEditingDraftId]=React.useState<string|null>(null);
  const [aspectRatio,setAspectRatio]=React.useState<EditorProject["aspectRatio"]>("4:5");
+ /** Proporção numérica dos recortes "original" e "livre" (as fixas vêm de FIXED_RATIO). */
+ const [aspectValue,setAspectValue]=React.useState<number|undefined>();
+ const [cropOpen,setCropOpen]=React.useState(false);
+ const cropAspect=aspectRatio==="original"||aspectRatio==="free"?(aspectValue??4/5):FIXED_RATIO[aspectRatio];
+ // Mantém a proporção dentro do que o formato aceita: Story/Reel em 9:16; feed de 4:5 a 1,91:1.
+ React.useEffect(()=>{
+   if(format==='legenda')return;
+   const story=format==='story'||format==='reel';
+   if(story&&aspectRatio!=='9:16'){setAspectRatio('9:16');setAspectValue(undefined);}
+   else if(!story&&aspectRatio==='9:16'){setAspectRatio('4:5');setAspectValue(undefined);}
+ },[format,aspectRatio]);
   const [uploadingMedia, setUploadingMedia] = React.useState(false);
  const [uploadProgress,setUploadProgress]=React.useState(0);
  const uploadController=React.useRef<AbortController|null>(null);
@@ -361,7 +374,7 @@ export function PreviewSocial({
     const project=parseEditorProject(d.framing);
     setTikTokOptions(project?.tiktokOptions);
     setVideoProject(project?.videoProject);setVideoRendered(project?.videoRendered??false);
-    setAspectRatio(project?.aspectRatio ?? ((d.format === "reel" || d.format === "story") ? "9:16" : "4:5"));
+    setAspectRatio(project?.aspectRatio ?? ((d.format === "reel" || d.format === "story") ? "9:16" : "4:5"));setAspectValue(project?.aspectValue);
     filesBySlide.current.clear();
     setMediaFile(null);
     setPlatform(d.platform);
@@ -493,7 +506,7 @@ export function PreviewSocial({
   function clearAll() {
     setVideoProjectPending(false);
     setEditorRevision(v=>v+1);
-    uploadController.current?.abort();uploadController.current=null;replacement.current=null;setUploadProgress(0);setUploadingMedia(false);setVideoProject(undefined);setVideoRendered(false);setAspectRatio("4:5");
+    uploadController.current?.abort();uploadController.current=null;replacement.current=null;setUploadProgress(0);setUploadingMedia(false);setVideoProject(undefined);setVideoRendered(false);setAspectRatio("4:5");setAspectValue(undefined);
  setEditingDraftId(null);filesBySlide.current.clear();
     setMediaFile(null);
     setMediaUrl("");
@@ -599,9 +612,9 @@ export function PreviewSocial({
  for(const slide of (format==='carrossel'?slides:slides.slice(0,1))){controller.signal.throwIfAborted();let originalUrl=slide.originalUrl||slide.url;const local=filesBySlide.current.get(slide.id);
  if(local)originalUrl=(await upload('inst-acessor/'+userId+'/'+crypto.randomUUID()+'-'+local.name.replace(/[^a-zA-Z0-9._-]/g,'_'),local,uploadOptions)).url;
  const item:EditorSlide={id:slide.id,originalUrl,type:slide.type,framing:slide.framing,rotation:slide.rotation??0,brightness:slide.brightness??1,contrast:slide.contrast??1};
- if(item.type==='image'){const file=await exportEditedImage({...item,originalUrl:slide.originalUrl||slide.url},aspectRatio);item.exportedUrl=(await upload('inst-acessor/'+userId+'/'+crypto.randomUUID()+'.jpg',file,uploadOptions)).url;}
+ if(item.type==='image'){const file=await exportEditedImage({...item,originalUrl:slide.originalUrl||slide.url},cropAspect);item.exportedUrl=(await upload('inst-acessor/'+userId+'/'+crypto.randomUUID()+'.jpg',file,uploadOptions)).url;}
  persisted.push(item);}
- project={version:1,kind:'media-editor',aspectRatio,slides:persisted,videoProject,videoRendered};
+ project={version:1,kind:'media-editor',aspectRatio,...(aspectRatio==='original'||aspectRatio==='free'?{aspectValue:cropAspect}:{}),slides:persisted,videoProject,videoRendered};
  }catch(error){uploadController.current=null;setUploadingMedia(false);throw error;}
  const uploadedMediaUrl=project.slides[0]?.exportedUrl||project.slides[0]?.originalUrl||'';
  // Upload changes the URL, not the reviewed video. Rebind only options that
@@ -1065,7 +1078,7 @@ export function PreviewSocial({
 
 {(format==='reel'||format==='story')&&<VideoEditor key={editorRevision} userId={userId} initialProject={videoProject} onBusyChange={setVideoEditorBusy} sources={slides.filter(s=>s.type==='video').map(s=>({url:s.url,name:s.id}))} onDirty={()=>{setVideoRendered(false);setVideoProjectPending(true);}} onProjectChange={value=>{setVideoProject(value);setVideoProjectPending(false);setVideoRendered(false);}} onExport={file=>{setVideoRendered(true);setVideoProjectPending(false);const id=crypto.randomUUID(),url=URL.createObjectURL(file);filesBySlide.current.set(id,file);setSlides([{id,url,originalUrl:url,type:'video',framing:{...DEFAULT_FRAMING}}]);setMediaUrl(url);setMediaType('video');}}/>}
 {slides[activeSlide]&&<div className="flex flex-wrap gap-2"><Button type="button" variant="outline" disabled={uploadingMedia} onClick={()=>{replacement.current=slides[activeSlide].id;fileRef.current?.click();}}>Substituir mídia selecionada</Button><Button type="button" variant="outline" disabled={uploadingMedia} onClick={()=>{replacement.current=slides[activeSlide].id;setPickerOpen(true);}}>Substituir pela Biblioteca</Button></div>}
-<label className="text-sm">Proporção<select aria-label="Proporção da mídia" value={aspectRatio} onChange={e=>setAspectRatio(e.target.value as EditorProject['aspectRatio'])} className={SELECT_CLASS_FILLED}>{['1:1','4:5','9:16','16:9'].map(r=><option key={r}>{r}</option>)}</select></label>
+<label className="text-sm">Proporção<select aria-label="Proporção da mídia" value={aspectRatio} onChange={e=>{setAspectRatio(e.target.value as EditorProject['aspectRatio']);setAspectValue(undefined);}} className={SELECT_CLASS_FILLED}>{(['1:1','4:5','9:16','16:9'] as const).filter(r=>ratioAllowed(format as CropFormat,r)).map(r=><option key={r}>{r}</option>)}{(aspectRatio==='original'||aspectRatio==='free')&&<option value={aspectRatio}>{aspectRatio==='original'?'Original':'Livre'} ({cropAspect.toFixed(2)}:1)</option>}</select></label>
 {slides[activeSlide]?.type==='image'&&<div className="grid gap-3 sm:grid-cols-3">{([['rotation','Rotação',-180,180,1],['brightness','Brilho',0.25,2,0.05],['contrast','Contraste',0.25,2,0.05]] as const).map(([key,label,min,max,step])=><label key={key} className="text-xs">{label}<input aria-label={label} className="w-full" type="range" min={min} max={max} step={step} value={slides[activeSlide]?.[key]??(key==='rotation'?0:1)} onChange={e=>setSlides(prev=>prev.map((s,i)=>i===activeSlide?{...s,[key]:Number(e.target.value),exportedUrl:undefined}:s))}/></label>)}</div>}
                 {/* ---- ENQUADRAMENTO: zoom + reset (a posição vem do arraste) ---- */}
                 {slides.length > 0 && (() => {
@@ -1371,6 +1384,8 @@ export function PreviewSocial({
                 só trocava um rótulo. */}
             <PreviewFrame
               aspectRatio={aspectRatio}
+              aspect={cropAspect}
+              onEditImage={() => setCropOpen(true)}
  format={format as "post" | "reel" | "story" | "carrossel"}
               interactive={!uploadingMedia}
               slides={slides}
@@ -1380,6 +1395,23 @@ export function PreviewSocial({
               caption={caption}
               tags={tags}
             />
+
+            {slides[activeSlide]?.type === "image" && (
+              <ImageCropEditor
+                open={cropOpen}
+                onClose={() => setCropOpen(false)}
+                imageUrl={slides[activeSlide].originalUrl || slides[activeSlide].url}
+                format={(format === "legenda" ? "post" : format) as CropFormat}
+                brightness={slides[activeSlide].brightness}
+                contrast={slides[activeSlide].contrast}
+                value={{ ratio: aspectRatio, aspect: cropAspect, framing: slides[activeSlide].framing, rotation: slides[activeSlide].rotation ?? 0 }}
+                onApply={(v) => {
+                  setAspectRatio(v.ratio);
+                  setAspectValue(v.ratio === "original" || v.ratio === "free" ? v.aspect : undefined);
+                  setSlides((prev) => prev.map((s, i) => (i === activeSlide ? { ...s, framing: v.framing, rotation: v.rotation, exportedUrl: undefined } : s)));
+                }}
+              />
+            )}
 
             <p className="text-[12px] text-ink-muted text-center max-w-[280px]">
               Apenas pré-visualização local. Nada é publicado nem enviado a

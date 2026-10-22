@@ -55,7 +55,7 @@ if (mode === 'offline') {
   // Generates only the local client, with unreachable fictitious database URLs.
   ok = await run(mode, [tool('prisma', 'build/index.js'), 'generate']);
 } else if (mode === 'product') {
-  for (const name of ['test-media-editor', 'test-video-project', 'test-social-capabilities', 'test-instagram-status', 'test-asaas-checkout-contract', 'test-ai-budget', 'test-tiktok-inbox', 'test-tiktok-status', 'test-reel-cover']) {
+  for (const name of ['test-media-editor', 'test-video-project', 'test-social-capabilities', 'test-instagram-status', 'test-asaas-checkout-contract', 'test-ai-budget', 'test-tiktok-inbox', 'test-tiktok-status', 'test-reel-cover', 'test-image-crop']) {
     ok = await run(name, ['--import', './bench/register-ts-alias.mjs', `bench/${name}.mjs`]) && ok;
   }
   ok = await run('test-publishing-scheduler', ['bench/test-publishing-scheduler.mjs']) && ok;

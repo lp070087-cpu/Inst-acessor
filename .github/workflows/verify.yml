@@ -45,6 +45,7 @@ jobs:
       - run: node bench/integration-launch-waitlist.mjs --migration=20261020190000_launch_waitlist
       - run: node bench/test-media-render-browser.mjs
       - run: node bench/integration-editor.mjs
+      - run: node bench/integration-image-crop.mjs
       - run: node bench/safe-run.mjs e2e
       - uses: actions/upload-artifact@v4
         if: always()
@@ -54,6 +55,7 @@ jobs:
             outputs/verification
             outputs/screenshots
             outputs/editor-validation
+            outputs/verification/image-crop
             outputs/password-reset.log
             outputs/publication-migrations.log
             outputs/publishing-reconciliation.log
