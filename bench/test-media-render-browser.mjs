@@ -6,8 +6,8 @@ const root = resolve(import.meta.dirname, '..');
 if (process.platform === 'win32') process.env.PLAYWRIGHT_BROWSERS_PATH ??= 'C:/Users/55819/AppData/Local/ms-playwright';
 const { chromium } = await import('@playwright/test');
 const output = resolve(root,'outputs/editor-validation'); mkdirSync(output,{recursive:true});
-const modules = Object.fromEntries(['video-project','video-renderer','image-export'].map(name=>[
-  `/${name}.js`,ts.transpileModule(readFileSync(resolve(root,`src/lib/media-editor/${name}.ts`),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText.replace('"./video-project"','"/video-project.js"')
+const modules = Object.fromEntries(['video-project','video-renderer','image-export','image-crop'].map(name=>[
+  `/${name}.js`,ts.transpileModule(readFileSync(resolve(root,`src/lib/media-editor/${name}.ts`),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText.replace('"./video-project"','"/video-project.js"').replace('"./image-crop"','"/image-crop.js"')
 ]));
 const browser=await chromium.launch({headless:true});
 const evidence={browser:browser.version(),status:'running',assertions:[],errors:[]};
@@ -33,15 +33,17 @@ try {
     const slide={id:'fixture',originalUrl:original,type:'image',framing:{zoom:1,offsetX:0,offsetY:0},rotation:0,brightness:1,contrast:1};
     const decode=async(file)=>{const bitmap=await createImageBitmap(file);const c=document.createElement('canvas');c.width=bitmap.width;c.height=bitmap.height;c.getContext('2d').drawImage(bitmap,0,0);bitmap.close();return c;};
     const pixel=(c,x,y)=>Array.from(c.getContext('2d').getImageData(x,y,1,1).data);
-    const edited=await decode(await exportEditedImage(slide,'1:1'));
-    check('JPEG output dimensions1080x1080',edited.width===1080&&edited.height===1080);
-    check('Original asymmetric pixels preserved without edit',pixel(edited,100,500)[0]>220&&pixel(edited,900,500)[2]>220);
-    const rotated=await decode(await exportEditedImage({...slide,rotation:180},'1:1'));
-    check('Rotation changes actual exported pixels',pixel(rotated,100,500)[2]>220&&pixel(rotated,900,500)[0]>220);
-    const dark=await decode(await exportEditedImage({...slide,brightness:0.5},'4:5'));
-    check('Brightness changes actual bytes and ratio',pixel(dark,100,500)[0]<160&&dark.height===1350);
-    const zoom=await decode(await exportEditedImage({...slide,framing:{zoom:2,offsetX:0.4,offsetY:0}},'9:16'));
-    check('Crop zoom and position exported',zoom.height===1920&&pixel(zoom,900,500)[0]>220);
+    // Exportação em pixels nativos da área recortada, dentro de 320–1440 px (limites do Instagram).
+    const at=(c,fx,fy)=>pixel(c,Math.round(c.width*fx),Math.round(c.height*fy));
+    const edited=await decode(await exportEditedImage(slide,1));
+    check('JPEG output raised to the 320px platform minimum, 1:1',edited.width===320&&edited.height===320);
+    check('Original asymmetric pixels preserved without edit',at(edited,0.1,0.5)[0]>220&&at(edited,0.9,0.5)[2]>220);
+    const rotated=await decode(await exportEditedImage({...slide,rotation:180},1));
+    check('Rotation changes actual exported pixels',at(rotated,0.1,0.5)[2]>220&&at(rotated,0.9,0.5)[0]>220);
+    const dark=await decode(await exportEditedImage({...slide,brightness:0.5},4/5));
+    check('Brightness changes actual bytes and ratio',at(dark,0.1,0.5)[0]<160&&dark.width===320&&dark.height===400);
+    const zoom=await decode(await exportEditedImage({...slide,framing:{zoom:2,offsetX:0.4,offsetY:0}},9/16));
+    check('Crop zoom and position exported',Math.abs(zoom.width/zoom.height-9/16)<0.005&&at(zoom,0.83,0.26)[0]>220);
     check('Original canvas not destroyed',source.toDataURL('image/png')===original);
     show('Original',source);show('JPEG exportado',edited);show('Rotação exportada',rotated);show('Brilho exportado',dark);show('Recorte exportado',zoom);
     // Generate two real, small, local video fixtures, never network media.
@@ -158,7 +160,7 @@ try {
     }
     for(const v of [a,b,video]){v.pause();v.removeAttribute('src');v.load();}for(const u of [red,blue,url])URL.revokeObjectURL(u);
     document.body.style.cssText='display:flex;flex-wrap:wrap;gap:16px;font-family:system-ui;background:#f7f8fa;color:#111318';
-    return {assertions:results,audio:audioEvidence,outputType:exported.file.type,video:Array.from(new Uint8Array(await exported.file.arrayBuffer())),cover:Array.from(new Uint8Array(await exported.cover.arrayBuffer())),image:Array.from(new Uint8Array(await (await exportEditedImage({...slide,rotation:180},'1:1')).arrayBuffer()))};
+    return {assertions:results,audio:audioEvidence,outputType:exported.file.type,video:Array.from(new Uint8Array(await exported.file.arrayBuffer())),cover:Array.from(new Uint8Array(await exported.cover.arrayBuffer())),image:Array.from(new Uint8Array(await (await exportEditedImage({...slide,rotation:180},1)).arrayBuffer()))};
   });
   evidence.assertions=results.assertions;evidence.videoType=results.outputType;evidence.audio=results.audio;assert.equal(evidence.errors.length,0);
   writeFileSync(resolve(output,results.outputType==='video/mp4'?'fixture-export.mp4':'fixture-export.webm'),Buffer.from(results.video));
