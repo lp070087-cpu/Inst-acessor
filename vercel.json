@@ -2,7 +2,8 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "git": {
     "deploymentEnabled": {
-      "audit/finalizacao-inst-acessor": false
+      "audit/finalizacao-inst-acessor": false,
+      "claude/charming-feynman-wjik0j": false
     }
   }
 }

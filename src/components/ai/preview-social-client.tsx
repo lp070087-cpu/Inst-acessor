@@ -880,7 +880,7 @@ export function PreviewSocial({
       />
 
       {view === "criar" && (
-        <fieldset disabled={uploadingMedia} className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-5">
+        <fieldset disabled={uploadingMedia} className="grid min-w-0 grid-cols-1 lg:grid-cols-[1fr_340px] gap-5">
           {/* ============ COLUNA DE CRIAÇÃO ============ */}
           <div className="flex flex-col gap-5 min-w-0">
             {/* --- 1. Plataforma + Formato --- */}
@@ -1072,7 +1072,7 @@ export function PreviewSocial({
                   const current = slides[activeSlide] ?? slides[0];
                   if (!current) return null;
                   return (
-                    <div className="flex items-center gap-3">
+                    <div className="flex min-w-0 items-center gap-3">
                       <span className="text-[11.5px] font-semibold text-ink-muted flex-none">
                         Zoom
                       </span>
@@ -1088,7 +1088,7 @@ export function PreviewSocial({
                             zoom: Number(e.target.value),
                           })
                         }
-                        className="flex-1 accent-purple cursor-pointer"
+                        className="min-w-0 flex-1 accent-purple cursor-pointer"
                         aria-label="Zoom do enquadramento"
                       />
                       <span className="text-[11.5px] text-ink-muted w-10 text-right tabular-nums">

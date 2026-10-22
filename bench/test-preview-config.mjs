@@ -9,8 +9,9 @@ let count = 0;
 function check(value, message) { assert.ok(value, message); count++; console.log(`ok ${message}`); }
 try {
   const deployment = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8'));
-  check(deployment.git.deploymentEnabled['audit/finalizacao-inst-acessor'] === false, 'Finalization branch never triggers automatic Vercel deployment');
-  check(Object.keys(deployment.git.deploymentEnabled).length === 1, 'Other branches retain their existing deployment behavior');
+  const blocked = ['audit/finalizacao-inst-acessor', 'claude/charming-feynman-wjik0j'];
+  check(blocked.every(branch => deployment.git.deploymentEnabled[branch] === false), 'Finalization branches never trigger automatic Vercel deployment');
+  check(Object.keys(deployment.git.deploymentEnabled).length === blocked.length, 'Other branches retain their existing deployment behavior');
   process.env.NODE_ENV = 'production';
   process.env.VERCEL_ENV = 'preview';
   delete process.env.INST_DEMO_MODE;

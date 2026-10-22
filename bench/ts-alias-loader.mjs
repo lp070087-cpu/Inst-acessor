@@ -31,6 +31,9 @@ function withExtension(url) {
 
 export async function resolve(specifier, context, next) {
   if (specifier === "next/server") return next("next/server.js", context);
+  if (specifier === "next-auth/providers/credentials" && !context.parentURL?.endsWith("/bench/shims/next-auth-credentials.mjs")) {
+    return next(new URL("./shims/next-auth-credentials.mjs", import.meta.url).href, context);
+  }
   // Alias do projeto: @/ → src/
   if (specifier.startsWith("@/")) {
     return next(withExtension(SRC + specifier.slice(2)), context);
