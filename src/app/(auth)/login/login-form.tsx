@@ -57,7 +57,9 @@ function LoginFormInner() {
     }
 
     // redireciona direto para o app; o guard decide entre onboarding e dashboard
-    const callbackUrl = searchParams.get("callbackUrl") ?? "/dashboard";
+    // Só caminhos internos: impede redirecionamento aberto via ?callbackUrl=https://...
+    const requested = searchParams.get("callbackUrl");
+    const callbackUrl = requested && requested.startsWith("/") && !requested.startsWith("//") && !requested.startsWith("/\\") ? requested : "/dashboard";
     router.push(callbackUrl);
     router.refresh();
   }
@@ -137,7 +139,7 @@ function LoginFormInner() {
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
               <path
                 d="M2 6.2 4.8 9 10 3.4"
-                stroke="#1a0b28"
+                stroke="#fff"
                 strokeWidth="2.1"
                 strokeLinecap="round"
                 strokeLinejoin="round"

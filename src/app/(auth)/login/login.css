@@ -1,928 +1,515 @@
 /* ============================================================
-   INST ACESSOR — Experiência de login (escopo: SOMENTE /login)
-
-   Esta folha reproduz a referência visual aprovada em
-   "Link de referencia do login/video de referencia do login.mp4".
-
-   REGRAS DESTA FOLHA
-   - Tudo é prefixado com `.lgn-` e vive dentro de `.lgn-root`.
-     Nenhum token global (--bg, --card, --ink, tailwind/ui) é
-     alterado; o resto do Inst Acessor continua claro.
-   - O tema escuro autorizado vale SÓ para a experiência de
-     autenticação/login.
-   - Nenhum vídeo de fundo: ondas, círculo, anel, glow e vidro
-     são reconstruídos em CSS/SVG (requisito de performance).
-   - Geometria, cores e tempos vêm de medição dos 187 frames do
-     vídeo (482x820, 30fps, 6.23s), não de estimativa.
+   LOGIN — versão clara (identidade da landing aprovada)
+   Tokens espelham `landing.css` (`--lnd-*`) para manter a marca idêntica.
    ============================================================ */
-
-/* ------------------------------------------------------------
-   RAIZ — palco escuro de tela cheia
-   ------------------------------------------------------------ */
 .lgn-root {
-  /* --- geometria medida no vídeo (diâmetro do círculo = 100%) --- */
-  --lgn-d: clamp(280px, min(92vmin, 74vh, 560px), 560px);
-  /* Anel medido: crista em +0,78px da borda com meia-largura de 6,65px,
-     sobre D=402,5px (frame 180 do vídeo). Ou seja a faixa útil vai de
-     0,4918D a 0,5082D — centrada NA borda, não por dentro dela. Logo o
-     vidro começa no limite interno do anel: (0,5 − 0,4918) = 0,0082D. */
-  --lgn-ring-w: calc(var(--lgn-d) * 0.0082);
-  /* conteúdo ocupa 68,1% do diâmetro (campo medido: 274px sobre 402,5px) */
-  --lgn-card-w: calc(var(--lgn-d) * 0.681);
-
-  /* --- tabela de matiz do anel ---
-     Amostrada a cada 10° sobre a CRISTA do anel (o pixel mais claro dentro
-     de ±4px do raio), na moldura 180 do vídeo, onde o círculo está em
-     (225, 428) R=202 e o brilho médio da crista é 67,0.
-
-     A tabela substitui as 10 paradas antigas, que eram uma interpolação
-     "mão livre" entre poucos pontos e ERRAVAM uma feição real: o vídeo tem
-     uma faixa ÂMBAR (matiz 2°→25°) varrendo 0°→60° de bússola, e um
-     degrau em ~60°. Conferido em quatro molduras (150, 160, 170, 180) e nos
-     dois prints novos: a faixa existe em todos e gira com o anel.
-
-     Os valores são a cor medida como está (uma captura de tela, sem
-     gerenciamento de cor). A saturação não foi "embelezada": o anel do
-     vídeo é menos saturado que o gradiente anterior. */
-  --lgn-ring: conic-gradient(
-    from 0deg,
-    #ad3d44 0deg,
-    #a03c3c 10deg,
-    #963c37 20deg,
-    #8d3c30 30deg,
-    #823d26 40deg,
-    #7b3e27 50deg,
-    #784232 60deg,
-    #7e4144 70deg,
-    #823f56 80deg,
-    #823c62 90deg,
-    #7b376d 100deg,
-    #77347b 110deg,
-    #742d87 120deg,
-    #742d99 130deg,
-    #6d299d 140deg,
-    #7028b1 150deg,
-    #6c2ab4 160deg,
-    #652fb5 170deg,
-    #6033b8 180deg,
-    #5e35b7 190deg,
-    #5639b6 200deg,
-    #503cb5 210deg,
-    #4a3db1 220deg,
-    #4544c0 230deg,
-    #4648bd 240deg,
-    #5147b4 250deg,
-    #6245a5 260deg,
-    #6d439c 270deg,
-    #78418d 280deg,
-    #8a3d83 290deg,
-    #9d427e 300deg,
-    #af4170 310deg,
-    #c04166 320deg,
-    #c63f5e 330deg,
-    #bb3c55 340deg,
-    #b43b4a 350deg,
-    #ad3d44 360deg
-  );
-
-  /* --- tipografia do cartão --- */
-  --lgn-ink: #ffffff;
-  --lgn-ink-2: rgba(255, 255, 255, 0.62);
-  --lgn-ink-3: rgba(255, 255, 255, 0.42);
-  --lgn-line: rgba(255, 255, 255, 0.14);
-  --lgn-glass-fill: rgba(255, 255, 255, 0.055);
-
+  --lgn-bg: #f7f8fa;
+  --lgn-card: #ffffff;
+  --lgn-ink: #111318;
+  --lgn-ink-2: #596579;
+  --lgn-border: #e5e7eb;
+  --lgn-border-soft: #edeff2;
+  --lgn-magenta: #be185d;
+  --lgn-purple: #6d28d9;
+  --lgn-indigo: #4f46e5;
+  --lgn-danger: #b91c1c;
+  --lgn-grad: linear-gradient(115deg, #be185d 0%, #7e22ce 45%, #4338ca 100%);
   --lgn-ease: cubic-bezier(0.22, 1, 0.36, 1);
-
-  position: relative;
-  isolation: isolate;
   min-height: 100vh;
   min-height: 100dvh;
-  width: 100%;
-  overflow-x: clip;
-  background: #05030a;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  background:
+    radial-gradient(1200px 520px at 100% -10%, rgba(168, 85, 247, 0.08), transparent 60%),
+    radial-gradient(900px 480px at -10% 110%, rgba(244, 63, 142, 0.07), transparent 60%),
+    var(--lgn-bg);
   color: var(--lgn-ink);
-  font-family: var(--font-body);
+  font-family: var(--font-plus-jakarta), system-ui, sans-serif;
 }
 
-/* Enquanto a tela de login está montada, o overscroll do documento
-   também é escuro (sem faixa branca ao puxar além do fim).
-   :has() é suportado nos navegadores que o projeto já exige. */
-html:has(.lgn-root),
-body:has(.lgn-root) {
-  background: #05030a;
+/* ---------- Painel de marca (somente telas largas) ---------- */
+.lgn-aside {
+  display: none;
 }
-
-/* ------------------------------------------------------------
-   LÂMINAS DO FUNDO — filamentos concêntricos (SVG)
-
-   Ficam centradas no círculo e com 4,1x o seu diâmetro. Assim as lâminas
-   acompanham o círculo em qualquer viewport (largura, altura, orientação)
-   em vez de acompanharem a proporção do vídeo — no vídeo o enquadramento é
-   482x820, e amarrar o SVG a essa proporção jogaria todo o desenho para
-   fora da tela no desktop.
-
-   No SVG o raio do círculo vale 100 unidades; logo 1 unidade = R/100 px.
-   O elemento mede 410% do diâmetro, ou seja 4,1D de lado, e o viewBox
-   correspondente é "-410 -410 820 820": assim 1 unidade do viewBox cai
-   exatamente sobre R/100 px e a borda do círculo fica em r=100. Era esse
-   casamento que faltava — com 300% e um viewBox de 200 unidades a escala
-   saía 1,55x maior que a prevista e as lâminas eram cortadas.
-
-   SOBRE O TRANSBORDAMENTO: 4,1D é bem mais que o necessário em altura
-   (o desenho só alcança ~195 unidades de meia-altura, 47,6% da caixa),
-   mas a caixa é quadrada e é ela que precisa caber na largura quando as
-   lâminas saem pelos lados — foi medido que elas chegam a ±1,24R na
-   horizontal. Em retrato D = 0,846W, então 4,1D = 3,47W de largura; é
-   por isso que `.lgn-root` usa `overflow-x: clip`: o excesso é recortado
-   sem criar barra de rolagem nem área de rolagem lateral.
-   O recorte vertical é inofensivo — a caixa inteira está centralizada no
-   círculo e o que sobra para cima/baixo é vazio.
-   ------------------------------------------------------------ */
-.lgn-waves {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 410%;
-  height: 410%;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-  animation: lgn-waves-in 900ms var(--lgn-ease) both;
+@media (min-width: 1024px) {
+  .lgn-root {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  }
+  .lgn-aside {
+    display: flex;
+    padding: 24px 0 24px 24px;
+  }
 }
-
-.lgn-waves svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-/* ------------------------------------------------------------
-   PALCO — logo, círculo e rodapé
-   ------------------------------------------------------------ */
-.lgn-stage {
+.lgn-aside-inner {
   position: relative;
-  z-index: 2;
+  flex: 1;
   display: flex;
-  min-height: 100vh;
-  min-height: 100dvh;
+  flex-direction: column;
+  justify-content: center;
+  gap: 22px;
+  padding: clamp(40px, 5vw, 72px);
+  border-radius: 28px;
+  border: 1px solid rgba(109, 40, 217, 0.1);
+  background:
+    linear-gradient(160deg, #ffffff 0%, #fbf8ff 55%, #f5f1ff 100%);
+  overflow: hidden;
+  isolation: isolate;
+}
+.lgn-aside-inner::before {
+  /* Grade sutil da landing, sem blur. */
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image:
+    linear-gradient(rgba(109, 40, 217, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(109, 40, 217, 0.05) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse at 30% 30%, #000 30%, transparent 75%);
+}
+.lgn-eyebrow {
+  align-self: flex-start;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--lgn-purple);
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(139, 92, 246, 0.1);
+}
+.lgn-aside-title {
+  margin: 0;
+  max-width: 15ch;
+  font-family: var(--font-sora), sans-serif;
+  font-size: clamp(34px, 3.4vw, 48px);
+  line-height: 1.08;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+.lgn-grad {
+  background: var(--lgn-grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.lgn-points {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+  color: var(--lgn-ink-2);
+  font-size: 15px;
+}
+.lgn-points li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.lgn-points svg {
+  flex: none;
+  color: var(--lgn-purple);
+}
+
+/* Prévia ilustrativa do produto */
+.lgn-preview {
+  margin-top: 8px;
+  max-width: 380px;
+  padding: 20px;
+  border-radius: 22px;
+  background: #fff;
+  border: 1px solid var(--lgn-border-soft);
+  box-shadow: 0 4px 8px rgba(17, 19, 24, 0.04), 0 24px 56px rgba(76, 29, 149, 0.12);
+  animation: lgn-float 8s ease-in-out 1.2s infinite;
+}
+.lgn-preview-head,
+.lgn-preview-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.lgn-preview-label {
+  font-family: var(--font-sora), sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+}
+.lgn-preview-tag {
+  font-size: 11px;
+  color: var(--lgn-ink-2);
+}
+.lgn-preview-body {
+  display: flex;
+  align-items: flex-end;
+  gap: 22px;
+  margin: 16px 0;
+}
+.lgn-ring {
+  --lgn-score: 82;
+  flex: none;
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(closest-side, #fff 78%, transparent 79% 100%),
+    conic-gradient(#be185d, #7e22ce, #4338ca calc(var(--lgn-score) * 1%), #eef0f4 0);
+}
+.lgn-ring span {
+  font-family: var(--font-sora), sans-serif;
+  font-size: 26px;
+  font-weight: 700;
+}
+.lgn-bars {
+  flex: 1;
+  height: 92px;
+  display: flex;
+  align-items: flex-end;
+  gap: 7px;
+}
+.lgn-bars span {
+  flex: 1;
+  border-radius: 6px 6px 3px 3px;
+  background: var(--lgn-grad);
+  transform-origin: bottom;
+  animation: lgn-grow 0.9s var(--lgn-ease) both;
+}
+.lgn-chip {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #f1f3f5;
+  color: var(--lgn-ink-2);
+}
+.lgn-chip-up {
+  background: rgba(16, 185, 129, 0.1);
+  color: #047857;
+}
+
+/* ---------- Coluna do formulário ---------- */
+.lgn-main {
+  min-width: 0;
+  display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: clamp(14px, 2.4vh, 30px);
-  /* `safe-area-inset-top` protege o logo da barra de status/entalhe do
-     iPhone; o `bottom` impede que o rodapé fique sob a barra de gestos. */
-  padding: calc(26px + env(safe-area-inset-top)) 18px
-    calc(20px + env(safe-area-inset-bottom));
+  gap: 28px;
+  padding: max(28px, env(safe-area-inset-top)) 16px max(28px, env(safe-area-inset-bottom));
 }
-
 .lgn-brand {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  font-family: var(--font-display);
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
   color: var(--lgn-ink);
-  animation: lgn-rise 620ms var(--lgn-ease) both;
+  text-decoration: none;
+  animation: lgn-rise 0.6s var(--lgn-ease) both;
 }
-
 .lgn-brand-badge {
   display: grid;
   place-items: center;
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
   border-radius: 12px;
-  background: var(--brand-grad);
-  box-shadow: 0 8px 26px rgba(168, 85, 247, 0.42);
+  color: #fff;
+  background: var(--lgn-grad);
+  box-shadow: 0 8px 30px rgba(168, 85, 247, 0.25);
 }
-
-.lgn-legal {
-  text-align: center;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--lgn-ink-3);
-  animation: lgn-rise 620ms var(--lgn-ease) 90ms both;
+.lgn-brand-name {
+  font-family: var(--font-sora), sans-serif;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
-
-/* ------------------------------------------------------------
-   CÍRCULO — anel luminoso + halo + vidro + conteúdo
-   ------------------------------------------------------------ */
-.lgn-circle {
-  position: relative;
-  display: grid;
-  place-items: center;
-  /* o círculo cabe sempre: o diâmetro é limitado por largura E altura */
-  width: var(--lgn-d);
-  height: var(--lgn-d);
-  max-width: 100%;
-  border-radius: 50%;
-  animation: lgn-circle-in 820ms var(--lgn-ease) both;
+.lgn-brand-name em {
+  font-style: normal;
+  font-weight: 800;
+  background: var(--lgn-grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
-
-/* Os arcos do fundo são decorativos: não entram na árvore de conteúdo
-   e não podem receber cliques. O overflow-x da raiz os recorta nos
-   cantos da tela. */
-.lgn-circle > .lgn-waves {
-  z-index: 0;
+.lgn-card {
+  width: 100%;
+  max-width: 440px;
+  padding: clamp(24px, 6vw, 40px);
+  border-radius: 28px;
+  background: var(--lgn-card);
+  border: 1px solid var(--lgn-border-soft);
+  box-shadow: 0 2px 4px rgba(17, 19, 24, 0.04), 0 18px 48px rgba(17, 19, 24, 0.08);
+  animation: lgn-rise 0.7s var(--lgn-ease) 0.06s both;
 }
-
-/* Anel cônico com máscara anular: só a borda fica visível.
-
-   ARMADILHA (o defeito que existia aqui): num `radial-gradient` sem tamanho
-   explícito o raio vai até o CANTO mais distante, que num quadrado vale
-   70,71% do lado. O `50%` da sintaxe seria a fração DESSE raio, não do lado.
-
-   As paradas antigas (`transparent 0 96.3%, #000 98.3% 100%`) pediam um anel
-   de 96,3% a 98,3% do raio do gradiente — ou seja 136,2% a 139,0% do lado,
-   bem FORA do elemento. Resultado: a máscara ficava transparente do começo
-   ao fim e o anel nunca apareceu. (Um gradiente em que todo stop que importa
-   cai depois do fim é achatado até o último; aqui o último também era
-   transparente, então não havia anel nenhum.)
-
-   Medido no vídeo: crista em offset +0,78px da borda, largura de meia altura
-   6,65px sobre D=402,5px, isto é 0,0165D — ou seja a faixa vai de 0,4918D a
-   0,5082D, centrada na própria borda do círculo.
-
-   Convertendo para o raio do gradiente (100% = 0,7071 do lado):
-     0,4918D → 69,54%   ·   borda (0,5000D) → 70,71%   ·   0,5082D → 71,87% */
-.lgn-ring {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: var(--lgn-ring);
-  -webkit-mask: radial-gradient(
-    circle at 50% 50%,
-    transparent 0 69.54%,
-    #000 70.71%,
-    transparent 71.87% 100%
-  );
-  mask: radial-gradient(
-    circle at 50% 50%,
-    transparent 0 69.54%,
-    #000 70.71%,
-    transparent 71.87% 100%
-  );
-  /* medido no vídeo: 4.8s por volta, sentido horário, linear */
-  animation: lgn-spin 4.8s linear infinite;
-  will-change: transform;
-}
-
-/* Halo: a mesma faixa, mais larga e desfocada — o brilho acompanha a cor
-   local do anel em vez de ser um rosa fixo.
-   Como um `blur` espalha a cor para os DOIS lados, aqui a faixa precisa
-   ser mais larga que o anel, senão o desfoque não teria de onde puxar
-   brilho e o halo sairia quase invisível. `blur(12px)` sobre D=402,5px é
-   ~3% de D, então a faixa vai de 0,46D a 0,54D:
-     65,33%  ·  70,71%  ·  76,08% */
-.lgn-halo {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: var(--lgn-ring);
-  -webkit-mask: radial-gradient(
-    circle at 50% 50%,
-    transparent 0 65.33%,
-    #000 70.71%,
-    transparent 76.08% 100%
-  );
-  mask: radial-gradient(
-    circle at 50% 50%,
-    transparent 0 65.33%,
-    #000 70.71%,
-    transparent 76.08% 100%
-  );
-  filter: blur(12px);
-  opacity: 0.9;
-  animation: lgn-spin 4.8s linear infinite;
-  will-change: transform;
-}
-
-/* Vidro: o interior do círculo.
-   Gradiente medido: topo escuro, base magenta-rosada. */
-.lgn-glass {
-  position: absolute;
-  inset: var(--lgn-ring-w);
-  border-radius: 50%;
-  overflow: hidden;
-  /* Perfil angular medido no print de referência, em raio 0,86–0,94 do raio
-     do círculo (região que o cartão de conteúdo NÃO alcança — conferido com
-     desvio-padrão local < 1,2 nos 36 ângulos medidos):
-       0°  rgb( 21,19,21)   ·  30°  rgb( 16,13,16)   ·  90°  rgb( 47,20,67)
-     150°  rgb( 53,14,51)   · 180°  rgb( 83,19,60)   · 210°  rgb(103,22,52)
-     240°  rgb(107,26,45)   · 270°  rgb( 71,23,32)   · 330°  rgb( 34,29,30)
-
-     Esse perfil NÃO é um degradê radial único: o máximo de vermelho cai em
-     240°, alinhado ao centro da lâmina quente (202°–250°), e não no fundo
-     geométrico (180°). Um gradiente simétrico de base magenta — como o que
-     existia aqui antes — erra 18,5 níveis por canal; separar em "base escura
-     + dois lobos" cai para 14,0. Os dois lobos foram ajustados por mínimos
-     quadrados restritos (cores >= 0) contra o perfil medido.
-
-     Os lobos ficam quase totalmente FORA da caixa do vidro (é por isso que
-     `at -6.3%` e `at 94.8%`): o que se vê é a cauda deles atravessando o
-     interior, que é como a referência distribui a luz. */
-  background:
-    /* lobo quente — centro na direção 240°, cauda subindo à direita */
-    radial-gradient(
-      100% 100% at -6.3% 82.5%,
-      rgba(129, 25, 61, 0.82) 0%,
-      rgba(129, 25, 61, 0) 100%
-    ),
-    /* lobo frio — centro na direção 95°, cauda à esquerda */
-    radial-gradient(
-      90% 90% at 94.8% 53.9%,
-      rgba(58, 17, 80, 0.82) 0%,
-      rgba(58, 17, 80, 0) 100%
-    ),
-    /* base opaca: o piso do vidro é cinza-escuro, não preto */
-    #0a0f0e;
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    inset 0 30px 70px rgba(255, 255, 255, 0.05),
-    inset 0 -60px 90px rgba(232, 35, 95, 0.14);
-}
-
-/* Brilho interno suave no alto-esquerda.
-   Mantido bem discreto: no vídeo o alto-direito mede rgb(16,13,16), quase
-   preto — um sheen forte aí levantaria o canto que deve ficar apagado. */
-.lgn-sheen {
-  position: absolute;
-  inset: var(--lgn-ring-w);
-  border-radius: 50%;
-  pointer-events: none;
-  background: radial-gradient(
-    46% 34% at 30% 16%,
-    rgba(255, 255, 255, 0.055),
-    transparent 70%
-  );
-}
-
-/* ------------------------------------------------------------
-   CONTEÚDO DO CARTÃO
-   ------------------------------------------------------------ */
-.lgn-content {
-  position: relative;
-  z-index: 3;
-  display: flex;
-  flex-direction: column;
-  width: var(--lgn-card-w);
-  max-width: 100%;
-}
-
 .lgn-title {
   margin: 0;
-  text-align: center;
-  font-family: var(--font-display);
-  /* medido: cap-height 21px sobre D=402,5px. Com cap ≈ 0,716 do em, a
-     fonte pedida é ~29,3px = 0,0729D. O valor antigo (0,058D = 23,3px)
-     deixava o título visivelmente menor que a referência. */
-  font-size: clamp(26px, calc(var(--lgn-d) * 0.0729), 40px);
+  font-family: var(--font-sora), sans-serif;
+  font-size: clamp(26px, 6vw, 32px);
+  line-height: 1.15;
   font-weight: 700;
-  line-height: 1.05;
-  letter-spacing: -0.025em;
-  color: var(--lgn-ink);
-  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.5);
-  animation: lgn-rise 560ms var(--lgn-ease) 240ms both;
+  letter-spacing: -0.03em;
 }
-
 .lgn-sub {
-  /* medido: linha de base do título (y=301) → topo do subtítulo (y=315) */
-  margin: 0;
-  padding-top: clamp(4px, calc(var(--lgn-d) * 0.0124), 7px);
-  text-align: center;
-  font-size: clamp(12.5px, calc(var(--lgn-d) * 0.034), 14px);
+  margin: 8px 0 26px;
   color: var(--lgn-ink-2);
-  animation: lgn-rise 560ms var(--lgn-ease) 300ms both;
+  font-size: 15px;
+  line-height: 1.6;
 }
-
 .lgn-form {
-  display: flex;
-  flex-direction: column;
-  /* medido: base do subtítulo (y=322) → topo do 1º campo (y=341) = 19px.
-     O rótulo do campo vive nesse intervalo e os campos têm `gap: 6px`
-     internos, então o resto é dividido com o rótulo. */
-  margin-top: clamp(6px, calc(var(--lgn-d) * 0.021), 14px);
+  display: grid;
+  gap: 18px;
 }
-
 .lgn-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  display: grid;
+  gap: 8px;
 }
-.lgn-field + .lgn-field {
-  /* medido: borda inferior do 1º campo (y=377) até o topo do 2º (y=407) */
-  margin-top: clamp(11px, calc(var(--lgn-d) * 0.037), 21px);
-}
-
 .lgn-label {
-  font-size: clamp(11.5px, calc(var(--lgn-d) * 0.028), 12.5px);
+  font-size: 14px;
   font-weight: 600;
-  letter-spacing: 0.01em;
-  color: var(--lgn-ink-2);
 }
-
-/* Rótulo alinhado à esquerda com o texto de dentro do campo. */
-.lgn-input-wrap,
-.lgn-label {
-  text-align: left;
-}
-
-/* --- campo: vidro escuro, borda de 1px, raio muito arredondado --- */
 .lgn-input-wrap {
   position: relative;
   display: flex;
   align-items: center;
 }
-
+.lgn-input-icon {
+  position: absolute;
+  left: 16px;
+  display: grid;
+  color: #8a94a6;
+  pointer-events: none;
+  transition: color 0.2s ease;
+}
 .lgn-input {
   width: 100%;
-  /* medido: 38px de altura sobre D=402,5px = 0,0944D */
-  height: clamp(38px, calc(var(--lgn-d) * 0.0944), 54px);
-  /* medido: raio 10px sobre 38px de altura = 0,263 da altura */
-  border-radius: clamp(10px, calc(var(--lgn-d) * 0.0248), 14px);
-  border: 1px solid var(--lgn-line);
-  background: var(--lgn-glass-fill);
-  padding: 0 clamp(14px, calc(var(--lgn-d) * 0.036), 20px) 0
-    clamp(42px, calc(var(--lgn-d) * 0.098), 55px);
-  font-family: var(--font-body);
-  font-size: clamp(13.5px, calc(var(--lgn-d) * 0.034), 15px);
+  min-width: 0;
+  height: 52px;
+  padding: 0 48px 0 46px;
+  border-radius: 14px;
+  border: 1px solid var(--lgn-border);
+  background: #fbfbfc;
   color: var(--lgn-ink);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  transition:
-    border-color 220ms var(--lgn-ease),
-    background-color 220ms var(--lgn-ease),
-    box-shadow 220ms var(--lgn-ease);
+  font: inherit;
+  font-size: 16px; /* evita zoom automático no iOS */
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
 }
 .lgn-input::placeholder {
-  color: var(--lgn-ink-3);
+  color: #9aa3b2;
 }
 .lgn-input:hover {
-  border-color: rgba(255, 255, 255, 0.24);
+  border-color: #d4d8e0;
 }
 .lgn-input:focus {
   outline: none;
-  border-color: rgba(168, 85, 247, 0.85);
-  background: rgba(255, 255, 255, 0.09);
-  box-shadow:
-    0 0 0 3px rgba(168, 85, 247, 0.22),
-    0 0 26px rgba(168, 85, 247, 0.2);
-}
-/* autofill do navegador não pode pintar o campo de branco */
-.lgn-input:-webkit-autofill,
-.lgn-input:-webkit-autofill:hover,
-.lgn-input:-webkit-autofill:focus {
-  -webkit-text-fill-color: var(--lgn-ink);
-  -webkit-box-shadow: 0 0 0 1000px rgba(38, 20, 46, 0.96) inset;
-  caret-color: var(--lgn-ink);
-  transition: background-color 9999s ease-out 0s;
-}
-
-/* ícone à esquerda do campo */
-.lgn-input-icon {
-  position: absolute;
-  left: clamp(13px, calc(var(--lgn-d) * 0.032), 18px);
-  display: grid;
-  place-items: center;
-  color: var(--lgn-ink-3);
-  pointer-events: none;
-  transition: color 220ms var(--lgn-ease);
+  background: #fff;
+  border-color: var(--lgn-purple);
+  box-shadow: 0 0 0 4px rgba(109, 40, 217, 0.14);
 }
 .lgn-input-wrap:focus-within .lgn-input-icon {
-  color: #c084fc;
+  color: var(--lgn-purple);
 }
-
-/* botão mostrar/ocultar senha */
 .lgn-eye {
   position: absolute;
-  right: 0;
-  top: 0;
+  right: 6px;
   display: grid;
   place-items: center;
-  height: 100%;
-  width: clamp(42px, calc(var(--lgn-d) * 0.104), 58px);
+  width: 40px;
+  height: 40px;
   border: 0;
-  background: transparent;
-  color: var(--lgn-ink-3);
+  border-radius: 10px;
+  background: none;
+  color: #6b7486;
   cursor: pointer;
-  transition: color 220ms var(--lgn-ease);
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
-.lgn-eye:hover,
-.lgn-eye:focus-visible {
+.lgn-eye:hover {
+  background: #f1f3f5;
   color: var(--lgn-ink);
 }
-
-/* bloco de entrada com atraso próprio (entrada em cascata) */
-.lgn-in-1 {
-  animation: lgn-rise 560ms var(--lgn-ease) 360ms both;
-}
-.lgn-in-2 {
-  animation: lgn-rise 560ms var(--lgn-ease) 415ms both;
-}
-.lgn-in-3 {
-  animation: lgn-rise 560ms var(--lgn-ease) 470ms both;
-}
-.lgn-in-4 {
-  animation: lgn-rise 560ms var(--lgn-ease) 525ms both;
-}
-
-/* --- linha "Manter conectado" + "Esqueci minha senha" --- */
 .lgn-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  /* medido: base do 2º campo (y=444) menos o topo da caixa (y=434) */
-  margin-top: clamp(8px, calc(var(--lgn-d) * 0.0248), 14px);
+  gap: 10px 16px;
+  font-size: 14px;
 }
-
 .lgn-check {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 9px;
-  cursor: pointer;
-  user-select: none;
-  font-size: clamp(11.5px, calc(var(--lgn-d) * 0.03), 13px);
+  gap: 10px;
   color: var(--lgn-ink-2);
+  cursor: pointer;
+  min-height: 32px;
 }
 .lgn-check input {
   position: absolute;
   opacity: 0;
-  width: 0;
-  height: 0;
+  width: 1px;
+  height: 1px;
 }
 .lgn-box {
-  position: relative;
   display: grid;
   place-items: center;
-  /* medido no vídeo: caixa de 9px de lado sobre D=402,5px = 0,0224D.
-     Antes eram 0,042D — quase o dobro do tamanho da referência. */
-  width: clamp(14px, calc(var(--lgn-d) * 0.0224), 20px);
-  height: clamp(14px, calc(var(--lgn-d) * 0.0224), 20px);
-  flex: none;
-  border-radius: 5px;
-  border: 1px solid rgba(255, 255, 255, 0.34);
-  background: rgba(255, 255, 255, 0.06);
-  transition:
-    background-color 200ms var(--lgn-ease),
-    border-color 200ms var(--lgn-ease),
-    transform 200ms var(--lgn-ease);
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  border: 1.5px solid #c9ced8;
+  background: #fff;
+  transition: background 0.2s ease, border-color 0.2s ease;
 }
 .lgn-box svg {
   opacity: 0;
   transform: scale(0.6);
-  transition:
-    opacity 180ms var(--lgn-ease),
-    transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-.lgn-check:hover .lgn-box {
-  border-color: rgba(255, 255, 255, 0.6);
+  transition: opacity 0.2s ease, transform 0.25s var(--lgn-ease);
 }
 .lgn-check input:checked + .lgn-box {
-  background: rgba(255, 255, 255, 0.94);
-  border-color: rgba(255, 255, 255, 0.94);
+  border-color: transparent;
+  background: var(--lgn-grad);
 }
 .lgn-check input:checked + .lgn-box svg {
   opacity: 1;
   transform: scale(1);
 }
 .lgn-check input:focus-visible + .lgn-box {
-  box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.4);
+  outline: 3px solid rgba(109, 40, 217, 0.35);
+  outline-offset: 2px;
 }
-
-.lgn-link {
-  font-size: clamp(11.5px, calc(var(--lgn-d) * 0.03), 13px);
-  color: #c084fc;
+.lgn-link,
+.lgn-foot a,
+.lgn-legal a {
+  color: var(--lgn-purple);
+  font-weight: 600;
   text-decoration: none;
-  transition: color 200ms var(--lgn-ease);
+  border-radius: 4px;
 }
-.lgn-link:hover {
-  color: #e9d5ff;
+.lgn-link:hover,
+.lgn-foot a:hover,
+.lgn-legal a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
-
-/* --- botão principal (gradiente da marca, o mesmo do resto do app) --- */
 .lgn-submit {
-  /* medido: topo da caixa (y=434) → topo do botão (y=458) = 24px */
-  margin-top: clamp(11px, calc(var(--lgn-d) * 0.0298), 17px);
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
-  /* medido: 276px sobre D=402,5px = 0,686D — praticamente a mesma largura
-     do cartão (0,681D), então herda 100% dos campos. */
   width: 100%;
-  /* medido: 37px sobre D=402,5px = 0,0919D */
-  height: clamp(38px, calc(var(--lgn-d) * 0.0919), 54px);
+  height: 54px;
+  margin-top: 4px;
   border: 0;
   border-radius: 999px;
-  /* Gradiente reconstruído da medição ao longo do eixo do botão (y=477):
-     0% #fc3965 · 17% #f3347d · 33% #eb3196 · 50% #e22eac · 67% #d429c4 ·
-     83% #ae2afc · 100% #344efe
-     A emenda dos 50%-67% fica escondida pelo texto "Entrar", exatamente
-     como na referência. O azul final (34,78,254) é bem mais escuro que os
-     #a21cf0/#3b45f5 antigos — era esse o desvio mais visível. */
-  background: linear-gradient(
-    90deg,
-    #fc3965 0%,
-    #f3347d 17%,
-    #eb3196 33%,
-    #e22eac 50%,
-    #d429c4 67%,
-    #ae2afc 83%,
-    #344efe 100%
-  );
-  background-size: 170% 100%;
-  background-position: 0% 50%;
   color: #fff;
-  font-family: var(--font-body);
-  font-size: clamp(14px, calc(var(--lgn-d) * 0.036), 15.5px);
-  font-weight: 600;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  background: var(--lgn-grad);
+  background-size: 160% 160%;
+  box-shadow: 0 8px 30px rgba(168, 85, 247, 0.28);
   cursor: pointer;
-  box-shadow:
-    0 10px 30px rgba(168, 28, 240, 0.42),
-    0 2px 10px rgba(246, 42, 109, 0.3);
-  transition:
-    transform 260ms var(--lgn-ease),
-    box-shadow 260ms var(--lgn-ease),
-    background-position 420ms var(--lgn-ease);
+  overflow: hidden;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease, background-position 0.5s ease;
 }
 .lgn-submit:hover:not(:disabled) {
-  background-position: 100% 50%;
   transform: translateY(-2px);
-  box-shadow:
-    0 16px 40px rgba(168, 28, 240, 0.5),
-    0 4px 14px rgba(246, 42, 109, 0.36);
+  background-position: 100% 100%;
+  box-shadow: 0 16px 48px rgba(168, 85, 247, 0.32);
 }
 .lgn-submit:active:not(:disabled) {
-  transform: translateY(0) scale(0.988);
+  transform: translateY(0) scale(0.99);
 }
 .lgn-submit:disabled {
-  cursor: default;
-  opacity: 0.72;
+  opacity: 0.75;
+  cursor: progress;
 }
-
-/* seta do botão dá um passo à frente no hover (microinteração do vídeo) */
 .lgn-arrow {
-  display: inline-grid;
-  place-items: center;
-  transition: transform 260ms var(--lgn-ease);
+  display: grid;
+  transition: transform 0.3s var(--lgn-ease);
 }
-.lgn-submit:hover:not(:disabled) .lgn-arrow {
+.lgn-submit:hover .lgn-arrow {
   transform: translateX(4px);
 }
-
-/* --- erro: mesmo tom do resto do app, adaptado ao fundo escuro --- */
-.lgn-error {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border-radius: 12px;
-  border: 1px solid rgba(239, 68, 68, 0.4);
-  background: rgba(239, 68, 68, 0.14);
-  padding: 10px 13px;
-  font-size: clamp(11.5px, calc(var(--lgn-d) * 0.03), 13.5px);
-  color: #fecaca;
-}
-
-/* --- rodapé do cartão --- */
-.lgn-foot {
-  margin-top: clamp(20px, calc(var(--lgn-d) * 0.062), 34px);
-  text-align: center;
-  font-size: clamp(11.5px, calc(var(--lgn-d) * 0.031), 13px);
-  color: var(--lgn-ink-2);
-  animation: lgn-rise 560ms var(--lgn-ease) 580ms both;
-}
-.lgn-foot a {
-  font-weight: 600;
-  color: #f0abfc;
-  text-decoration: none;
-  transition: color 200ms var(--lgn-ease);
-}
-.lgn-foot a:hover {
-  color: #fff;
-}
-
-/* ------------------------------------------------------------
-   ANIMAÇÕES
-   ------------------------------------------------------------ */
-@keyframes lgn-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes lgn-circle-in {
-  from {
-    opacity: 0;
-    transform: scale(0.9);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-@keyframes lgn-rise {
-  from {
-    opacity: 0;
-    transform: translateY(14px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes lgn-waves-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-/* ------------------------------------------------------------
-   RESPONSIVO — analisado por classe de viewport
-
-   O tamanho do círculo NÃO é decidido por "largura pequena = menor".
-   A referência é retrato de celular (print 476x821) e lá o círculo mede
-   0,8456 da LARGURA:
-
-       D = 2r = 402,5px   ·   W = 476px   ·   D/W = 0,8456
-       D/H = 402,5/821 = 0,490   ·   centro em cy/H = 0,520 (abaixo do meio)
-
-   Então em retrato a regra é `84,6vw`, e a altura só entra como trava de
-   segurança: se 84,6vw passasse de ~62vh o círculo cresceria a ponto de
-   empurrar o logo e o rodapé para fora da tela. Com a trava em `min()`,
-   quem manda é sempre o menor dos dois, sem precisar de breakpoint.
-
-   Classes conferidas à mão:
-     1920x1080, 1440x900, 1366x768   → paisagem: manda o `74vh`, o círculo
-                                        fica no meio e as lâminas preenchem
-     412x915, 393x873, 390x844       → retrato: manda o `84,6vw`
-     393x852, 375x812, 360x800       → idem
-     360x780  → o mais apertado: 84,6vw = 304,6px = 39,1vh, folgado
-   ------------------------------------------------------------ */
-@media (orientation: portrait) {
-  .lgn-root {
-    --lgn-d: min(84.6vw, 62vh, 520px);
-  }
-}
-
-/* Telas estreitas: além do diâmetro, o conteúdo precisa de mais folga
-   dentro do círculo (o cartão já usa 68,1% do diâmetro por medição). */
-@media (max-width: 520px) {
-  .lgn-root {
-    --lgn-card-w: calc(var(--lgn-d) * 0.75);
-  }
-  .lgn-stage {
-    /* respiro para a barra de status e para o gesto inferior do iPhone */
-    padding-top: calc(14px + env(safe-area-inset-top));
-    padding-bottom: calc(14px + env(safe-area-inset-bottom));
-  }
-}
-
-/* Telas muito baixas (celular deitado, notebook curto): o círculo
-   encolhe para o rodapé não sair da tela.
-   O `84.6vw` também aparece aqui de propósito: esta regra vem DEPOIS da
-   de retrato e vence por ordem, então sem ele um celular em retrato baixo
-   (ex.: 360x640) receberia 66vh = 422px, mais largo que a própria tela.
-   Com os três termos no `min()` quem manda é sempre o mais apertado. */
-@media (max-height: 680px) {
-  .lgn-root {
-    /* 58vh (não 66vh): entre o círculo e as bordas ainda é preciso acomodar
-       o logo, o rodapé, os paddings e o safe-area. Com 66vh um celular
-       deitado (800x360, 844x390) estourava a altura em 9–20px. Com 58vh as
-       duas classes cabem; em celular de pé quem manda continua sendo o
-       84.6vw, então nada muda lá. */
-    --lgn-d: min(58vh, 84.6vw, 400px);
-    --lgn-card-w: calc(var(--lgn-d) * 0.75);
-  }
-  .lgn-stage {
-    gap: 10px;
-  }
-}
-
-/* Em telas baixas, o rótulo acima do campo pode sair: o placeholder
-   já identifica o campo e o `label` continua ligado por htmlFor. */
-@media (max-height: 560px) {
-  .lgn-label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
-  }
-  .lgn-waves {
-    opacity: 0.55;
-  }
-}
-
-/* ------------------------------------------------------------
-   iOS / ANDROID — regras obrigatórias
-   ------------------------------------------------------------ */
-
-/* 1) ZOOM AUTOMÁTICO DO SAFARI iOS.
-   O Safari amplia a página quando o campo focado tem `font-size` < 16px.
-   O clamp tipográfico acima pode descer a ~13,5px, então em telas de
-   toque o piso passa a ser 16px. Isso NÃO muda o visual de desktop. */
-@media (hover: none) and (pointer: coarse) {
-  .lgn-input {
-    font-size: max(16px, clamp(13.5px, calc(var(--lgn-d) * 0.034), 15px));
-  }
-}
-
-/* 2) ALTURA REAL DE VIEWPORT NO MOBILE.
-   `100dvh` resolve a barra dinâmica do Safari/Chrome, mas em navegadores
-   antigos cai em `100vh`, que fica maior que a área visível quando a
-   barra está aberta. O `100%`/`100svh` é o degrau intermediário. */
-@supports (height: 100svh) {
-  .lgn-root,
-  .lgn-stage {
-    min-height: 100svh;
-  }
-}
-
-/* 3) ÁREA DE TOQUE DE ~44px SEM MEXER NO LAYOUT.
-   O alvo do dedo precisa de ~44px, mas as alturas do cartão foram medidas
-   na referência: inflar a linha do checkbox com `min-height` empurraria o
-   botão ~30px para baixo e quebraria o ritmo vertical recém-calibrado.
-   Solução: um pseudo-elemento invisível que amplia a área clicável para
-   fora, sem ocupar espaço no fluxo. */
-.lgn-check {
-  position: relative;
-}
-.lgn-check::after {
-  content: "";
-  position: absolute;
-  inset: -13px -10px;
-}
-.lgn-link {
-  position: relative;
-}
-.lgn-link::after {
-  content: "";
-  position: absolute;
-  inset: -13px -10px;
-}
-/* O botão do olho já tem a altura do campo (38–54px); só a largura
-   mínima precisava chegar aos 44px. */
-.lgn-eye {
-  width: clamp(44px, calc(var(--lgn-d) * 0.104), 58px);
-}
-
-/* 4) SEM HOVER COMO FUNÇÃO ESSENCIAL.
-   A seta do botão e o gradiente animam no hover, mas nada essencial
-   depende disso — em telas de toque o foco visível faz o mesmo papel. */
-.lgn-submit:focus-visible {
-  outline: 2px solid rgba(255, 255, 255, 0.9);
+.lgn-root :is(a, button, input):focus-visible {
+  outline: 3px solid rgba(109, 40, 217, 0.45);
   outline-offset: 3px;
 }
-.lgn-eye:focus-visible,
-.lgn-link:focus-visible,
-.lgn-brand:focus-visible {
-  outline: 2px solid rgba(192, 132, 252, 0.9);
-  outline-offset: 2px;
-  border-radius: 6px;
+.lgn-root .lgn-input:focus-visible {
+  outline: none;
+}
+.lgn-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(185, 28, 28, 0.25);
+  background: rgba(239, 68, 68, 0.08);
+  color: var(--lgn-danger);
+  font-size: 14px;
+  line-height: 1.5;
+  animation: lgn-shake 0.4s ease both;
+}
+.lgn-error svg {
+  flex: none;
+  margin-top: 2px;
+}
+.lgn-foot {
+  margin: 24px 0 0;
+  padding-top: 20px;
+  border-top: 1px solid var(--lgn-border-soft);
+  text-align: center;
+  color: var(--lgn-ink-2);
+  font-size: 14px;
+}
+.lgn-legal {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--lgn-ink-2);
+  font-size: 12.5px;
+  text-align: center;
 }
 
-/* 5) TRAVA CONTRA QUALQUER TRANSBORDAMENTO LATERAL.
-   A raiz já usa `overflow-x: clip`; aqui o palco também é contido para
-   que o `translate` das lâminas não crie área de rolagem em navegadores
-   que não implementam `clip` (o Safari antigo só tem `hidden`). */
-.lgn-stage {
-  overflow-x: clip;
-  max-width: 100vw;
+/* Entrada escalonada dos campos */
+.lgn-in-1,
+.lgn-in-2,
+.lgn-in-3,
+.lgn-in-4 {
+  animation: lgn-rise 0.6s var(--lgn-ease) both;
+}
+.lgn-in-1 { animation-delay: 0.14s; }
+.lgn-in-2 { animation-delay: 0.2s; }
+.lgn-in-3 { animation-delay: 0.26s; }
+.lgn-in-4 { animation-delay: 0.32s; }
+
+@keyframes lgn-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes lgn-grow {
+  from { transform: scaleY(0.08); opacity: 0.4; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes lgn-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+@keyframes lgn-shake {
+  0%, 100% { transform: none; }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
 }
 
-/* ------------------------------------------------------------
-   ACESSIBILIDADE — movimento reduzido
-   O bloco global de globals.css zera as durações; aqui garantimos
-   que o resultado final seja legível (nada preso em opacity 0)
-   e que o anel pare de girar. */
 @media (prefers-reduced-motion: reduce) {
-  .lgn-ring,
-  .lgn-halo {
-    animation: none !important;
-  }
-  /* Sem as animações, cada elemento fica no seu estado natural (o mesmo
-     do quadro final de `both`) — ou seja, visível. Por isso NÃO se mexe
-     em opacity/transform aqui: forçá-los estragaria o estado do checkbox
-     (que depende de `opacity: 0` para esconder o visto). */
   .lgn-root *,
   .lgn-root *::before,
   .lgn-root *::after {
     animation: none !important;
-    transition-duration: 0.001s !important;
+    transition: none !important;
   }
-}
-
-.lgn-brand .text-grad {
-  background-image: linear-gradient(115deg, #f9a8d4, #c4b5fd, #a5b4fc);
 }

@@ -25,13 +25,11 @@ export default async function LoginPage({
     redirect("/dashboard");
   }
 
-  // Esta página NÃO usa o layout de `(auth)` como moldura visual: o palco
-  // escuro da referência substitui a moldura clara daquele layout. O layout
-  // continua existindo para as outras telas do grupo (cadastro, onboarding,
-  // primeiro-acesso, expirado e acesso-restrito), que seguem claras.
+  // A moldura visual própria (LoginExperience) substitui a do layout `(auth)`;
+  // as demais telas do grupo continuam usando o AuthShell claro.
   return (
     <LoginExperience>
-      <h1 className="lgn-title">Login</h1>
+      <h1 className="lgn-title">Bem-vindo de volta</h1>
       <p className="lgn-sub">Entre para acompanhar a evolução do seu Instagram.</p>
 
       <LoginForm />
