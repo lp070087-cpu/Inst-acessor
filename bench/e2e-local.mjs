@@ -20,7 +20,7 @@ const password = 'SyntheticAuditOnly123!';
 const passwordHash = await bcrypt.hash(password, 12);
 for (const name of ['free', 'premium', 'expired', 'suspended', 'password-reset', 'admin']) {
   const email = `${name}@audit.invalid`;
-  const user = await prisma.user.upsert({ where: { email }, create: { email, name: `${name} de teste`, passwordHash, firstAccessCompleted: true, emailVerified: new Date() }, update: { passwordHash, firstAccessCompleted: true, emailVerified: new Date() } });
+  const user = await prisma.user.upsert({ where: { email }, create: { email, name: `${name} de teste`, passwordHash, firstAccessCompleted: true, emailVerified: new Date(), role: name === 'admin' ? 'ADMIN' : 'USER' }, update: { passwordHash, firstAccessCompleted: true, emailVerified: new Date(), role: name === 'admin' ? 'ADMIN' : 'USER' } });
   await prisma.userProfile.upsert({ where: { userId: user.id }, create: { userId: user.id, onboardingCompleted: true }, update: { onboardingCompleted: true } });
   if (name === 'expired') await prisma.accessGrant.create({ data: { email, userId: user.id, origin: 'ADMIN_MANUAL', status: 'EXPIRED', startAt: new Date(Date.now() - 86400000), expiresAt: new Date(Date.now() - 1000) } });
 }
