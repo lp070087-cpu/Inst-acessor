@@ -5,15 +5,14 @@ import { isSameOriginMutation } from "@/lib/auth/request-origin";
 import { reconcilePublication } from "@/lib/publishing/reconciliation";
 import { dbRateLimiter } from "@/lib/publishing/rate-limit";
 import { prisma } from "@/lib/db";
-import { isOfficialAdminEmail } from "@/lib/auth/admin-access";
-import { hasVerifiedIdentity } from "@/lib/auth/identity";
+import { isAuthorizedAdmin } from "@/lib/auth/admin-access";
 
 export const dynamic = "force-dynamic";
 const schema = z.object({ queueId: z.string().min(1).max(200), externalId: z.string().regex(/^[a-zA-Z0-9_.~-]{1,200}$/), reviewedContent: z.literal(true) }).strict();
 
 async function authorizedAdmin(id: string) {
-  const user = await prisma.user.findUnique({ where: { id }, select: { email: true, status: true, emailVerified: true, firstAccessCompleted: true } });
-  return !!user && user.status === "ACTIVE" && hasVerifiedIdentity(user) && isOfficialAdminEmail(user.email);
+  const user = await prisma.user.findUnique({ where: { id }, select: { email: true, status: true, role: true } });
+  return isAuthorizedAdmin(user);
 }
 
 export async function GET() {

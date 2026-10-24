@@ -37,6 +37,20 @@ export function isOfficialAdminEmail(email: string | null | undefined): boolean 
 }
 
 /**
+ * Autorização administrativa efetiva (server-only): conta ATIVA, `role` ADMIN
+ * registrada no banco E e-mail oficial. Nenhum dos dois sozinho basta — a role
+ * não promove outro e-mail, e o e-mail não promove uma conta sem a role (um
+ * cadastro novo nasce USER, então registrar o e-mail oficial não dá privilégio).
+ */
+export function isAuthorizedAdmin(
+  user: { email: string | null; role?: string | null; status?: string | null } | null | undefined
+): boolean {
+  if (!user) return false;
+  if (user.status !== undefined && user.status !== "ACTIVE") return false;
+  return user.role === "ADMIN" && isOfficialAdminEmail(user.email);
+}
+
+/**
  * Lista os e-mails que têm privilégio administrativo (para exibição/segurança).
  * Apenas o canônico e, opcionalmente, o ADMIN_EMAIL do ambiente.
  */

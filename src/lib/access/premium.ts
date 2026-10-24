@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { isOfficialAdminEmail } from "@/lib/auth/admin-access";
+import { isAuthorizedAdmin } from "@/lib/auth/admin-access";
 import { hasVerifiedIdentity } from "@/lib/auth/identity";
 import { effectiveGrantStatus } from "@/lib/first-access/core";
 // A lista de rotas premium vive em `@/lib/navigation` para ser a MESMA fonte no
@@ -108,7 +108,7 @@ const iso = (d: Date | null | undefined): string | null =>
  * lê o banco e entrega os dados aqui.
  *
  * @param input.email   e-mail do usuário (já resolvido pelo servidor)
- * @param input.isAdmin resultado de `isOfficialAdminEmail(email)`
+ * @param input.isAdmin resultado de `isAuthorizedAdmin(user)`
  * @param input.now     instante de referência (injetado para o teste controlar)
  */
 export function decidePremiumAccess(input: {
@@ -202,8 +202,8 @@ async function readPremiumSources(userId: string): Promise<{
 }> {
   const user = (await prisma.user.findUnique({
     where: { id: userId },
-    select: { email: true, emailVerified: true, firstAccessCompleted: true },
-  })) as unknown as { email: string | null; emailVerified: Date | null; firstAccessCompleted: boolean } | null;
+    select: { email: true, role: true, status: true, emailVerified: true, firstAccessCompleted: true },
+  })) as unknown as { email: string | null; role: string | null; status: string | null; emailVerified: Date | null; firstAccessCompleted: boolean } | null;
 
   const p = prisma as unknown as {
     accessGrant?: { findMany(args?: unknown): Promise<GrantLite[]> };
@@ -240,7 +240,7 @@ async function readPremiumSources(userId: string): Promise<{
 
   return {
     email,
-    isAdmin: hasVerifiedIdentity(user) && isOfficialAdminEmail(email),
+    isAdmin: isAuthorizedAdmin(user),
     grants,
     subscriptions,
   };

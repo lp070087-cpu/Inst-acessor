@@ -7,7 +7,7 @@ const { tiktokAdapter } = await import('../src/lib/publishing/adapters/index.ts'
 const { markProcessing } = await import('../src/lib/publishing/queue.ts');
 let checks = 0;
 const check = (value, label) => { assert.ok(value, label); checks++; console.log(`ok ${label}`); };
-const admin = await prisma.user.create({ data: { email: 'admin@audit.invalid', passwordHash: 'synthetic', emailVerified: new Date() } });
+const admin = await prisma.user.create({ data: { email: 'admin@audit.invalid', role: 'ADMIN', passwordHash: 'synthetic' } });
 const owner = await prisma.user.create({ data: { email: 'owner@audit.invalid', passwordHash: 'synthetic', emailVerified: new Date() } });
 async function fixture() {
   const content = await prisma.plannedContent.create({ data: { userId: owner.id, title: 'Synthetic reconciliation', platform: 'tiktok' } });

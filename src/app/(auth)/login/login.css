@@ -37,7 +37,7 @@
   }
   .lgn-aside {
     display: flex;
-    padding: 24px 0 24px 24px;
+    padding: clamp(16px, 1.6vw, 32px) 0 clamp(16px, 1.6vw, 32px) clamp(16px, 1.6vw, 32px);
   }
 }
 .lgn-aside-inner {
@@ -46,8 +46,14 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 22px;
-  padding: clamp(40px, 5vw, 72px);
+  /* Escala única do painel: acompanha largura E altura da tela, com piso e
+     teto, para que textos e cards mantenham a mesma proporção entre si de
+     1366×768 a 2560×1440. Todos os tamanhos internos usam `em`. */
+  font-size: clamp(13px, min(1.05vw, 1.9vh), 22px);
+  gap: 1.4em;
+  padding-block: 3em;
+  /* Coluna de conteúdo centralizada (~36em) em telas muito largas. */
+  padding-inline: max(3em, calc((100% - 36em) / 2));
   border-radius: 28px;
   border: 1px solid rgba(109, 40, 217, 0.1);
   background:
@@ -69,12 +75,12 @@
 }
 .lgn-eyebrow {
   align-self: flex-start;
-  font-size: 12px;
+  font-size: 0.75em;
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--lgn-purple);
-  padding: 7px 14px;
+  padding: 0.6em 1.15em;
   border-radius: 999px;
   background: rgba(139, 92, 246, 0.1);
 }
@@ -82,7 +88,7 @@
   margin: 0;
   max-width: 15ch;
   font-family: var(--font-sora), sans-serif;
-  font-size: clamp(34px, 3.4vw, 48px);
+  font-size: 2.65em;
   line-height: 1.08;
   font-weight: 700;
   letter-spacing: -0.03em;
@@ -98,26 +104,29 @@
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 12px;
+  gap: 0.8em;
   color: var(--lgn-ink-2);
-  font-size: 15px;
+  font-size: 0.95em;
 }
 .lgn-points li {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 0.8em;
 }
 .lgn-points svg {
   flex: none;
+  width: 1.2em;
+  height: 1.2em;
   color: var(--lgn-purple);
 }
 
 /* Prévia ilustrativa do produto */
 .lgn-preview {
-  margin-top: 8px;
-  max-width: 380px;
-  padding: 20px;
-  border-radius: 22px;
+  margin-top: 0.5em;
+  width: 100%;
+  max-width: 24em;
+  padding: 1.25em;
+  border-radius: 1.4em;
   background: #fff;
   border: 1px solid var(--lgn-border-soft);
   box-shadow: 0 4px 8px rgba(17, 19, 24, 0.04), 0 24px 56px rgba(76, 29, 149, 0.12);
@@ -128,28 +137,28 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 0.6em;
 }
 .lgn-preview-label {
   font-family: var(--font-sora), sans-serif;
   font-weight: 600;
-  font-size: 14px;
+  font-size: 0.875em;
 }
 .lgn-preview-tag {
-  font-size: 11px;
+  font-size: 0.7em;
   color: var(--lgn-ink-2);
 }
 .lgn-preview-body {
   display: flex;
   align-items: flex-end;
-  gap: 22px;
-  margin: 16px 0;
+  gap: 1.4em;
+  margin: 1em 0;
 }
 .lgn-ring {
   --lgn-score: 82;
   flex: none;
-  width: 92px;
-  height: 92px;
+  width: 5.75em;
+  height: 5.75em;
   border-radius: 50%;
   display: grid;
   place-items: center;
@@ -159,15 +168,15 @@
 }
 .lgn-ring span {
   font-family: var(--font-sora), sans-serif;
-  font-size: 26px;
+  font-size: 1.6em;
   font-weight: 700;
 }
 .lgn-bars {
   flex: 1;
-  height: 92px;
+  height: 5.75em;
   display: flex;
   align-items: flex-end;
-  gap: 7px;
+  gap: 0.45em;
 }
 .lgn-bars span {
   flex: 1;
@@ -177,9 +186,9 @@
   animation: lgn-grow 0.9s var(--lgn-ease) both;
 }
 .lgn-chip {
-  font-size: 12px;
+  font-size: 0.75em;
   font-weight: 600;
-  padding: 6px 10px;
+  padding: 0.5em 0.85em;
   border-radius: 999px;
   background: #f1f3f5;
   color: var(--lgn-ink-2);
@@ -511,5 +520,17 @@
   .lgn-root *::after {
     animation: none !important;
     transition: none !important;
+  }
+}
+
+/* Telas grandes: a coluna do formulário acompanha a escala do painel. */
+@media (min-width: 1800px) and (min-height: 1000px) {
+  .lgn-main {
+    zoom: 1.12;
+  }
+}
+@media (min-width: 2300px) and (min-height: 1300px) {
+  .lgn-main {
+    zoom: 1.28;
   }
 }

@@ -1,7 +1,6 @@
 import { prisma, withDatabaseTransaction } from "@/lib/db";
 import { getAdapter } from "./adapters";
-import { isOfficialAdminEmail } from "@/lib/auth/admin-access";
-import { hasVerifiedIdentity } from "@/lib/auth/identity";
+import { isAuthorizedAdmin } from "@/lib/auth/admin-access";
 import { recordUsage } from "@/lib/billing/usage/meter";
 
 export interface ReconciliationInput {
@@ -14,8 +13,8 @@ export interface ReconciliationInput {
 /** Read-only provider verification; never invokes publish or clears quarantine for retry. */
 export async function reconcilePublication(input: ReconciliationInput) {
   const actor = await prisma.user.findUnique({ where: { id: input.actorId },
-    select: { email: true, status: true, emailVerified: true, firstAccessCompleted: true } });
-  if (!actor || actor.status !== "ACTIVE" || !hasVerifiedIdentity(actor) || !isOfficialAdminEmail(actor.email)) {
+    select: { email: true, status: true, role: true } });
+  if (!isAuthorizedAdmin(actor)) {
     return { ok: false, code: "FORBIDDEN" as const };
   }
   if (!input.reviewedContent || !/^[a-zA-Z0-9_.~-]{1,200}$/.test(input.externalId)) {
