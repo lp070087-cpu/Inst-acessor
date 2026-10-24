@@ -205,7 +205,7 @@ export function LaunchWaitlist() {
               <input type="radio" name="planSlug" value={p.slug} className="lnd-waitlist-radio" checked={values.plan === p.slug}
                 onChange={() => { update("plan", p.slug); touch("plan"); }} />
               <span className="lnd-waitlist-plan-check" aria-hidden="true"><Check size={14} strokeWidth={3} /></span>
-              <span className="lnd-waitlist-plan-name">{planShortName(p)}</span>
+              <span className="lnd-waitlist-plan-name">{planShortName(p).replace(/^./, c => c.toUpperCase())}</span>
               <span className="lnd-waitlist-plan-period">{planLandingPeriod(p)}</span>
             </label>)}
           </div>

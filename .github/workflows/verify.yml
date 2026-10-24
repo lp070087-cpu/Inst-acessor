@@ -43,6 +43,9 @@ jobs:
       - run: node bench/integration-publishing.mjs password-reset
       - run: node bench/integration-tiktok.mjs
       - run: node bench/integration-launch-waitlist.mjs --migration=20261020190000_launch_waitlist
+      - run: node --import ./bench/register-ts-alias.mjs bench/test-waitlist-phone.mjs
+      - run: node bench/test-launch-email-worker.mjs
+      - run: node bench/test-asaas-sandbox-flow.mjs
       - run: node bench/test-media-render-browser.mjs
       - run: node bench/integration-editor.mjs
       - run: node bench/integration-image-crop.mjs
