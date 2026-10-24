@@ -1,10 +1,15 @@
 import type { Metadata } from "next";
 import { Send } from "lucide-react";
 
-import { requireOnboardedSession } from "@/lib/auth/guard";
+import { requireOnboardedSession, requirePremiumPage } from "@/lib/auth/guard";
 import { listQueue } from "@/lib/publishing";
 import { listPlannedContent } from "@/lib/planning";
+import { PageHeader } from "@/components/layout/page-header";
 import { PublishingClient } from "@/components/publishing/publishing-client";
+import { ReconciliationPanel } from "@/components/publishing/reconciliation-panel";
+import { prisma } from "@/lib/db";
+import { isOfficialAdminEmail } from "@/lib/auth/admin-access";
+import { hasVerifiedIdentity } from "@/lib/auth/identity";
 
 export const metadata: Metadata = {
   title: "Central de Publicação",
@@ -14,8 +19,11 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function PublishingPage() {
+  await requirePremiumPage();
   const { session } = await requireOnboardedSession();
   const userId = session.user.id;
+  const actor = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, status: true, emailVerified: true, firstAccessCompleted: true } });
+  const canReconcile = !!actor && actor.status === "ACTIVE" && hasVerifiedIdentity(actor) && isOfficialAdminEmail(actor.email);
 
   // Fila de publicação + conteúdos planejados (para exibir título/mídia).
   const [queue, contents] = await Promise.all([
@@ -25,16 +33,11 @@ export default async function PublishingPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="font-display text-[26px] font-bold text-ink flex items-center gap-2.5">
-          <Send size={26} className="text-purple" />
-          Central de Publicação
-        </h1>
-        <p className="text-[13.5px] text-ink-soft mt-1">
-          Acompanhe o que está agendado, processando, publicado, falhou ou foi
-          cancelado. Nada é publicado por tempo — sempre com confirmação real.
-        </p>
-      </div>
+      <PageHeader
+        icon={Send}
+        title="Central de Publicação"
+        description="Acompanhe o que está agendado, processando, publicado, falhou ou foi cancelado. Nada é publicado por tempo — sempre com confirmação real."
+      />
 
       <PublishingClient
         initial={{
@@ -67,6 +70,7 @@ export default async function PublishingPage() {
           })),
         }}
       />
+      {canReconcile && <ReconciliationPanel />}
     </div>
   );
 }

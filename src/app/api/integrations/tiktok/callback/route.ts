@@ -71,10 +71,13 @@ export async function GET(request: Request) {
 
   // Marca o state como consumido imediatamente (single-use).
   try {
-    await prisma.oAuthState.update({
-      where: { id: oauthState.id },
+    const claimed = await prisma.oAuthState.updateMany({
+      where: { id: oauthState.id, consumed: false, expiresAt: { gt: new Date() } },
       data: { consumed: true },
     });
+    if (claimed.count !== 1) {
+      return NextResponse.redirect(`${base}${REDIRECT_ERROR}invalid_state`);
+    }
   } catch (err) {
     console.error("[tiktok-callback] falha ao consumir state", err);
     return NextResponse.redirect(`${base}${REDIRECT_ERROR}server`);
@@ -125,7 +128,10 @@ export async function GET(request: Request) {
         tokenEncrypted: encrypted,
         tokenExpiresAt: expiresAt,
         scopes: tokenData.scopes,
-        lastSyncAt: new Date(),
+        // NÃO marcar `lastSyncAt` aqui: conectar não é sincronizar. Antes este
+        // campo era preenchido no OAuth, o que (a) mostrava "sincronizado agora"
+        // sem nenhum dado e (b) bloqueava o PRIMEIRO sync real pelo cooldown de
+        // 60s — mesma correção já aplicada ao callback do Instagram.
       },
       update: {
         externalAccountId: tokenData.openId,
@@ -135,7 +141,6 @@ export async function GET(request: Request) {
         tokenEncrypted: encrypted,
         tokenExpiresAt: expiresAt,
         scopes: tokenData.scopes,
-        lastSyncAt: new Date(),
       },
     });
 

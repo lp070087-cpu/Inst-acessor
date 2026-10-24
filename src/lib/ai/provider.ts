@@ -35,6 +35,29 @@ export interface AIProvider {
 }
 
 /**
+ * Erro tipado do provider de IA.
+ *
+ * `code` distingue os casos que exigem AÇÃO diferente do chamador:
+ *   • `rate_limit` → HTTP 429 do provedor. NÃO se deve re-tentar em laço
+ *     (insistir piora o bloqueio e multiplica custo). A mensagem é clara e o
+ *     chamador decide esperar/tentar mais tarde.
+ *   • `empty`      → o provedor respondeu 200 mas sem conteúdo utilizável.
+ *   • `http`       → qualquer outro status não-ok.
+ *
+ * A mensagem não deve incluir a chave nem corpos de erro do provedor.
+ */
+export class AIProviderError extends Error {
+  code: "rate_limit" | "empty" | "http";
+  status?: number;
+  constructor(code: AIProviderError["code"], message: string, status?: number) {
+    super(message);
+    this.name = "AIProviderError";
+    this.code = code;
+    this.status = status;
+  }
+}
+
+/**
  * NOTA: `aiConfigured()` e `getAIProvider()` saíram daqui.
  *
  * Elas agora vivem em `./index.ts` e são ASSÍNCRONAS, porque a configuração

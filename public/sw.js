@@ -83,7 +83,7 @@ self.addEventListener("fetch", (event) => {
 
   // 5) Requisições com credenciais/cookies: sempre rede — nunca armazenar
   //    resposta que possa depender da sessão do usuário.
-  if (request.credentials === "include") return;
+  if (request.credentials === "include" || request.headers.has("Authorization")) return;
 
   // 6) Fora da allowlist de estáticos: passa direto.
   if (!STATIC_ALLOWLIST.test(url.pathname)) return;

@@ -8,6 +8,9 @@
 
 # Next.js
 /.next/
+/.next-e2e/
+/.next-demo/
+/.audit-worktree/
 /out/
 
 # Build
@@ -36,6 +39,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+/debug.log
 
 # Editor
 .vscode/*
@@ -45,3 +49,38 @@ yarn-error.log*
 
 # TypeScript
 *.tsbuildinfo
+.env*
+
+# Material de referencia / analise — NUNCA versionar
+# Prints, links e videos enviados para orientar o trabalho. Nao sao asset
+# do produto e nao devem virar parte da aplicacao nem entrar em commit.
+/print de referencia/
+/Link de referencia do login/
+
+# Bancada de verificacao — tsconfigs temporarios criados para checar tipos
+# de um subconjunto de arquivos. Nao sao configuracao do projeto.
+tsconfig.bench-*.json
+tsconfig.render.json
+tsconfig.meta.json
+
+# Metadados do Windows
+desktop.ini
+
+# Relatorios e provas de analise — nao sao codigo do produto
+/RELATORIO-*.md
+/prova-*.mjs
+
+# Saidas de analise (relatorios, bancadas, capturas) e builds da bancada
+/outputs/
+/.bench-build-premium/
+
+# Evidencia de analise do Insights — nao versionar
+/diff-insights.txt
+
+# Sessao local do laboratorio de carga — SEGREDO, NUNCA versionar.
+# O arquivo guarda o cookie de sessao usado para medir rotas autenticadas
+# (ver bench/load/README.md). Deve existir APENAS na maquina local.
+bench/load/.session*
+bench/load/session*
+bench/.session*
+/.session*

@@ -1,3 +1,4 @@
+import { withSessionApi } from "@/lib/auth/session-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -22,7 +23,7 @@ export const dynamic = "force-dynamic";
  * Escolher uma plataforma NÃO desconecta nem apaga nada: as redes conectadas,
  * o Score e o histórico continuam intactos. Quem filtra é a tela de Conquistas.
  */
-export async function GET() {
+async function GETHandler() {
   try {
     const session = await requireSession();
     const selection = await getPlatformSelection(session.user.id);
@@ -36,7 +37,7 @@ export async function GET() {
   }
 }
 
-export async function PATCH(request: Request) {
+async function PATCHHandler(request: Request) {
   try {
     const session = await requireSession();
 
@@ -66,3 +67,6 @@ export async function PATCH(request: Request) {
     );
   }
 }
+
+export const GET = withSessionApi(GETHandler);
+export const PATCH = withSessionApi(PATCHHandler);

@@ -37,6 +37,7 @@ import type {
   PublishCancelResult,
 } from "../types";
 import { publishHttp, PublishHttpError } from "../http";
+import { applyInstagramThumbnail } from "../thumbnail";
 import {
   buildCaption,
   buildInstagramContainers,
@@ -44,7 +45,7 @@ import {
   INSTAGRAM_CAPTION_LIMIT,
   isPublicMediaUrl,
   isVideoMime,
-  mapInstagramStatus,
+  verifiedInstagramMedia,
 } from "../media";
 import { resolvePublishConnection, type ConnectionResolution } from "../connection";
 
@@ -276,10 +277,8 @@ async function checkMediaReachable(url: string): Promise<{ ok: true } | { ok: fa
     return { ok: false, host: "(url inválida)", status: 0 };
   }
   try {
-    const res = await fetch(url, { method: "GET", signal: AbortSignal.timeout(15000) });
-    // 2xx/3xx = a Meta consegue baixar. 200 parcial também serve.
-    if (res.ok || (res.status >= 300 && res.status < 400)) return { ok: true };
-    return { ok: false, host, status: res.status };
+    const { probePublicMedia } = await import("../media-reachability");
+    return await probePublicMedia(url) ? { ok: true } : { ok: false, host, status: 0 };
   } catch {
     return { ok: false, host, status: 0 };
   }
@@ -397,7 +396,7 @@ async function publishInstagram(payload: PublishPayload, userId: string): Promis
     }
 
     // 4b) Cria o container (único ou pai do carrossel).
-    let creationBody: Record<string, string> = { access_token: accessToken };
+    const creationBody: Record<string, string> = { access_token: accessToken };
     if (parent.mediaType === "CAROUSEL") {
       creationBody.media_type = "CAROUSEL";
       creationBody.children = containerIds.join(",");
@@ -413,6 +412,8 @@ async function publishInstagram(payload: PublishPayload, userId: string): Promis
       else creationBody.image_url = parent.url;
       creationBody.caption = caption;
     }
+
+    applyInstagramThumbnail(creationBody, parent.mediaType, payload.coverTimeMs);
 
     pubLog("CREATE_CONTAINER_STARTED", {
       contentId: payload.contentId,
@@ -603,12 +604,15 @@ async function getInstagramStatus(
   }
 
   try {
-    const data = await publishHttp<{ id?: string; status_code?: string; error?: { message?: string } }>(
-      containerStatusUrl(query.externalId),
-      { method: "GET" }
+    const data = await publishHttp<unknown>(
+      graphUrl(`${encodeURIComponent(query.externalId)}?fields=id,media_type,permalink,timestamp,owner`),
+      // Read the published media object, not a creation container. Owner and
+      // timestamp must be present; unsupported fields fail closed until tested
+      // with the authorized Instagram Login account. Never resend media_publish.
+      { method: "GET", headers: { Authorization: `Bearer ${connection.accessToken}` } }
     );
-    const status = mapInstagramStatus(data?.status_code);
-    return { ok: status === "LIVE", status, externalId: data?.id ?? query.externalId };
+    const confirmed = verifiedInstagramMedia(data, query.externalId, connection.externalAccountId);
+    return confirmed ? { ok: true, status: "LIVE", ...confirmed } : { ok: false, status: "PROCESSING" };
   } catch (err) {
     if (err instanceof PublishHttpError) {
       // 404 = container não existe / expirado.

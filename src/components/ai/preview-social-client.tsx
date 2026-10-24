@@ -1,6 +1,13 @@
 "use client";
 
 import * as React from "react";
+import { VideoEditor } from "@/components/ai/video-editor";
+import { TikTokPublishingOptionsPanel } from "@/components/ai/tiktok-publishing-options";
+import { tiktokContentBinding, tiktokPublishingIssue, type TikTokPublishingOptions } from "@/lib/integrations/tiktok/creator-info";
+import { parseEditorProject, MAX_EDITOR_SLIDES, type EditorProject, type EditorSlide } from "@/lib/media-editor/project";
+import { exportEditedImage } from "@/lib/media-editor/image-export";
+import { FIXED_RATIO, ratioAllowed, type CropFormat } from "@/lib/media-editor/image-crop";
+import { ImageCropEditor } from "@/components/ai/image-crop-editor";
 import { upload } from "@vercel/blob/client";
 import {
   Eye,
@@ -217,9 +224,34 @@ export function PreviewSocial({
    */
   const [mediaOversize, setMediaOversize] = React.useState(false);
   const [mediaFile, setMediaFile] = React.useState<File | null>(null);
+ const [videoProject,setVideoProject]=React.useState<string|undefined>();
+ const [videoRendered,setVideoRendered]=React.useState(false);
+ const [videoProjectPending,setVideoProjectPending]=React.useState(false);
+ const [videoEditorBusy,setVideoEditorBusy]=React.useState(false);
+ const [editorRevision,setEditorRevision]=React.useState(0);
+ const filesBySlide = React.useRef(new Map<string, File>());
+ const [editingDraftId,setEditingDraftId]=React.useState<string|null>(null);
+ const [aspectRatio,setAspectRatio]=React.useState<EditorProject["aspectRatio"]>("4:5");
+ /** Proporção numérica dos recortes "original" e "livre" (as fixas vêm de FIXED_RATIO). */
+ const [aspectValue,setAspectValue]=React.useState<number|undefined>();
+ const [cropOpen,setCropOpen]=React.useState(false);
+ const cropAspect=aspectRatio==="original"||aspectRatio==="free"?(aspectValue??4/5):FIXED_RATIO[aspectRatio];
+ // Mantém a proporção dentro do que o formato aceita: Story/Reel em 9:16; feed de 4:5 a 1,91:1.
+ React.useEffect(()=>{
+   if(format==='legenda')return;
+   const story=format==='story'||format==='reel';
+   if(story&&aspectRatio!=='9:16'){setAspectRatio('9:16');setAspectValue(undefined);}
+   else if(!story&&aspectRatio==='9:16'){setAspectRatio('4:5');setAspectValue(undefined);}
+ },[format,aspectRatio]);
   const [uploadingMedia, setUploadingMedia] = React.useState(false);
+ const [uploadProgress,setUploadProgress]=React.useState(0);
+ const uploadController=React.useRef<AbortController|null>(null);
+ const replacement=React.useRef<string|null>(null);
   const [caption, setCaption] = React.useState("");
   const [hashtags, setHashtags] = React.useState("");
+  const [tiktokOptions, setTikTokOptions] = React.useState<TikTokPublishingOptions>();
+  const tiktokVideoUrl = slides[0]?.url || mediaUrl;
+  const tiktokBinding = tiktokContentBinding(caption, hashtags, tiktokVideoUrl);
   const [drafts, setDrafts] = React.useState<Draft[]>(initialDrafts);
   const [savedCopies, setSavedCopies] = React.useState<SavedCopy[]>(initialSaved);
   /**
@@ -336,6 +368,14 @@ export function PreviewSocial({
 
   /** Carrega um rascunho de volta no editor. */
   function loadDraft(d: Draft) {
+    setVideoProjectPending(false);
+    setEditorRevision(v=>v+1);
+    setEditingDraftId(d.id);
+    const project=parseEditorProject(d.framing);
+    setTikTokOptions(project?.tiktokOptions);
+    setVideoProject(project?.videoProject);setVideoRendered(project?.videoRendered??false);
+    setAspectRatio(project?.aspectRatio ?? ((d.format === "reel" || d.format === "story") ? "9:16" : "4:5"));setAspectValue(project?.aspectValue);
+    filesBySlide.current.clear();
     setMediaFile(null);
     setPlatform(d.platform);
     setFormat(d.format || "post");
@@ -363,7 +403,7 @@ export function PreviewSocial({
     }
 
     setSlides(
-      d.mediaUrl
+      project ? project.slides.map(slide=>({...slide,url:slide.originalUrl})) : d.mediaUrl
         ? [
             {
               id: `draft-${d.id}`,
@@ -383,59 +423,14 @@ export function PreviewSocial({
   const publishablePlatform = platform === "instagram" || platform === "tiktok";
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setMediaFile(file);
-
-    const isVideo = file.type.startsWith("video/");
-    try {
-      const url = isVideo
-        ? await readAsDataUrl(file)
-        : await downscaleImage(file);
-
-      // O banco guarda o rascunho em base64, então o schema limita o tamanho
-      // (`saveDraftSchema.mediaUrl`). A imagem é reduzida no canvas e quase
-      // sempre cabe; vídeo não é reduzido, então avisamos ANTES de salvar em
-      // vez de deixar o salvamento falhar com erro de validação.
-      const oversize = url.length > MAX_MEDIA_URL;
-      setMediaOversize(oversize);
-      setMediaType(isVideo ? "video" : "image");
-      setMediaUrl(url);
-
-      // Cada arquivo virou um SLIDE com enquadramento próprio. Um carrossel
-      // não é uma lista separada de mídias: é o mesmo array, e o formato decide
-      // se os slides depois do primeiro aparecem.
-      const novo: PreviewSlide = {
-        id: `slide-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        url,
-        type: isVideo ? "video" : "image",
-        framing: { ...DEFAULT_FRAMING },
-      };
-      setSlides((prev) => {
-        // Post/Reel/Story são de UMA mídia: trocar o arquivo substitui o slide,
-        // não acumula. O carrossel acumula.
-        const next = format === "carrossel" ? [...prev, novo] : [novo];
-        setActiveSlide(next.length - 1);
-        return next;
-      });
-
-      if (oversize) {
-        toast("Mídia grande: aparece no preview, mas será salva sem o arquivo.");
-      } else {
-        toast(
-          format === "carrossel"
-            ? `Imagem ${slides.length + 1} adicionada ao carrossel.`
-            : "Mídia adicionada ao preview."
-        );
-      }
-    } catch {
-      toast("Não foi possível carregar o arquivo.", "error");
-    } finally {
-      // Permite escolher o MESMO arquivo de novo depois de limpar.
-      if (fileRef.current) fileRef.current.value = "";
-    }
-  }
+ const selected=Array.from(e.target.files??[]);const replacing=replacement.current;replacement.current=null;const capacity=replacing?1:format==='carrossel'?MAX_EDITOR_SLIDES-slides.length:1;
+ if(selected.length>capacity){toast('O carrossel permite até sete imagens.','error');return;}
+ const additions:PreviewSlide[]=[];
+ for(const file of selected){if(!['image/jpeg','image/png','image/webp','video/mp4','video/quicktime'].includes(file.type)||file.size>100*1024*1024){toast('Formato incompatível ou arquivo acima de 100 MB.','error');continue;}
+ if(format==='carrossel'&&!file.type.startsWith('image/')){toast('Este carrossel aceita imagens.','error');continue;}
+ const id=crypto.randomUUID(),url=URL.createObjectURL(file);filesBySlide.current.set(id,file);additions.push({id,url,originalUrl:url,type:file.type.startsWith('video/')?'video':'image',framing:{...DEFAULT_FRAMING},rotation:0,brightness:1,contrast:1});}
+ const next=replacing?slides.map(slide=>slide.id===replacing?(additions[0]??slide):slide):format==='carrossel'?[...slides,...additions]:additions;setSlides(next);setActiveSlide(replacing?Math.max(0,next.findIndex(s=>s.id===additions[0]?.id)):Math.max(0,next.length-1));setMediaUrl(next[0]?.url??'');setMediaType(next[0]?.type??'image');setMediaFile(null);setMediaOversize(false);if(fileRef.current)fileRef.current.value='';
+ }
 
   /** Move um slide do carrossel uma posição (-1 esquerda, +1 direita). */
   function moveSlide(index: number, direction: -1 | 1) {
@@ -480,6 +475,8 @@ export function PreviewSocial({
    */
   function addFromLibrary(assets: MediaAssetView[]) {
     if (assets.length === 0) return;
+ const replacing=replacement.current;replacement.current=null;
+ if(format==="carrossel"&&((!replacing&&slides.length+assets.length>MAX_EDITOR_SLIDES)||assets.some(a=>a.type==="VIDEO"))){toast("Selecione até sete imagens.","error");return;}
     const novos: PreviewSlide[] = assets.map((a) => ({
       id: `lib-${a.id}-${Math.random().toString(36).slice(2, 7)}`,
       url: a.url,
@@ -487,17 +484,14 @@ export function PreviewSocial({
       framing: { ...DEFAULT_FRAMING },
     }));
 
-    setSlides((prev) => {
-      // Carrossel acumula; os formatos de mídia única substituem.
-      const next = format === "carrossel" ? [...prev, ...novos] : [novos[0]];
-      setActiveSlide(format === "carrossel" ? prev.length : 0);
-      return next;
-    });
-
-    // O rascunho guarda UMA mediaUrl (a que vai para o motor de publicação).
-    // Aqui ela passa a ser a primeira mídia escolhida.
-    setMediaUrl(novos[0].url);
-    setMediaType(novos[0].type);
+    // Derive all dependent state from one result, without side effects in a React updater.
+    const next = replacing
+      ? slides.map(slide => slide.id === replacing ? novos[0] : slide)
+      : format === "carrossel" ? [...slides, ...novos] : [novos[0]];
+    setSlides(next);
+    setActiveSlide(replacing ? Math.max(0, next.findIndex(slide => slide.id === novos[0].id)) : format === "carrossel" ? slides.length : 0);
+    setMediaUrl(next[0]?.url ?? "");
+    setMediaType(next[0]?.type ?? "image");
     setMediaOversize(false);
     // A mídia da biblioteca já está no Blob: não há `File` local para enviar.
     setMediaFile(null);
@@ -510,6 +504,10 @@ export function PreviewSocial({
   }
 
   function clearAll() {
+    setVideoProjectPending(false);
+    setEditorRevision(v=>v+1);
+    uploadController.current?.abort();uploadController.current=null;replacement.current=null;setUploadProgress(0);setUploadingMedia(false);setVideoProject(undefined);setVideoRendered(false);setAspectRatio("4:5");setAspectValue(undefined);
+ setEditingDraftId(null);filesBySlide.current.clear();
     setMediaFile(null);
     setMediaUrl("");
     setSlides([]);
@@ -517,6 +515,7 @@ export function PreviewSocial({
     setMediaOversize(false);
     setCaption("");
     setHashtags("");
+    setTikTokOptions(undefined);
     setFormat("post");
     setObjective("");
     setAudience("");
@@ -603,31 +602,31 @@ export function PreviewSocial({
    * Devolve `null` quando algo falhou — quem chamou já mostrou o motivo.
    */
   async function ensureDraft(): Promise<string | null> {
-    let uploadedMediaUrl = mediaUrl;
-    if (mediaFile) {
-      setUploadingMedia(true);
-      try {
-        const blob = await upload(
-          `inst-acessor/${userId}/${mediaFile.name}`,
-          mediaFile,
-          { access: "public", handleUploadUrl: "/api/upload/media" }
-        );
-        uploadedMediaUrl = blob.url;
-      } finally {
-        setUploadingMedia(false);
-      }
-    }
-
-    // O enquadramento da mídia de CAPA viaja junto (JSON curto), para o recorte
-    // sobreviver a salvar/reabrir/F5. Só a capa: é ela que o rascunho
-    // representa (`mediaUrl` é uma só). O LIMITE segue valendo — o binário
-    // publicado é o original, o recorte é do preview. Ver `use-media-framing.ts`.
-    const capa = slides[activeSlide] ?? slides[0];
-    const framingJson =
-      capa && !isDefaultFraming(capa.framing) ? JSON.stringify(capa.framing) : undefined;
-
-    const res = await fetch("/api/drafts", {
-      method: "POST",
+    if(videoEditorBusy){toast("Aguarde o editor de vídeo terminar ou cancele a operação.","error");return null;}
+    if(videoProjectPending){toast("Salve o projeto de vídeo ou exporte as edições antes de salvar o rascunho.","error");return null;}
+    if(uploadController.current) return null;
+    const controller=new AbortController();uploadController.current=controller;setUploadProgress(0);
+    const uploadOptions={access:"public" as const,handleUploadUrl:"/api/upload/media",abortSignal:controller.signal,onUploadProgress:(p:{percentage:number})=>setUploadProgress(p.percentage)};
+    setUploadingMedia(true);let project:EditorProject;
+ try {const persisted:EditorSlide[]=[];
+ for(const slide of (format==='carrossel'?slides:slides.slice(0,1))){controller.signal.throwIfAborted();let originalUrl=slide.originalUrl||slide.url;const local=filesBySlide.current.get(slide.id);
+ if(local)originalUrl=(await upload('inst-acessor/'+userId+'/'+crypto.randomUUID()+'-'+local.name.replace(/[^a-zA-Z0-9._-]/g,'_'),local,uploadOptions)).url;
+ const item:EditorSlide={id:slide.id,originalUrl,type:slide.type,framing:slide.framing,rotation:slide.rotation??0,brightness:slide.brightness??1,contrast:slide.contrast??1};
+ if(item.type==='image'){const file=await exportEditedImage({...item,originalUrl:slide.originalUrl||slide.url},cropAspect);item.exportedUrl=(await upload('inst-acessor/'+userId+'/'+crypto.randomUUID()+'.jpg',file,uploadOptions)).url;}
+ persisted.push(item);}
+ project={version:1,kind:'media-editor',aspectRatio,...(aspectRatio==='original'||aspectRatio==='free'?{aspectValue:cropAspect}:{}),slides:persisted,videoProject,videoRendered};
+ }catch(error){uploadController.current=null;setUploadingMedia(false);throw error;}
+ const uploadedMediaUrl=project.slides[0]?.exportedUrl||project.slides[0]?.originalUrl||'';
+ // Upload changes the URL, not the reviewed video. Rebind only options that
+ // still correspond to the exact local content captured by this save.
+ if(platform==='tiktok' && tiktokOptions && !tiktokPublishingIssue(tiktokOptions, undefined, tiktokBinding)) {
+   project.tiktokOptions={...tiktokOptions,contentBinding:tiktokContentBinding(caption,hashtags,uploadedMediaUrl)};
+ }
+ const framingJson=JSON.stringify(project);
+    controller.signal.throwIfAborted();
+    const res = await fetch(editingDraftId ? `/api/drafts?id=${encodeURIComponent(editingDraftId)}` : "/api/drafts", {
+      method: editingDraftId ? "PATCH" : "POST",
+      signal:controller.signal,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         platform,
@@ -640,11 +639,14 @@ export function PreviewSocial({
       }),
     });
     const data = await res.json();
+    uploadController.current=null;setUploadingMedia(false);
     if (!res.ok) {
       toast(data.error ?? "Erro ao salvar o rascunho.", "error");
       return null;
     }
+    setSlides(project.slides.map(s=>({...s,url:s.originalUrl})));filesBySlide.current.clear();
     const draft = data.draft as Draft | undefined;
+ if(draft)setEditingDraftId(draft.id);
     if (draft) setDrafts((prev) => [draft, ...prev.filter((d) => d.id !== draft.id)]);
     return draft?.id ?? null;
   }
@@ -662,6 +664,7 @@ export function PreviewSocial({
     } catch {
       toast("Erro ao salvar.", "error");
     } finally {
+      uploadController.current=null;setUploadingMedia(false);
       setLoading(false);
     }
   }
@@ -672,6 +675,11 @@ export function PreviewSocial({
    * `draftId` — e portanto a mídia pública — viaje até o PlannedContent.
    */
   async function handleSchedule() {
+    if (platform === "tiktok") {
+      const issue = tiktokPublishingIssue(tiktokOptions, undefined, tiktokBinding);
+      if (issue) { toast(issue, "error"); return; }
+    }
+ if(videoEditorBusy||videoProjectPending||(videoProject&&!videoRendered)){toast("Exporte novamente o projeto de vídeo antes de programar.","error");return;}
     if (!caption.trim()) {
       toast("Adicione uma legenda antes de programar.", "error");
       return;
@@ -694,6 +702,7 @@ export function PreviewSocial({
           format,
           title: title.trim() || caption.trim().slice(0, 80) || "Conteúdo do Preview Social",
           scheduledAtList: [iso],
+          enqueueForPublishing: true,
         }),
       });
       const data = await res.json();
@@ -707,6 +716,7 @@ export function PreviewSocial({
     } catch {
       toast("Não foi possível programar.", "error");
     } finally {
+      uploadController.current=null;setUploadingMedia(false);
       setScheduling(false);
     }
   }
@@ -717,6 +727,11 @@ export function PreviewSocial({
    * o client nunca fala com a Meta.
    */
   async function handlePublishNow() {
+    if (platform === "tiktok") {
+      const issue = tiktokPublishingIssue(tiktokOptions, undefined, tiktokBinding);
+      if (issue) { toast(issue, "error"); return; }
+    }
+ if(videoEditorBusy||videoProjectPending||(videoProject&&!videoRendered)){toast("Exporte novamente o projeto de vídeo antes de publicar.","error");return;}
     setPublishing(true);
     try {
       const draftId = await ensureDraft();
@@ -766,6 +781,7 @@ export function PreviewSocial({
     } catch {
       toast("Não foi possível publicar.", "error");
     } finally {
+      uploadController.current=null;setUploadingMedia(false);
       setPublishing(false);
     }
   }
@@ -877,7 +893,7 @@ export function PreviewSocial({
       />
 
       {view === "criar" && (
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-5">
+        <fieldset disabled={uploadingMedia} className="grid min-w-0 grid-cols-1 lg:grid-cols-[1fr_340px] gap-5">
           {/* ============ COLUNA DE CRIAÇÃO ============ */}
           <div className="flex flex-col gap-5 min-w-0">
             {/* --- 1. Plataforma + Formato --- */}
@@ -941,13 +957,14 @@ export function PreviewSocial({
                 <input
                   ref={fileRef}
                   type="file"
+                  multiple={format === "carrossel" && !replacement.current}
                   accept="image/*,video/*"
                   className="hidden"
                   onChange={onFile}
                 />
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <button
-                    onClick={() => fileRef.current?.click()}
+                    disabled={uploadingMedia} onClick={() => {replacement.current=null;fileRef.current?.click();}}
                     className={cn(
                       "flex items-center justify-center gap-2 rounded-[12px] border-2 border-dashed px-4 py-5 text-[13.5px] font-semibold transition-colors cursor-pointer",
                       mediaUrl
@@ -965,7 +982,7 @@ export function PreviewSocial({
                         : "Do dispositivo"}
                   </button>
                   <button
-                    onClick={() => setPickerOpen(true)}
+                    disabled={uploadingMedia} onClick={() => {replacement.current=null;setPickerOpen(true);}}
                     className="flex items-center justify-center gap-2 rounded-[12px] border-2 border-dashed border-border px-4 py-5 text-[13.5px] font-semibold text-ink-soft transition-colors cursor-pointer hover:border-purple/40 hover:text-purple"
                   >
                     <Images size={18} />
@@ -987,7 +1004,7 @@ export function PreviewSocial({
                 {format === "carrossel" && slides.length > 0 && (
                   <div className="flex flex-col gap-2">
                     <span className="text-[11.5px] font-semibold text-ink-muted">
-                      {slides.length} imagem{slides.length > 1 ? "ns" : ""} · a ordem é a do carrossel
+                      {slides.length} {slides.length > 1 ? "imagens" : "imagem"} · a ordem é a do carrossel
                     </span>
                     <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
                       {slides.map((s, i) => (
@@ -1049,7 +1066,7 @@ export function PreviewSocial({
                       ))}
                       <button
                         type="button"
-                        onClick={() => fileRef.current?.click()}
+                        disabled={uploadingMedia} onClick={() => {replacement.current=null;fileRef.current?.click();}}
                         className="flex-none w-16 h-16 rounded-[10px] border-2 border-dashed border-border text-ink-muted hover:border-purple/50 hover:text-purple grid place-items-center cursor-pointer"
                         aria-label="Adicionar imagem ao carrossel"
                       >
@@ -1059,12 +1076,16 @@ export function PreviewSocial({
                   </div>
                 )}
 
+{(format==='reel'||format==='story')&&<VideoEditor key={editorRevision} userId={userId} initialProject={videoProject} onBusyChange={setVideoEditorBusy} sources={slides.filter(s=>s.type==='video').map(s=>({url:s.url,name:s.id}))} onDirty={()=>{setVideoRendered(false);setVideoProjectPending(true);}} onProjectChange={value=>{setVideoProject(value);setVideoProjectPending(false);setVideoRendered(false);}} onExport={file=>{setVideoRendered(true);setVideoProjectPending(false);const id=crypto.randomUUID(),url=URL.createObjectURL(file);filesBySlide.current.set(id,file);setSlides([{id,url,originalUrl:url,type:'video',framing:{...DEFAULT_FRAMING}}]);setMediaUrl(url);setMediaType('video');}}/>}
+{slides[activeSlide]&&<div className="flex flex-wrap gap-2"><Button type="button" variant="outline" disabled={uploadingMedia} onClick={()=>{replacement.current=slides[activeSlide].id;fileRef.current?.click();}}>Substituir mídia selecionada</Button><Button type="button" variant="outline" disabled={uploadingMedia} onClick={()=>{replacement.current=slides[activeSlide].id;setPickerOpen(true);}}>Substituir pela Biblioteca</Button></div>}
+<label className="text-sm">Proporção<select aria-label="Proporção da mídia" value={aspectRatio} onChange={e=>{setAspectRatio(e.target.value as EditorProject['aspectRatio']);setAspectValue(undefined);}} className={SELECT_CLASS_FILLED}>{(['1:1','4:5','9:16','16:9'] as const).filter(r=>ratioAllowed(format as CropFormat,r)).map(r=><option key={r}>{r}</option>)}{(aspectRatio==='original'||aspectRatio==='free')&&<option value={aspectRatio}>{aspectRatio==='original'?'Original':'Livre'} ({cropAspect.toFixed(2)}:1)</option>}</select></label>
+{slides[activeSlide]?.type==='image'&&<div className="grid gap-3 sm:grid-cols-3">{([['rotation','Rotação',-180,180,1],['brightness','Brilho',0.25,2,0.05],['contrast','Contraste',0.25,2,0.05]] as const).map(([key,label,min,max,step])=><label key={key} className="text-xs">{label}<input aria-label={label} className="w-full" type="range" min={min} max={max} step={step} value={slides[activeSlide]?.[key]??(key==='rotation'?0:1)} onChange={e=>setSlides(prev=>prev.map((s,i)=>i===activeSlide?{...s,[key]:Number(e.target.value),exportedUrl:undefined}:s))}/></label>)}</div>}
                 {/* ---- ENQUADRAMENTO: zoom + reset (a posição vem do arraste) ---- */}
                 {slides.length > 0 && (() => {
                   const current = slides[activeSlide] ?? slides[0];
                   if (!current) return null;
                   return (
-                    <div className="flex items-center gap-3">
+                    <div className="flex min-w-0 items-center gap-3">
                       <span className="text-[11.5px] font-semibold text-ink-muted flex-none">
                         Zoom
                       </span>
@@ -1080,7 +1101,7 @@ export function PreviewSocial({
                             zoom: Number(e.target.value),
                           })
                         }
-                        className="flex-1 accent-purple cursor-pointer"
+                        className="min-w-0 flex-1 accent-purple cursor-pointer"
                         aria-label="Zoom do enquadramento"
                       />
                       <span className="text-[11.5px] text-ink-muted w-10 text-right tabular-nums">
@@ -1088,8 +1109,8 @@ export function PreviewSocial({
                       </span>
                       <button
                         type="button"
-                        onClick={() => setSlideFraming(current.id, { ...DEFAULT_FRAMING })}
-                        disabled={isDefaultFraming(current.framing)}
+                        onClick={() => setSlides(prev=>prev.map(s=>s.id===current.id?{...s,framing:{...DEFAULT_FRAMING},rotation:0,brightness:1,contrast:1,exportedUrl:undefined}:s))}
+                        disabled={false}
                         className="text-[11.5px] font-semibold text-purple hover:underline disabled:text-ink-muted disabled:no-underline cursor-pointer disabled:cursor-default flex-none"
                       >
                         Centralizar
@@ -1311,6 +1332,7 @@ export function PreviewSocial({
                 /api/calendar/schedule-from-draft, /api/publishing). O client
                 nunca chama a Meta.
               */}
+              {platform === "tiktok" && <TikTokPublishingOptionsPanel key={editorRevision} videoUrl={tiktokVideoUrl} contentBinding={tiktokBinding} initialOptions={tiktokOptions} onChange={setTikTokOptions} />}
               <div className="flex flex-wrap gap-2 pt-1 border-t border-border-soft mt-1">
                 <Button
                   variant="outline"
@@ -1361,7 +1383,11 @@ export function PreviewSocial({
                 enquadramento escolhido. Antes a proporção era fixa e o formato
                 só trocava um rótulo. */}
             <PreviewFrame
-              format={format as "post" | "reel" | "story" | "carrossel"}
+              aspectRatio={aspectRatio}
+              aspect={cropAspect}
+              onEditImage={() => setCropOpen(true)}
+ format={format as "post" | "reel" | "story" | "carrossel"}
+              interactive={!uploadingMedia}
               slides={slides}
               activeIndex={activeSlide}
               onIndexChange={setActiveSlide}
@@ -1370,14 +1396,32 @@ export function PreviewSocial({
               tags={tags}
             />
 
+            {slides[activeSlide]?.type === "image" && (
+              <ImageCropEditor
+                open={cropOpen}
+                onClose={() => setCropOpen(false)}
+                imageUrl={slides[activeSlide].originalUrl || slides[activeSlide].url}
+                format={(format === "legenda" ? "post" : format) as CropFormat}
+                brightness={slides[activeSlide].brightness}
+                contrast={slides[activeSlide].contrast}
+                value={{ ratio: aspectRatio, aspect: cropAspect, framing: slides[activeSlide].framing, rotation: slides[activeSlide].rotation ?? 0 }}
+                onApply={(v) => {
+                  setAspectRatio(v.ratio);
+                  setAspectValue(v.ratio === "original" || v.ratio === "free" ? v.aspect : undefined);
+                  setSlides((prev) => prev.map((s, i) => (i === activeSlide ? { ...s, framing: v.framing, rotation: v.rotation, exportedUrl: undefined } : s)));
+                }}
+              />
+            )}
+
             <p className="text-[12px] text-ink-muted text-center max-w-[280px]">
               Apenas pré-visualização local. Nada é publicado nem enviado a
               Meta/TikTok.
             </p>
           </div>
-        </div>
+        </fieldset>
       )}
 
+      {uploadingMedia&&<div role="status" className="flex items-center gap-3"><progress aria-label="Progresso do arquivo atual" max={100} value={uploadProgress}/><span>{Math.round(uploadProgress)}% do arquivo atual</span><Button type="button" variant="outline" onClick={()=>uploadController.current?.abort()}>Cancelar envio</Button></div>}
       {/* ---------- CONFIRMAÇÃO DE PUBLICAÇÃO — nunca publica em silêncio ---------- */}
       <Modal
         open={confirmOpen}
@@ -1447,7 +1491,7 @@ export function PreviewSocial({
       <MediaPicker
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
-        multiple={format === "carrossel"}
+        multiple={format === "carrossel" && !replacement.current}
         onlyType={format === "reel" ? "VIDEO" : undefined}
         onConfirm={addFromLibrary}
       />
@@ -1528,9 +1572,12 @@ export function PreviewSocial({
           ) : (
             <div className="flex flex-col gap-2.5">
               {drafts.map((d) => (
+                // ITEM §10 — sem `border`: o item vive DENTRO de um card que já
+                // tem a MESMA borda `border-soft`, então desenhava uma caixa
+                // dentro da outra. O fundo `bg-bg-ice` já separa a linha.
                 <div
                   key={d.id}
-                  className="rounded-[12px] border border-border-soft bg-bg-ice px-3 py-2.5 flex items-center gap-3"
+                  className="rounded-[12px] bg-bg-ice px-3 py-2.5 flex items-center gap-3"
                 >
                   {d.mediaUrl ? (
                     d.mediaType === "image" ? (
@@ -1598,7 +1645,7 @@ export function PreviewSocial({
               {savedCopies.map((c) => (
                 <div
                   key={c.id}
-                  className="flex flex-col gap-2 rounded-[12px] border border-border-soft bg-bg-ice p-4"
+                  className="flex flex-col gap-2 rounded-[12px] bg-bg-ice p-4"
                 >
                   {/* BLOCO 5 — `min-w-0 flex-1` na coluna dos rótulos: é ela
                       que encolhe quando o rótulo do formato é longo; sem isso

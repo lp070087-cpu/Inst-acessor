@@ -1,5 +1,6 @@
 import { bll } from "@/lib/billing/db";
-import { PLAN_CATALOG, type PlanSlug } from "./catalog";
+import { PLAN_CATALOG, effectiveActive, type PlanSlug } from "./catalog";
+import { loadActiveOverrides } from "./activation-db";
 
 /**
  * PLANOS — SERVIÇO (Fase 6.5)
@@ -128,6 +129,10 @@ async function ensureCatalogPlans(): Promise<void> {
     select: { slug: true },
   })) as unknown as { slug: string }[];
   const existing = new Set(rows.map((r) => r.slug));
+  // A DECISÃO COMERCIAL do proprietário (liga/desliga de venda) é um OVERRIDE
+  // gravado no admin. Lido ANTES do laço, ele prevalece sobre o `active:` do
+  // catálogo — do contrário o self-heal desfaria a escolha a cada `listPlans()`.
+  await loadActiveOverrides();
   for (const p of PLAN_CATALOG) {
     // Apenas campos que existem no schema `Plan` (sem `checkoutUrl`).
     const data = {
@@ -141,7 +146,7 @@ async function ensureCatalogPlans(): Promise<void> {
       description: p.description,
       features: [...p.features] as string[],
       badge: p.badge,
-      active: p.active,
+      active: effectiveActive(p.slug, p.active),
       sortOrder: p.sortOrder,
     };
     if (!existing.has(p.slug)) {

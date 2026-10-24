@@ -7,6 +7,7 @@ import {
 } from "@/lib/auth/guard";
 import { aiConfigured } from "@/lib/ai";
 import { listConversations, getConversation } from "@/lib/ai/services";
+import { PageHeader } from "@/components/layout/page-header";
 import { ChatClient } from "@/components/ai/chat-client";
 
 export const metadata: Metadata = {
@@ -36,16 +37,11 @@ export default async function IaAcessorPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="font-display text-[26px] font-bold text-ink flex items-center gap-2.5">
-          <Sparkles size={26} className="text-purple" />
-          IA Acessor
-        </h1>
-        <p className="text-[13.5px] text-ink-soft mt-1">
-          Sua mentoria com IA — responde com base no seu perfil e nas métricas reais
-          disponíveis. Nada de dados inventados.
-        </p>
-      </div>
+      <PageHeader
+        icon={Sparkles}
+        title="IA Acessor"
+        description="Sua mentoria com IA — responde com base no seu perfil e nas métricas reais disponíveis. Nada de dados inventados."
+      />
 
       <ChatClient
         aiConfigured={configured}

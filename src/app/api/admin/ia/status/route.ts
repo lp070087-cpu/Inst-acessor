@@ -1,3 +1,4 @@
+import { withAdminApi } from "@/lib/auth/admin-api";
 import { NextResponse } from "next/server";
 
 import { requireAdminSession } from "@/lib/auth/guard";
@@ -10,7 +11,7 @@ export const dynamic = "force-dynamic";
  * Estado da IA para o admin. NUNCA devolve a chave completa —
  * apenas o sufixo mascarado (ex.: `sk-••••••••••••abcd`).
  */
-export async function GET() {
+async function GETHandler() {
   // Autorização ADMIN no servidor — redireciona se não for admin.
   await requireAdminSession();
 
@@ -28,3 +29,5 @@ export async function GET() {
     );
   }
 }
+
+export const GET = withAdminApi(GETHandler);

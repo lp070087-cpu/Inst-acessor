@@ -1,3 +1,4 @@
+import { withPremiumApi } from "@/lib/auth/premium-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -16,7 +17,7 @@ export const dynamic = "force-dynamic";
  * POST  /api/mentoria?platform=... — gera recomendações a partir do diagnóstico
  * PATCH /api/mentoria?id=...&status=... — atualiza status
  */
-export async function GET(request: Request) {
+async function GETHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -30,7 +31,7 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -49,7 +50,7 @@ export async function POST(request: Request) {
   }
 }
 
-export async function PATCH(request: Request) {
+async function PATCHHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -91,3 +92,7 @@ function serializeCard(c: MentorshipCard) {
     createdAt: c.createdAt.toISOString(),
   };
 }
+
+export const GET = withPremiumApi(GETHandler);
+export const POST = withPremiumApi(POSTHandler);
+export const PATCH = withPremiumApi(PATCHHandler);

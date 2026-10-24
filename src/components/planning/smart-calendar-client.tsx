@@ -7,6 +7,11 @@ import {
   CalendarClock,
   CalendarDays,
   LayoutGrid,
+  Clock,
+  Sunrise,
+  Sunset,
+  Utensils,
+  Moon,
   Target,
   TrendingUp,
   Info,
@@ -29,7 +34,9 @@ export type SmartRecommendationKind =
   | "lacunas-semana"
   | "cadencia"
   | "melhores-dias"
+  | "melhor-horario"
   | "melhores-formatos"
+  | "stories"
   | "tendencia-alcance"
   | "metas-prazo";
 
@@ -41,10 +48,22 @@ export interface SmartRecommendationView {
   available: boolean;
 }
 
+export type DayPeriodKey = "manha" | "almoco" | "tarde" | "noite";
+
+export interface DayPeriodView {
+  key: DayPeriodKey;
+  label: string;
+  count: number;
+  avgInteractions: number | null;
+  hasEnoughData: boolean;
+  note: string;
+}
+
 export interface SmartCalendarView {
   recommendations: SmartRecommendationView[];
   availableCount: number;
   total: number;
+  periods: DayPeriodView[];
   context: {
     plannedCount: number;
     mediaCount: number;
@@ -60,9 +79,71 @@ function kindIcon(kind: SmartRecommendationKind) {
   if (kind === "lacunas-semana") return CalendarCheck;
   if (kind === "cadencia") return CalendarClock;
   if (kind === "melhores-dias") return CalendarDays;
+  if (kind === "melhor-horario") return Clock;
   if (kind === "melhores-formatos") return LayoutGrid;
+  if (kind === "stories") return LayoutGrid;
   if (kind === "tendencia-alcance") return TrendingUp;
   return Target;
+}
+
+function periodIcon(key: DayPeriodKey) {
+  if (key === "manha") return Sunrise;
+  if (key === "almoco") return Utensils;
+  if (key === "tarde") return Sunset;
+  return Moon;
+}
+
+/**
+ * Card de desempenho de um período do dia. Quando a amostra é insuficiente,
+ * NÃO mostra número: mostra a contagem real e a explicação da ausência.
+ */
+function PeriodCard({ period }: { period: DayPeriodView }) {
+  const Icon = periodIcon(period.key);
+  return (
+    <div
+      className={cn(
+        "rounded-[14px] bg-card border p-4 flex flex-col gap-2 min-w-0",
+        period.hasEnoughData ? "border-border-soft shadow-xs" : "border-dashed border-border"
+      )}
+    >
+      <div className="flex items-center gap-2.5 min-w-0">
+        <span
+          aria-hidden="true"
+          className={cn(
+            "w-7 h-7 rounded-[9px] grid place-items-center flex-none border",
+            period.hasEnoughData
+              ? "bg-ai-soft text-purple border-purple/15"
+              : "bg-surface text-ink-muted border-border-soft"
+          )}
+        >
+          <Icon size={15} />
+        </span>
+        <h3 className="font-display text-[14px] font-semibold text-ink flex-1 min-w-0">
+          {period.label}
+        </h3>
+        {!period.hasEnoughData && (
+          <Badge tone="neutral" size="xs" className="flex-none">
+            Sem dado
+          </Badge>
+        )}
+      </div>
+
+      {period.hasEnoughData && period.avgInteractions != null ? (
+        <div className="flex items-baseline gap-1.5">
+          <span className="font-display text-[24px] font-bold text-ink leading-none">
+            {period.avgInteractions}
+          </span>
+          <span className="text-[12px] text-ink-soft">interações / publicação</span>
+        </div>
+      ) : (
+        <span className="text-[12.5px] font-semibold text-ink-muted">Dados insuficientes</span>
+      )}
+
+      <p className={cn("text-[12px] leading-relaxed", period.hasEnoughData ? "text-ink-soft" : "text-ink-muted")}>
+        {period.note}
+      </p>
+    </div>
+  );
 }
 
 function RecommendationCard({ rec }: { rec: SmartRecommendationView }) {
@@ -146,6 +227,24 @@ export function SmartCalendarClient({ data }: { data: SmartCalendarView }) {
         {data.recommendations.map((r) => (
           <RecommendationCard key={r.kind} rec={r} />
         ))}
+      </div>
+
+      {/* Desempenho por período do dia — quatro janelas. Sem amostra suficiente,
+          a janela diz "dados insuficientes" em vez de exibir uma nota. */}
+      <div className="flex flex-col gap-2.5">
+        <div className="flex items-center gap-2">
+          <h2 className="font-display text-[15px] font-bold text-ink">
+            Desempenho por período do dia
+          </h2>
+          <span className="text-[12px] text-ink-muted">
+            derivado das publicações coletadas (hora do timestamp da Meta)
+          </span>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {data.periods.map((p) => (
+            <PeriodCard key={p.key} period={p} />
+          ))}
+        </div>
       </div>
 
       <div className="rounded-[14px] bg-surface/40 border border-border-soft px-4 py-3 flex items-start gap-2.5">

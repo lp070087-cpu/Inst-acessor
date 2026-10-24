@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Images } from "lucide-react";
 
-import { requireOnboardedSession } from "@/lib/auth/guard";
+import { requireOnboardedSession, requirePremiumPage } from "@/lib/auth/guard";
 import { PageHeader } from "@/components/layout/page-header";
 import { MediaLibrary } from "@/components/media-library/media-library-client";
 
@@ -23,6 +23,7 @@ export const dynamic = "force-dynamic";
  * que lê o `userId` da SESSÃO (nunca do cliente).
  */
 export default async function MediaLibraryPage() {
+  await requirePremiumPage();
   const { session } = await requireOnboardedSession();
 
   return (

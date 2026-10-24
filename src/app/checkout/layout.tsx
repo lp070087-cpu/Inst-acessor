@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 import type { Metadata } from "next";
 
@@ -39,7 +40,7 @@ export default function CheckoutLayout({
       </div>
 
       <main className="relative z-10 flex min-h-screen flex-col items-center justify-center px-5 py-12">
-        <a
+        <Link
           href="/"
           className="mb-8 inline-flex items-center gap-2.5 font-display text-[19px] font-bold tracking-tight"
         >
@@ -62,7 +63,7 @@ export default function CheckoutLayout({
           <span className="text-ink">
             Inst <em className="not-italic text-grad font-extrabold">Acessor</em>
           </span>
-        </a>
+        </Link>
 
         <div className="w-full max-w-[560px]">{children}</div>
 

@@ -40,7 +40,7 @@ export interface Framing {
 export const DEFAULT_FRAMING: Framing = { zoom: 1, offsetX: 0, offsetY: 0 };
 
 export const MIN_ZOOM = 1;
-export const MAX_ZOOM = 3;
+export const MAX_ZOOM = 5;
 
 /** Teto do deslocamento — impede arrastar a mídia para fora do quadro. */
 const MAX_OFFSET = 0.5;
@@ -89,7 +89,9 @@ export function isDefaultFraming(f: Framing): boolean {
 export function useFramingDrag(
   framing: Framing,
   onChange: (next: Framing) => void,
-  onCommit?: (next: Framing) => void
+  onCommit?: (next: Framing) => void,
+  /** Limite próprio (ex.: imagem sempre cobrindo o quadro); sem ele, ±MAX_OFFSET. */
+  limit?: (next: Framing) => Framing
 ): React.PointerEventHandler<HTMLElement> {
   const start = React.useRef<{
     pointerId: number;
@@ -109,6 +111,8 @@ export function useFramingDrag(
   onChangeRef.current = onChange;
   const onCommitRef = React.useRef(onCommit);
   onCommitRef.current = onCommit;
+  const limitRef = React.useRef(limit);
+  limitRef.current = limit;
 
   return React.useCallback((event: React.PointerEvent<HTMLElement>) => {
     const el = event.currentTarget;
@@ -144,11 +148,10 @@ export function useFramingDrag(
       // com o que o dedo percorre, em qualquer largura de tela.
       const dx = (e.clientX - s.x) / s.width;
       const dy = (e.clientY - s.y) / s.height;
-      last = {
-        zoom: framingRef.current.zoom,
-        offsetX: clamp(s.ox + dx, -MAX_OFFSET, MAX_OFFSET),
-        offsetY: clamp(s.oy + dy, -MAX_OFFSET, MAX_OFFSET),
-      };
+      const raw = { zoom: framingRef.current.zoom, offsetX: s.ox + dx, offsetY: s.oy + dy };
+      last = limitRef.current
+        ? limitRef.current(raw)
+        : { ...raw, offsetX: clamp(raw.offsetX, -MAX_OFFSET, MAX_OFFSET), offsetY: clamp(raw.offsetY, -MAX_OFFSET, MAX_OFFSET) };
       onChangeRef.current(last);
     };
 

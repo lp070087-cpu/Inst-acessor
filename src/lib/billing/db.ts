@@ -38,15 +38,15 @@ interface Delegate<T> {
 }
 
 export const bll = {
-  plan: p.plan as unknown as Delegate<Plan>,
-  subscription: p.subscription as unknown as Delegate<Subscription>,
-  payment: p.payment as unknown as Delegate<Payment>,
-  billingEvent: p.billingEvent as unknown as Delegate<BillingEvent>,
-  user: p.user as unknown as Delegate<User>,
+  get plan() { return p.plan as unknown as Delegate<Plan>; },
+  get subscription() { return p.subscription as unknown as Delegate<Subscription>; },
+  get payment() { return p.payment as unknown as Delegate<Payment>; },
+  get billingEvent() { return p.billingEvent as unknown as Delegate<BillingEvent>; },
+  get user() { return p.user as unknown as Delegate<User>; },
   // Fase "Primeiro Acesso" — AccessGrant (origem ASAAS/ADMIN_MANUAL).
-  accessGrant: p.accessGrant as unknown as Delegate<AccessGrant>,
+  get accessGrant() { return p.accessGrant as unknown as Delegate<AccessGrant>; },
   // Pedido de compra local (checkout hospedado Asaas).
-  checkoutOrder: p.checkoutOrder as unknown as Delegate<CheckoutOrder>,
+  get checkoutOrder() { return p.checkoutOrder as unknown as Delegate<CheckoutOrder>; },
 };
 
 export interface AccessGrant {

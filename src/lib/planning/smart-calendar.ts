@@ -45,6 +45,18 @@ export const MIN_SNAPSHOTS_FOR_TREND = 2;
 /** Janela (em dias) usada para medir cadência e tendência. */
 export const DEFAULT_WINDOW_DAYS = 30;
 
+/**
+ * Publicações com interação medida necessárias para reportar o desempenho de
+ * UM período do dia. Abaixo disso o período aparece como "dados insuficientes",
+ * nunca com uma nota — 2 publicações não são um padrão, são coincidência.
+ */
+export const MIN_MEDIA_FOR_PERIOD_PATTERN = 3;
+/**
+ * Períodos do dia que precisam ter amostra suficiente antes de afirmar
+ * "melhor horário". Com menos de 2 períodos comparáveis não existe comparação.
+ */
+export const MIN_PERIODS_FOR_BEST_TIME = 2;
+
 // ---------------------------------------------------------------
 // Entradas (todas reais, já lidas do banco)
 // ---------------------------------------------------------------
@@ -106,7 +118,9 @@ export type SmartRecommendationKind =
   | "lacunas-semana"
   | "cadencia"
   | "melhores-dias"
+  | "melhor-horario"
   | "melhores-formatos"
+  | "stories"
   | "tendencia-alcance"
   | "metas-prazo";
 
@@ -125,6 +139,8 @@ export interface SmartCalendarResult {
   /** Quantas recomendações têm dado real. */
   availableCount: number;
   total: number;
+  /** Desempenho real por período do dia (Manhã/Almoço/Tarde/Noite). */
+  periods: DayPeriodPerformance[];
   /** Transparência: o que foi considerado no cálculo. */
   context: {
     plannedCount: number;
@@ -135,6 +151,146 @@ export interface SmartCalendarResult {
     activeGoals: number;
     windowDays: number;
   };
+}
+
+// ---------------------------------------------------------------
+// PERÍODOS DO DIA
+// ---------------------------------------------------------------
+
+export type DayPeriodKey = "manha" | "almoco" | "tarde" | "noite";
+
+/**
+ * Agrupamento por hora LOCAL da publicação. As janelas foram escolhidas para
+ * não se sobreporem e cobrirem as 24h — cada publicação cai em exatamente um
+ * período. A hora vem do `timestamp` que a Meta informou, no fuso do runtime.
+ */
+export const DAY_PERIOD_WINDOWS: { key: DayPeriodKey; label: string; from: number; to: number }[] = [
+  { key: "manha", label: "Manhã", from: 6, to: 11 },
+  { key: "almoco", label: "Almoço", from: 12, to: 14 },
+  { key: "tarde", label: "Tarde", from: 15, to: 18 },
+  { key: "noite", label: "Noite", from: 19, to: 5 },
+];
+
+/** Uma leitura agregada de um período, pronta para reuso (cards e recomendações). */
+export interface DayPeriodAggregate {
+  key: DayPeriodKey;
+  label: string;
+  /** Publicações com interação medida neste período. */
+  count: number;
+  /** Média de interação (curtidas + comentários) das publicações do período. */
+  avgInteractions: number | null;
+  /** `true` quando a amostra atinge MIN_MEDIA_FOR_PERIOD_PATTERN. */
+  hasEnoughData: boolean;
+}
+
+/** Um card de desempenho por período do dia. Sem dado → `hasEnoughData: false`. */
+export interface DayPeriodPerformance extends DayPeriodAggregate {
+  /** Explicação honesta da ausência — nunca uma nota inventada. */
+  note: string;
+}
+
+/** Retorna a janela (label + key) de uma hora do dia (0–23). */
+export function periodForHour(hour: number): { key: DayPeriodKey; label: string } {
+  const h = ((hour % 24) + 24) % 24;
+  for (const w of DAY_PERIOD_WINDOWS) {
+    const inWindow = w.from <= w.to ? h >= w.from && h <= w.to : h >= w.from || h <= w.to;
+    if (inWindow) return { key: w.key, label: w.label };
+  }
+  // Inalcançável: as janelas cobrem 0–23. Mantido para exaustividade de tipo.
+  return { key: "noite", label: "Noite" };
+}
+
+/**
+ * Agrega a interação medida por período do dia. Reutilizado tanto pelos cards
+ * de período quanto pela recomendação "melhor horário" — uma única regra.
+ * Publicações sem interação completa (curtidas OU comentários ausente) ficam
+ * de fora, exatamente como em "melhores dias".
+ */
+export function aggregateDayPeriods(media: MediaInput[]): DayPeriodAggregate[] {
+  const buckets = new Map<DayPeriodKey, { total: number; count: number }>();
+  for (const w of DAY_PERIOD_WINDOWS) buckets.set(w.key, { total: 0, count: 0 });
+
+  for (const m of media) {
+    const d = parse(m.timestamp);
+    if (!d) continue;
+    const interactions = mediaInteractions(m.likeCount, m.commentsCount);
+    if (interactions == null) continue;
+    const { key } = periodForHour(d.getHours());
+    const cur = buckets.get(key)!;
+    cur.total += interactions;
+    cur.count += 1;
+  }
+
+  return DAY_PERIOD_WINDOWS.map((w) => {
+    const v = buckets.get(w.key)!;
+    return {
+      key: w.key,
+      label: w.label,
+      count: v.count,
+      avgInteractions: v.count > 0 ? Math.round((v.total / v.count) * 10) / 10 : null,
+      hasEnoughData: v.count >= MIN_MEDIA_FOR_PERIOD_PATTERN,
+    };
+  });
+}
+
+function buildPeriodCards(media: MediaInput[]): DayPeriodPerformance[] {
+  return aggregateDayPeriods(media).map((b) => ({
+    ...b,
+    note: b.hasEnoughData
+      ? `${b.count} publicações neste período · média de ${b.avgInteractions} interações por publicação.`
+      : `Dados insuficientes: somente ${b.count} publicação(ões) neste período. Um padrão exige pelo menos ${MIN_MEDIA_FOR_PERIOD_PATTERN} publicações.`,
+  }));
+}
+
+// ---------------------------------------------------------------
+// DIAS DA SEMANA (padrão observado) — base do "dia recomendado"
+// ---------------------------------------------------------------
+
+/** Mínimo de publicações num dia específico para ele contar como recomendado. */
+export const MIN_MEDIA_PER_RECOMMENDED_DAY = 2;
+
+export interface WeekdayPattern {
+  /** 0 = domingo … 6 = sábado (getDay()). */
+  weekday: number;
+  label: string;
+  /** Publicações com interação medida que caíram neste dia da semana. */
+  count: number;
+  /** Média de interação (curtidas + comentários) deste dia. */
+  avgInteractions: number | null;
+  hasEnoughData: boolean;
+}
+
+/**
+ * Agrupa a interação medida por dia da semana (mesma fonte de "melhores dias",
+ * hora/timestamp real da Meta). Reutilizado pelo plano semanal para eleger um
+ * "dia recomendado" — sem nunca inventar um dia.
+ */
+export function aggregateWeekdays(media: MediaInput[]): WeekdayPattern[] {
+  const byDow = new Map<number, { total: number; count: number }>();
+  for (let i = 0; i < 7; i++) byDow.set(i, { total: 0, count: 0 });
+
+  for (const m of media) {
+    const d = parse(m.timestamp);
+    if (!d) continue;
+    const interactions = mediaInteractions(m.likeCount, m.commentsCount);
+    if (interactions == null) continue;
+    const cur = byDow.get(d.getDay())!;
+    cur.total += interactions;
+    cur.count += 1;
+  }
+
+  return Array.from({ length: 7 }, (_, i) => {
+    const v = byDow.get(i)!;
+    const avg = v.count > 0 ? Math.round((v.total / v.count) * 10) / 10 : null;
+    return {
+      weekday: i,
+      label: WEEKDAY_LABELS[i],
+      count: v.count,
+      avgInteractions: avg,
+      hasEnoughData:
+        v.count >= MIN_MEDIA_PER_RECOMMENDED_DAY && avg != null,
+    };
+  });
 }
 
 // ---------------------------------------------------------------
@@ -406,6 +562,91 @@ function bestFormats(input: SmartCalendarInput): SmartRecommendation {
 // 5. TENDÊNCIA DE ALCANCE / SEGUIDORES
 // Real: compara a leitura mais antiga e a mais recente dos snapshots.
 // ---------------------------------------------------------------
+// 5. MELHOR HORÁRIO (PERÍODO DO DIA)
+// Real: agrupa a interação medida por período do dia. Só afirma um "melhor
+// horário" quando pelo menos DOIS períodos têm amostra suficiente — com um só
+// não existe comparação, é apenas o período que mais recebeu conteúdo.
+// ---------------------------------------------------------------
+
+const DAY_PERIOD_LABEL: Record<DayPeriodKey, string> = {
+  manha: "Manhã (6h–11h)",
+  almoco: "Almoço (12h–14h)",
+  tarde: "Tarde (15h–18h)",
+  noite: "Noite (19h–5h)",
+};
+
+function bestTimeOfDay(input: SmartCalendarInput): SmartRecommendation {
+  const aggregates = aggregateDayPeriods(input.media);
+  const withEnough = aggregates.filter((a) => a.hasEnoughData);
+
+  if (withEnough.length < MIN_PERIODS_FOR_BEST_TIME) {
+    return unavailable("melhor-horario", "Melhor horário");
+  }
+
+  const ranked = [...withEnough].sort(
+    (a, b) => (b.avgInteractions ?? 0) - (a.avgInteractions ?? 0)
+  );
+  const best = ranked[0];
+
+  return {
+    kind: "melhor-horario",
+    title: "Melhor horário",
+    body: `Entre os períodos com amostra suficiente, ${DAY_PERIOD_LABEL[best.key]} apresentou a maior interação média. A conclusão vem das publicações já coletadas (hora do timestamp da Meta) — não é um horário ideal de mercado.`,
+    evidence: [
+      `${input.media.length} publicação(ões) coletada(s) no total`,
+      ...ranked
+        .slice(0, 3)
+        .map(
+          (a) =>
+            `${DAY_PERIOD_LABEL[a.key]}: média ${a.avgInteractions} em ${a.count} publicação(ões)`
+        ),
+    ],
+    available: true,
+  };
+}
+
+// ---------------------------------------------------------------
+// 6. STORIES
+// Real: a coleta atual NÃO lê Stories (ver `StoryCollection`). Em vez de
+// inventar um desempenho, a recomendação diz a verdade sobre a ausência.
+// ---------------------------------------------------------------
+
+function storiesRecommendation(input: SmartCalendarInput): SmartRecommendation {
+  const storyMedia = input.media.filter(
+    (m) => m.mediaProductType?.trim().toUpperCase() === "STORY"
+  );
+
+  if (storyMedia.length === 0) {
+    return unavailable("stories", "Stories");
+  }
+
+  const withInteractions = storyMedia
+    .map((m) => mediaInteractions(m.likeCount, m.commentsCount))
+    .filter((v): v is number => v != null);
+
+  if (withInteractions.length < MIN_MEDIA_FOR_PERIOD_PATTERN) {
+    return unavailable("stories", "Stories");
+  }
+
+  const avg =
+    Math.round((withInteractions.reduce((a, b) => a + b, 0) / withInteractions.length) * 10) / 10;
+
+  return {
+    kind: "stories",
+    title: "Stories",
+    body: `Foram coletados ${storyMedia.length} story(ies) classificados pela Meta. Enquanto a coleta de Stories estiver limitada, esta leitura usa apenas as publicações com interação realmente medida.`,
+    evidence: [
+      `${storyMedia.length} story(ies) classificados pela Meta`,
+      `${withInteractions.length} com interação medida · média ${avg}`,
+    ],
+    available: true,
+  };
+}
+
+// ---------------------------------------------------------------
+// 7. TENDÊNCIA DE ALCANCE / SEGUIDORES
+// Real: compara a leitura mais antiga e a mais recente dos snapshots.
+// ---------------------------------------------------------------
 
 function reachTrend(input: SmartCalendarInput): SmartRecommendation {
   const withFollowers = input.snapshots
@@ -443,7 +684,7 @@ function reachTrend(input: SmartCalendarInput): SmartRecommendation {
 }
 
 // ---------------------------------------------------------------
-// 6. METAS COM PRAZO
+// 8. METAS COM PRAZO
 // Real: metas ATIVAS que têm prazo definido, ordenadas pelo prazo.
 // ---------------------------------------------------------------
 
@@ -495,7 +736,9 @@ export function buildSmartCalendar(input: SmartCalendarInput): SmartCalendarResu
     weeklyGaps(input),
     publishingCadence(input),
     bestWeekdays(input),
+    bestTimeOfDay(input),
     bestFormats(input),
+    storiesRecommendation(input),
     reachTrend(input),
     goalDeadlines(input),
   ];
@@ -511,6 +754,7 @@ export function buildSmartCalendar(input: SmartCalendarInput): SmartCalendarResu
     recommendations,
     availableCount: recommendations.filter((r) => r.available).length,
     total: recommendations.length,
+    periods: buildPeriodCards(input.media),
     context: {
       plannedCount: input.plannedContents.length,
       mediaCount: input.media.length,

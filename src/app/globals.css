@@ -16,17 +16,17 @@
     --surface: #f1f3f5;
     --card: #ffffff;
     --ink: #111318;
-    --ink-2: #667085;
-    --ink-3: #98a2b3;
+    --ink-2: #596579;
+    --ink-3: #596579;
     --border: #e5e7eb;
     --border-soft: #edeff2;
 
     /* Marca — gradiente controlado */
-    --magenta: #f43f8e;
-    --purple: #8b5cf6;
+    --magenta: #be185d;
+    --purple: #6d28d9;
     --indigo: #4f46e5;
-    --blue: #3b82f6;
-    --brand-grad: linear-gradient(115deg, #f43f8e 0%, #a855f7 45%, #6366f1 100%);
+    --blue: #1d4ed8;
+    --brand-grad: linear-gradient(115deg, #be185d 0%, #7e22ce 45%, #4338ca 100%);
     --brand-grad-soft: linear-gradient(
       115deg,
       rgba(244, 63, 142, 0.1),
@@ -35,11 +35,11 @@
     );
 
     /* Estados semânticos */
-    --success: #10b981;
-    --danger: #ef4444;
-    --warn: #f59e0b;
-    --info: #3b82f6;
-    --ai: #8b5cf6;
+    --success: #047857;
+    --danger: #b91c1c;
+    --warn: #92400e;
+    --info: #1d4ed8;
+    --ai: #6d28d9;
     --success-soft: rgba(16, 185, 129, 0.1);
     --danger-soft: rgba(239, 68, 68, 0.1);
     --warn-soft: rgba(245, 158, 11, 0.12);
@@ -66,9 +66,9 @@
     --r-pill: 999px;
 
     /* Tipografia */
-    --font-display: "Sora", "Plus Jakarta Sans", system-ui, sans-serif;
-    --font-body: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
-    --font-data: "Space Grotesk", ui-monospace, "SF Mono", monospace;
+    --font-display: var(--font-sora), var(--font-plus-jakarta), system-ui, sans-serif;
+    --font-body: var(--font-plus-jakarta), system-ui, -apple-system, sans-serif;
+    --font-data: var(--font-space-grotesk), ui-monospace, "SF Mono", monospace;
 
     /* Layout */
     --container: 1180px;

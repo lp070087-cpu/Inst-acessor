@@ -343,8 +343,9 @@ export async function upsertLog(input: {
   const db = client();
   const existing = await findReplyByComment(input.mediaId, input.commentId);
   if (existing) {
-    return (await db.commentReplyLog.update({
-      where: { id: existing.id },
+    if (["PROCESSING", "SENT"].includes(existing.status) || existing.errorCode === "reconciliation_required") return existing;
+    await db.commentReplyLog.updateMany({
+      where: { id: existing.id, status: existing.status, errorCode: existing.errorCode },
       data: {
         commenterUsername: input.commenterUsername,
         originalComment: input.originalComment,
@@ -356,7 +357,8 @@ export async function upsertLog(input: {
         ruleId: input.ruleId ?? existing.ruleId,
         errorCode: input.errorCode ?? existing.errorCode,
       },
-    })) as ReplyLogRow;
+    });
+    return (await findReplyByComment(input.mediaId, input.commentId))!;
   }
 
   try {
@@ -399,7 +401,15 @@ export async function updateLog(
 ): Promise<ReplyLogRow | null> {
   const owned = (await client().commentReplyLog.findFirst({ where: { id, userId } })) as ReplyLogRow | null;
   if (!owned) return null;
-  return (await client().commentReplyLog.update({ where: { id }, data: patch })) as ReplyLogRow;
+  const finalizing = patch.status === "SENT" || (patch.status === "ERROR" && patch.errorCode === "reconciliation_required");
+  await client().commentReplyLog.updateMany({ where: {
+    id, userId,
+    ...(finalizing ? { status: "PROCESSING" } : {
+      status: { in: ["PENDING", "APPROVED", "ERROR"] },
+      OR: [{ errorCode: null }, { errorCode: { not: "reconciliation_required" } }],
+    }),
+  }, data: patch });
+  return (await client().commentReplyLog.findFirst({ where: { id, userId } })) as ReplyLogRow | null;
 }
 
 export interface HistoryFilter {

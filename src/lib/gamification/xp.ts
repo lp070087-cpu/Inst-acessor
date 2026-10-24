@@ -1,4 +1,14 @@
 import { gp } from "@/lib/gamification/db";
+import { prisma, withDatabaseTransaction } from "@/lib/db";
+
+/** One transaction/lock shared by grants and achievement rewards. Nested calls
+ * reuse the async transaction context; transaction advisory locks are reentrant. */
+export async function withGamificationTransaction<T>(userId: string, operation: () => Promise<T>): Promise<T> {
+  return withDatabaseTransaction(async () => {
+    await prisma.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('inst-acessor:gamification'), hashtext(${userId}))::text`;
+    return operation();
+  });
+}
 
 /**
  * MOTOR DE XP — Fase 5
@@ -229,12 +239,10 @@ export function levelInfoFromXp(totalXp: number): {
 // ------------------------------------------------------------
 
 async function ensureLevel(userId: string) {
-  const existing = await gp.level.findUnique({ where: { userId } });
-  if (existing) return existing as { xp: number; level: number; totalXpEarned: number };
-  const created = await gp.level.create({
-    data: { userId, xp: 0, level: 1, totalXpEarned: 0 },
-  });
-  return created as { xp: number; level: number; totalXpEarned: number };
+  const existing = await prisma.userLevel.findUnique({ where: { userId } });
+  if (existing) return existing;
+  return prisma.userLevel.upsert({ where: { userId }, update: { userId },
+    create: { userId, xp: 0, level: 1, totalXpEarned: 0 } });
 }
 
 // ------------------------------------------------------------
@@ -260,8 +268,12 @@ export async function grantXpAmount(
   refId: string,
   amount: number
 ): Promise<GrantResult> {
+  return withGamificationTransaction(userId, () => grantXpAmountLocked(userId, source, refId, amount));
+}
 
-  // Idempotência: procura antes de criar (evita corrida de duplicidade).
+async function grantXpAmountLocked(userId: string, source: string, refId: string, amount: number): Promise<GrantResult> {
+
+  // The lookup and all writes run under the per-user transaction lock.
   const existing = await gp.xpLog.findUnique({
     where: { userId_source_refId: { userId, source, refId } },
   });

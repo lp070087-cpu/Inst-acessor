@@ -1,30 +1,21 @@
 import type { Metadata } from "next";
 
 import "./landing.css";
+import "@/components/landing/launch-waitlist.css";
 
 import { LandingClient } from "@/components/landing/landing-client";
+import { LaunchWaitlist } from "@/components/landing/launch-waitlist";
 import {
   Nav,
   Hero,
   Marquee,
-  Problema,
-  Solucao,
-  ComoFunciona,
+  Movimentos,
   Dashboard,
 } from "@/components/landing/sections-a";
-import { IaAcessor, Diagnostico, Estrategia, GeradorCopy } from "@/components/landing/sections-b";
+import { Diagnostico, GeradorCopy } from "@/components/landing/sections-b";
+import { Xp, Rank, Badges, AnaliseConteudos, PreviewSocial } from "@/components/landing/sections-c";
 import {
-  Metas,
-  Xp,
-  Rank,
-  Badges,
-  Perfil,
-  Historico,
-} from "@/components/landing/sections-c";
-import {
-  Automacoes,
   RedesSociais,
-  Seguranca,
   Planos,
   Faq,
   CtaFinal,
@@ -34,41 +25,51 @@ import {
 /**
  * Página de venda oficial do Inst Acessor.
  *
- * Apresentação comercial portada da apresentação aprovada (`apresentacao/`) e
- * ampliada com as seções da Fase 10.
+ * ============================================================
+ * ESTRUTURA — definida pela pasta de referência `pasta da ordem/`
+ * ============================================================
+ * A pasta contém 10 imagens (01–10) que definem o NÚCLEO da página.
+ * A **imagem 04 é a versão ATUAL** (substituída pelo usuário) e representa
+ * "O produto em quatro verbos" — que no código é a seção `Movimentos`.
  *
- * O QUE NÃO ESTÁ MAIS AQUI (removido a pedido — enxugamento da landing):
- *   • Mentoria             — "Direcionamento de quem entende de dados"
- *   • PreviewSocial        — "Veja como vai ficar antes de publicar"
- *   • Timeline             — "Os momentos que marcaram sua evolução"
- *   • Diferencial          — "Mais do que métricas. Inteligência para agir."
- *   • CentralPublicacao    — "Publique com organização e segurança"
- *   • Bloco Antes/Depois   — "Números soltos, sem direção" (dentro de Problema)
+ * A ordem das 10 apresentações é EXATAMENTE a da pasta:
  *
- * Removidas nesta rodada (PARTE 1 do pacote final de ajustes):
- *   • Conquistas           — "Cada marco vira uma conquista."
- *   • AnaliseConteudos     — "Veja o que funciona — e repita"
- * Os componentes continuam EXPORTADOS em `sections-c.tsx` (nada foi apagado
- * do arquivo), apenas não são mais renderizados na página.
+ *   01 Dashboard ............ números, KPIs e evolução de alcance
+ *   02 Diagnóstico .......... a saúde do perfil, item por item
+ *   03 Gerador de Copy ...... copy pronta no tom da marca
+ *   04 Movimentos ........... o produto em 4 verbos (o mapa)
+ *   05 XP ................... cada evolução vira progresso
+ *   06 Rank ................. evolução reconhecida, nível por nível
+ *   07 Badges ............... cinco níveis de reconhecimento
+ *   08 Análise de desempenho  o que funciona — e repita
+ *   09 Preview Social ....... veja antes de publicar
+ *   10 Redes Sociais ........ conecte e centralize
  *
- * O Dashboard (bloco de métricas) foi REMOVIDO POR ENGANO no mesmo
- * enxugamento e VOLTOU nesta rodada como 2ª seção — é a seção de fundo
- * escuro com o gráfico de evolução de alcance. A implementação é a
- * ORIGINAL (recuperada do histórico), de volta ao seu lugar em
- * `sections-a.tsx`.
+ * Fora do núcleo, apenas a abertura e o fechamento comercial:
  *
- * As FUNCIONALIDADES correspondentes continuam intactas no aplicativo
- * (dashboard, preview social, publicação, rank, conquistas…). Apenas a
- * divulgação delas na página de venda foi retirada.
+ *   • Hero ......... promessa + CTA + interface real (abertura)
+ *   • Marquee ...... faixa de capacidades (respiro visual)
+ *   • Planos / Faq / CtaFinal / Footer ..... oferta, objeções, fechamento
+ *
+ * O QUE NÃO É MAIS RENDERIZADO (os componentes seguem EXPORTADOS nos
+ * arquivos — nada foi apagado; as funções continuam dentro do aplicativo,
+ * apenas não aparecem na página de venda):
+ *   • Problema, Solucao — repetiam a mensagem do Hero.
+ *   • ComoFunciona, IaAcessor, Estrategia — seções grandes de apoio.
+ *   • Capacidades — cards compactos que agregavam Metas, Perfil, Histórico,
+ *     Automações e Segurança.
+ *   • Metas, Perfil, Historico, Automacoes, Seguranca — seções separadas.
+ *   • Analise/Score/Nichos/Calendario/Ideias/Conquistas — nunca renderizados
+ *     nesta versão.
  *
  * Preserva a identidade visual aprovada: paleta, gradientes, tipografia,
- * animações e estilo premium. Dados simulados sempre rotulados.
+ * animações e estilo premium. Dados numéricos sempre rotulados como exemplo.
  */
 
 export const metadata: Metadata = {
   title: "Inst Acessor — Inteligência para o crescimento do seu Instagram",
   description:
-    "Transforme dados do Instagram em decisões de crescimento. IA, estratégia, metas e XP — tudo em um só lugar.",
+    "Planeje, publique e acompanhe o Instagram em um só lugar. IA, calendário inteligente, central de publicação, análise de desempenho e score — com os dados reais do seu perfil.",
 };
 
 /**
@@ -96,62 +97,28 @@ export default async function HomePage() {
       <Nav />
 
       <Hero />
-
-      {/* Faixa animada de capacidades (Marquee) — fica entre o fim do Hero
-          e o início da 2ª seção, conforme a apresentação aprovada
-          (`apresentacao/index.html`: "Marquee de capacidades" logo após o
-          Hero e antes da seção seguinte). */}
       <Marquee />
 
-      {/* ============================================================
-          2ª SEÇÃO — DASHBOARD INTELIGENTE (fundo escuro).
-          É a seção escura com o GRÁFICO de evolução de alcance.
-          Voltou nesta rodada: tinha sido removida por engano junto
-          com o enxugamento. Posição conforme a apresentação aprovada
-          (`apresentacao/_parts/04-dashboard.html`).
-          ============================================================ */}
-      <Dashboard />
+      {/* ===== NÚCLEO — ordem EXATA da pasta de referência (01 → 10) =====
+          Estas 10 são o CORPO da página. Nenhuma seção antiga é
+          renderizada entre elas. Os componentes removidos continuam
+          exportados nos arquivos (funções do app intactas) — só não
+          aparecem mais na apresentação de venda. */}
+      <Dashboard />          {/* 01 */}
+      <Diagnostico />        {/* 02 */}
+      <GeradorCopy />        {/* 03 */}
+      <Movimentos />         {/* 04 — "O produto em quatro verbos" */}
+      <Xp />                 {/* 05 */}
+      <Rank />               {/* 06 */}
+      <Badges />             {/* 07 */}
+      <AnaliseConteudos />   {/* 08 */}
+      <PreviewSocial />      {/* 09 */}
+      <RedesSociais />       {/* 10 */}
 
-      {/* Diagnóstico */}
-      <Diagnostico />
-
-      {/* Gerador de Copy */}
-      <GeradorCopy />
-
-      {/* XP */}
-      <Xp />
-
-      {/* Rank */}
-      <Rank />
-
-      <Badges />
-
-      <RedesSociais />
-
-      <Problema />
-
-      <Solucao />
-
-      <ComoFunciona />
-
-      <IaAcessor />
-
-      <Estrategia />
-
-      <Metas />
-
-      <Perfil />
-
-      <Historico />
-
-      <Automacoes />
-
-      <Seguranca />
-
+      {/* ===== FECHAMENTO COMERCIAL — só o necessário ===== */}
       <Planos />
-
+      <LaunchWaitlist />
       <Faq />
-
       <CtaFinal />
 
       <Footer />

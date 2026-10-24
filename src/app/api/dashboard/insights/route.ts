@@ -1,3 +1,4 @@
+import { withSessionApi } from "@/lib/auth/session-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -21,7 +22,7 @@ export const dynamic = "force-dynamic";
  *   - falha REAL da IA → 502, para o cliente distinguir de "não configurada";
  *   - nenhum número é inventado em nenhum caminho.
  */
-export async function GET() {
+async function GETHandler() {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -31,7 +32,7 @@ export async function GET() {
       getMediaProductionData(userId),
     ]);
 
-    const result = await generateAIInsights(data, media);
+    const result = await generateAIInsights(userId, data, media);
 
     // "Sem IA" e "sem dados" são estados NORMAIS (200). Só a falha real da IA
     // vira 502 — e a distinção vem de `providerFailed`, não de texto.
@@ -53,3 +54,5 @@ export async function GET() {
     );
   }
 }
+
+export const GET = withSessionApi(GETHandler);

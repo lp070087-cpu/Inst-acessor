@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireSession } from "@/lib/auth/guard";
 import { isOfficialAdminEmail } from "@/lib/auth/admin-access";
+import { hasVerifiedIdentity } from "@/lib/auth/identity";
 import { resolvePremiumAccess } from "@/lib/access/premium";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { ToastProvider } from "@/components/ui/toast";
@@ -14,29 +15,54 @@ export default async function AppLayout({
 }) {
   const session = await requireSession();
 
-  // Estado do usuário no banco (fase "Primeiro Acesso").
-  const user = (await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { id: true, email: true, firstAccessCompleted: true, passwordHash: true },
-  } as unknown as never)) as unknown as {
-    id: string;
-    email: string | null;
-    firstAccessCompleted: boolean;
-    passwordHash: string | null;
-  } | null;
+  // PARALELISMO (performance de navegação) — as três leituras abaixo dependem
+  // apenas de `session.user.id`; nenhuma depende do resultado da outra. Antes
+  // rodavam em SÉRIE: usuário → acesso → perfil, três round-trips até o Neon
+  // enfileirados a cada troca de aba. Em `Promise.all` viram UM lote: o tempo
+  // de parede passa a ser o da consulta mais lenta, não a soma das três.
+  //
+  // Os `redirect()` continuam DEPOIS do lote, na mesma ordem relógica de antes
+  // (primeiro acesso → onboarding): o que mudou foi só o momento de esperar,
+  // não a decisão.
+  const [user, access, profile] = await Promise.all([
+    // Estado do usuário no banco (fase "Primeiro Acesso").
+    prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { id: true, email: true, emailVerified: true, firstAccessCompleted: true, passwordHash: true },
+    } as unknown as never) as unknown as Promise<{
+      id: string;
+      email: string | null;
+      emailVerified: Date | null;
+      firstAccessCompleted: boolean;
+      passwordHash: string | null;
+    } | null>,
+
+    // ACESSO EFETIVO (fonte única): grant válido OU assinatura ativa OU ADMIN.
+    //
+    // Aqui o valor só marca a sidebar (cadeado). QUEM BLOQUEIA o módulo é
+    // `requirePremiumPage()` no topo de cada página do plano — essa é a
+    // autoridade. Ler o estado neste layout é o que permite o menu não mentir.
+    resolvePremiumAccess(session.user.id),
+
+    // Garante que o onboarding foi concluído antes de entrar no app.
+    // A mesma consulta traz a identidade REAL da conta (nome + foto) para a
+    // sidebar: a sessão é JWT e congela esses valores no login, então uma edição
+    // no Perfil não apareceria aqui sem sair e entrar de novo.
+    prisma.userProfile.findUnique({
+      where: { userId: session.user.id },
+      select: {
+        onboardingCompleted: true,
+        avatar: true,
+        user: { select: { name: true } },
+      },
+    }),
+  ]);
 
   // Autorização do ADMIN é decidida NO SERVIDOR (nunca no client), pela mesma
   // regra oficial (`isOfficialAdminEmail`) usando o e-mail do BANCO (fonte da
   // verdade — idêntico ao `requireAdminSession`). Apenas o e-mail canônico
   // normalizado recebe o item "Admin" no menu. Clientes comuns nunca veem.
-  const isAdmin = isOfficialAdminEmail(user?.email ?? null);
-
-  // ACESSO EFETIVO (fonte única): grant válido OU assinatura ativa OU ADMIN.
-  //
-  // Aqui o valor só marca a sidebar (cadeado). QUEM BLOQUEIA o módulo é
-  // `requirePremiumPage()` no topo de cada página do plano — essa é a
-  // autoridade. Ler o estado neste layout é o que permite o menu não mentir.
-  const access = await resolvePremiumAccess(session.user.id);
+  const isAdmin = hasVerifiedIdentity(user) && isOfficialAdminEmail(user?.email ?? null);
 
   // PRIMEIRO ACESSO — o fluxo de ativação (criar a própria senha) só se aplica
   // a usuários com um grant pendente (PENDING_FIRST_ACCESS) que AINDA NÃO
@@ -48,19 +74,6 @@ export default async function AppLayout({
   if (needsActivation) {
     redirect("/primeiro-acesso");
   }
-
-  // Garante que o onboarding foi concluído antes de entrar no app.
-  // A mesma consulta traz a identidade REAL da conta (nome + foto) para a
-  // sidebar: a sessão é JWT e congela esses valores no login, então uma edição
-  // no Perfil não apareceria aqui sem sair e entrar de novo.
-  const profile = await prisma.userProfile.findUnique({
-    where: { userId: session.user.id },
-    select: {
-      onboardingCompleted: true,
-      avatar: true,
-      user: { select: { name: true } },
-    },
-  });
 
   if (!profile?.onboardingCompleted) {
     redirect("/onboarding");
@@ -88,7 +101,7 @@ export default async function AppLayout({
           hasPremiumAccess={access.hasAccess}
           account={{ name: profile?.user?.name ?? null, avatar: profile?.avatar ?? null }}
         />
-        <main className="lg:pl-72 min-h-dvh flex flex-col min-w-0">
+        <main className="lg:pl-[var(--app-sidebar-w,18rem)] min-h-dvh flex flex-col min-w-0">
           {/* `min-w-0` é o que permite os filhos encolherem: em flex, o
               item herda `min-width:auto` e qualquer conteúdo largo (tabela,
               gráfico, texto sem quebra) força a coluna a crescer e a página

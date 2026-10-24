@@ -12,7 +12,9 @@ import {
 } from "@/lib/billing/plans";
 import { getPromoConfig, getBuyerHistory } from "@/lib/billing/promo-db";
 import { resolvePromoPrice } from "@/lib/billing/promo";
+import { evaluateCapacity } from "@/lib/billing/capacity-db";
 import { PromoCountdown } from "@/components/billing/promo-countdown";
+import { WaitlistForm } from "@/components/billing/waitlist-form";
 import { CheckoutForm } from "./checkout-form";
 
 export const metadata: Metadata = {
@@ -47,9 +49,10 @@ export const dynamic = "force-dynamic";
 export default async function CheckoutPage({
   searchParams,
 }: {
-  searchParams: { plano?: string; planId?: string };
+  searchParams: Promise<{ plano?: string; planId?: string }>;
 }) {
-  const raw = searchParams?.planId ?? searchParams?.plano ?? "";
+  const query = await searchParams;
+  const raw = query?.planId ?? query?.plano ?? "";
 
   const [session, plans] = await Promise.all([getSession(), listPlans()]);
   const authedEmail = session?.user?.email ?? null;
@@ -98,6 +101,49 @@ export default async function CheckoutPage({
   // sessão: o Cenário B passa a ter um único caminho de UI possível, sempre
   // com o campo de e-mail visível e vazio.
   const activePlans = isAuthed ? plans : [];
+
+  // CAPACIDADE — decidida no SERVIDOR para o e-mail desta sessão (fonte de
+  // verdade). Sem vaga → a página mostra a LISTA DE ESPERA em vez do formulário
+  // de pagamento. Esta é só a apresentação: a trava real está em
+  // `startPublicCheckout` (o POST também responde 409). A landing NÃO é tocada.
+  const { decision: capacity } = await evaluateCapacity(authedEmail ?? null);
+
+  if (!capacity.allowed) {
+    return (
+      <div className="bg-card border border-border-soft rounded-xl shadow-lg p-6 sm:p-8">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-brand-grad" />
+          <span className="text-[12px] font-semibold uppercase tracking-wider text-ink-muted">
+            Lista de espera
+          </span>
+        </div>
+        <h1 className="font-display text-[24px] font-bold text-ink">
+          {capacity.reason === "SIGNUPS_CLOSED"
+            ? "Inscrições pausadas"
+            : "Vagas esgotadas neste lote"}
+        </h1>
+        <p className="text-[13.5px] text-ink-soft mt-1.5">
+          {planShort} — as novas vagas serão liberadas em breve. Entre na lista
+          para ser avisado primeiro. Nenhuma cobrança foi feita.
+        </p>
+
+        <div className="mt-6">
+          <WaitlistForm
+            planSlug={plan.slug}
+            message={capacity.message}
+            authedEmail={authedEmail}
+          />
+        </div>
+
+        <div className="mt-6 pt-5 border-t border-border-soft">
+          <p className="text-[12px] text-ink-muted leading-relaxed">
+            Já tem uma assinatura ativa? Ela continua funcionando normalmente — a
+            fila vale apenas para novas contratações.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-card border border-border-soft rounded-xl shadow-lg p-6 sm:p-8">

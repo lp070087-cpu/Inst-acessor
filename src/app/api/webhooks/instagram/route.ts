@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { dbRateLimiter, clientIp } from "@/lib/publishing/rate-limit";
 
 import { prisma } from "@/lib/db";
 import { getWebhookAppSecret } from "@/lib/integrations/instagram/client";
@@ -15,6 +16,12 @@ import {
 } from "@/lib/comment-replies/engine";
 import { isWithinRuleTarget } from "@/lib/comment-replies/target-scope";
 import { CommentCapabilityError } from "@/lib/comment-replies/instagram-comments";
+import { evaluateComment } from "@/lib/comment-direct/engine";
+import {
+  parseInstagramMessageWebhook,
+  type IgWebhookMessage,
+} from "@/lib/webhooks/instagram-messages";
+import { upsertConversation, upsertDirectMessage, findConversationByParticipant, updateConversationById } from "@/lib/comment-direct/db";
 
 /**
  * WEBHOOK REAL DE COMENTÁRIOS DO INSTAGRAM (Meta)
@@ -120,6 +127,10 @@ export async function POST(request: Request) {
     return new NextResponse("Assinatura inválida", { status: 403 });
   }
 
+  if (!(await dbRateLimiter.check(`instagram-webhook:${clientIp(request)}`, { windowMs: 60_000, max: 120 }))) {
+    return new NextResponse("Entrega temporariamente limitada", { status: 429 });
+  }
+
   // ---- 7. só agora o corpo é interpretado ----
   let payload: unknown;
   try {
@@ -145,13 +156,15 @@ export async function POST(request: Request) {
     console.info(
       `[instagram-webhook] entrega processada: entries=${result.entriesSeen} changes=${result.changesSeen} ` +
         `campos=${result.fieldsSeen.join(",") || "nenhum"} comentarios=${result.commentsSeen} ` +
-        `processados=${result.processed} ignorados=${result.skipped} duplicados=${result.duplicate} erros=${result.errors}`
+        `processados=${result.processed} ignorados=${result.skipped} duplicados=${result.duplicate} ` +
+        `mensagens=${result.messagesSeen} mensagensPersistidas=${result.messagesPersisted} ` +
+        `directEnviadas=${result.directSent} erros=${result.errors}`
     );
     // SEMPRE 200 depois de um evento válido: um 5xx faria a Meta reentregar o
     // mesmo evento em loop, sem resolver nada (mídia ainda não sincronizada,
     // conta não mapeada, evento desconhecido). `received: true` já vem no
     // próprio resultado da entrega.
-    return NextResponse.json({ received: true, ...result }, { status: 200 });
+    return NextResponse.json({ received: result.errors === 0, ...result }, { status: result.errors > 0 ? 500 : 200 });
   } catch (err) {
     // Falha inesperada NOSSA (banco fora, por exemplo): 500 para a Meta
     // reentregar — mas sem stack trace e sem corpo sensível.
@@ -181,6 +194,12 @@ interface DeliveryResult {
   own: number;
   /** Comentários automáticos efetivamente enviados. */
   sent: number;
+  /** Mensagens privadas (Direct) vistas no evento. */
+  messagesSeen: number;
+  /** Mensagens privadas persistidas (novas ou atualizadas). */
+  messagesPersisted: number;
+  /** DMs automáticas (Comentário → Direct) efetivamente enviadas. */
+  directSent: number;
   errors: number;
 }
 
@@ -197,12 +216,19 @@ async function processInstagramComments(body: Record<string, unknown>): Promise<
     duplicate: 0,
     own: 0,
     sent: 0,
+    messagesSeen: 0,
+    messagesPersisted: 0,
+    directSent: 0,
     errors: 0,
   };
 
+  // Acumulador mutável do Direct: `processOneComment` incrementa direto, sem
+  // que a função precise devolver um objeto composto.
+  const directStats = { sent: 0 };
+
   for (const comment of parsed.comments) {
     try {
-      const outcome = await processOneComment(comment);
+      const outcome = await processOneComment(comment, directStats);
       switch (outcome) {
         case "processed":
           result.processed++;
@@ -235,12 +261,103 @@ async function processInstagramComments(body: Record<string, unknown>): Promise<
     }
   }
 
+  // ---- MENSAGENS PRIVADAS (Direct) ----
+  result.directSent = directStats.sent;
+  // Persistimos o que REALMENTE chegou, para a Central de DM exibir a conversa.
+  // Não é um gatilho de envio: a automação Comentário → Direct é disparada só
+  // por COMENTÁRIO (a pessoa interagiu em público). Mensagem recebida aqui serve
+  // para (a) montar a conversa e (b) marcar que a pessoa já respondeu no privado.
+  const messaging = parseInstagramMessageWebhook(body);
+  result.messagesSeen = messaging.messages.length;
+  for (const message of messaging.messages) {
+    try {
+      const persisted = await processOneDirectMessage(message);
+      if (persisted) result.messagesPersisted++;
+    } catch (err) {
+      result.errors++;
+      const name = err instanceof Error ? err.name : "desconhecido";
+      console.error(`[instagram-webhook] mensagem ${message.igMessageId} não persistida (${name})`);
+    }
+  }
+
   return result;
+}
+
+/**
+ * Persiste UMA mensagem privada do webhook na conversa correspondente.
+ *
+ * Só grava quando a conta (`entry.id`) casa com uma `SocialConnection` do
+ * usuário — nunca sob um dono desconhecido. Idempotente por `igMessageId`.
+ *
+ * @returns true quando uma mensagem foi de fato gravada (nova ou atualizada).
+ */
+async function processOneDirectMessage(message: IgWebhookMessage): Promise<boolean> {
+  if (!message.accountId) return false;
+
+  const anchor = await findByAccountId(message.accountId);
+  if (!anchor) {
+    // Evento válido, porém de uma conta que não é de ninguém do Inst Acessor:
+    // nada é gravado (não inventamos destino).
+    return false;
+  }
+
+  // A conversa é identificada pelo IGSID do OUTRO lado (o contato): quando
+  // recebemos, é o `sender`; quando enviamos, é o `recipient`.
+  const participantId = message.fromOwnAccount ? message.recipientId : message.senderId;
+  if (!participantId) return false;
+
+  // Chave estável da conversa. Quando a Meta não dá o id da thread, usamos o par
+  // (conta, contato) — determinístico, não inventado.
+  const igConversationId = `${message.accountId}:${participantId}`;
+
+  const connection = await prisma.socialConnection.findFirst({
+    where: { platform: "instagram", OR: [{ externalAccountId: message.accountId }, { igProfiles: { igAccountId: message.accountId } }] },
+    select: { id: true },
+  });
+  if (!connection) return false;
+
+  // REUSO DE CONVERSA: se a leitura oficial já criou a conversa desta pessoa
+  // (mesmo IGSID), usamos a MESMA linha em vez de criar uma paralela. Só quando
+  // não existe é que criamos com a chave `conta:contato` (determinística).
+  const existingByParticipant = await findConversationByParticipant(anchor.userId, participantId);
+  let conversationId: string;
+  if (existingByParticipant) {
+    await updateConversationById(existingByParticipant.id, {
+      lastMessageAt: message.sentAt ?? existingByParticipant.lastMessageAt,
+      lastMessagePreview: message.text ?? existingByParticipant.lastMessagePreview,
+    });
+    conversationId = existingByParticipant.id;
+  } else {
+    const created = await upsertConversation(anchor.userId, connection.id, {
+      igConversationId,
+      participantId,
+      participantUsername: null,
+      participantName: null,
+      lastMessageAt: message.sentAt,
+      unreadCount: null,
+      lastMessagePreview: message.text,
+    });
+    conversationId = created.id;
+  }
+
+  await upsertDirectMessage(anchor.userId, conversationId, {
+    igMessageId: message.igMessageId,
+    direction: message.fromOwnAccount ? "OUTBOUND" : "INBOUND",
+    text: message.text,
+    attachmentType: message.attachmentType,
+    sentAt: message.sentAt,
+    fromUs: message.fromOwnAccount,
+  });
+
+  return true;
 }
 
 type CommentOutcome = "processed" | "sent" | "own" | "duplicate" | "skipped";
 
-async function processOneComment(comment: IgWebhookComment): Promise<CommentOutcome> {
+async function processOneComment(
+  comment: IgWebhookComment,
+  directStats: { sent: number }
+): Promise<CommentOutcome> {
   // ---- quem é o dono da publicação ----
   const target = await resolveTarget(comment);
   if (!target) {
@@ -300,6 +417,41 @@ async function processOneComment(comment: IgWebhookComment): Promise<CommentOutc
   // para baixo (e mantém a garantia explícita: sem mídia, sem análise).
   const igMediaId = comment.igMediaId;
   if (!igMediaId) return "skipped";
+
+  // ---- COMENTÁRIO → DIRECT (mensagem privada) ----
+  // Caminho INDEPENDENTE do público: o mesmo comentário pode receber a resposta
+  // pública e, em paralelo, disparar a DM. Aqui só rodamos quando há conexão
+  // atribuível (o log do Direct exige `socialConnectionId`) e quando o texto
+  // existe. Todo o resto (gatilho, idempotência, onePerUser, limite diário,
+  // permissão) fica em `evaluateComment` — nada é enviado por este arquivo.
+  if (target.socialConnectionId && comment.text) {
+    try {
+      const outcome = await evaluateComment({
+        userId: target.userId,
+        socialConnectionId: target.socialConnectionId,
+        igMediaId,
+        commentId: comment.igCommentId,
+        commenterId: comment.authorId,
+        commenterUsername: comment.username,
+        commentText: comment.text,
+      });
+      if (outcome.status === "SENT") {
+        directStats.sent++;
+        console.info(
+          `[instagram-webhook] mensagem privada enviada no comentário ${comment.igCommentId} (regra ${outcome.ruleId ?? "-"})`
+        );
+      } else if (outcome.status === "BLOCKED") {
+        console.warn(
+          `[instagram-webhook] mensagem privada bloqueada no comentário ${comment.igCommentId} (${outcome.reason ?? "sem motivo"})`
+        );
+      }
+    } catch (err) {
+      // Falha do Direct NUNCA impede a resposta pública: os dois são caminhos
+      // separados, e um erro de DM não pode derrubar o comentário.
+      const name = err instanceof Error ? err.name : "desconhecido";
+      console.error(`[instagram-webhook] falha no Comentário → Direct (${name})`);
+    }
+  }
 
   // ---- já existe registro? não regenera nem reenvia ----
   const existing = await prisma.commentReplyLog.findUnique({
@@ -391,6 +543,8 @@ async function resolveTarget(
 ): Promise<{
   userId: string;
   mediaRowId: string;
+  /** Conexão social do dono — necessária para o log do Comentário → Direct. */
+  socialConnectionId: string | null;
   ownUsername: string | null;
   ownAccountId: string | null;
 } | null> {
@@ -420,6 +574,7 @@ async function resolveTarget(
     return {
       userId: commentRow.userId,
       mediaRowId: commentRow.mediaId,
+      socialConnectionId: anchor?.socialConnectionId ?? null,
       ownUsername: anchor?.ownUsername ?? null,
       ownAccountId: anchor?.ownAccountId ?? null,
     };
@@ -442,6 +597,7 @@ async function resolveTarget(
   return {
     userId: mediaRow.userId,
     mediaRowId: mediaRow.id,
+    socialConnectionId: anchor?.socialConnectionId ?? null,
     ownUsername: anchor?.ownUsername ?? mediaRow.profile?.username ?? null,
     ownAccountId: anchor?.ownAccountId ?? null,
   };
@@ -453,13 +609,19 @@ async function resolveTarget(
  */
 async function findByAccountId(
   accountId: string
-): Promise<{ userId: string; ownUsername: string | null; ownAccountId: string | null } | null> {
+): Promise<{
+  userId: string;
+  socialConnectionId: string;
+  ownUsername: string | null;
+  ownAccountId: string | null;
+} | null> {
   const connection = await prisma.socialConnection.findFirst({
     where: {
       platform: "instagram",
       OR: [{ externalAccountId: accountId }, { igProfiles: { igAccountId: accountId } }],
     },
     select: {
+      id: true,
       userId: true,
       username: true,
       externalAccountId: true,
@@ -471,6 +633,7 @@ async function findByAccountId(
 
   return {
     userId: connection.userId,
+    socialConnectionId: connection.id,
     ownUsername: connection.igProfiles?.username ?? connection.username ?? null,
     // O identificador da própria conta: comparado com `from.id` do autor para
     // reconhecer comentário nosso com certeza.

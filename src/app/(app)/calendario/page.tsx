@@ -55,6 +55,7 @@ export default async function CalendarPage() {
 
       <CalendarClient
         initial={{
+          renderedAt: new Date().toISOString(),
           contents: contents.map((c) => ({
             id: c.id,
             platform: c.platform,
@@ -92,6 +93,10 @@ export default async function CalendarPage() {
               objective: s.objective,
               basedOn: s.basedOn,
             })),
+            days: weekly.days,
+            recommendedDay: weekly.recommendedDay,
+            recommendedPeriod: weekly.recommendedPeriod,
+            measuredFrequencyPerWeek: weekly.measuredFrequencyPerWeek,
             goals: weekly.goals,
             experiments: weekly.experiments,
             contextAvailable: weekly.contextAvailable,

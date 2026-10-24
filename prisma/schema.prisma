@@ -74,6 +74,14 @@ model User {
   profile                UserProfile?
   xpLogs                 XpLog[]
   mediaAssets            MediaAsset[]
+  commentDirectRules     CommentDirectRule[]
+  commentDirectLogs      CommentDirectLog[]
+  usageCounters          UsageCounter[]
+  usageEvents            UsageEvent[]
+  directConversations    DirectConversation[]
+  directMessages         DirectMessage[]
+  directFaqs             DirectFaq[]
+  directAgentActions     DirectAgentAction[]
 }
 
 model Account {
@@ -167,6 +175,7 @@ model SocialConnection {
   user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   tiktokProfiles    TikTokProfile?
   commentReplyLogs  CommentReplyLog[]
+  commentDirectLogs CommentDirectLog[]
 
   @@unique([userId, platform])
   @@index([platform])
@@ -769,6 +778,8 @@ model PublishQueue {
   externalId     String?
   provider       String?
   idempotencyKey String?
+  /// Immutable media/caption/order for this scheduling intent; no credentials.
+  payloadSnapshot Json?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
   content        PlannedContent @relation(fields: [contentId], references: [id], onDelete: Cascade)
@@ -1120,6 +1131,33 @@ model SystemSetting {
   @@index([key])
 }
 
+// ============================================================
+// LISTA DE ESPERA — capacidade de vendas
+// ------------------------------------------------------------
+// Model NOVO e 100% ADITIVO (ver migration 20261008120000_lista_de_espera).
+// A identidade é o E-MAIL NORMALIZADO (@unique) — entrar duas vezes é
+// idempotente. `status`: WAITING | INVITED | CONVERTED | EXPIRED.
+// Um convite vigente (status INVITED e expiresAt no futuro) SEGURA uma vaga,
+// o que permite ao admin liberar uma vaga específica com a loja lotada.
+// ============================================================
+
+model WaitlistEntry {
+  id          String    @id @default(cuid())
+  name        String?
+  email       String    @unique
+  status      String    @default("WAITING")
+  invitedAt   DateTime?
+  expiresAt   DateTime?
+  notes       String?
+  convertedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status])
+  @@index([status, expiresAt])
+  @@index([createdAt])
+}
+
 model CheckoutOrder {
   // `@default(cuid())` — CAUSA DO ERRO 500 EM PRODUÇÃO (POST /api/billing/checkout).
   // Este era o ÚNICO model do schema sem default de id. O fluxo público cria a
@@ -1305,6 +1343,215 @@ model CommentReplyLog {
   @@map("comment_reply_log")
 }
 
+// ============================================================
+// COMENTÁRIO → DIRECT + CENTRAL DE DM (Instagram)
+// ------------------------------------------------------------
+// 100% aditivo. Reutiliza a SocialConnection e o token JÁ existentes — nenhum
+// segundo OAuth. Tudo aqui foi desenhado para funcionar SÓ contra os endpoints
+// oficiais da Meta; quando a permissão não estiver concedida, os dados ficam
+// vazios de verdade (nunca thread inventada) e a UI mostra "integração pendente".
+// ============================================================
+
+/// Configuração da automação Comentário → Direct (mensagem privada de resposta
+/// a um comentário). Nasce SEMPRE desligada (`enabled=false`): nunca dispara sem
+/// o usuário ativar de propósito.
+model CommentDirectRule {
+  id       String  @id @default(cuid())
+  userId   String
+  name     String
+  enabled  Boolean @default(false)
+  platform String  @default("instagram")
+
+  /// Publicação alvo. `null` = todas as publicações (combinado com `scope`).
+  mediaId      String?
+  mediaCaption String?
+
+  /// Escopo de aplicação: "all" | "media" (uma publicação).
+  scope String @default("all")
+
+  /// EXACT_WORD | ANY_OF_LIST | CONTAINS_TEXT | ANY_COMMENT (ver triggers.ts).
+  triggerType  String
+  triggerTerms String[]
+
+  /// Texto enviado no Direct. Passou por `validateTriggerConfig`.
+  messageText String
+
+  /// Teto de envios/dia por regra (limite defensivo contra disparo em massa).
+  dailyLimit Int @default(50)
+  /// No máximo UMA mensagem por pessoa (recomendado pela política da Meta).
+  onePerUser Boolean @default(true)
+  /// Pausa temporária sem desligar a regra (ex.: após rate limit).
+  pausedUntil DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, enabled])
+  @@index([userId, mediaId])
+  @@map("comment_direct_rule")
+}
+
+/// Histórico + IDEMPOTÊNCIA da automação Comentário → Direct.
+/// `@@unique([mediaId, commentId])` é a garantia final: a Meta reentrega o
+/// mesmo webhook, e sem isto a mesma pessoa receberia a mensagem duas vezes.
+model CommentDirectLog {
+  id                 String @id @default(cuid())
+  userId             String
+  socialConnectionId String
+  ruleId             String?
+
+  mediaId   String
+  commentId String
+
+  commenterId       String?
+  commenterUsername String?
+
+  originalComment String
+  matchedTrigger  String?
+  sentMessage     String?
+
+  /// PENDING | SENT | SKIPPED | BLOCKED | DUPLICATE | ERROR
+  status String @default("PENDING")
+  /// Motivo exato quando o status não é SENT (ver SKIP_REASONS).
+  reason String?
+
+  externalMessageId String?
+  errorCode         String?
+
+  createdAt DateTime  @default(now())
+  sentAt    DateTime?
+
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  socialConnection SocialConnection @relation(fields: [socialConnectionId], references: [id], onDelete: Cascade)
+
+  @@unique([mediaId, commentId])
+  @@index([userId, status])
+  @@index([userId, createdAt])
+  @@map("comment_direct_log")
+}
+
+/// Conversa do Direct (thread). Só existe quando a Meta entrega a conversa de
+/// verdade — nunca é criada com dado inventado.
+model DirectConversation {
+  id                 String @id @default(cuid())
+  userId             String
+  socialConnectionId String
+
+  /// ID da conversa no Instagram (`/{ig-user-id}/conversations`).
+  igConversationId String @unique
+  /// ID externo do contato (IGSID). `null` quando a Meta não o informa.
+  participantId       String?
+  participantUsername String?
+  participantName     String?
+
+  /// Epoch (ms) da última atividade, como a Meta informa. `null` = não informado.
+  lastMessageAt DateTime?
+  /// Estado que a Meta reportar (quando houver).
+  unreadCount Int?
+  /// Último texto visto — apenas EXIBIÇÃO; a mensagem real vive em DirectMessage.
+  lastMessagePreview String?
+
+  /// `false` = criada a partir de metadados, mas a janela de 24h da Meta já
+  /// fechou: a UI deixa claro que não é possível responder sem message tag.
+  windowOpen Boolean?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  DirectMessage[]
+
+  @@index([userId, lastMessageAt])
+  @@map("direct_conversation")
+}
+
+/// Mensagem do Direct. Guardamos o que a Meta entregou (webhook `messages` ou
+/// leitura oficial) — nunca uma mensagem fabricada.
+model DirectMessage {
+  id             String @id @default(cuid())
+  userId         String
+  conversationId String
+
+  /// ID externo da mensagem (idempotência do webhook).
+  igMessageId String @unique
+
+  /// INBOUND (recebida) | OUTBOUND (enviada pela conta) | UNKNOWN.
+  direction String @default("INBOUND")
+  /// Texto. `null` quando a mensagem não é de texto (anexo, story reply…).
+  text      String?
+  /// Tipo do anexo quando houver, sem baixar/duplicar mídia de terceiros.
+  attachmentType String?
+
+  /// Momento informado pela Meta (epoch → Date). `null` se não interpretável.
+  sentAt DateTime?
+
+  /// `true` quando a mensagem veio do nosso próprio envio manual/aprovado.
+  fromUs Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation DirectConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, sentAt])
+  @@index([userId, sentAt])
+  @@map("direct_message")
+}
+
+/// FAQ automático — perguntas frequentes e respostas cadastradas pelo usuário.
+/// Usado para sugerir resposta no painel de conversa (NUNCA envia sozinho).
+model DirectFaq {
+  id     String @id @default(cuid())
+  userId String
+
+  /// Pergunta/assunto (ex.: "Preço", "Horário de atendimento").
+  question String
+  /// Resposta canônica, aprovada pelo usuário.
+  answer   String
+  /// Palavras que casam a pergunta (normalizadas com `normalizeText`).
+  keywords String[]
+  category String @default("geral")
+  active   Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, active])
+  @@map("direct_faq")
+}
+
+/// Log de AÇÕES da IA nas conversas (sugestão, aprovação, hand-off).
+/// Existe para auditoria: toda sugestão/ação fica registrada com o que a IA viu
+/// e o que o humano decidiu. Nunca guarda token nem conteúdo de terceiro.
+model DirectAgentAction {
+  id     String @id @default(cuid())
+  userId String
+
+  /// Linha de conversa/mensagem envolvida, quando aplicável.
+  conversationId String?
+  messageId      String?
+
+  /// SUGGEST | APPROVE | REJECT | HANDOFF | AUTOREPLY_BLOCKED
+  action String
+  /// Texto sugerido pela IA (quando action = SUGGEST).
+  suggestion String?
+  /// Texto efetivamente enviado/aprovado.
+  finalText  String?
+  /// Por que a automação NÃO enviou sozinha (ex.: janela fechada, permissão).
+  reason String?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("direct_agent_action")
+}
+
 enum Role {
   USER
   ADMIN
@@ -1356,4 +1603,160 @@ model MediaAsset {
   /// exatamente a consulta da tela, inclusive a paginação por cursor.
   @@index([userId, createdAt])
   @@map("media_asset")
+}
+
+// ============================================================
+// MEDIÇÃO DE FRANQUIA (consumo por plano)
+// ------------------------------------------------------------
+// O Inst Acessor não tinha NENHUM medidor de uso. Estes dois models são a base
+// para (a) o painel do usuário mostrar consumo/saldo, e (b) o bloqueio por
+// franquia quando o proprietário aprovar a ativação comercial.
+//
+// 100% ADITIVO: duas tabelas novas, nenhuma existente é tocada.
+//
+// Por que DOIS models:
+//   • UsageEvent      → o LOG (auditoria): cada consumo com data, capacidade e
+//                       quantidade. É a fonte da verdade para "quantas
+//                       gerações de IA neste ciclo/período". Também guarda o
+//                       idempotencyKey para impedir contagem dupla em retry.
+//   • UsageCounter    → o AGREGADO por (janela, capacidade): leitura rápida
+//                       para o painel e para o gate de limite, sem varrer o log.
+// ============================================================
+
+/// Consumo REAL de uma capacidade. Inserido no SERVIDOR, nunca pelo navegador.
+model UsageEvent {
+  id     String @id @default(cuid())
+  userId String
+  /// Geração de IA | resposta automática | análise | publicação.
+  feature String
+  /// Quantas unidades consumidas (normalmente 1; análise de perfil pode ser 1).
+  amount  Int    @default(1)
+  /// Contexto opcional (ex.: "copy", "ideias", "diagnostico"). Não guarda dado sensível.
+  origin  String?
+  /// Chave de IDEMPOTÊNCIA do evento externo. Única quando presente: um retry
+  /// do mesmo pagamento/publicação não conta duas vezes.
+  idempotencyKey String? @unique
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Consultas do gate/contador: sempre por usuário+capacidade e recortando data.
+  @@index([userId, feature, createdAt])
+  @@index([userId, createdAt])
+}
+
+/// Agregado por janela. `window` = "DAY" (reinicia 00:00 America/Sao_Paulo) ou
+/// "CYCLE" (o ciclo contratado). `key` é a chave concreta ("2026-10-08" ou o
+/// id do ciclo) — assim a virada de janela é automática: uma chave nova começa
+/// em zero, sem job de reset.
+model UsageCounter {
+  id     String @id @default(cuid())
+  userId String
+  feature String
+  window  String
+  key     String
+  used    Int    @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Um contador por (usuário, capacidade, janela, chave) — o upsert incrementa.
+  @@unique([userId, feature, window, key])
+  @@index([userId, window, key])
+}
+
+/// Durable TikTok inbox: only normalized metadata and irreversible envelope hashes.
+/// No original payload, client key, token, message, email or display name is stored.
+model SocialWebhookInbox {
+  id                String   @id @default(cuid())
+  eventKey          String   @unique
+  rawHash           String
+  eventName         String
+  occurredAt        DateTime
+  accountHash       String
+  connectionId      String?
+  connectionVersion DateTime?
+  reason            Int?
+  state             String   @default("PENDING")
+  attempts          Int      @default(0)
+  leaseToken        String?
+  leaseUntil        DateTime?
+  nextAttemptAt     DateTime @default(now())
+  processedAt       DateTime?
+  errorCode         String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([state, nextAttemptAt])
+  @@index([state, leaseUntil])
+}
+
+// Pre-launch contacts are separate from the legacy product WaitlistEntry.
+model LaunchSubscriber {
+  id String @id @default(cuid())
+  name String
+  email String @unique
+  whatsapp String @unique
+  planSlug String
+  source String
+  status String @default("PENDING")
+  emailConsent Boolean
+  whatsappConsent Boolean
+  verificationHash String? @unique
+  verificationExpiresAt DateTime?
+  unsubscribeHash String? @unique
+  unsubscribeSecret String
+  verifiedAt DateTime?
+  unsubscribedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  consents LaunchConsent[]
+  notifications LaunchNotification[]
+  @@index([status, createdAt])
+}
+
+model LaunchConsent {
+  id String @id @default(cuid())
+  subscriberId String
+  channel String
+  granted Boolean
+  version String
+  source String
+  createdAt DateTime @default(now())
+  subscriber LaunchSubscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  @@index([subscriberId, createdAt])
+}
+
+model LaunchCampaign {
+  id String @id @default(cuid())
+  key String @unique
+  channel String
+  status String @default("PREPARED")
+  createdAt DateTime @default(now())
+  notifications LaunchNotification[]
+}
+
+model LaunchNotification {
+  id String @id @default(cuid())
+  idempotencyKey String @unique
+  subscriberId String
+  campaignId String?
+  kind String
+  channel String
+  status String @default("HELD")
+  // Encrypted tokens, never a public API response; no worker is enabled.
+  privatePayload String?
+  attempts Int @default(0)
+  leaseToken String?
+  leaseUntil DateTime?
+  providerId String?
+  errorCode String?
+  sentAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  subscriber LaunchSubscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  campaign LaunchCampaign? @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  @@index([status, leaseUntil])
+  @@index([campaignId, status])
 }

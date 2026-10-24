@@ -37,6 +37,8 @@ export interface AsaasConfig {
   webhookToken: string;
   /** Meio de cobrança default. */
   billingType: AsaasBillingType;
+  /** Explicit hosted checkout origin for ID-only responses; validated before use. */
+  checkoutOrigin?: string;
 }
 
 function resolveEnvironment(): AsaasEnvironment {
@@ -65,6 +67,7 @@ export function getAsaasConfig(): AsaasConfig {
     environment,
     webhookToken: (process.env.ASAAS_WEBHOOK_TOKEN ?? "").trim(),
     billingType: resolveBillingType(process.env.ASAAS_BILLING_TYPE),
+    checkoutOrigin: (process.env.ASAAS_CHECKOUT_ORIGIN ?? "").trim(),
   };
 }
 

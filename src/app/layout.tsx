@@ -1,25 +1,40 @@
 import type { ReactNode } from "react";
 import type { Metadata, Viewport } from "next";
-import { Sora, Plus_Jakarta_Sans, Space_Grotesk } from "next/font/google";
+import localFont from "next/font/local";
 
 import { ToastProvider } from "@/components/ui/toast";
 import { ServiceWorkerRegistrar } from "@/components/pwa/service-worker-registrar";
 import "./globals.css";
 
-const sora = Sora({
-  subsets: ["latin"],
+const sora = localFont({
+  src: [
+    { path: "./fonts/sora-latin-400-normal.woff2", weight: "400" },
+    { path: "./fonts/sora-latin-500-normal.woff2", weight: "500" },
+    { path: "./fonts/sora-latin-600-normal.woff2", weight: "600" },
+    { path: "./fonts/sora-latin-700-normal.woff2", weight: "700" },
+  ],
   variable: "--font-sora",
   display: "swap",
 });
 
-const plusJakarta = Plus_Jakarta_Sans({
-  subsets: ["latin"],
+const plusJakarta = localFont({
+  src: [
+    { path: "./fonts/plus-jakarta-sans-latin-400-normal.woff2", weight: "400" },
+    { path: "./fonts/plus-jakarta-sans-latin-500-normal.woff2", weight: "500" },
+    { path: "./fonts/plus-jakarta-sans-latin-600-normal.woff2", weight: "600" },
+    { path: "./fonts/plus-jakarta-sans-latin-700-normal.woff2", weight: "700" },
+  ],
   variable: "--font-plus-jakarta",
   display: "swap",
 });
 
-const spaceGrotesk = Space_Grotesk({
-  subsets: ["latin"],
+const spaceGrotesk = localFont({
+  src: [
+    { path: "./fonts/space-grotesk-latin-400-normal.woff2", weight: "400" },
+    { path: "./fonts/space-grotesk-latin-500-normal.woff2", weight: "500" },
+    { path: "./fonts/space-grotesk-latin-600-normal.woff2", weight: "600" },
+    { path: "./fonts/space-grotesk-latin-700-normal.woff2", weight: "700" },
+  ],
   variable: "--font-space-grotesk",
   display: "swap",
 });
@@ -76,7 +91,7 @@ export default function RootLayout({
   children: ReactNode;
 }>) {
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" className={`${sora.variable} ${plusJakarta.variable} ${spaceGrotesk.variable}`}>
       <head>
         {/* theme-color: barra do navegador / barra de status do PWA instalado
             acompanham o roxo da marca. Mesmo valor do manifest. */}
@@ -87,9 +102,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="Inst Acessor" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
       </head>
-      <body
-        className={`${sora.variable} ${plusJakarta.variable} ${spaceGrotesk.variable}`}
-      >
+      <body>
         <ToastProvider>{children}</ToastProvider>
         {/* Registra o service worker (só em produção/https). Não renderiza nada. */}
         <ServiceWorkerRegistrar />

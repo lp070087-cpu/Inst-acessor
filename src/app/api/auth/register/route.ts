@@ -4,9 +4,13 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { registerSchema } from "@/lib/validators/auth";
 import { hashPassword } from "@/lib/auth/password";
+import { dbRateLimiter, clientIp } from "@/lib/publishing/rate-limit";
 
 export async function POST(request: Request) {
   try {
+    if (!(await dbRateLimiter.check(`register:${clientIp(request)}`, { windowMs: 60_000, max: 5 }))) {
+      return NextResponse.json({ error: "Muitas tentativas. Tente novamente em instantes." }, { status: 429 });
+    }
     const body = await request.json();
     const parsed = registerSchema.safeParse(body);
 

@@ -416,9 +416,13 @@ export const MEDIA_METRICS_CORE = MEDIA_METRICS_CORE_LIST.join(",");
  * consulta à documentação oficial (este ambiente não tem saída para
  * `developers.facebook.com`). Por isso são pedidas à parte: se a Meta recusar, o
  * prejuízo são as métricas de vídeo — nunca alcance, curtidas ou salvamentos.
+ *
+ * `plays` NÃO é pedido: foi aposentado pela Meta em favor de `video_views`
+ * (era a causa de o lote de vídeo inteiro ser recusado e todas as métricas de
+ * vídeo virarem `null`). Continua em `pick("video_views", "plays")` apenas para
+ * tolerar uma resposta antiga — não é mais solicitado.
  */
 const MEDIA_METRICS_VIDEO_LIST = [
-  "plays",
   "video_views",
   "video_view_time",
   "ig_reels_avg_watch_time",
@@ -426,6 +430,17 @@ const MEDIA_METRICS_VIDEO_LIST = [
 
 /** O mesmo lote em CSV. */
 export const MEDIA_METRICS_VIDEO = MEDIA_METRICS_VIDEO_LIST.join(",");
+
+/**
+ * Orçamento de retentativas de RATE LIMIT (429) para as chamadas POR MÍDIA.
+ *
+ * O sync dispara uma chamada por métrica/mídia (dezenas). Num pico de 429,
+ * continuar re-tentando cada uma é o que transforma um rate limit momentâneo num
+ * bloqueio prolongado do app inteiro. Aqui a retentativa de rate limit é ZERO:
+ * a mídia degrada sozinha (insights → null; comentários → INDISPONÍVEL) e o
+ * laço segue, em vez de insistir. O backoff de 5xx/rede continua normal.
+ */
+const MEDIA_RATE_LIMIT_RETRIES = 0;
 
 /**
  * Lê um lote de métricas do `/insights` de uma mídia e devolve o mapa
@@ -439,7 +454,7 @@ async function fetchInsightBatch(
   const data = await graphGet<InsightsEnvelope>(
     `${mediaId}/insights?metric=${metricList}`,
     accessToken,
-    { onErrorResponse: logInsightsDiagnostic }
+    { onErrorResponse: logInsightsDiagnostic, maxRateLimitRetries: MEDIA_RATE_LIMIT_RETRIES }
   );
 
   const byName = new Map<string, number | null>();
@@ -447,6 +462,27 @@ async function fetchInsightBatch(
     if (item.name) byName.set(item.name, readInsightValue(item));
   }
   return byName;
+}
+
+/**
+ * Métricas que ESTA instância já viu a Meta recusar.
+ *
+ * O recuo por métrica custa uma chamada por métrica, por MÍDIA. Numa conta com
+ * 25 publicações isso são dezenas de chamadas extra só para descobrir que a
+ * mesma métrica (ex.: uma renomeada) é inválida em todas — o caminho mais rápido
+ * para bater no limite de taxa da Meta (HTTP 429).
+ *
+ * Depois da primeira recusa a métrica é marcada aqui e deixa de ser pedida pelo
+ * resto da vida do processo. É um cache em memória de propósito: em serverless
+ * ele expira sozinho, e uma métrica que voltar a ser válida é reavaliada no
+ * próximo cold start. Só marca em erro PERMANENTE (não em 429/5xx, que são
+ * transitórios — senão um pico de rate limit "aposentaria" uma métrica boa).
+ */
+const rejectedMediaMetrics = new Set<string>();
+
+/** Erro permanente da Meta (métrica inexistente/renomeada) — não transitório. */
+function isPermanentMetricRejection(err: InstagramApiError): boolean {
+  return !err.retryable;
 }
 
 /**
@@ -467,21 +503,30 @@ async function fetchInsightsWithFallback(
   accessToken: string,
   metrics: readonly string[]
 ): Promise<Map<string, number | null>> {
-  try {
-    return await fetchInsightBatch(mediaId, accessToken, metrics.join(","));
-  } catch (err) {
-    if (!(err instanceof InstagramApiError)) throw err;
+  // Só se tenta o que ainda não foi recusado nesta instância.
+  const wanted = metrics.filter((m) => !rejectedMediaMetrics.has(m));
+  if (wanted.length === 0) return new Map();
+
+  // Caminho bom: um único lote com todas as métricas ainda válidas.
+  if (wanted.length > 1) {
+    try {
+      return await fetchInsightBatch(mediaId, accessToken, wanted.join(","));
+    } catch (err) {
+      if (!(err instanceof InstagramApiError)) throw err;
+    }
   }
 
   // Recuo: métrica por métrica, para que a recusa de uma não leve as outras.
   const byName = new Map<string, number | null>();
   let lastError: InstagramApiError | null = null;
-  for (const metric of metrics) {
+  for (const metric of wanted) {
     try {
       const one = await fetchInsightBatch(mediaId, accessToken, metric);
       for (const [name, value] of one) byName.set(name, value);
     } catch (err) {
       if (!(err instanceof InstagramApiError)) throw err;
+      // Erro permanente → esta métrica não existe mais; para de pedi-la.
+      if (isPermanentMetricRejection(err)) rejectedMediaMetrics.add(metric);
       lastError = err;
     }
   }
@@ -561,7 +606,9 @@ export async function getMediaMetrics(
     saves: pick("saved", "saves"),
     comments: pick("comments"),
     likes: pick("likes"),
-    video_views: pick("plays", "video_views"),
+    // `video_views` primeiro (nome atual); `plays` só como tolerância a resposta
+    // antiga em cache — ele não é mais solicitado à Meta (ver lista de vídeo).
+    video_views: pick("video_views", "plays"),
     video_view_time: pick("video_view_time", "ig_reels_avg_watch_time"),
   };
 }
@@ -629,7 +676,8 @@ export async function getMediaComments(
       paging?: { next?: string };
     } = await graphGet<{ data?: InstagramCommentNode[]; paging?: { next?: string } }>(
       path,
-      accessToken
+      accessToken,
+      { maxRateLimitRetries: MEDIA_RATE_LIMIT_RETRIES }
     );
 
     all.push(...(data.data ?? []));

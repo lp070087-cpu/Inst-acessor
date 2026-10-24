@@ -9,7 +9,10 @@ import { getMediaProductionData } from "@/lib/dashboard/media-production";
 import { buildDeterministicInsights } from "@/lib/dashboard/insights";
 import { isAIConfigured } from "@/lib/ai";
 import { Badge } from "@/components/ui/badge";
+import { buttonClass } from "@/components/ui/button";
+import { PageHeader } from "@/components/layout/page-header";
 import { SyncMetricsButton } from "@/components/dashboard/sync-metrics-button";
+import { AutoRefreshMetrics } from "@/components/dashboard/auto-refresh-metrics";
 import { DashboardClient } from "@/components/dashboard/dashboard-client";
 
 export const metadata: Metadata = {
@@ -45,27 +48,24 @@ export default async function DashboardPage() {
     <div className="flex flex-col gap-8">
       {/* Cabeçalho */}
       <div className="flex flex-col gap-4">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="font-display text-[26px] font-bold text-ink">{greeting}</h1>
-            <p className="text-[13.5px] text-ink-soft mt-0.5">
-              Veja como suas redes sociais estão evoluindo.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3 flex-wrap">
-            {instagramData.connected && (
-              <Badge tone="success" dot>
-                Instagram conectado
-              </Badge>
-            )}
-            {tiktokData.connected && (
-              <Badge tone="info" dot>
-                TikTok conectado
-              </Badge>
-            )}
-          </div>
-        </div>
+        <PageHeader
+          title={greeting}
+          description="Veja como suas redes sociais estão evoluindo."
+          action={
+            <>
+              {instagramData.connected && (
+                <Badge tone="success" dot>
+                  Instagram conectado
+                </Badge>
+              )}
+              {tiktokData.connected && (
+                <Badge tone="info" dot>
+                  TikTok conectado
+                </Badge>
+              )}
+            </>
+          }
+        />
 
         {/* Convite a conectar, SÓ quando não há conexão.
             O "Atualizar métricas" saiu daqui: ele pertence ao card da conta que
@@ -75,7 +75,7 @@ export default async function DashboardPage() {
             {!instagramData.connected && (
               <Link
                 href="/redes-sociais"
-                className="inline-flex items-center gap-2 rounded-pill bg-[linear-gradient(115deg,#F43F8E_0%,#A855F7_45%,#6366F1_100%)] bg-[length:160%_160%] text-white text-[13.5px] font-semibold px-5 py-2.5 shadow-brand transition-all duration-300 hover:shadow-brand-lg hover:-translate-y-0.5 hover:bg-[position:100%_100%] cursor-pointer"
+                className={buttonClass({ variant: "primary", size: "sm" })}
               >
                 <Instagram size={16} />
                 Conectar Instagram
@@ -85,7 +85,7 @@ export default async function DashboardPage() {
             {!tiktokData.connected && (
               <Link
                 href="/redes-sociais"
-                className="inline-flex items-center gap-2 rounded-pill bg-[linear-gradient(115deg,#F43F8E_0%,#A855F7_45%,#6366F1_100%)] bg-[length:160%_160%] text-white text-[13.5px] font-semibold px-5 py-2.5 shadow-brand transition-all duration-300 hover:shadow-brand-lg hover:-translate-y-0.5 hover:bg-[position:100%_100%] cursor-pointer"
+                className={buttonClass({ variant: "primary", size: "sm" })}
               >
                 <Music2 size={16} />
                 Conectar TikTok
@@ -107,6 +107,12 @@ export default async function DashboardPage() {
             </p>
           )}
         </div>
+
+        {/* Atualização automática controlada: se o último sync passou do TTL
+            (1h), sincroniza em segundo plano e recarrega. Os dados salvos já
+            foram renderizados acima — isto nunca bloqueia a tela. O botão
+            manual continua no rodapé do card da conta. */}
+        <AutoRefreshMetrics connected={instagramData.connected} />
 
         <DashboardClient
           instagramData={instagramData}

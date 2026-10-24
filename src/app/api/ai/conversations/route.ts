@@ -1,3 +1,4 @@
+import { withPremiumApi } from "@/lib/auth/premium-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -10,7 +11,7 @@ export const dynamic = "force-dynamic";
  * Lista conversas do usuário (mais recentes primeiro).
  * GET /api/ai/conversations?id=... — retorna uma conversa com mensagens.
  */
-export async function GET(request: Request) {
+async function GETHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -53,3 +54,5 @@ export async function GET(request: Request) {
     );
   }
 }
+
+export const GET = withPremiumApi(GETHandler);

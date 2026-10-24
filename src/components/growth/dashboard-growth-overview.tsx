@@ -60,7 +60,7 @@ export function DashboardGrowthOverview({
       ) : (
         <div className="grid gap-4 lg:grid-cols-3">
           {/* Missão do dia */}
-          <div className="rounded-2xl bg-white border border-soft p-4 flex flex-col gap-2 lg:col-span-1">
+          <div className="rounded-2xl bg-card border border-border-soft p-4 flex flex-col gap-2 lg:col-span-1">
             <div className="flex items-center gap-2 text-purple font-semibold text-[12px] uppercase tracking-wide">
               <Target size={14} />
               Missão do dia
@@ -86,7 +86,7 @@ export function DashboardGrowthOverview({
           </div>
 
           {/* Prioridades */}
-          <div className="rounded-2xl bg-white border border-soft p-4 flex flex-col gap-2 lg:col-span-1">
+          <div className="rounded-2xl bg-card border border-border-soft p-4 flex flex-col gap-2 lg:col-span-1">
             <div className="flex items-center gap-2 text-purple font-semibold text-[12px] uppercase tracking-wide">
               <Zap size={14} />
               Prioridades
@@ -113,7 +113,7 @@ export function DashboardGrowthOverview({
           </div>
 
           {/* Sinais importantes */}
-          <div className="rounded-2xl bg-white border border-soft p-4 flex flex-col gap-2 lg:col-span-1">
+          <div className="rounded-2xl bg-card border border-border-soft p-4 flex flex-col gap-2 lg:col-span-1">
             <div className="flex items-center gap-2 text-purple font-semibold text-[12px] uppercase tracking-wide">
               <AlertTriangle size={14} />
               Sinais

@@ -1,3 +1,4 @@
+import { withSessionApi } from "@/lib/auth/session-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -13,7 +14,7 @@ export const dynamic = "force-dynamic";
  *   missão do dia → planos 7/30 dias → insights proativos.
  * Tudo session-derived (userId da sessão) e owner-checked.
  */
-export async function GET() {
+async function GETHandler() {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -42,3 +43,5 @@ export async function GET() {
     return NextResponse.json({ error: http.message, code: http.code }, { status: http.status });
   }
 }
+
+export const GET = withSessionApi(GETHandler);

@@ -1,0 +1,747 @@
+// ============================================================
+// INST ACESSOR — Schema Prisma (Fase 1: Fundação)
+// ------------------------------------------------------------
+// Banco: Neon PostgreSQL
+// Fase 1 NÃO integra Instagram/Meta. SocialConnection já está
+// preparado para receber a credencial de forma segura na fase
+// de integração (token encriptado, sem texto puro).
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ------------------------------------------------------------
+// Usuários
+// ------------------------------------------------------------
+model User {
+  id            String     @id @default(cuid())
+  name          String?
+  email         String     @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?
+  role          Role       @default(USER)
+  status        UserStatus @default(ACTIVE)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  accounts              Account[]
+  sessions              Session[]
+  profile               UserProfile?
+  preferences           UserPreferences?
+  connections           SocialConnection[]
+  oauthStates           OAuthState[]
+  igProfiles            InstagramProfile[]
+  igSnapshots           InstagramSnapshot[]
+  igMedias              InstagramMedia[]
+  igMediaMetrics        InstagramMediaMetric[]
+  tiktokProfiles        TikTokProfile[]
+  tiktokSnapshots       TikTokSnapshot[]
+  tiktokVideos          TikTokVideo[]
+  syncLogs              SyncLog[]
+  aiConversations       AIConversation[]
+  aiMessages            AIMessage[]
+  aiProfile             AIProfile?
+  generatedCopies       GeneratedCopy[]
+  contentIdeas          ContentIdea[]
+  socialDrafts          SocialDraft[]
+  mentorshipRecs        MentorshipRecommendation[]
+  profileScores         ProfileScore[]
+  profileScoreSnapshots ProfileScoreSnapshot[]
+  growthExperiments     GrowthExperiment[]
+  profileInsights       ProfileInsight[]
+}
+
+// ------------------------------------------------------------
+// Autenticação externa (Auth.js) — quando aplicável
+// ------------------------------------------------------------
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+// ------------------------------------------------------------
+// Sessões (Auth.js)
+// ------------------------------------------------------------
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ------------------------------------------------------------
+// Perfil público / preferências do usuário
+// ------------------------------------------------------------
+model UserProfile {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  displayName         String?
+  username            String?
+  avatar              String?
+  niche               String?
+  subNiche            String?
+  objective           String?
+  onboardingCompleted Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ------------------------------------------------------------
+// Preferências do usuário
+// ------------------------------------------------------------
+model UserPreferences {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  locale    String   @default("pt-BR")
+  timezone  String   @default("America/Sao_Paulo")
+  dashboard Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ------------------------------------------------------------
+// Tokens de verificação (Auth.js) — recuperação de senha / e-mail
+// ------------------------------------------------------------
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ------------------------------------------------------------
+// Conexão com redes sociais — estrutura preparada.
+// Fase 1 NÃO integra. Token só será armazenado encriptado
+// (aes-256-gcm) na fase da Meta — nunca em texto puro.
+// ------------------------------------------------------------
+model SocialConnection {
+  id                String           @id @default(cuid())
+  userId            String
+  platform          String // "instagram" (única rede na Fase 2)
+  externalAccountId String?
+  username          String?
+  accountType       String           @default("BUSINESS")
+  status            ConnectionStatus @default(DISCONNECTED)
+  tokenEncrypted    String? // SEMPRE encriptado (aes-256-gcm) — nunca texto puro
+  tokenExpiresAt    DateTime?
+  scopes            String? // escopos concedidos, separados por espaço
+  lastSyncAt        DateTime?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  igProfiles     InstagramProfile[]
+  tiktokProfiles TikTokProfile[]
+
+  @@unique([userId, platform])
+  @@index([platform])
+}
+
+// ------------------------------------------------------------
+// State de autorização OAuth (Meta/Instagram) — CSRF protection.
+// Gerado no /connect, consumido no /callback. Expira em minutos.
+// ------------------------------------------------------------
+model OAuthState {
+  id           String   @id @default(cuid())
+  userId       String
+  provider     String   @default("instagram")
+  state        String   @unique
+  consumed     Boolean  @default(false)
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  // PKCE (TikTok) — code_verifier associado ao state, necessário no callback.
+  codeVerifier String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([state])
+}
+
+// ------------------------------------------------------------
+// Dados do Instagram (Fase 3) — histórico temporal para comparação.
+// NUNCA inventar métricas: valores ausentes ficam null/indisponível.
+// ------------------------------------------------------------
+
+// Perfil da conta conectada — estado atual + referência p/ snapshots.
+model InstagramProfile {
+  id                 String   @id @default(cuid())
+  userId             String
+  socialConnectionId String   @unique
+  igAccountId        String   @unique // Instagram Business Account ID
+  username           String?
+  name               String?
+  followersCount     Int?
+  followsCount       Int?
+  mediaCount         Int?
+  profilePictureUrl  String?
+  biography          String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  connection SocialConnection    @relation(fields: [socialConnectionId], references: [id], onDelete: Cascade)
+  snapshots  InstagramSnapshot[]
+  medias     InstagramMedia[]
+
+  @@index([userId])
+  @@index([igAccountId])
+}
+
+// Snapshot temporal — um por sincronização. Guarda o "estado naquele momento".
+model InstagramSnapshot {
+  id         String   @id @default(cuid())
+  profileId  String
+  userId     String
+  capturedAt DateTime @default(now())
+
+  followersCount Int?
+  followsCount   Int?
+  mediaCount     Int?
+
+  // Métricas de período (janela da API: 1 dia / 7 dias / etc.) quando disponíveis.
+  reach        Int?
+  impressions  Int?
+  profileViews Int?
+  // Engajamento agregado quando a API fornecer (não inventar).
+  engagement   Int?
+
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile InstagramProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([userId, capturedAt])
+  @@index([profileId, capturedAt])
+}
+
+// Mídia (post/reel/story) publicada — metadados + link p/ métricas.
+model InstagramMedia {
+  id            String    @id @default(cuid())
+  profileId     String
+  userId        String
+  igMediaId     String // Instagram Media ID
+  mediaType     String? // IMAGE / VIDEO / CAROUSEL_ALBUM / REEL / STORY
+  permalink     String?
+  caption       String?
+  timestamp     DateTime?
+  likeCount     Int?
+  commentsCount Int?
+  mediaUrl      String?
+  thumbnailUrl  String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user    User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile InstagramProfile       @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  metrics InstagramMediaMetric[]
+
+  @@unique([igMediaId])
+  @@index([userId, timestamp])
+}
+
+// Métricas por mídia — somente campos realmente retornados pela API.
+model InstagramMediaMetric {
+  id            String   @id @default(cuid())
+  mediaId       String
+  userId        String
+  igMediaId     String
+  reached       Int?
+  impressions   Int?
+  shares        Int?
+  saves         Int?
+  comments      Int?
+  likes         Int?
+  videoViews    Int?
+  videoViewTime Int? // segundos, quando a API fornecer
+  capturedAt    DateTime @default(now())
+
+  user  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  media InstagramMedia @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([mediaId, capturedAt])
+}
+
+// Log de sincronização — auditabilidade e diagnóstico.
+model SyncLog {
+  id          String   @id @default(cuid())
+  userId      String
+  platform    String // "instagram" | "tiktok"
+  status      String // "success" | "error"
+  message     String?
+  itemsSynced Int?
+  durationMs  Int?
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, platform, createdAt])
+}
+
+// ------------------------------------------------------------
+// Dados do TikTok (Fase 3.5) — multiplataforma.
+// Mesma filosofia do Instagram: NUNCA inventar métricas.
+// ------------------------------------------------------------
+
+// Perfil da conta TikTok conectada.
+model TikTokProfile {
+  id                 String   @id @default(cuid())
+  userId             String
+  socialConnectionId String   @unique
+  tiktokUserId       String   @unique // open_id do TikTok
+  username           String?
+  displayName        String?
+  avatarUrl          String?
+  followersCount     Int?
+  followingCount     Int?
+  videoCount         Int?
+  likesCount         Int?
+  bio                String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  connection SocialConnection @relation(fields: [socialConnectionId], references: [id], onDelete: Cascade)
+  snapshots  TikTokSnapshot[]
+  videos     TikTokVideo[]
+
+  @@index([userId])
+  @@index([tiktokUserId])
+}
+
+// Snapshot temporal — um por sincronização.
+model TikTokSnapshot {
+  id         String   @id @default(cuid())
+  profileId  String
+  userId     String
+  capturedAt DateTime @default(now())
+
+  followersCount Int?
+  followingCount Int?
+  videoCount     Int?
+  likesCount     Int?
+  // Métricas de período quando a API fornecer (nunca inventar).
+  viewsCount     Int?
+  profileViews   Int?
+
+  user    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile TikTokProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([userId, capturedAt])
+  @@index([profileId, capturedAt])
+}
+
+// Vídeo do TikTok — metadados + link para métricas.
+model TikTokVideo {
+  id            String    @id @default(cuid())
+  profileId     String
+  userId        String
+  tiktokVideoId String // video_id do TikTok
+  title         String?
+  coverUrl      String?
+  videoUrl      String?
+  embedUrl      String?
+  likeCount     Int?
+  commentCount  Int?
+  shareCount    Int?
+  playCount     Int?
+  timestamp     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile TikTokProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([tiktokVideoId])
+  @@index([userId, timestamp])
+}
+
+// ------------------------------------------------------------
+// FASE 4 — IA E INTELIGÊNCIA
+// ------------------------------------------------------------
+// Princípios (docs/ESCOPO-OFICIAL.md):
+// - NUNCA inventar dados: campos ausentes → null/indisponível.
+// - Nada de conhecimento proprietário de crescimento ainda.
+// - Conteúdo IA só existe se gerado com API key real configurada.
+
+// Conversa persistida do chat IA Acessor. Uma por usuário/título.
+model AIConversation {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String // título curto, gerado a partir da 1ª pergunta ou padrão
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages AIMessage[]
+
+  @@index([userId, updatedAt])
+}
+
+// Mensagem de uma conversa (user/assistant). Persistida no Neon.
+model AIMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  userId         String
+  role           String // "user" | "assistant"
+  content        String
+  createdAt      DateTime @default(now())
+
+  conversation AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@index([userId])
+}
+
+// "O que a IA aprendeu sobre você". NUNCA preenchido com conhecimento
+// inventado — apenas com sinais observáveis (perfil + interações reais).
+model AIProfile {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  summary            String?
+  niche              String?
+  subNiche           String?
+  objectives         String? // texto curto; lista separada por " | "
+  communicationStyle String?
+  observedPatterns   String?
+  preferredFormats   String?
+  ctaPatterns        String?
+  hookPatterns       String?
+  postingFrequency   String?
+  voiceTone          String?
+  writingStyle       String?
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Copy gerado (legenda/Reel/Story/carrossel/TikTok/CTA/headline/bio/anúncio).
+model GeneratedCopy {
+  id         String   @id @default(cuid())
+  userId     String
+  platform   String // "instagram" | "tiktok"
+  format     String // "legenda" | "reel" | "story" | "carrossel" | "tiktok" | "cta" | "headline" | "bio" | "anuncio"
+  objective  String?
+  tone       String?
+  audience   String?
+  context    String?
+  content    String // texto gerado
+  hookType   String? // tipo de gancho aplicado (regra oficial, quando usada)
+  structure  String? // estrutura de copy sugerida
+  isFavorite Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+// Ideia de conteúdo. Status: NOVA | FAVORITA | DESCARTADA | PRODUZIDA.
+model ContentIdea {
+  id        String   @id @default(cuid())
+  userId    String
+  category  String // "reels" | "stories" | "carrossel" | "tiktok" | "educativo" | "autoridade" | "venda" | "engajamento"
+  title     String
+  format    String?
+  objective String?
+  context   String?
+  rationale String? // "Por que esta ideia foi sugerida?" (integração Fase 4.5)
+  status    String   @default("NOVA") // NOVA | FAVORITA | DESCARTADA | PRODUZIDA
+  platform  String? // "instagram" | "tiktok" | null
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([userId, createdAt])
+}
+
+// Rascunho de publicação (Preview Social) — prepara futura Central de
+// Publicações. NUNCA publica: armazena apenas o que o usuário montar.
+model SocialDraft {
+  id        String   @id @default(cuid())
+  userId    String
+  platform  String // "instagram" | "tiktok"
+  mediaType String   @default("image") // "image" | "video"
+  mediaUrl  String? // data URL (upload local apenas na memória do browser)
+  caption   String?
+  hashtags  String?
+  format    String? // "post" | "reel" | "story" | "carrossel"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+// Recomendação de mentoria — derivada de métricas reais + regras oficiais
+// da base de conhecimento. Nunca conhecimento externo.
+model MentorshipRecommendation {
+  id          String   @id @default(cuid())
+  userId      String
+  category    String // "crescimento" | "engajamento" | "frequencia" | "consistencia" | "conteudo" | "alcance" | "perfil"
+  priority    String   @default("MEDIA") // ALTA | MEDIA | BAIXA
+  problem     String
+  explanation String?
+  action      String?
+  evidence    String? // qual dado real sustenta a recomendação
+  ruleSlug    String? // regra oficial aplicada (conhecimento)
+  test        String? // como validar a recomendação
+  result      String? // resultado posterior observado
+  status      String   @default("NOVA") // NOVA | APLICADA | IGNORADA | CONCLUIDA
+  source      String? // identificador do dado que gerou (ex.: "instagram-snapshots")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([userId, createdAt])
+}
+
+// Score inteligente (0-100) — determinístico, explicável, versionado.
+// Um por avaliação. Snapshot preserva o histórico.
+model ProfileScore {
+  id          String   @id @default(cuid())
+  userId      String
+  platform    String // "instagram" | "tiktok"
+  overall     Int // 0-100
+  growth      Int?
+  engagement  Int?
+  reach       Int?
+  consistency Int?
+  frequency   Int?
+  content     Int?
+  // JSON com fatores: { positive: [...], attention: [...], unavailable: [...] }
+  factors     Json?
+  version     String   @default("growth-score-v1") // fórmula versionável
+  coverage    Int? // cobertura dos dados (%): quanto do score foi calculável
+  weighting   Json? // pesos aplicados { engagement, growth, reach, consistency }
+  createdAt   DateTime @default(now())
+
+  user                 User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ProfileScoreSnapshot ProfileScoreSnapshot[]
+
+  @@index([userId, platform, createdAt])
+}
+
+// Snapshot temporal do score — histórico de evolução.
+model ProfileScoreSnapshot {
+  id        String   @id @default(cuid())
+  userId    String
+  platform  String
+  scoreId   String
+  overall   Int
+  createdAt DateTime @default(now())
+
+  user  User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  score ProfileScore @relation(fields: [scoreId], references: [id], onDelete: Cascade)
+
+  @@index([userId, platform, createdAt])
+}
+
+// ------------------------------------------------------------
+// FASE 4.5 — CÉREBRO ESTRATÉGICO (Base de Conhecimento + Experimentos)
+// ------------------------------------------------------------
+// Princípios (Fase 4.5, conteúdo oficial da DONA):
+// - Conhecimento oficial é GLOBAL (compartilhado entre usuários).
+// - Aprendizado individual (AIProfile, ProfileInsight, experimentos) é
+//   PRIVADO por userId — nunca misturar entre usuários.
+// - Nunca inventar métricas; categorias: DADO REAL, CONHECIMENTO,
+//   INFERÊNCIA, HIPÓTESE, RECOMENDAÇÃO.
+
+// Versão da base de conhecimento. Registra o histórico de atualizações.
+model KnowledgeVersion {
+  id        String   @id @default(cuid())
+  version   Int      @default(1)
+  label     String? // ex.: "v1 — conteúdo oficial da DONA"
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  rules KnowledgeRule[]
+
+  @@unique([version])
+  @@index([active])
+}
+
+// Módulo de conhecimento (01–30), global.
+model KnowledgeModule {
+  id          String   @id @default(cuid())
+  number      Int // 1..30
+  slug        String   @unique
+  title       String
+  description String?
+  version     Int      @default(1)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  rules KnowledgeRule[]
+
+  @@unique([number, version])
+  @@index([active])
+}
+
+// Regra de conhecimento oficial (global), versionável por slug+version.
+model KnowledgeRule {
+  id        String   @id @default(cuid())
+  slug      String
+  moduleId  String?
+  module    Int
+  title     String
+  category  String
+  content   String
+  type      String // PRINCIPLE | DIAGNOSTIC_RULE | STRATEGY_RULE | CONTENT_RULE | METRIC_RULE | EXPERIMENT_RULE | AI_GUARDRAIL
+  priority  String   @default("MEDIA") // ALTA | MEDIA | BAIXA
+  tags      String[] // string array nativo (Neon/Postgres)
+  version   Int      @default(1)
+  versionId String? // FK para KnowledgeVersion.id
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  moduleRef  KnowledgeModule?  @relation(fields: [moduleId], references: [id])
+  versionRef KnowledgeVersion? @relation(fields: [versionId], references: [id])
+
+  @@unique([slug, version])
+  @@index([category])
+  @@index([module])
+  @@index([active])
+}
+
+// Experimento de crescimento (por usuário). NUNCA estatística fictícia:
+// sem amostra suficiente → INCONCLUSIVE.
+model GrowthExperiment {
+  id         String    @id @default(cuid())
+  userId     String
+  platform   String // "instagram" | "tiktok"
+  hypothesis String
+  variable   String // o que está sendo variado (ex.: gancho, formato, tema)
+  baseline   String? // baseline individual de referência
+  status     String    @default("DRAFT") // DRAFT | RUNNING | ENOUGH_DATA | CONFIRMED | REJECTED | INCONCLUSIVE | ARCHIVED
+  startedAt  DateTime?
+  endedAt    DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  user         User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  variants     ExperimentVariant[]
+  observations ExperimentObservation[]
+
+  @@index([userId, status])
+  @@index([userId, createdAt])
+}
+
+// Variação de um experimento — um conteúdo testado com um conjunto de
+// elementos (gancho, formato, tema, estrutura).
+model ExperimentVariant {
+  id           String   @id @default(cuid())
+  experimentId String
+  contentId    String? // vínculo futuro com conteúdo publicado
+  variation    String? // descrição da variação
+  hookType     String?
+  format       String?
+  theme        String?
+  structure    String?
+  createdAt    DateTime @default(now())
+
+  experiment GrowthExperiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+
+  @@index([experimentId])
+}
+
+// Observação coletada de um experimento (antes/depois).
+model ExperimentObservation {
+  id           String   @id @default(cuid())
+  experimentId String
+  metric       String // ex.: "alcance", "engajamento", "seguidores"
+  before       Float?
+  after        Float?
+  delta        Float?
+  conclusion   String?
+  confidence   String? // "BAIXA" | "MEDIA" | "ALTA" — nunca falsa precisão
+  createdAt    DateTime @default(now())
+
+  experiment GrowthExperiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+
+  @@index([experimentId])
+}
+
+// Aprendizado individual do perfil (padrões observados). NUNCA promover
+// inferência a confirmado automaticamente.
+model ProfileInsight {
+  id           String   @id @default(cuid())
+  userId       String
+  platform     String // "instagram" | "tiktok"
+  type         String // OBSERVED | INFERRED | CONFIRMED_BY_EXPERIMENT
+  summary      String
+  detail       String?
+  ruleSlug     String? // regra oficial aplicada (conhecimento), quando houver
+  experimentId String? // vínculo opcional com experimento que confirmou
+  confidence   String? // BAIXA | MEDIA | ALTA
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type])
+  @@index([userId, createdAt])
+}
+
+// ------------------------------------------------------------
+// Enums
+// ------------------------------------------------------------
+enum Role {
+  USER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum ConnectionStatus {
+  DISCONNECTED
+  CONNECTING
+  CONNECTED
+  ERROR
+}

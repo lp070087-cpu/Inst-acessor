@@ -50,6 +50,7 @@ export const REVIEW_REQUIRED_CATEGORIES: readonly CommentCategory[] = [
 
 /** Status do registro em `CommentReplyLog`. */
 export const REPLY_STATUSES = [
+  "PROCESSING",
   "PENDING",
   "APPROVED",
   "SENT",

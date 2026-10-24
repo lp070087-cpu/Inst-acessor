@@ -1,5 +1,6 @@
 import { getDashboardInstagramData } from "@/lib/dashboard/instagram-data";
 import { getTikTokDashboardData } from "@/lib/dashboard/tiktok-data";
+import { withUsage } from "@/lib/billing/usage/meter";
 
 /**
  * Diagnóstico automático — quantitativo/estrutural, baseado em métricas reais.
@@ -44,7 +45,26 @@ function classify(value: number | null, thresholdStrong: number, thresholdWeak: 
   return "oportunidade";
 }
 
+/**
+ * Diagnóstico com MEDIÇÃO de `profile_analysis`.
+ *
+ * O corpo real vive em `runDiagnosisUnmetered`; este wrapper só registra o
+ * consumo DEPOIS do sucesso (falha de leitura não consome franquia) e nunca
+ * deixa uma falha de medição derrubar o diagnóstico.
+ */
 export async function runDiagnosis(
+  userId: string,
+  platform: Platform
+): Promise<DiagnosticItem[]> {
+  const metered = await withUsage(
+    { userId, feature: "profile_analysis", origin: "diagnostico" },
+    () => runDiagnosisUnmetered(userId, platform)
+  );
+  if (!metered.ok) throw new Error("QUOTA_EXCEDIDA");
+  return metered.value;
+}
+
+async function runDiagnosisUnmetered(
   userId: string,
   platform: Platform
 ): Promise<DiagnosticItem[]> {

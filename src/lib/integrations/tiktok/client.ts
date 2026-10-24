@@ -58,42 +58,106 @@ function isRetryableStatus(status: number): boolean {
   return status === 429 || status >= 500;
 }
 
+/**
+ * Códigos de erro do TikTok que são TRANSITÓRIOS mesmo vindo com HTTP 200.
+ *
+ * A API v2 devolve sempre HTTP 200 e sinaliza o resultado no corpo — então o
+ * status HTTP sozinho não identifica um rate limit. Sem esta lista, um
+ * `rate_limit_exceeded` era tratado como erro permanente e não era re-tentado.
+ */
+const TRANSIENT_TIKTOK_CODES = new Set<string>([
+  "rate_limit_exceeded",
+  "internal_error",
+  "server_error",
+]);
+
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
- * GET autenticado na API do TikTok.
- * Cabeçalho Authorization: Bearer <token> — token só no servidor.
+ * Extrai o erro REAL de uma resposta do TikTok. Devolve `null` quando a
+ * resposta é de SUCESSO.
+ *
+ * ===================== POR QUE ISTO EXISTE ============================
+ * A API v2 do TikTok responde SEMPRE HTTP 200 e sinaliza o resultado no campo
+ * `body.error`:
+ *
+ *     { "data": { ... }, "error": { "code": "ok", "message": "", "log_id": "..." } }   ← SUCESSO
+ *     { "error": { "code": "invalid_token", "message": "..." } }                        ← ERRO
+ *
+ * O cliente antigo tratava a mera PRESENÇA do campo `error` como falha
+ * (`if (!res.ok || data.error)`), sem olhar o `code`. Como toda resposta de
+ * sucesso TAMBÉM traz `error` (com `code: "ok"`), o efeito era duplo e grave:
+ *   1. TODA chamada bem-sucedida (perfil, lista de vídeos) era lançada como erro;
+ *   2. um erro real devolvido com HTTP 200 (`invalid_token`, `scope_not_authorized`)
+ *      passava como SUCESSO, e o sync seguia com dados vazios.
+ *
+ * O endpoint de token (`/oauth/token/`) NÃO usa esse envelope: em erro devolve
+ * `error` como STRING (ex.: `"invalid_grant"`) com `error_description`. Os dois
+ * formatos são reconhecidos aqui.
+ * =====================================================================
  */
-export async function tiktokApiGet<T>(
-  path: string,
-  accessToken: string,
-  params?: Record<string, string>
-): Promise<T> {
-  const query = new URLSearchParams(params);
-  const url = `${TIKTOK_API_BASE}${path}${query.toString() ? `?${query.toString()}` : ""}`;
+function readTikTokError(data: unknown): { code: string; message: string } | null {
+  if (!data || typeof data !== "object") return null;
+  const error = (data as Record<string, unknown>).error;
 
+  // Sem campo `error` (ex.: sucesso do endpoint de token) → ok.
+  if (error == null) return null;
+
+  // Endpoint de token em erro: `error` é string.
+  if (typeof error === "string") {
+    const desc = (data as Record<string, unknown>).error_description;
+    return {
+      code: error,
+      message: typeof desc === "string" && desc ? desc : error,
+    };
+  }
+
+  if (typeof error !== "object") return null;
+
+  const rec = error as Record<string, unknown>;
+  const code = typeof rec.code === "string" ? rec.code : "";
+  // Envelope v2: `code === "ok"` significa SUCESSO — não é erro.
+  if (!code || code.toLowerCase() === "ok") return null;
+
+  return {
+    code,
+    message:
+      typeof rec.message === "string" && rec.message
+        ? rec.message
+        : "A API do TikTok retornou um erro.",
+  };
+}
+
+/**
+ * Executa uma requisição à API do TikTok com timeout + retries para
+ * 429/5xx/código transitório/erro de rede, e classificação correta do
+ * envelope `error.code` da API v2. Núcleo compartilhado por GET e POST.
+ */
+async function tiktokRequestWithRetry<T>(url: string, init: RequestInit): Promise<T> {
   let lastError: unknown;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     if (attempt > 0) await delay(RETRY_BASE_DELAY_MS * 2 ** (attempt - 1));
 
     try {
-      const res = await fetch(url, {
-        method: "GET",
-        headers: { Authorization: `Bearer ${accessToken}` },
-        signal: timeoutSignal(),
-      });
+      const res = await fetch(url, { ...init, signal: timeoutSignal() });
 
-      const data = (await res.json()) as T & {
-        error?: { code?: string | number; message?: string };
-      };
+      let data: unknown = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
 
-      if (!res.ok || data.error) {
-        const code = String(data.error?.code ?? data.error?.message ?? res.status);
-        const message = String(data.error?.message ?? "A API do TikTok retornou um erro.");
-        const retryable = isRetryableStatus(res.status);
+      const apiError = readTikTokError(data);
+
+      if (!res.ok || apiError) {
+        const code = apiError?.code ?? String(res.status);
+        const message = apiError?.message ?? "A API do TikTok retornou um erro.";
+        const retryable =
+          isRetryableStatus(res.status) || TRANSIENT_TIKTOK_CODES.has(code);
 
         if (retryable && attempt < MAX_RETRIES) {
           lastError = new TikTokApiError(message, code, true);
@@ -102,7 +166,7 @@ export async function tiktokApiGet<T>(
         throw new TikTokApiError(message, code, retryable);
       }
 
-      return data;
+      return data as T;
     } catch (error) {
       if (error instanceof TikTokApiError) throw error;
 
@@ -128,7 +192,58 @@ export async function tiktokApiGet<T>(
     : new TikTokApiError("Falha ao consultar a API do TikTok.", "UNKNOWN");
 }
 
-/** POST na API do TikTok (sem retries — para troca de token). */
+/** Monta a URL da API v2 com a query string opcional. */
+function buildApiUrl(path: string, params?: Record<string, string>): string {
+  const query = new URLSearchParams(params);
+  return `${TIKTOK_API_BASE}${path}${query.toString() ? `?${query.toString()}` : ""}`;
+}
+
+/**
+ * GET autenticado na API do TikTok.
+ * Cabeçalho Authorization: Bearer <token> — token só no servidor.
+ */
+export async function tiktokApiGet<T>(
+  path: string,
+  accessToken: string,
+  params?: Record<string, string>
+): Promise<T> {
+  return tiktokRequestWithRetry<T>(buildApiUrl(path, params), {
+    method: "GET",
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
+/**
+ * POST autenticado com corpo JSON na API do TikTok.
+ *
+ * Usado pelos endpoints de LEITURA que exigem POST (ex.: `/video/list/`, que
+ * recusa GET) e pelos endpoints que recebem `application/json`. NÃO é usado na
+ * troca de token (ver `tiktokApiPost`).
+ */
+export async function tiktokApiPostJson<T>(
+  path: string,
+  accessToken: string,
+  body: Record<string, unknown>,
+  params?: Record<string, string>
+): Promise<T> {
+  return tiktokRequestWithRetry<T>(buildApiUrl(path, params), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+/**
+ * POST `application/x-www-form-urlencoded` sem autenticação (troca/refresh de
+ * token no endpoint `/oauth/token/`). O corpo vai no body — o client_secret
+ * nunca entra na URL nem em log.
+ *
+ * Lança `TikTokApiError` quando o endpoint recusa (envelope de erro em string
+ * ou status HTTP não-2xx); devolve o corpo em caso de sucesso.
+ */
 export async function tiktokApiPost<T>(
   url: string,
   body: Record<string, unknown>
@@ -144,5 +259,21 @@ export async function tiktokApiPost<T>(
     ),
     signal: timeoutSignal(),
   });
-  return (await res.json()) as T & { error?: Record<string, unknown> };
+
+  let data: unknown = null;
+  try {
+    data = await res.json();
+  } catch {
+    data = null;
+  }
+
+  const apiError = readTikTokError(data);
+  if (!res.ok || apiError) {
+    const code = apiError?.code ?? String(res.status);
+    const message =
+      apiError?.message ?? "O TikTok não pôde concluir a operação solicitada.";
+    throw new TikTokApiError(message, code, isRetryableStatus(res.status));
+  }
+
+  return data as T & { error?: Record<string, unknown> };
 }

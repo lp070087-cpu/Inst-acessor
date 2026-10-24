@@ -1,4 +1,4 @@
-import { tiktokApiGet } from "./client";
+import { tiktokApiGet, tiktokApiPostJson } from "./client";
 import { TikTokApiError } from "./client";
 import type { TikTokSyncData, TikTokUserNode, TikTokVideoNode } from "./types";
 
@@ -37,12 +37,23 @@ export async function getTikTokVideos(
   openId: string,
   limit = 20
 ): Promise<TikTokVideoNode[]> {
-  const data = await tiktokApiGet<{ data?: { videos?: TikTokVideoNode[] } }>(
+  // Endpoint `POST /video/list/`: os `fields` vão na QUERY, o corpo leva só o
+  // `max_count` (schema oficial `VideoListRequest`). O TikTok RECUSA GET neste
+  // endpoint (HTTP 403), então a versão anterior — que fazia um GET com
+  // `max_count` na query — nunca devolvia vídeo algum.
+  //
+  // `openId` não é enviado: o TikTok resolve o usuário pelo próprio token de
+  // acesso, e o corpo oficial não declara esse campo (enviar campo não
+  // declarado arriscaria um 400). O parâmetro permanece na assinatura por
+  // compatibilidade com o chamador.
+  void openId;
+  const data = await tiktokApiPostJson<{ data?: { videos?: TikTokVideoNode[] } }>(
     "/video/list/",
     accessToken,
+    { max_count: limit },
     {
-      fields: "id,title,cover_image_url,video_url,embed_url,like_count,comment_count,share_count,view_count,create_time",
-      max_count: String(limit),
+      fields:
+        "id,title,cover_image_url,video_url,embed_url,like_count,comment_count,share_count,view_count,create_time",
     }
   );
   return data.data?.videos ?? [];

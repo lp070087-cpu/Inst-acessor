@@ -22,23 +22,23 @@ const APP_BASE = getAppBaseUrl();
  * Callback oficial do OAuth do Instagram Business Login.
  *
  * Responsabilidades:
- * - validar `state` (CSRF) â€” associaÃ§Ã£o ao usuÃ¡rio + nÃ£o consumido + nÃ£o expirado;
- * - capturar o `code` (ou tratar negaÃ§Ã£o de permissÃ£o);
+ * - validar `state` (CSRF) — associação ao usuário + não consumido + não expirado;
+ * - capturar o `code` (ou tratar negação de permissão);
  * - trocar `code` por token NO SERVIDOR (code â†’ token curto â†’ token longo ~60d);
- * - obter dados bÃ¡sicos da conta autorizada (nÃ³ `me`, sem PÃ¡gina do Facebook);
- * - persistir token ENCRIPTADO + expiraÃ§Ã£o + scopes + status;
+ * - obter dados básicos da conta autorizada (nó `me`, sem Página do Facebook);
+ * - persistir token ENCRIPTADO + expiração + scopes + status;
  * - redirecionar para /redes-sociais?connected=true.
  *
- * O `state` Ã© gerado em /api/integrations/instagram/connect e Ã© single-use:
+ * O `state` é gerado em /api/integrations/instagram/connect e é single-use:
  * este handler o marca como consumido antes da troca de token.
  *
- * REGRA ANTI-TRAVAMENTO (bug crÃ­tico):
+ * REGRA ANTI-TRAVAMENTO (bug crítico):
  * - Todo caminho de erro SAI do status `CONNECTING`. Falhas precoces
- *   (negado, sem code, state invÃ¡lido/expirado) restauram `CONNECTED` se jÃ¡
+ *   (negado, sem code, state inválido/expirado) restauram `CONNECTED` se já
  *   existia token (ex.: "Trocar conta" negado) ou voltam para `DISCONNECTED`.
- * - Assim o botÃ£o "Conectar Instagram" nunca fica preso em "Conectando...".
+ * - Assim o botão "Conectar Instagram" nunca fica preso em "Conectando...".
  *
- * Erros redirecionam com cÃ³digo controlado â€” NUNCA token ou secret.
+ * Erros redirecionam com código controlado — NUNCA token ou secret.
  */
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -50,14 +50,14 @@ export async function GET(request: Request) {
   const errorReason = url.searchParams.get("error_reason");
   const errorDescription = url.searchParams.get("error_description");
 
-  // ---- UsuÃ¡rio negou permissÃ£o / erro da Meta na autorizaÃ§Ã£o ----
+  // ---- Usuário negou permissão / erro da Meta na autorização ----
   //
   // Dois casos distintos, com mensagens diferentes na UI:
-  //   - CANCELAMENTO: o usuÃ¡rio fechou/negou a tela de autorizaÃ§Ã£o.
-  //   - PERMISSÃƒO: a Meta recusou o acesso (ex.: conta sem permissÃ£o para o app).
+  //   - CANCELAMENTO: o usuário fechou/negou a tela de autorização.
+  //   - PERMISSÃƒO: a Meta recusou o acesso (ex.: conta sem permissão para o app).
   //
-  // Nenhum dos dois Ã© conexÃ£o bem-sucedida. O `error_description` da Meta Ã©
-  // usado apenas para CLASSIFICAR; nunca Ã© repassado para a URL.
+  // Nenhum dos dois é conexão bem-sucedida. O `error_description` da Meta é
+  // usado apenas para CLASSIFICAR; nunca é repassado para a URL.
   if (error) {
     const reason = `${errorReason ?? ""} ${errorDescription ?? ""}`.toLowerCase();
     const isDenied =
@@ -67,7 +67,7 @@ export async function GET(request: Request) {
       reason.includes("denied");
 
     console.warn(
-      `[instagram-callback] autorizaÃ§Ã£o nÃ£o concluÃ­da: error=${error} reason=${errorReason}`
+      `[instagram-callback] autorização não concluída: error=${error} reason=${errorReason}`
     );
     if (state) {
       const userId = await resolveStateUser(state);
@@ -88,7 +88,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${base}${REDIRECT_ERROR}invalid_state`);
   }
 
-  // ---- ValidaÃ§Ã£o do state (CSRF) ----
+  // ---- Validação do state (CSRF) ----
   let oauthState;
   try {
     oauthState = await prisma.oAuthState.findUnique({ where: { state } });
@@ -115,10 +115,13 @@ export async function GET(request: Request) {
 
   // Marca o state como consumido imediatamente (single-use).
   try {
-    await prisma.oAuthState.update({
-      where: { id: oauthState.id },
+    const claimed = await prisma.oAuthState.updateMany({
+      where: { id: oauthState.id, consumed: false, expiresAt: { gt: new Date() } },
       data: { consumed: true },
     });
+    if (claimed.count !== 1) {
+      return NextResponse.redirect(`${base}${REDIRECT_ERROR}invalid_state`);
+    }
   } catch (err) {
     console.error("[instagram-callback] falha ao consumir state", err);
     await resetOrRestore(userId);
@@ -131,7 +134,7 @@ export async function GET(request: Request) {
     tokenData = await exchangeCodeForToken(code);
   } catch (err) {
     if (err instanceof IntegrationConfigError) {
-      console.error("[instagram-callback] configuraÃ§Ã£o ausente", err.message);
+      console.error("[instagram-callback] configuração ausente", err.message);
       await resetOrRestore(userId);
       return NextResponse.redirect(`${base}${REDIRECT_ERROR}config`);
     }
@@ -148,13 +151,13 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${base}${REDIRECT_ERROR}server`);
   }
 
-  // ---- ObtÃ©m dados da conta autorizada ----
+  // ---- Obtém dados da conta autorizada ----
   let account: InstagramAccountInfo;
   try {
     account = await getInstagramAccountInfo(tokenData.accessToken);
   } catch (err) {
     if (err instanceof IntegrationConfigError) {
-      console.error("[instagram-callback] configuraÃ§Ã£o ausente", err.message);
+      console.error("[instagram-callback] configuração ausente", err.message);
       await resetOrRestore(userId);
       return NextResponse.redirect(`${base}${REDIRECT_ERROR}config`);
     }
@@ -174,7 +177,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${base}${REDIRECT_ERROR}server`);
   }
 
-  // ---- Persiste a conexÃ£o com token encriptado ----
+  // ---- Persiste a conexão com token encriptado ----
   try {
     const encrypted = encryptAccessToken(tokenData.accessToken);
     const expiresAt = tokenData.expiresAt;
@@ -236,7 +239,7 @@ export async function GET(request: Request) {
       `[instagram-callback] conexão criada/atualizada para user=${userId} (${account.username})`
     );
   } catch (err) {
-    console.error("[instagram-callback] falha ao persistir conexÃ£o", err);
+    console.error("[instagram-callback] falha ao persistir conexão", err);
     await resetOrRestore(userId);
     return NextResponse.redirect(`${base}${REDIRECT_ERROR}server`);
   }
@@ -259,8 +262,8 @@ async function resolveStateUser(state: string): Promise<string | null> {
 
 /**
  * Sai do status CONNECTING em falhas precoces (sem token novo).
- * - Se jÃ¡ existia conexÃ£o com token (ex.: "Trocar conta"), restaura CONNECTED.
- * - Caso contrÃ¡rio, volta para DISCONNECTED (botÃ£o habilitado novamente).
+ * - Se já existia conexão com token (ex.: "Trocar conta"), restaura CONNECTED.
+ * - Caso contrário, volta para DISCONNECTED (botão habilitado novamente).
  */
 async function resetOrRestore(userId: string) {
   try {
@@ -273,11 +276,11 @@ async function resetOrRestore(userId: string) {
       data: { status: existing?.tokenEncrypted ? "CONNECTED" : "DISCONNECTED" },
     });
   } catch {
-    /* reset Ã© best-effort â€” nÃ£o bloqueia o redirecionamento */
+    /* reset é best-effort — não bloqueia o redirecionamento */
   }
 }
 
-/** Marca a conexÃ£o como erro (preservando histÃ³rico). */
+/** Marca a conexão como erro (preservando histórico). */
 async function markError(userId: string) {
   try {
     await prisma.socialConnection.updateMany({
@@ -285,7 +288,7 @@ async function markError(userId: string) {
       data: { status: "ERROR" },
     });
   } catch {
-    /* falha ao marcar erro nÃ£o bloqueia o redirecionamento */
+    /* falha ao marcar erro não bloqueia o redirecionamento */
   }
 }
 

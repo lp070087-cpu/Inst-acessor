@@ -1,3 +1,4 @@
+import { withSessionApi } from "@/lib/auth/session-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -15,7 +16,7 @@ export const dynamic = "force-dynamic";
  * preferência. A preferência é armazenada no JSON `UserPreferences.dashboard`
  * (SEM mudança de schema). Nenhum segredo trafega.
  */
-export async function GET() {
+async function GETHandler() {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -27,7 +28,7 @@ export async function GET() {
   }
 }
 
-export async function PATCH(request: Request) {
+async function PATCHHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -46,3 +47,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Não foi possível atualizar o nome exibido." }, { status: 500 });
   }
 }
+
+export const GET = withSessionApi(GETHandler);
+
+export const PATCH = withSessionApi(PATCHHandler);

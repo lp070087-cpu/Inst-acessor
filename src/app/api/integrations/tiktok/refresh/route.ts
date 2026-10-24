@@ -1,3 +1,4 @@
+import { withSessionApi } from "@/lib/auth/session-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -6,6 +7,7 @@ import { decryptToken, encryptToken } from "@/lib/crypto";
 import {
   refreshTikTokToken,
   IntegrationConfigError,
+  TikTokApiError,
 } from "@/lib/integrations/tiktok";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +22,7 @@ export const dynamic = "force-dynamic";
  * - Descriptografa no servidor, renova, re-encripta e persiste.
  * - NUNCA retorna token ao cliente.
  */
-export async function POST() {
+async function POSTHandler() {
   let session;
   try {
     session = await requireSession();
@@ -97,10 +99,45 @@ export async function POST() {
         { status: 500 }
       );
     }
-    console.error("[tiktok-refresh] erro ao renovar", err);
+    // Distingue "refresh token inválido/expirado" (não há o que renovar) de uma
+    // falha transitória. Marcar a conexão como ERROR nos dois casos fazia uma
+    // queda momentânea parecer exigir reconexão. ERRO = reconectar.
+    if (isInvalidRefreshToken(err)) {
+      console.error("[tiktok-refresh] refresh token inválido/expirado — reconexão necessária");
+      await prisma.socialConnection
+        .updateMany({ where: { userId, platform: "tiktok" }, data: { status: "ERROR" } })
+        .catch(() => {
+          /* best-effort: a marcação de estado não bloqueia a resposta */
+        });
+      return NextResponse.json(
+        { error: "O acesso ao TikTok expirou. Conecte novamente.", reconnect: true },
+        { status: 401 }
+      );
+    }
+    console.error("[tiktok-refresh] erro transitório ao renovar; credencial preservada");
     return NextResponse.json(
-      { error: "Não foi possível renovar o acesso. Conecte novamente." },
-      { status: 401 }
+      { error: "Não foi possível renovar o acesso agora. Tente novamente em instantes." },
+      { status: 502 }
     );
   }
 }
+
+/**
+ * O TikTok sinaliza refresh token inválido/expirado com um destes códigos no
+ * envelope `error.code`. Fora deles, a falha é transitória (rede/5xx).
+ */
+function isInvalidRefreshToken(err: unknown): boolean {
+  if (err instanceof TikTokApiError) {
+    const code = String(err.code ?? "").toLowerCase();
+    return (
+      code === "invalid_grant" ||
+      code === "invalid_token" ||
+      code === "access_token_invalid" ||
+      code === "refresh_token_invalid" ||
+      code === "token_expired"
+    );
+  }
+  return false;
+}
+
+export const POST = withSessionApi(POSTHandler);

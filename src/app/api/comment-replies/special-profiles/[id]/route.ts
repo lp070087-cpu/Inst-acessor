@@ -1,3 +1,4 @@
+import { withPremiumApi } from "@/lib/auth/premium-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -7,7 +8,7 @@ import { updateSpecialProfileSchema } from "@/lib/validators/comment-replies";
 export const dynamic = "force-dynamic";
 
 /** PATCH /api/comment-replies/special-profiles/[id] */
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+async function PATCHHandler(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireSession();
     const body = await request.json();
@@ -19,7 +20,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       );
     }
 
-    const profile = await updateSpecialProfile(session.user.id, params.id, parsed.data);
+    const profile = await updateSpecialProfile(session.user.id, (await params).id, parsed.data);
     if (!profile) {
       return NextResponse.json({ error: "Perfil não encontrado." }, { status: 404 });
     }
@@ -31,10 +32,10 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 }
 
 /** DELETE /api/comment-replies/special-profiles/[id] */
-export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
+async function DELETEHandler(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireSession();
-    const ok = await deleteSpecialProfile(session.user.id, params.id);
+    const ok = await deleteSpecialProfile(session.user.id, (await params).id);
     if (!ok) {
       return NextResponse.json({ error: "Perfil não encontrado." }, { status: 404 });
     }
@@ -44,3 +45,7 @@ export async function DELETE(_request: Request, { params }: { params: { id: stri
     return NextResponse.json({ error: "Não foi possível remover o perfil." }, { status: 500 });
   }
 }
+
+export const PATCH = withPremiumApi(PATCHHandler);
+
+export const DELETE = withPremiumApi(DELETEHandler);

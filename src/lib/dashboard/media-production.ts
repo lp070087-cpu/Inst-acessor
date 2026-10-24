@@ -1,3 +1,5 @@
+import { cache } from "react";
+
 import { prisma } from "@/lib/db";
 import { averagePresent, mediaInteractions, sumPresent } from "@/lib/media/derived-metrics";
 
@@ -172,7 +174,7 @@ function latestMetricPerMedia(rows: MediaMetricRow[]): Map<string, MediaMetricRo
  * Lê mídia + produção do usuário. Nunca chama a API da Meta.
  * Qualquer falha isolada devolve `null` naquele item — a Dashboard continua.
  */
-export async function getMediaProductionData(
+async function loadMediaProductionData(
   userId: string
 ): Promise<MediaProductionData> {
   const p = prisma as unknown as {
@@ -341,3 +343,6 @@ export async function getMediaProductionData(
 
   return { reels, stories, production, avgInteractionsPerMedia, totalInteractions };
 }
+
+/** Memoizado por requisição — ver `getDashboardInstagramData` para o motivo. */
+export const getMediaProductionData = cache(loadMediaProductionData);

@@ -21,6 +21,7 @@ export interface PublishConnection {
   /** Instagram: igAccountId. TikTok: open_id. */
   externalAccountId: string;
   connectionId: string;
+  scopes: string | null;
 }
 
 export type ConnectionResolution =
@@ -72,5 +73,6 @@ export async function resolvePublishConnection(
     accessToken,
     externalAccountId,
     connectionId: connection.id,
+    scopes: connection.scopes,
   };
 }

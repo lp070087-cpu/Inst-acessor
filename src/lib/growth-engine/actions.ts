@@ -10,6 +10,13 @@ import { GrowthEngineError } from "./types";
 import { notFoundError, validationError } from "./errors";
 import { grantXpAmount } from "@/lib/gamification/xp";
 
+const STORED_PRIORITY = { 1: "ALTA", 2: "MEDIA", 3: "BAIXA" } as const;
+function priorityFromStorage(value: unknown): 1 | 2 | 3 {
+  if (value === "ALTA" || value === "HIGH" || value === "1" || value === 1) return 1;
+  if (value === "BAIXA" || value === "LOW" || value === "3" || value === 3) return 3;
+  return 2;
+}
+
 /**
  * AÇÕES DE CRESCIMENTO (GrowthAction) — Fase 8 (Parte 7 + Parte 17)
  * ==================================================================
@@ -31,7 +38,7 @@ function toView(row: Record<string, unknown>): GrowthActionView {
     title: row.title as string,
     description: (row.description as string | null) ?? null,
     reason: (row.reason as string | null) ?? null,
-    priority: (row.priority as 1 | 2 | 3) ?? 2,
+    priority: priorityFromStorage(row.priority),
     status: (row.status as GrowthActionStatus) ?? "PENDING",
     dueAt: row.dueAt ? new Date(row.dueAt as string).toISOString() : null,
     completedAt: row.completedAt ? new Date(row.completedAt as string).toISOString() : null,
@@ -99,7 +106,7 @@ export async function createAction(
       title: input.title,
       description: input.description ?? null,
       reason: input.reason ?? null,
-      priority: input.priority,
+      priority: STORED_PRIORITY[input.priority],
       status: "PENDING",
       dueAt: input.dueAt ? new Date(input.dueAt) : null,
       sourceSignal: input.sourceSignal ?? null,

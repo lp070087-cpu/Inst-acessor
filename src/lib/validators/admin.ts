@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { GEMINI_MODELS, OPENAI_MODELS } from "@/lib/ai/settings-keys";
+
 /**
  * Validações da área administrativa (Fase 10).
  * Apenas ADMIN pode gravar. Nenhuma chave completa sai do servidor.
@@ -7,11 +9,15 @@ import { z } from "zod";
 
 export const aiProviderSchema = z.enum(["openai", "gemini"]);
 
+/**
+ * Lista de modelos vem da FONTE ÚNICA (`@/lib/ai/settings-keys`).
+ * Antes era um array duplicado aqui — foi exatamente essa duplicação que
+ * manteve `gemini-1.5-flash` (aposentado) válido no boundary da API depois
+ * de a allow-list já ter mudado. Nunca duplique esta lista.
+ */
 export const aiModelSchema = z.enum([
-  "gpt-4o-mini",
-  "gpt-4o",
-  "gemini-1.5-flash",
-  "gemini-1.5-pro",
+  ...OPENAI_MODELS,
+  ...GEMINI_MODELS,
 ]);
 
 /** Salva/atualiza a configuração de um provider de IA. */

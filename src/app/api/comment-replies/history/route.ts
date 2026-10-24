@@ -1,3 +1,4 @@
+import { withPremiumApi } from "@/lib/auth/premium-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -13,7 +14,7 @@ export const dynamic = "force-dynamic";
  * automático. "manual"/"automático" são filtros derivados de `sourceRule`,
  * já que ambos terminam com status SENT.
  */
-export async function GET(request: Request) {
+async function GETHandler(request: Request) {
   try {
     const session = await requireSession();
     const url = new URL(request.url);
@@ -39,3 +40,5 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Não foi possível carregar o histórico." }, { status: 500 });
   }
 }
+
+export const GET = withPremiumApi(GETHandler);

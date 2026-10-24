@@ -1,3 +1,4 @@
+import { withPremiumApi } from "@/lib/auth/premium-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -13,7 +14,7 @@ export const dynamic = "force-dynamic";
  * a IA sabe sobre a pessoa vem de `customInstructions` e, opcionalmente, de
  * uma resposta fixa — ambos escritos pelo usuário.
  */
-export async function GET() {
+async function GETHandler() {
   try {
     const session = await requireSession();
     const profiles = await listSpecialProfiles(session.user.id);
@@ -24,7 +25,7 @@ export async function GET() {
   }
 }
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   try {
     const session = await requireSession();
     const body = await request.json();
@@ -48,3 +49,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: 409 });
   }
 }
+
+export const GET = withPremiumApi(GETHandler);
+
+export const POST = withPremiumApi(POSTHandler);

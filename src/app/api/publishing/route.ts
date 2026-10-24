@@ -1,3 +1,4 @@
+import { withPremiumApi } from "@/lib/auth/premium-api";
 import { NextResponse } from "next/server";
 
 import { requireAdminSession, requireSession } from "@/lib/auth/guard";
@@ -39,7 +40,7 @@ const scheduleSchema = z.object({
   mimeType: z.string().optional(),
 });
 
-export async function GET(request: Request) {
+async function GETHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -58,7 +59,7 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -148,3 +149,7 @@ async function processQueueSafe() {
   const result = await processQueue(20);
   return { ok: true, processed: result.processed, published: result.published, failed: result.failed };
 }
+
+export const GET = withPremiumApi(GETHandler);
+
+export const POST = withPremiumApi(POSTHandler);

@@ -76,7 +76,27 @@ export {
 } from "./mentorship";
 
 // Profile (Perfil de Inteligência)
-export { getAIProfile, type AIProfileData } from "./profile";
+export {
+  getAIProfile,
+  updateAIProfile,
+  AI_PROFILE_WRITABLE_FIELDS,
+  type AIProfileData,
+  type AIProfileWritableField,
+} from "./profile";
+
+// "A IA aprendeu sobre você" — cards honestos + aprendizado (por usuário)
+export {
+  getLearnedProfile,
+  runProfileLearning,
+  getLearnedAt,
+  LEARN_MIN_INTERVAL_MS,
+  EXTRA_FIELDS,
+  type LearnedCard,
+  type LearnedProfileData,
+  type LearnedSource,
+  type LearnResult,
+  type AIProfileField,
+} from "./learned-profile";
 
 // Analysis (Desempenho)
 export {

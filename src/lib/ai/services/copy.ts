@@ -2,6 +2,7 @@ import { ai } from "@/lib/ai/db";
 import { getAIProvider } from "@/lib/ai";
 import { buildUserContext, contextToPrompt } from "@/lib/ai/context";
 import { getRulesByCategory, getRuleBySlug } from "@/lib/knowledge/rules/registry";
+import { withUsage } from "@/lib/billing/usage/meter";
 
 /**
  * Serviço de geração de copy (IA).
@@ -132,7 +133,18 @@ export async function generateCopy(
     .filter(Boolean)
     .join("\n");
 
-  return provider.complete({ system, messages: [{ role: "user", content: userPrompt }] });
+  // MEDIÇÃO: só conta a geração DEPOIS do provider responder com sucesso
+  // (`withUsage` grava após o `await`). Falha técnica da IA não consome
+  // franquia. Uma falha de medição nunca derruba a operação (recordUsage engole).
+  const metered = await withUsage(
+    { userId, feature: "ai_generation", origin: "copy" },
+    () => provider.complete({ system, messages: [{ role: "user", content: userPrompt }] })
+  );
+  if (!metered.ok) {
+    // Só acontece com `LIMITS_ENFORCEMENT_ENABLED` ligado (hoje: modo medição).
+    throw new Error("QUOTA_EXCEDIDA");
+  }
+  return metered.value;
 }
 
 /** Lista copies salvos do usuário. */

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { getAccountData } from "@/lib/profile/account";
 import { describeSync } from "@/lib/dashboard/freshness";
 import { getPlatformSelection } from "@/lib/gamification";
+import { PageHeader } from "@/components/layout/page-header";
 import { PerfilClient } from "@/components/account/perfil-client";
 import type { PerfilConnection } from "@/components/account/perfil-client";
 
@@ -64,11 +65,10 @@ export default async function PerfilPage() {
     // uma conta vazia no lugar.
     return (
       <div className="flex flex-col gap-3">
-        <h1 className="font-display text-[26px] font-bold text-ink">Perfil</h1>
-        <p className="text-[13.5px] text-ink-soft">
-          Não foi possível carregar os dados da sua conta agora. Atualize a página
-          para tentar novamente.
-        </p>
+        <PageHeader
+          title="Perfil"
+          description="Não foi possível carregar os dados da sua conta agora. Atualize a página para tentar novamente."
+        />
       </div>
     );
   }
@@ -94,12 +94,11 @@ export default async function PerfilPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-1">
-        <h1 className="font-display text-[26px] font-bold text-ink">Perfil</h1>
-        <p className="text-[13.5px] text-ink-soft">
-          Sua foto, seus dados e a segurança da sua conta.
-        </p>
-      </div>
+      <PageHeader
+        title="Perfil"
+        description="Sua foto, seus dados e a segurança da sua conta."
+      />
+
 
       <PerfilClient
         account={{

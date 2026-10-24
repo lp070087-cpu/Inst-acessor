@@ -1,19 +1,40 @@
+import { withPremiumApi } from "@/lib/auth/premium-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
 import { generateCopySchema } from "@/lib/validators/ai";
 import { generateCopy, AIConfiguredErrorCopy } from "@/lib/ai/services";
+import { createRateLimiter } from "@/lib/publishing/rate-limit";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * RATE LIMIT POR USUÁRIO — a geração de copy é a operação de MAIOR CUSTO do
+ * app: cada chamada aciona o provedor de IA (cobrado por token). Sem limite,
+ * um usuário (ou um clique repetido) pode multiplicar o custo sem teto.
+ *
+ * 30 gerações/min é folgado para o uso legítimo (escrever uma legenda leva
+ * segundos) e corta o abuso óbvio. É o mesmo `createRateLimiter` já usado na
+ * fila de publicação — in-memory, best-effort; ver a nota sobre limite
+ * distribuído no próprio módulo.
+ */
+const copyRateLimiter = createRateLimiter({ windowMs: 60_000, max: 30 });
 
 /**
  * POST /api/ai/generate-copy
  * Gera uma copy via IA (sem salvar). Salvar → /api/copy.
  */
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
+
+    if (!copyRateLimiter.check(userId)) {
+      return NextResponse.json(
+        { error: "Muitas gerações em pouco tempo. Aguarde um instante." },
+        { status: 429 }
+      );
+    }
 
     const body = await request.json();
     const parsed = generateCopySchema.safeParse(body);
@@ -50,3 +71,5 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export const POST = withPremiumApi(POSTHandler);

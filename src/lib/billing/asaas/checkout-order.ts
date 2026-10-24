@@ -3,10 +3,12 @@ import { randomUUID } from "crypto";
 import { bll, type CheckoutOrder } from "@/lib/billing/db";
 import { getPlanById } from "@/lib/billing/plans";
 import { resolveCheckoutPrice } from "@/lib/billing/promo-db";
+import { attemptCheckoutReservation } from "@/lib/billing/capacity-db";
 import { normalizeEmail } from "@/lib/first-access/core";
 import { asaasClient, AsaasHttpError } from "./client";
 import { getAsaasConfig } from "./config";
-import { buildHostedCheckoutRequest, extractCheckoutUrl } from "./hosted-checkout";
+import { buildHostedCheckoutRequest, extractCheckoutUrl, getAsaasCheckoutOrigin } from "./hosted-checkout";
+import { getGatewayConfig } from "@/lib/billing/gateways/config";
 import type { AsaasCheckoutResponse } from "./types";
 
 /**
@@ -42,6 +44,20 @@ export interface PublicCheckoutResult {
   checkoutUrl: string | null;
   /** Estado externo (quando ok). */
   externalCheckoutId: string | null;
+  /**
+   * Motivo TIPADO do bloqueio quando `ok === false` por CAPACIDADE.
+   * `"capacity"` = sem vaga (teto atingido ou vendas fechadas). A rota traduz
+   * isso num 409 e o cliente oferece a lista de espera. `undefined` nos demais
+   * erros (integração, e-mail, plano) — nada de bloqueio de vaga.
+   */
+  reason?: "capacity" | null;
+  /** Detalhe do bloqueio de capacidade (para a UI decidir o que mostrar). */
+  capacity?: {
+    reason: string;
+    used: number;
+    maxPayers: number | null;
+    seatsRemaining: number | null;
+  } | null;
 }
 
 /**
@@ -124,6 +140,20 @@ export async function startPublicCheckout(input: {
       externalCheckoutId: null,
     };
   }
+  // Check before plan/price reads, capacity reservation, order creation or HTTP.
+  // The current API may return only an ID: every checkout therefore requires
+  // an explicit hosted origin even when older responses include a direct link.
+  if (!getAsaasCheckoutOrigin(cfg, process.env.VERCEL_ENV === "preview")) {
+    console.error("[asaas-checkout-order] configuração de ASAAS_CHECKOUT_ORIGIN/ASAAS_BASE_URL inválida ou ausente");
+    return {
+      ok: false,
+      status: "INTEGRATION_NOT_CONFIGURED",
+      message: "Pagamento online indisponível: a origem e o ambiente de checkout precisam ser configurados com segurança. Contate o suporte.",
+      order: null,
+      checkoutUrl: null,
+      externalCheckoutId: null,
+    };
+  }
   if (!email) {
     return {
       ok: false,
@@ -151,6 +181,27 @@ export async function startPublicCheckout(input: {
     };
   }
 
+  // 2b) Gateway: o plano precisa permitir Asaas (lido da config unificada).
+  // Degradação honesta: se a config não puder ser lida, permite (o checkout
+  // segue com Asaas — o padrão seguro).
+  try {
+    const gw = await getGatewayConfig();
+    const allowed = gw.plans[plan.slug] ?? ["asaas"];
+    const asaasEnabled = gw.gateways.asaas.enabled;
+    if (!asaasEnabled || !allowed.includes("asaas")) {
+      return {
+        ok: false,
+        status: "CONFIGURED",
+        message: "Forma de pagamento indisponível para este plano.",
+        order: null,
+        checkoutUrl: null,
+        externalCheckoutId: null,
+      };
+    }
+  } catch {
+    // segue — sem config, vale o padrão (Asaas)
+  }
+
   // 3) PREÇO — resolvido AQUI, no servidor (P17–P21). O navegador nunca envia
   //    valor: ele envia o `planId`. A promoção (pré-venda) só se aplica se
   //    (a) o admin a mantiver ligada, (b) o countdown — se houver — ainda não
@@ -166,7 +217,7 @@ export async function startPublicCheckout(input: {
   // 4) Referência externa ÚNICA desta compra.
   const externalReference = buildExternalReference(email);
 
-  // 5) Cria a ordem local em PENDING ANTES da chamada externa (reconciliação).
+  // 5) RESERVA DE VAGA + criação da ordem local em PENDING, na MESMA transação.
   //    `planId` é uma FK opcional. Quando `getPlanById` cai no FALLBACK do
   //    catálogo em memória (banco indisponível no momento da resolução), o id
   //    devolvido é `plan:<slug>` — que NÃO existe na tabela `Plan`. Gravar isso
@@ -174,49 +225,67 @@ export async function startPublicCheckout(input: {
   //    `null` (a coluna aceita nulo) e seguimos: o `planSlug`/`planName`/
   //    `expectedAmountCents` já carregam tudo o que a ordem precisa para
   //    reconciliar no webhook.
+  //
+  //    SEM VAGA → devolvemos `reason:"capacity"` e NENHUMA ordem é criada.
+  //    A decisão (pagantes ativos + reservas) é tomada DENTRO da transação
+  //    SERIALIZABLE, então dois compradores simultâneos nunca pegam a última
+  //    vaga. Este é o chokepoint por onde TODA compra pública passa.
   const planIdForOrder = plan.id.startsWith("plan:") ? null : plan.id;
 
-  const order = (await bll.checkoutOrder.create({
-    data: {
-      email,
-      name: input.name ?? null,
-      userId: input.userId ?? null,
-      planId: planIdForOrder,
-      planSlug: plan.slug,
-      planName: plan.name,
-      // O valor ESPERADO pela ordem é o preço RESOLVIDO NO SERVIDOR, não o de
-      // catálogo: é contra este número que o webhook valida o valor que o Asaas
-      // confirmar. Um checkout criado com promoção e conferido contra o preço
-      // cheio seria recusado como divergência; e um checkout com preço cheio
-      // conferido contra a promoção liberaria acesso pagando menos.
-      expectedAmountCents: chargeCents,
-      currency: plan.currency,
-      billingType: plan.type, // "ONE_TIME" | "RECURRING"
-      billingInterval: plan.billingInterval ?? null,
-      status: "PENDING",
-      externalReference,
-      externalCheckoutId: null,
-      externalPaymentId: null,
-      externalSubscriptionId: null,
-      paidAt: null,
-      audit: {
-        step: "order_created",
-        at: new Date().toISOString(),
-        // Trilha de auditoria do PREÇO: qual foi cobrado, qual era o cheio e
-        // por que a promoção aplicou (ou não). Nunca guarda dado pessoal.
-        basePriceCents: pricing.basePriceCents,
-        chargedPriceCents: chargeCents,
-        promoApplied: pricing.applied,
-        promoLabel: pricing.label,
-        promoSkipReason: pricing.skipReason,
-        promoCountdownRunning: pricing.countdownRunning,
-      },
-      // `id` e `updatedAt` NÃO são informados de propósito: são gerados pelo
-      // Prisma (`@default(cuid())` e `@updatedAt` no schema). Enviá-los aqui
-      // como `undefined` era o que disparava o PrismaClientValidationError
-      // no fluxo público do checkout.
+  const reservation = await attemptCheckoutReservation({
+    email,
+    name: input.name ?? null,
+    userId: input.userId ?? null,
+    planId: planIdForOrder,
+    planSlug: plan.slug,
+    planName: plan.name,
+    // O valor ESPERADO pela ordem é o preço RESOLVIDO NO SERVIDOR, não o de
+    // catálogo: é contra este número que o webhook valida o valor que o Asaas
+    // confirmar. Um checkout criado com promoção e conferido contra o preço
+    // cheio seria recusado como divergência; e um checkout com preço cheio
+    // conferido contra a promoção liberaria acesso pagando menos.
+    expectedAmountCents: chargeCents,
+    currency: plan.currency,
+    billingType: plan.type, // "ONE_TIME" | "RECURRING"
+    billingInterval: plan.billingInterval ?? null,
+    externalReference,
+    audit: {
+      step: "order_created",
+      at: new Date().toISOString(),
+      // Trilha de auditoria do PREÇO: qual foi cobrado, qual era o cheio e
+      // por que a promoção aplicou (ou não). Nunca guarda dado pessoal.
+      basePriceCents: pricing.basePriceCents,
+      chargedPriceCents: chargeCents,
+      promoApplied: pricing.applied,
+      promoLabel: pricing.label,
+      promoSkipReason: pricing.skipReason,
+      promoCountdownRunning: pricing.countdownRunning,
     },
-  })) as unknown as CheckoutOrder;
+    // `id` e `updatedAt` NÃO são informados de propósito: são gerados pelo
+    // Prisma (`@default(cuid())` e `@updatedAt` no schema).
+  });
+
+  if (!reservation.ok) {
+    // Sem vaga: NADA foi criado e NADA será cobrado. A rota traduz isto num 409
+    // e o checkout oferece a lista de espera com a mensagem do admin.
+    return {
+      ok: false,
+      status: "CONFIGURED",
+      message: reservation.decision.message,
+      order: null,
+      checkoutUrl: null,
+      externalCheckoutId: null,
+      reason: "capacity",
+      capacity: {
+        reason: reservation.decision.reason,
+        used: reservation.decision.used,
+        maxPayers: reservation.decision.maxPayers,
+        seatsRemaining: reservation.decision.seatsRemaining,
+      },
+    };
+  }
+
+  const order = reservation.order as unknown as CheckoutOrder;
 
   // 6) Chama o checkout hospedado oficial (POST /v3/checkouts).
   //    Se o comprador já é nosso User e já tem customer no Asaas, REUTILIZA —
@@ -282,7 +351,7 @@ export async function startPublicCheckout(input: {
     };
   }
 
-  const checkoutUrl = extractCheckoutUrl(checkout);
+  const checkoutUrl = extractCheckoutUrl(checkout, cfg);
 
   // 6) Persiste o id do checkout externo + URL (status segue PENDING).
   try {

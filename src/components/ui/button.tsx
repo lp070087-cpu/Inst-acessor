@@ -1,8 +1,8 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-type ButtonVariant = "primary" | "ghost" | "outline" | "danger" | "success";
-type ButtonSize = "xs" | "sm" | "md" | "lg";
+export type ButtonVariant = "primary" | "ghost" | "outline" | "danger" | "success";
+export type ButtonSize = "xs" | "sm" | "md" | "lg";
 
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -11,10 +11,10 @@ export interface ButtonProps
   block?: boolean;
 }
 
-const base =
+export const BUTTON_BASE =
   "inline-flex items-center justify-center gap-2 font-semibold whitespace-nowrap select-none transition-all duration-300 disabled:opacity-50 disabled:pointer-events-none cursor-pointer";
 
-const variants: Record<ButtonVariant, string> = {
+export const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
   // Gradiente oficial rosa/roxo da apresentação
   primary:
     "bg-[linear-gradient(115deg,#F43F8E_0%,#A855F7_45%,#6366F1_100%)] bg-[length:160%_160%] text-white shadow-brand hover:shadow-brand-lg hover:-translate-y-0.5 hover:bg-[position:100%_100%]",
@@ -28,13 +28,36 @@ const variants: Record<ButtonVariant, string> = {
     "bg-success text-white shadow-[0_8px_30px_rgba(16,185,129,.25)] hover:-translate-y-0.5",
 };
 
-const sizes: Record<ButtonSize, string> = {
+export const BUTTON_SIZES: Record<ButtonSize, string> = {
   xs: "text-[12.5px] px-3 py-1.5 rounded-[10px]",
   sm: "text-[14px] px-4 py-2.5 rounded-pill",
   md: "text-[15px] px-6 py-3 rounded-pill",
   lg: "text-[16.5px] px-8 py-4 rounded-pill",
 };
 
+export function buttonClass({
+  variant = "primary",
+  size = "md",
+  block = false,
+  className,
+}: {
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  block?: boolean;
+  className?: string;
+} = {}) {
+  return cn(BUTTON_BASE, BUTTON_VARIANTS[variant], BUTTON_SIZES[size], block && "w-full", className);
+}
+
+/**
+ * Botão do app — um só lugar para a aparência.
+ *
+ * `buttonClass()` existe porque o mesmo visual precisa ser aplicado a um
+ * `<Link>` do Next (navegação de verdade, o certo para ir a outra rota) e a
+ * um `<button>` (ação). Antes disso o gradiente oficial estava copiado à mão
+ * dentro de quatro arquivos, cada cópia com uma divergência pequena; agora as
+ * duas formas puxam da MESMA tabela acima.
+ */
 export function Button({
   className,
   variant = "primary",
@@ -46,7 +69,7 @@ export function Button({
   return (
     <button
       type={type}
-      className={cn(base, variants[variant], sizes[size], block && "w-full", className)}
+      className={buttonClass({ variant, size, block, className })}
       {...props}
     />
   );

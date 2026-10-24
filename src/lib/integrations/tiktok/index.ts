@@ -14,6 +14,7 @@ export {
 export {
   tiktokApiGet,
   tiktokApiPost,
+  tiktokApiPostJson,
   getTikTokCredentials,
   getTikTokRedirectUri,
   TikTokApiError,

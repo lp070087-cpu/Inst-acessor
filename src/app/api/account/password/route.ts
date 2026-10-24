@@ -1,3 +1,4 @@
+import { withSessionApi } from "@/lib/auth/session-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -31,7 +32,7 @@ export const dynamic = "force-dynamic";
  * recebem uma resposta específica — a tela orienta o primeiro acesso em vez de
  * fingir que a senha atual estava errada.
  */
-export async function PATCH(request: Request) {
+async function PATCHHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -89,3 +90,5 @@ export async function PATCH(request: Request) {
     );
   }
 }
+
+export const PATCH = withSessionApi(PATCHHandler);

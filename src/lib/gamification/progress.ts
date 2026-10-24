@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { gp } from "@/lib/gamification/db";
-import { grantXpAmount } from "@/lib/gamification/xp";
+import { grantXpAmount, withGamificationTransaction } from "@/lib/gamification/xp";
 import {
   ACHIEVEMENT_CATALOG,
   getAchievementBySlug,
@@ -202,13 +202,13 @@ async function ensureUserAchievements(userId: string): Promise<void> {
     if (have.has(def.slug)) continue;
     const ach = await gp.achievement.upsert({
       where: { slug: def.slug },
-      update: {},
+      update: { slug: def.slug },
       create: { ...toAchievementModel(def), slug: def.slug },
     });
     const achievementId = (ach as { id: string }).id;
     await gp.userAchievement.upsert({
       where: { userId_achievementId: { userId, achievementId } },
-      update: {},
+      update: { userId },
       create: { userId, achievementId, progress: 0, unlocked: false, xpGranted: false },
     });
   }
@@ -222,6 +222,10 @@ export async function getUserAchievements(
   userId: string,
   opts?: { onlyVisible?: boolean }
 ): Promise<UserAchievementView[]> {
+  return withGamificationTransaction(userId, () => getUserAchievementsLocked(userId, opts));
+}
+
+async function getUserAchievementsLocked(userId: string, opts?: { onlyVisible?: boolean }): Promise<UserAchievementView[]> {
   await ensureUserAchievements(userId);
 
   const userRows = await gp.userAchievement.findMany({
@@ -306,13 +310,20 @@ export interface UnlockResult {
  * (idempotente por source+refId em XpLog).
  */
 export async function checkAndUnlockAchievements(userId: string): Promise<UnlockResult> {
+  return withGamificationTransaction(userId, () => checkAndUnlockAchievementsLocked(userId));
+}
+
+async function checkAndUnlockAchievementsLocked(userId: string): Promise<UnlockResult> {
   const views = await getUserAchievements(userId);
   let unlockedNow = false;
   let xpGrantedNow = false;
   let totalAmount = 0;
 
   for (const v of views) {
-    if (v.unlocked || v.progress < v.threshold) continue;
+    if (v.unlocked && v.xpGranted) continue;
+    // An already unlocked historical reward does not need to reach a possibly
+    // changed threshold again. The XP audit key remains the payout authority.
+    if (!v.unlocked && v.progress < v.threshold) continue;
 
     const ach = await gp.achievement.findUnique({ where: { slug: v.slug } });
     if (!ach) continue;
@@ -322,17 +333,15 @@ export async function checkAndUnlockAchievements(userId: string): Promise<Unlock
     });
     if (!row) continue;
 
+    // Reward, audit and unlocked flags commit (or roll back) together.
+    const reward = await grantXpAmount(userId, "conquista-desbloqueada", v.slug, v.xpReward);
     await gp.userAchievement.update({
       where: { id: (row as { id: string }).id },
-      data: { unlocked: true, unlockedAt: new Date(), xpGranted: true },
+      data: { unlocked: true, unlockedAt: v.unlocked ? (row as { unlockedAt: Date | null }).unlockedAt : new Date(), xpGranted: true },
     });
-    unlockedNow = true;
-    xpGrantedNow = true;
-    totalAmount += v.xpReward;
-
-    // Concede o XP da conquista (idempotente por source+refId).
-    // amount = xpReward real (5–100 conforme a dificuldade da conquista).
-    await grantXpAmount(userId, "conquista-desbloqueada", v.slug, v.xpReward);
+    unlockedNow = unlockedNow || !v.unlocked;
+    xpGrantedNow = xpGrantedNow || reward.granted;
+    if (reward.granted) totalAmount += v.xpReward;
   }
 
   return { unlockedNow, xpGrantedNow, amount: totalAmount };

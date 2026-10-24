@@ -4,6 +4,8 @@ import * as React from "react";
 import { BarChart3, Loader2, TrendingUp, TrendingDown, Trophy, Minus } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { EmptyState } from "@/components/ui/empty-state";
+import { OpportunitiesSection } from "@/components/ai/opportunities-section";
+import type { OpportunitiesData } from "@/lib/ai/opportunities";
 import { cn } from "@/lib/utils";
 
 const PLATFORMS = [
@@ -60,6 +62,8 @@ interface AnaliseClientProps {
     instagram: AnalysisResult;
     tiktok: AnalysisResult;
   } | null;
+  /** Oportunidades derivadas dos dados reais, carregadas no servidor. */
+  opportunities: OpportunitiesData;
 }
 
 function fmt(n: number | null): string {
@@ -77,7 +81,7 @@ function formatDate(iso: string): string {
   }
 }
 
-export function AnaliseClient({ initialData }: AnaliseClientProps) {
+export function AnaliseClient({ initialData, opportunities }: AnaliseClientProps) {
   const { toast } = useToast();
 
   const [platform, setPlatform] = React.useState<string>("instagram");
@@ -325,6 +329,11 @@ export function AnaliseClient({ initialData }: AnaliseClientProps) {
           </p>
         </>
       )}
+
+      {/* Oportunidades — derivadas dos MESMOS dados reais, carregadas no
+          servidor. Independentes do filtro de período/plataforma, então ficam
+          fora do bloco de carregamento acima. */}
+      <OpportunitiesSection data={opportunities} />
     </div>
   );
 }

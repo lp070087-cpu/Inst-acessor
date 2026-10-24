@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { Image as ImageIcon, Clapperboard, ChevronLeft, ChevronRight } from "lucide-react";
+import { clampFraming, imageGeometry } from "@/lib/media-editor/image-crop";
+import { Image as ImageIcon, Clapperboard, ChevronLeft, ChevronRight, Crop } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import {
@@ -58,9 +59,15 @@ export interface PreviewSlide {
   url: string;
   type: "image" | "video";
   framing: Framing;
+ originalUrl?:string;exportedUrl?:string;rotation?:number;brightness?:number;contrast?:number;
 }
 
 interface PreviewFrameProps {
+ aspectRatio?:string;
+  /** Proporção numérica (largura/altura) do recorte; tem prioridade sobre `aspectRatio`. */
+  aspect?: number;
+  /** Abre o editor de imagem do slide atual. */
+  onEditImage?: () => void;
   format: PreviewFormat;
   slides: PreviewSlide[];
   activeIndex: number;
@@ -76,6 +83,9 @@ interface PreviewFrameProps {
 
 export function PreviewFrame({
   format,
+  aspectRatio,
+  aspect,
+  onEditImage,
   slides,
   activeIndex,
   onIndexChange,
@@ -90,6 +100,10 @@ export function PreviewFrame({
   const isReel = format === "reel";
   const isCarousel = format === "carrossel";
   const hasNav = isCarousel && slides.length > 1;
+ const [dimensions,setDimensions]=React.useState({width:1,height:1});
+ const ratio=aspect ?? (aspectRatio&&aspectRatio.includes(':')?aspectRatio.split(':').map(Number).reduce((a,b)=>a/b):FORMAT_ASPECT[format]);
+ const frameWidth=1000,frameHeight=1000/ratio;
+
 
   /**
    * ENQUADRAMENTO DURANTE O ARRASTE — estado LOCAL, não o do pai.
@@ -110,6 +124,7 @@ export function PreviewFrame({
   // Fora do arraste, o que vale é o valor do PAI (troca de slide, zoom pelo
   // slider, "Centralizar", rascunho reaberto). O local é só o do gesto em curso.
   const effectiveFraming = liveFraming ?? slide?.framing ?? { zoom: 1, offsetX: 0, offsetY: 0 };
+ const geometry=imageGeometry(dimensions.width,dimensions.height,frameWidth,frameHeight,slide?.rotation??0,effectiveFraming.zoom);
 
   // Sai do modo local assim que o pai confirma o valor — sem isso o componente
   // ficaria preso ao último arraste e ignoraria mudanças externas.
@@ -131,7 +146,9 @@ export function PreviewFrame({
   }, () => {
     // Fim do gesto: aí sim o pai (e o rascunho) recebe o valor final.
     if (liveRef.current) commitFraming(liveRef.current);
-  });
+  }, slide?.type === "image" && dimensions.width > 1
+    ? (next) => clampFraming(dimensions.width, dimensions.height, ratio, slide.rotation ?? 0, next)
+    : undefined);
 
   return (
     <div className="flex flex-col gap-2 w-full">
@@ -195,12 +212,12 @@ export function PreviewFrame({
           {/* ---------- ÁREA DE MÍDIA (única parte que muda de proporção) ---------- */}
           <div
             className="relative w-full bg-surface overflow-hidden"
-            style={{ aspectRatio: String(FORMAT_ASPECT[format]) }}
+            style={{ aspectRatio: String(ratio) }}
           >
             {slide ? (
               <div
                 className={cn(
-                  "w-full h-full",
+                  "relative w-full h-full",
                   interactive && "cursor-grab active:cursor-grabbing touch-none"
                 )}
                 onPointerDown={interactive ? onDrag : undefined}
@@ -213,8 +230,9 @@ export function PreviewFrame({
                     alt="Mídia do preview"
                     draggable={false}
                     decoding="async"
-                    className="w-full h-full object-cover select-none"
-                    style={framingStyle(slide.framing)}
+                    onLoad={e=>setDimensions({width:e.currentTarget.naturalWidth,height:e.currentTarget.naturalHeight})}
+ className="absolute select-none max-w-none"
+                    style={{width:`${geometry.width/frameWidth*100}%`,height:`${geometry.height/frameHeight*100}%`,left:`${50+effectiveFraming.offsetX*100}%`,top:`${50+effectiveFraming.offsetY*100}%`,transform:`translate(-50%,-50%) rotate(${slide.rotation??0}deg)`,filter:`brightness(${slide.brightness??1}) contrast(${slide.contrast??1})`}}
                   />
                 ) : (
                   /* SEM autoPlay: um preview que toca sozinho decodifica vídeo
@@ -224,7 +242,7 @@ export function PreviewFrame({
                   <video
                     src={slide.url}
                     className="w-full h-full object-cover"
-                    style={framingStyle(slide.framing)}
+                    style={{...framingStyle(effectiveFraming), transform:`${framingStyle(effectiveFraming).transform} rotate(${slide.rotation??0}deg)`,filter:`brightness(${slide.brightness??1}) contrast(${slide.contrast??1})`}}
                     muted
                     playsInline
                     preload="metadata"
@@ -239,6 +257,16 @@ export function PreviewFrame({
                   Adicione uma mídia para visualizar o preview.
                 </span>
               </div>
+            )}
+
+            {slide?.type === "image" && interactive && onEditImage && (
+              <button
+                type="button"
+                onClick={onEditImage}
+                className={cn("absolute right-2 z-20 inline-flex min-h-[34px] items-center gap-1.5 rounded-full bg-white/95 px-3 text-[12px] font-semibold text-ink shadow-md ring-1 ring-black/5 backdrop-blur transition hover:-translate-y-0.5 hover:shadow-lg", isStory ? "top-16" : "top-2")}
+              >
+                <Crop size={14} aria-hidden="true" /> Editar imagem
+              </button>
             )}
 
             {/* Navegação do carrossel — sobre a imagem, como no feed. */}
@@ -333,7 +361,7 @@ export function PreviewFrame({
       {/* ---------- AVISO DE ENQUADRAMENTO ---------- */}
       {interactive && slide && (
         <p className="text-[11.5px] text-ink-muted text-center">
-          Arraste a mídia dentro da prévia para reposicionar. Ajuste o zoom ao lado.
+          {slide.type === "image" ? "Arraste para reposicionar ou toque em Editar imagem para recortar, girar e ampliar." : "Arraste a mídia dentro da prévia para reposicionar. Ajuste o zoom ao lado."}
         </p>
       )}
     </div>

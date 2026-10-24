@@ -16,46 +16,46 @@ const config: Config = {
         card: "#FFFFFF",
         ink: {
           DEFAULT: "#111318",
-          soft: "#667085",
-          muted: "#98A2B3",
+          soft: "#596579",
+          muted: "#596579",
         },
         border: {
           DEFAULT: "#E5E7EB",
           soft: "#EDEFF2",
         },
         // Marca — gradiente controlado (magenta → roxo → azul)
-        magenta: "#F43F8E",
-        purple: "#8B5CF6",
+        magenta: "#be185d",
+        purple: "#6d28d9",
         indigo: "#4F46E5",
-        blue: "#3B82F6",
+        blue: "#1d4ed8",
         // Estados semânticos
         success: {
-          DEFAULT: "#10B981",
+          DEFAULT: "#047857",
           soft: "rgba(16,185,129,.10)",
         },
         danger: {
-          DEFAULT: "#EF4444",
+          DEFAULT: "#b91c1c",
           soft: "rgba(239,68,68,.10)",
           softStrong: "rgba(239,68,68,.22)",
           softMid: "rgba(239,68,68,.16)",
         },
         warn: {
-          DEFAULT: "#F59E0B",
+          DEFAULT: "#92400e",
           soft: "rgba(245,158,11,.12)",
         },
         info: {
-          DEFAULT: "#3B82F6",
+          DEFAULT: "#1d4ed8",
           soft: "rgba(59,130,246,.10)",
         },
         ai: {
-          DEFAULT: "#8B5CF6",
+          DEFAULT: "#6d28d9",
           soft: "rgba(139,92,246,.10)",
         },
       },
       fontFamily: {
-        display: ['"Sora"', '"Plus Jakarta Sans"', "system-ui", "sans-serif"],
-        body: ['"Plus Jakarta Sans"', "system-ui", "-apple-system", "sans-serif"],
-        data: ['"Space Grotesk"', "ui-monospace", '"SF Mono"', "monospace"],
+        display: ["var(--font-sora)", "var(--font-plus-jakarta)", "system-ui", "sans-serif"],
+        body: ["var(--font-plus-jakarta)", "system-ui", "-apple-system", "sans-serif"],
+        data: ["var(--font-space-grotesk)", "ui-monospace", '"SF Mono"', "monospace"],
       },
       borderRadius: {
         xs: "8px",
@@ -75,7 +75,7 @@ const config: Config = {
       },
       backgroundImage: {
         "brand-grad":
-          "linear-gradient(115deg, #F43F8E 0%, #A855F7 45%, #6366F1 100%)",
+          "linear-gradient(115deg, #be185d 0%, #7e22ce 45%, #4338ca 100%)",
         "brand-grad-soft":
           "linear-gradient(115deg, rgba(244,63,142,.10), rgba(168,85,247,.10), rgba(99,102,241,.10))",
         "brand-grad-vertical": "linear-gradient(160deg, #fff 0%, #FBF8FF 55%, #F8F6FF 100%)",

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { isOfficialAdminEmail } from "@/lib/auth/admin-access";
+import { hasVerifiedIdentity } from "@/lib/auth/identity";
 import { effectiveGrantStatus } from "@/lib/first-access/core";
 // A lista de rotas premium vive em `@/lib/navigation` para ser a MESMA fonte no
 // servidor (aqui) e no client (a sidebar, que marca quais itens ficam
@@ -201,8 +202,8 @@ async function readPremiumSources(userId: string): Promise<{
 }> {
   const user = (await prisma.user.findUnique({
     where: { id: userId },
-    select: { email: true },
-  })) as unknown as { email: string | null } | null;
+    select: { email: true, emailVerified: true, firstAccessCompleted: true },
+  })) as unknown as { email: string | null; emailVerified: Date | null; firstAccessCompleted: boolean } | null;
 
   const p = prisma as unknown as {
     accessGrant?: { findMany(args?: unknown): Promise<GrantLite[]> };
@@ -221,7 +222,7 @@ async function readPremiumSources(userId: string): Promise<{
   //     um cliente que pagou. O e-mail é a ponte; nunca é fonte de privilégio
   //     porque o e-mail vem do banco, não do navegador.
   const normalizedEmail = (email ?? "").trim().toLowerCase();
-  const grantWhere = normalizedEmail
+  const grantWhere = normalizedEmail && hasVerifiedIdentity(user)
     ? { OR: [{ userId }, { email: normalizedEmail }] }
     : { userId };
 
@@ -239,7 +240,7 @@ async function readPremiumSources(userId: string): Promise<{
 
   return {
     email,
-    isAdmin: isOfficialAdminEmail(email),
+    isAdmin: hasVerifiedIdentity(user) && isOfficialAdminEmail(email),
     grants,
     subscriptions,
   };

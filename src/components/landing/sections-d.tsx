@@ -6,10 +6,11 @@ import {
   planLandingPeriod,
   planShortName,
   planAfterText,
-  LANDING_PLAN_FEATURES,
 } from "@/lib/billing/plans/display";
+import { quotaForPlan } from "@/lib/billing/plans/limits";
 import { getPlanPromoDisplay } from "@/lib/billing/promo-db";
 import { PromoCountdown } from "@/components/billing/promo-countdown";
+import { WaitlistPlanLink } from "./launch-waitlist";
 import {
   ArrowRight,
   CheckCircle2,
@@ -26,6 +27,9 @@ import {
   ChevronDown,
   Workflow,
   Info,
+  Target,
+  Share2,
+  History,
 } from "lucide-react";
 
 /* ============================================================
@@ -118,20 +122,104 @@ export function Automacoes() {
   );
 }
 
+/**
+ * As duas redes NÃO estão no mesmo estágio, e a página não deve sugerir que
+ * estão. O Instagram é o caminho validado de ponta a ponta (conexão, métricas
+ * e publicação em produção). O TikTok ainda está em integração — por isso
+ * carrega o mesmo selo "Em preparação" já usado em Automações, em vez de um
+ * checkmark verde idêntico ao do Instagram.
+ */
 const SOCIAL_CARDS = [
   {
     platform: "instagram",
     name: "Instagram",
     desc: "Análise completa do perfil, agendamento e publicação direta.",
     feats: ["Métricas e score", "Calendário e agendamento", "Publicação com confirmação"],
+    status: "ready" as const,
+    statusLabel: "Disponível",
   },
   {
     platform: "tiktok",
     name: "TikTok",
     desc: "Acompanhe vídeos, seguidores e engajamento em um só painel.",
     feats: ["Métricas de vídeos", "Sync de perfil", "Gestão de conexão"],
+    status: "soon" as const,
+    statusLabel: "Em preparação",
   },
 ];
+
+/* ============================================================
+   CAPACIDADES — funções secundárias AGRUPADAS em cards compactos
+   ------------------------------------------------------------
+   Substitui as seções inteiras de Metas, Perfil, Histórico,
+   Automações e Segurança. Cada card descreve, em uma frase, o que
+   a função REALMENTE entrega (mesmo texto que já estava aprovado
+   nas seções originais) — nada de recurso novo. Reaproveita as
+   classes `.lnd-security-grid` / `.lnd-sec-card`, que já existiam
+   no `landing.css`.
+   ============================================================ */
+const CAPACIDADES = [
+  {
+    ic: Target,
+    t: "Metas",
+    d: "Objetivos diários, semanais e mensais com barras de progresso, tempo restante e recompensas.",
+  },
+  {
+    ic: Share2,
+    t: "Perfil público",
+    d: "Um cartão com a sua jornada — rank, XP, conquistas e evolução — pronto para compartilhar.",
+  },
+  {
+    ic: History,
+    t: "Histórico",
+    d: "A mudança dos números e do Score ao longo do tempo, de 7 dias a 1 ano.",
+  },
+  {
+    ic: Workflow,
+    t: "Automações",
+    d: "Growth Engine com missão do dia, padrões, experimentos e alertas acionáveis.",
+  },
+  {
+    ic: ShieldCheck,
+    t: "Segurança",
+    d: "Conexão transparente com a Meta, controle sempre com você e nada publicado sem autorização.",
+  },
+  {
+    ic: Bot,
+    t: "Respostas inteligentes",
+    d: "Sugestões de resposta para comentários com a sua voz — você aprova antes de enviar.",
+  },
+];
+
+export function Capacidades() {
+  return (
+    <section className="lnd-section" id="capacidades">
+      <div className="lnd-container">
+        <div className="lnd-section-head lnd-center lnd-reveal">
+          <span className="lnd-eyebrow">Ainda dentro do app</span>
+          <h2 className="lnd-h2">
+            Tudo que sustenta <span className="lnd-grad">a sua rotina</span>
+          </h2>
+          <p className="lnd-lead">
+            Funções que trabalham junto com o que você já viu — sem virar uma seção para cada uma.
+          </p>
+        </div>
+
+        <div className="lnd-security-grid">
+          {CAPACIDADES.map((c, i) => (
+            <div className="lnd-sec-card lnd-reveal" data-delay={String((i % 3) + 1)} key={c.t}>
+              <div className="lnd-sec-ic">
+                <c.ic size={22} />
+              </div>
+              <h3>{c.t}</h3>
+              <p>{c.d}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
 
 export function RedesSociais() {
   return (
@@ -155,7 +243,10 @@ export function RedesSociais() {
                   {s.platform === "instagram" ? <Instagram size={26} /> : <Music2 size={26} />}
                 </span>
                 <div>
-                  <h3>{s.name}</h3>
+                  <h3>
+                    {s.name}
+                    <span className={`lnd-status-pill lnd-${s.status}`}>{s.statusLabel}</span>
+                  </h3>
                   <span>{s.desc}</span>
                 </div>
               </div>
@@ -230,23 +321,26 @@ export function Seguranca() {
   );
 }
 
-// Todos os 3 planos liberam AS MESMAS funcionalidades — sem plano "básico",
-// sem recurso "exclusivo" de um período. A diferença entre eles é apenas o
-// período e o valor, por isso a lista de benefícios é a mesma nos 3 cards e
-// vive em `@/lib/billing/plans/display` (LANDING_PLAN_FEATURES), junto das
-// demais regras de apresentação.
+// 6 planos vendáveis (semanal + 5 mensais). Todos liberam as MESMAS
+// funcionalidades — sem recurso exclusivo por período. A diferença está no
+// período, no preço e nas FRANQUIAS (limits.ts). Por isso a lista de quotas
+// é derivada de `PLAN_QUOTAS` por slug, não escrita à mão.
 //
-// PREÇO, NOME, DESCRIÇÃO E PERIODICIDADE DOS CARDS VÊM DO CATÁLOGO OFICIAL
-// (`PLAN_CATALOG`) — a mesma fonte que o checkout server-side usa para cobrar.
+// PREÇO, NOME, DESCRIÇÃO E PERIODICIDADE VÊM DO CATÁLOGO OFICIAL
+// (`PLAN_CATALOG`) — mesma fonte que o checkout server-side usa para cobrar.
 // Nenhum valor é escrito aqui: mudar o preço no catálogo reflete na landing.
 // O selo "Mais escolhido" é derivado do `badge` do catálogo, não de um slug.
+// Planos com `active: false` aparecem como PREVIEW ("Em breve", CTA desabilitado)
+// — marketing apenas; o gate real continua no checkout server-side.
 
-/** Ordem de exibição na landing: do menor para o maior período. */
+/** Ordem de exibição na landing: 6 vendáveis (legados mensal/anual fora). */
 const LANDING_PLAN_ORDER = ["semanal", "mensal", "anual"] as const;
 
 export async function Planos() {
+  // Preview inclusivo: mostra `active: false` como card "Em breve" em vez de
+  // esconder. O único comprável hoje é o semanal; os demais são vitrine.
   const plans = LANDING_PLAN_ORDER.map((slug) =>
-    PLAN_CATALOG.find((p) => p.slug === slug && p.active)
+    PLAN_CATALOG.find((p) => p.slug === slug)
   ).filter((p): p is (typeof PLAN_CATALOG)[number] => Boolean(p));
 
   // PRÉ-VENDA REAL — lida do servidor (`SystemSetting`, configurada pelo ADMIN).
@@ -274,33 +368,54 @@ export async function Planos() {
           {plans.map((p, i) => {
             const shortName = planShortName(p);
             const featured = p.badge === "MAIS_ESCOLHIDO";
+            const isPreview = !p.active;
+            const isPremium = p.slug === "elite" || p.slug === "master";
+            const quota = quotaForPlan(p.slug);
             const showcase = promo.bySlug[p.slug];
+            const onSale = Boolean(!isPreview && showcase?.showPromo && showcase.promoPriceCents != null);
+            const promoPrice = onSale ? showcase!.promoPriceCents! : null;
 
-            // A promoção só é anunciada quando é de fato um DESCONTO vigente.
-            // `showPromo` já é falso para promo desligada, vencida (countdown no
-            // passado) ou com valor ≥ cheio — e nesses casos o card volta ao
-            // preço de catálogo, que é o que o checkout cobraria.
-            const onSale = Boolean(showcase?.showPromo && showcase.promoPriceCents != null);
-            const promoPrice = onSale ? showcase.promoPriceCents! : null;
+            // Linhas de franquia — derivadas de PLAN_QUOTAS, nunca inventadas.
+            // `null` = sem teto (semanal/legado). Texto curto.
+            const quotaLines: string[] = (() => {
+              const fmt = (n: number | null) => (n == null ? "ilimitado" : String(n));
+              const lines: string[] = [];
+              // IA por dia + por ciclo
+              if (quota.aiPerDay == null && quota.aiPerCycle == null) {
+                lines.push("Gerações IA: ilimitado");
+              } else {
+                const dia = quota.aiPerDay == null ? "ilimitado/dia" : `${quota.aiPerDay}/dia`;
+                const ciclo = quota.aiPerCycle == null ? "ilimitado/ciclo" : `${quota.aiPerCycle}/ciclo`;
+                lines.push(`Gerações IA: ${dia} · ${ciclo}`);
+              }
+              lines.push(`Respostas: ${fmt(quota.autoRepliesPerCycle)}/ciclo`);
+              lines.push(`Publicações: ${fmt(quota.publicationsPerCycle)}/ciclo`);
+              lines.push(`Análises: ${fmt(quota.profileAnalysisPerCycle)}/ciclo`);
+              lines.push(`Automações: ${fmt(quota.activeAutomationRules)} ativas`);
+              lines.push(`Contas: ${fmt(quota.connectedAccounts)} conectada${quota.connectedAccounts === 1 ? "" : "s"}`);
+              return lines;
+            })();
+
+            const cardClass = [
+              "lnd-plan-card",
+              featured ? "lnd-featured lnd-glowbox" : "",
+              onSale ? "lnd-plan-onsale" : "",
+              isPreview ? "lnd-plan-soon" : "",
+              isPremium && !featured ? "lnd-plan-premium" : "",
+              "lnd-reveal",
+            ]
+              .filter(Boolean)
+              .join(" ");
 
             return (
-              <div
-                className={`lnd-plan-card${featured ? " lnd-featured lnd-glowbox" : ""}${
-                  onSale ? " lnd-plan-onsale" : ""
-                } lnd-reveal`}
-                data-delay={String(i + 1)}
-                key={p.slug}
-              >
+              <div className={cardClass} data-delay={String(i + 1)} key={p.slug}>
                 {featured && <span className="lnd-plan-badge">Mais escolhido</span>}
+                {isPreview && !featured && <span className="lnd-plan-badge lnd-plan-badge-soon">Em breve</span>}
 
                 <span className="lnd-plan-name">{shortName}</span>
 
                 {onSale && promoPrice != null ? (
                   <>
-                    {/* Estrutura pedida no card: DE (cheio, riscado) / selo de
-                        PRÉ-VENDA / preço promocional / condição / o que passa a
-                        valer depois. Tudo derivado da config do admin — o card
-                        não reescreve nenhuma dessas regras. */}
                     <span className="lnd-plan-was">
                       DE <s>{formatBRL(p.priceCents)}</s>
                     </span>
@@ -309,14 +424,8 @@ export async function Planos() {
                       <b>{formatBRL(promoPrice)}</b>
                       <span>{planLandingPeriod(p)}</span>
                     </div>
-                    {showcase?.qualifier && (
-                      <p className="lnd-plan-promo-note">{showcase.qualifier}</p>
-                    )}
-                    {/* O "depois" só existe quando a oferta é condicional:
-                        no semanal a compra é única e a linha não aparece. */}
-                    {showcase?.afterText && (
-                      <p className="lnd-plan-promo-after">{showcase.afterText}</p>
-                    )}
+                    {showcase?.qualifier && <p className="lnd-plan-promo-note">{showcase.qualifier}</p>}
+                    {showcase?.afterText && <p className="lnd-plan-promo-after">{showcase.afterText}</p>}
                   </>
                 ) : (
                   <>
@@ -324,8 +433,6 @@ export async function Planos() {
                       <b>{formatBRL(p.priceCents)}</b>
                       <span>{planLandingPeriod(p)}</span>
                     </div>
-                    {/* Sem promoção ativa, o card continua dizendo como o plano
-                        se comporta: é a mesma informação, sem oferta. */}
                     {planAfterText(p.slug, p.priceCents) && (
                       <p className="lnd-plan-promo-after">{planAfterText(p.slug, p.priceCents)}</p>
                     )}
@@ -334,36 +441,44 @@ export async function Planos() {
 
                 <p className="lnd-plan-desc">{p.description}</p>
 
-                {/* Contador da campanha, integrado ao card. Sem prazo definido
-                    pelo admin, `PromoCountdown` não renderiza nada. */}
                 {onSale && showcase?.countdownRunning && showcase.countdownEndsAt && (
                   <PromoCountdown
                     endsAt={showcase.countdownEndsAt}
                     label={promo.config.countdown.label}
                     className="lnd-plan-countdown"
-                    // Revalida a página ao zerar: o preço promocional deixa de
-                    // ser servido pelo servidor e o card volta ao valor cheio
-                    // enquanto o usuário está olhando — sem "esconder" nada só
-                    // no frontend.
                     refreshOnExpire
                   />
                 )}
 
                 <ul className="lnd-plan-feats">
-                  {LANDING_PLAN_FEATURES.map((f) => (
+                  {quotaLines.map((f) => (
                     <li key={f}>
                       <CheckCircle2 size={16} />
                       {f}
                     </li>
                   ))}
                 </ul>
-                <a
-                  className={`lnd-btn lnd-btn-block ${featured ? "lnd-btn-primary" : "lnd-btn-ghost"} lnd-plan-cta`}
-                  href={`/checkout?plano=${encodeURIComponent(p.slug)}`}
-                >
-                  Assinar {shortName.toLowerCase()}
-                  <ArrowRight />
-                </a>
+
+                {isPreview ? (
+                  <button
+                    type="button"
+                    disabled
+                    aria-disabled="true"
+                    className="lnd-btn lnd-btn-block lnd-btn-ghost lnd-plan-cta lnd-plan-cta-soon"
+                    title="Plano em breve — ainda não disponível para compra"
+                  >
+                    Em breve
+                  </button>
+                ) : (
+                  <a
+                    className={`lnd-btn lnd-btn-block ${featured ? "lnd-btn-primary" : "lnd-btn-ghost"} lnd-plan-cta`}
+                    href={`/checkout?plano=${encodeURIComponent(p.slug)}`}
+                  >
+                    Assinar {shortName.toLowerCase()}
+                    <ArrowRight />
+                  </a>
+                )}
+                <WaitlistPlanLink slug={p.slug} label={shortName} />
               </div>
             );
           })}

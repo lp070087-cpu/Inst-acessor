@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import { tickScheduler, runScheduler } from '../scripts/publishing-scheduler.mjs';
+let checks=0,calls=0;
+const config={enabled:true,origin:'https://preview.audit.invalid',secret:'fictitious-only-scheduler-secret-2026',request:async(url,init)=>{calls++;assert.equal(url.pathname,'/api/cron/publishing');assert.equal(init.redirect,'error');assert(init.headers.Authorization.startsWith('Bearer '));return Response.json({processed:1});}};
+const check=async(name,fn)=>{await fn();checks++;console.log('ok',name);};
+await check('Disabled scheduler cannot make requests',async()=>{assert.deepEqual(await tickScheduler({...config,enabled:false}),{status:'disabled',processed:0});assert.equal(calls,0);});
+await check('Authenticated worker invocation uses fixed path and no redirects',async()=>assert.deepEqual(await tickScheduler(config),{status:'completed',processed:1}));
+await check('Worker flag remains separate',async()=>assert.deepEqual(await tickScheduler({...config,request:async()=>Response.json({enabled:false,processed:0})}),{status:'worker_disabled',processed:0}));
+for(const origin of ['http://localhost','https://user:pass@preview.audit.invalid','https://preview.audit.invalid/other','https://preview.audit.invalid/?token=a','https://preview.audit.invalid:9443'])await check('Unsafe target refused '+origin.split(':')[0],async()=>assert.rejects(()=>tickScheduler({...config,origin})));
+await check('Missing dedicated secret refused',async()=>assert.rejects(()=>tickScheduler({...config,secret:''})));
+await check('Failed request never reports completion',async()=>assert.rejects(()=>tickScheduler({...config,request:async()=>new Response('',{status:503})})));
+await check('Unexpected success response rejected',async()=>assert.rejects(()=>tickScheduler({...config,request:async()=>Response.json({ok:true})})));
+await check('Short interval rejected',async()=>assert.rejects(()=>runScheduler({...config,intervalMs:500})));
+await check('No overlapping invocations and clean stop',async()=>{const stop=new AbortController();let active=0,max=0,n=0;await runScheduler({...config,intervalMs:60000,signal:stop.signal,request:async()=>{active++;max=Math.max(max,active);await new Promise(r=>setTimeout(r,5));n++;active--;return Response.json({processed:1});}},{sleep:async()=>{if(n>=3)stop.abort();},log:()=>{}});assert.equal(n,3);assert.equal(max,1);});
+await check('Failure log is sanitized',async()=>{const stop=new AbortController(),logs=[];await runScheduler({...config,intervalMs:60000,signal:stop.signal,request:async()=>{throw new Error('credential-secret-raw');}},{sleep:async()=>stop.abort(),log:x=>logs.push(x)});assert(!logs.join('').includes('credential-secret-raw'));assert(logs.join('').includes('failed'));});
+console.log(`${checks} scheduler assertions passed`);

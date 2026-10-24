@@ -13,25 +13,25 @@
   --lnd-surface: #f1f3f5;
   --lnd-card: #ffffff;
   --lnd-ink: #111318;
-  --lnd-ink-2: #667085;
-  --lnd-ink-3: #98a2b3;
+  --lnd-ink-2: #596579;
+  --lnd-ink-3: #596579;
   --lnd-border: #e5e7eb;
   --lnd-border-soft: #edeff2;
-  --lnd-magenta: #f43f8e;
-  --lnd-purple: #8b5cf6;
+  --lnd-magenta: #be185d;
+  --lnd-purple: #6d28d9;
   --lnd-indigo: #4f46e5;
-  --lnd-blue: #3b82f6;
-  --lnd-success: #10b981;
-  --lnd-danger: #ef4444;
-  --lnd-warn: #f59e0b;
-  --lnd-info: #3b82f6;
-  --lnd-ai: #8b5cf6;
+  --lnd-blue: #1d4ed8;
+  --lnd-success: #047857;
+  --lnd-danger: #b91c1c;
+  --lnd-warn: #92400e;
+  --lnd-info: #1d4ed8;
+  --lnd-ai: #6d28d9;
   --lnd-success-soft: rgba(16, 185, 129, 0.1);
   --lnd-danger-soft: rgba(239, 68, 68, 0.1);
   --lnd-warn-soft: rgba(245, 158, 11, 0.12);
   --lnd-info-soft: rgba(59, 130, 246, 0.1);
   --lnd-ai-soft: rgba(139, 92, 246, 0.1);
-  --lnd-grad: linear-gradient(115deg, #f43f8e 0%, #a855f7 45%, #6366f1 100%);
+  --lnd-grad: linear-gradient(115deg, #be185d 0%, #7e22ce 45%, #4338ca 100%);
   --lnd-grad-soft: linear-gradient(115deg, rgba(244, 63, 142, 0.1), rgba(168, 85, 247, 0.1), rgba(99, 102, 241, 0.1));
   --lnd-shadow-xs: 0 1px 2px rgba(17, 19, 24, 0.04);
   --lnd-shadow-sm: 0 1px 2px rgba(17, 19, 24, 0.05), 0 4px 12px rgba(17, 19, 24, 0.04);
@@ -51,9 +51,9 @@
   --lnd-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --lnd-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 
-  --lnd-font-display: "Sora", "Plus Jakarta Sans", system-ui, sans-serif;
-  --lnd-font-body: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
-  --lnd-font-data: "Space Grotesk", ui-monospace, monospace;
+  --lnd-font-display: var(--font-sora), var(--font-plus-jakarta), system-ui, sans-serif;
+  --lnd-font-body: var(--font-plus-jakarta), system-ui, -apple-system, sans-serif;
+  --lnd-font-data: var(--font-space-grotesk), ui-monospace, monospace;
 
   background: var(--lnd-bg);
   color: var(--lnd-ink);
@@ -77,11 +77,13 @@
   display: block;
   max-width: 100%;
 }
-.lnd-root a {
+/* :where() zera a especificidade do reset: classes de componente (ex.:
+   .lnd-btn-primary) precisam vencer o "inherit" em links e botões. */
+:where(.lnd-root) a {
   color: inherit;
   text-decoration: none;
 }
-.lnd-root button {
+:where(.lnd-root) button {
   font-family: inherit;
   cursor: pointer;
   border: none;
@@ -105,7 +107,7 @@
 .lnd-root h2,
 .lnd-root h3,
 .lnd-root h4 {
-  font-family: "Sora", "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: var(--font-sora), var(--font-plus-jakarta), system-ui, sans-serif;
   font-weight: 700;
   line-height: 1.12;
   letter-spacing: -0.02em;
@@ -132,7 +134,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-family: "Space Grotesk", ui-monospace, monospace;
+  font-family: var(--font-space-grotesk), ui-monospace, monospace;
   font-size: 12.5px;
   font-weight: 600;
   letter-spacing: 0.14em;
@@ -153,8 +155,19 @@
   box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.15);
 }
 .lnd-section-head {
+  /* 760px: idêntico ao bloco de título da referência, medido no print
+     (duas linhas de H2 centradas ocupando 745px e 376px). */
   max-width: 760px;
-  margin-bottom: clamp(34px, 5vw, 52px);
+  /* Respiro DEPOIS do título, não antes do conteúdo.
+     ------------------------------------------------------------
+     Medido na referência: do fim do H2 até o topo dos cards vão ~122px
+     (99px até a pílula do título do card, que avança sobre a borda). O
+     Inst Acessor dava 52px — o título e os cards ficavam colados, e a
+     seção parecia apertada apesar de todo o resto estar na mesma escala.
+     A referência concentra o respiro aqui, entre cabeçalho e conteúdo, em
+     vez de só no padding da seção. 68px é o meio-termo: encurta a
+     distância sem transformar cada seção numa rolagem longa. */
+  margin-bottom: clamp(40px, 5.6vw, 68px);
 }
 .lnd-section-head.lnd-center {
   margin-inline: auto;
@@ -185,7 +198,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-family: "Space Grotesk", ui-monospace, monospace;
+  font-family: var(--font-space-grotesk), ui-monospace, monospace;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -277,7 +290,7 @@
   display: inline-flex;
   align-items: center;
   gap: 11px;
-  font-family: "Sora", sans-serif;
+  font-family: var(--font-sora), sans-serif;
   font-weight: 700;
   font-size: 19px;
   letter-spacing: -0.02em;
@@ -369,7 +382,7 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
-  font-family: "Plus Jakarta Sans", sans-serif;
+  font-family: var(--font-plus-jakarta), sans-serif;
   font-weight: 600;
   font-size: 15.5px;
   padding: 14px 26px;
@@ -530,7 +543,7 @@
   margin-left: -10px;
   display: grid;
   place-items: center;
-  font-family: "Sora", sans-serif;
+  font-family: var(--font-sora), sans-serif;
   font-size: 11px;
   font-weight: 700;
   color: #fff;
@@ -539,13 +552,13 @@
   margin-left: 0;
 }
 .lnd-hero-trust .lnd-avatars span:nth-child(2) {
-  background: linear-gradient(135deg, #a855f7, #6366f1);
+  background: linear-gradient(135deg, #7e22ce, #4338ca);
 }
 .lnd-hero-trust .lnd-avatars span:nth-child(3) {
-  background: linear-gradient(135deg, #f43f8e, #a855f7);
+  background: linear-gradient(135deg, #be185d, #7e22ce);
 }
 .lnd-hero-trust .lnd-avatars span:nth-child(4) {
-  background: linear-gradient(135deg, #6366f1, #3b82f6);
+  background: linear-gradient(135deg, #4338ca, #1d4ed8);
 }
 .lnd-hero-trust p {
   font-size: 13.5px;
@@ -635,7 +648,7 @@
   justify-content: center;
 }
 .lnd-dash-topbar .lnd-url span {
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 11.5px;
   color: var(--lnd-ink-3);
   background: var(--lnd-surface);
@@ -670,10 +683,10 @@
 .lnd-dash-card .lnd-lbl .lnd-up {
   color: var(--lnd-success);
   font-size: 10.5px;
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
 }
 .lnd-dash-card .lnd-num {
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 26px;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -781,7 +794,7 @@
   padding: 8px 12px;
 }
 .lnd-score-pill b {
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 13px;
   color: var(--lnd-ink);
 }
@@ -830,7 +843,7 @@
 }
 .lnd-float-chip small {
   display: block;
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-weight: 700;
   font-size: 14px;
   line-height: 1.1;
@@ -859,7 +872,7 @@
   animation-delay: 2.4s;
 }
 .lnd-fc-3 .lnd-ic {
-  background: linear-gradient(135deg, #a855f7, #6366f1);
+  background: linear-gradient(135deg, #7e22ce, #4338ca);
 }
 
 /* ---------- MARQUEE ---------- */
@@ -880,7 +893,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 14.5px;
   font-weight: 600;
   color: var(--lnd-ink-2);
@@ -928,7 +941,7 @@
   position: relative;
 }
 .lnd-problem-pivot .lnd-pivot-label {
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 13px;
   font-weight: 600;
   color: var(--lnd-ink-3);
@@ -947,7 +960,7 @@
   gap: 7px;
   flex-wrap: wrap;
   margin-top: 6px;
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
 }
 /* ANTES — números soltos (visual caótico, tons cinza) */
 .lnd-pivot-stats-messy .lnd-ps-num {
@@ -1082,7 +1095,7 @@
   border: 1px solid var(--lnd-border);
   display: grid;
   place-items: center;
-  font-family: "Sora", sans-serif;
+  font-family: var(--font-sora), sans-serif;
   font-weight: 700;
   font-size: 17px;
   color: var(--lnd-ink);
@@ -1119,7 +1132,7 @@
 .lnd-flow-note {
   margin-top: 34px;
   text-align: center;
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 13.5px;
   color: var(--lnd-ink-3);
   background: var(--lnd-card);
@@ -1178,7 +1191,7 @@
   color: var(--lnd-ink-2);
 }
 .lnd-kpi-card .lnd-k-trend {
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 12px;
   font-weight: 700;
   display: inline-flex;
@@ -1200,7 +1213,7 @@
   background: var(--lnd-warn-soft);
 }
 .lnd-kpi-card .lnd-k-num {
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: clamp(26px, 3vw, 34px);
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -1228,7 +1241,7 @@
 }
 .lnd-chart-svg .lnd-axis-txt {
   fill: var(--lnd-ink-3);
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 11px;
 }
 .lnd-chart-svg .lnd-area {
@@ -1243,7 +1256,7 @@
 }
 .lnd-chart-svg .lnd-dot {
   fill: #fff;
-  stroke: #8b5cf6;
+  stroke: #6d28d9;
   stroke-width: 3;
 }
 /* Desenho progressivo do gráfico (linha + área + pontos) ao entrar na tela */
@@ -1328,13 +1341,13 @@
   white-space: nowrap;
 }
 .lnd-compare-row .lnd-c-val {
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-weight: 700;
   text-align: right;
   min-width: 62px;
 }
 .lnd-compare-row .lnd-c-delta {
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 12px;
   font-weight: 700;
   text-align: right;
@@ -1364,7 +1377,7 @@
   box-shadow: var(--lnd-shadow-xs);
 }
 .lnd-bench-strip .lnd-bench-label {
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -1381,7 +1394,7 @@
   white-space: nowrap;
 }
 .lnd-bench-strip .lnd-bench-item b {
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 16px;
   font-weight: 700;
   color: var(--lnd-ink);
@@ -1453,7 +1466,7 @@
   gap: 18px;
 }
 .lnd-score-gauge .lnd-ring-cap {
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.12em;
@@ -1465,7 +1478,7 @@
   height: auto;
 }
 .lnd-ring-cap {
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.12em;
@@ -1481,7 +1494,7 @@
   justify-content: center;
   gap: 5px;
   white-space: nowrap;
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-weight: 700;
   line-height: 1;
 }
@@ -1505,7 +1518,7 @@
   justify-content: center;
   gap: 7px;
   white-space: nowrap;
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: clamp(56px, 8vw, 84px);
   font-weight: 700;
   letter-spacing: -0.04em;
@@ -1553,7 +1566,7 @@
   color: var(--lnd-ink);
 }
 .lnd-pillar .lnd-p-top b {
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 14px;
 }
 .lnd-pillar-bar {
@@ -1571,13 +1584,13 @@
   transition: width 1.3s var(--lnd-ease-out);
 }
 .lnd-pillar:nth-child(2) .lnd-pillar-bar i {
-  background: linear-gradient(90deg, #a855f7, #6366f1);
+  background: linear-gradient(90deg, #7e22ce, #4338ca);
 }
 .lnd-pillar:nth-child(3) .lnd-pillar-bar i {
-  background: linear-gradient(90deg, #6366f1, #3b82f6);
+  background: linear-gradient(90deg, #4338ca, #1d4ed8);
 }
 .lnd-pillar:nth-child(4) .lnd-pillar-bar i {
-  background: linear-gradient(90deg, #f43f8e, #a855f7);
+  background: linear-gradient(90deg, #be185d, #7e22ce);
 }
 .lnd-js .lnd-score-wrap.lnd-in .lnd-pillar:nth-child(2) .lnd-pillar-bar i { transition-delay: 0.15s; }
 .lnd-js .lnd-score-wrap.lnd-in .lnd-pillar:nth-child(3) .lnd-pillar-bar i { transition-delay: 0.3s; }
@@ -1596,7 +1609,7 @@
   align-items: center;
 }
 .lnd-ai-copy .lnd-ai-preview-label {
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.1em;
@@ -1652,7 +1665,7 @@
   font-size: 12.5px;
   color: var(--lnd-ink-3);
   margin-top: 20px;
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
 }
 .lnd-ai-panel {
   background: linear-gradient(160deg, #fff 0%, #fbf8ff 55%, #f8f6ff 100%);
@@ -1753,7 +1766,7 @@
   box-shadow: var(--lnd-shadow-brand);
 }
 .lnd-ai-bubble .lnd-tag {
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 10.5px;
   font-weight: 700;
   text-transform: uppercase;
@@ -1934,7 +1947,7 @@
   border-color: rgba(139, 92, 246, 0.3);
 }
 .lnd-cal-day .lnd-d-name {
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
@@ -1962,15 +1975,15 @@
   max-width: 100%;
 }
 .lnd-cal-day.lnd-d-reel .lnd-d-ic {
-  background: linear-gradient(135deg, #f43f8e, #a855f7);
+  background: linear-gradient(135deg, #be185d, #7e22ce);
   color: #fff;
 }
 .lnd-cal-day.lnd-d-story .lnd-d-ic {
-  background: linear-gradient(135deg, #6366f1, #3b82f6);
+  background: linear-gradient(135deg, #4338ca, #1d4ed8);
   color: #fff;
 }
 .lnd-cal-day.lnd-d-mix .lnd-d-ic {
-  background: linear-gradient(135deg, #f43f8e, #6366f1);
+  background: linear-gradient(135deg, #be185d, #4338ca);
   color: #fff;
 }
 .lnd-cal-day.lnd-d-backstage .lnd-d-ic {
@@ -1982,7 +1995,7 @@
   background: linear-gradient(180deg, #fff, rgba(16, 185, 129, 0.05));
 }
 .lnd-cal-day em {
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-style: normal;
   font-size: 10px;
   font-weight: 700;
@@ -2087,7 +2100,7 @@
   background: var(--lnd-surface);
   display: grid;
   place-items: center;
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 12px;
   font-weight: 700;
   color: var(--lnd-ink-2);
@@ -2142,7 +2155,7 @@
   position: relative;
 }
 .lnd-copy-box .lnd-cb-lbl {
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
@@ -2265,7 +2278,7 @@
   border-color: rgba(139, 92, 246, 0.22);
 }
 .lnd-goal-card .lnd-g-when {
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
@@ -2373,7 +2386,7 @@
   height: 22px;
 }
 .lnd-xp-level-badge b {
-  font-family: "Sora", sans-serif;
+  font-family: var(--font-sora), sans-serif;
   font-size: 17px;
   font-weight: 700;
   display: block;
@@ -2387,7 +2400,7 @@
   text-align: right;
 }
 .lnd-xp-num b {
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 42px;
   font-weight: 700;
   letter-spacing: -0.03em;
@@ -2422,7 +2435,7 @@
 .lnd-xp-bar-labels {
   display: flex;
   justify-content: space-between;
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 13px;
   color: var(--lnd-ink-2);
   margin-top: 10px;
@@ -2440,7 +2453,7 @@
 }
 .lnd-xp-milestone {
   text-align: center;
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 12px;
   color: var(--lnd-ink-3);
   position: relative;
@@ -2486,7 +2499,7 @@
   box-shadow: var(--lnd-shadow-xs);
 }
 .lnd-xp-stat b {
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 26px;
   font-weight: 700;
   display: block;
@@ -2538,7 +2551,7 @@
   box-shadow: var(--lnd-shadow-md);
 }
 .lnd-content-item .lnd-ci-rank {
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 14px;
   font-weight: 700;
   color: var(--lnd-ink-3);
@@ -2555,10 +2568,10 @@
   color: #fff;
 }
 .lnd-content-item .lnd-ci-thumb.lnd-t2 {
-  background: linear-gradient(135deg, #a855f7, #6366f1);
+  background: linear-gradient(135deg, #7e22ce, #4338ca);
 }
 .lnd-content-item .lnd-ci-thumb.lnd-t3 {
-  background: linear-gradient(135deg, #6366f1, #3b82f6);
+  background: linear-gradient(135deg, #4338ca, #1d4ed8);
 }
 .lnd-content-item .lnd-ci-thumb svg {
   width: 24px;
@@ -2578,7 +2591,7 @@
 }
 .lnd-content-item .lnd-ci-stats {
   text-align: right;
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
 }
 .lnd-content-item .lnd-ci-stats b {
   font-size: 14.5px;
@@ -2589,7 +2602,7 @@
   color: var(--lnd-ink-3);
 }
 .lnd-content-item .lnd-ci-delta {
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 12px;
   font-weight: 700;
   padding: 3px 9px;
@@ -2632,7 +2645,7 @@
   font-weight: 600;
 }
 .lnd-format-row .lnd-f-top span {
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-weight: 700;
   color: var(--lnd-ink-2);
 }
@@ -2651,13 +2664,13 @@
   transition: width 1.3s var(--lnd-ease-out);
 }
 .lnd-format-row.lnd-f-2 .lnd-f-bar i {
-  background: linear-gradient(90deg, #a855f7, #6366f1);
+  background: linear-gradient(90deg, #7e22ce, #4338ca);
 }
 .lnd-format-row.lnd-f-3 .lnd-f-bar i {
-  background: linear-gradient(90deg, #6366f1, #3b82f6);
+  background: linear-gradient(90deg, #4338ca, #1d4ed8);
 }
 .lnd-format-row.lnd-f-4 .lnd-f-bar i {
-  background: linear-gradient(90deg, #f43f8e, #a855f7);
+  background: linear-gradient(90deg, #be185d, #7e22ce);
 }
 .lnd-format-note {
   font-size: 12.5px;
@@ -2726,7 +2739,7 @@
 }
 .lnd-social-card.lnd-s-ig .lnd-s-ic,
 .lnd-social-card.lnd-s-instagram .lnd-s-ic {
-  background: linear-gradient(135deg, #f43f8e, #a855f7);
+  background: linear-gradient(135deg, #be185d, #7e22ce);
   box-shadow: var(--lnd-shadow-brand);
 }
 .lnd-social-card.lnd-s-tk .lnd-s-ic,
@@ -2876,7 +2889,7 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 10.5px;
   font-weight: 700;
   text-transform: uppercase;
@@ -2971,7 +2984,7 @@
   background: #fff;
 }
 .lnd-st-time {
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 11.5px;
   font-weight: 700;
   color: var(--lnd-ink);
@@ -3028,7 +3041,7 @@
   display: grid;
   place-items: center;
   color: #fff;
-  font-family: "Sora", sans-serif;
+  font-family: var(--font-sora), sans-serif;
   font-size: 12px;
   font-weight: 700;
 }
@@ -3043,7 +3056,7 @@
 }
 .lnd-phone-media {
   aspect-ratio: 4 / 5;
-  background: linear-gradient(150deg, #f43f8e, #a855f7, #6366f1);
+  background: linear-gradient(150deg, #be185d, #7e22ce, #4338ca);
   position: relative;
   display: grid;
   place-items: center;
@@ -3063,7 +3076,7 @@
   font-weight: 600;
   padding: 4px 9px;
   border-radius: 8px;
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
 }
 .lnd-phone-actions {
   display: flex;
@@ -3137,7 +3150,7 @@
   top: -13px;
   left: 50%;
   transform: translateX(-50%);
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 10.5px;
   font-weight: 700;
   text-transform: uppercase;
@@ -3162,7 +3175,7 @@
   gap: 6px;
 }
 .lnd-plan-price b {
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: clamp(34px, 4vw, 44px);
   font-weight: 700;
   letter-spacing: -0.03em;
@@ -3220,7 +3233,7 @@
   margin-top: 2px;
 }
 .lnd-plan-was s {
-  color: var(--lnd-ink-3, #98a2b3);
+  color: var(--lnd-ink-3, #596579);
   font-weight: 600;
 }
 
@@ -3232,12 +3245,12 @@
 }
 
 .lnd-plan-promo-note {
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--lnd-magenta, #f43f8e);
+  color: var(--lnd-magenta, #be185d);
   line-height: 1.4;
 }
 .lnd-plan-promo-qual {
@@ -3247,11 +3260,106 @@
   color: var(--lnd-ink-2);
 }
 
-/* O contador vive dentro do card e acompanha a largura dele. */
+/* ---------- CONTADOR DA PRÉ-VENDA (card escuro) ----------
+   Formato da referência enviada pelo usuário ("referencia do cronometro.jpg"):
+   selo do lote + "ENCERRA EM:" e quatro unidades (DIAS · HORAS · MIN · SEG),
+   com número grande e rótulo abaixo, sobre fundo escuro.
+   Os VALORES continuam vindo do servidor (`PromoCountdown` / `endsAt` do
+   ADMIN) — aqui é só apresentação; nenhum número ou prazo é inventado. */
 .lnd-plan-countdown {
-  align-self: flex-start;
+  align-self: stretch;
   max-width: 100%;
-  flex-wrap: wrap;
+  width: 100%;
+}
+
+.lnd-countdown {
+  --lnd-cd-ink: #0e0e12;
+  --lnd-cd-soft: rgba(255, 255, 255, 0.62);
+  background: var(--lnd-cd-ink);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  padding: clamp(16px, 4vw, 22px) clamp(16px, 4vw, 24px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 18px 40px -22px rgba(14, 14, 18, 0.55);
+}
+
+.lnd-countdown-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.lnd-countdown-lote {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-family: var(--font-sora), sans-serif;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.lnd-countdown-enc {
+  color: var(--lnd-cd-soft);
+  font-family: var(--font-sora), sans-serif;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.lnd-countdown-clock {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.lnd-countdown-unit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.lnd-countdown-num {
+  font-family: var(--font-sora), sans-serif;
+  font-size: clamp(30px, 9vw, 44px);
+  font-weight: 600;
+  line-height: 1;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+.lnd-countdown-lbl {
+  font-style: normal;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--lnd-cd-soft);
+}
+
+.lnd-countdown-sep {
+  flex: none;
+  align-self: flex-start;
+  padding-top: clamp(2px, 1vw, 6px);
+  color: rgba(255, 255, 255, 0.28);
+  font-family: var(--font-sora), sans-serif;
+  font-size: clamp(24px, 7vw, 34px);
+  font-weight: 500;
+  line-height: 1;
 }
 
 /* Aviso de degradação: o banco não confirmou a config da pré-venda. */
@@ -3289,7 +3397,7 @@
   gap: 14px;
   text-align: left;
   padding: 18px 20px;
-  font-family: "Sora", sans-serif;
+  font-family: var(--font-sora), sans-serif;
   font-size: 15px;
   font-weight: 600;
   color: var(--lnd-ink);
@@ -3370,7 +3478,7 @@
   margin-top: 24px;
   font-size: 13px;
   color: var(--lnd-ink-3);
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
 }
 
 /* ---------- FOOTER ---------- */
@@ -3665,7 +3773,7 @@
   .lnd-chart-card { grid-column: span 2; }
   .lnd-goals-grid { grid-template-columns: repeat(2, 1fr); }
   .lnd-footer-grid { grid-template-columns: 1fr 1fr 1fr; }
-  .lnd-plans-grid { grid-template-columns: 1fr; max-width: 420px; margin-inline: auto; }
+  /* 6 planos: 3/col desktop → 2/col tablet; regra 1080px sobrescrita abaixo */
 }
 
 @media (max-width: 900px) {
@@ -3711,17 +3819,44 @@
   .lnd-fc-2 { right: -10px; }
 }
 
-/* ---------- TABLET — planos em 2 colunas ----------
-   Sem este degrau, três planos ficavam espremidos numa única linha em
-   telas de 641–1080px (iPad retrato) e só quebravam aos 1080px. */
+/* ---------- TABLET/MOBILE — 6 planos: 3/col desktop → 2/col tablet → 1/col mobile ----------
+   1080px-: 2 col (tablet). 640px-: 1 col (mobile). Sem max-width limitante. */
 @media (max-width: 1080px) {
   .lnd-plans-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     max-width: 100%;
   }
 }
+/* Cards "Em breve" — desaturados, sem hover lift; premium (Elite/Master) com borda sutil */
+.lnd-plan-card.lnd-plan-soon {
+  opacity: 0.92;
+  background: #fbfbfd;
+  border-color: #e8e8ef;
+}
+.lnd-plan-card.lnd-plan-soon:hover {
+  transform: none;
+  box-shadow: var(--lnd-shadow-sm);
+}
+.lnd-plan-badge-soon {
+  background: #6b7280;
+  box-shadow: none;
+}
+.lnd-plan-card.lnd-plan-premium {
+  border-color: rgba(99, 102, 241, 0.22);
+}
+.lnd-plan-cta-soon:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  background: #eef0f4;
+  border-color: #dde0e7;
+  color: var(--lnd-ink-3);
+}
+.lnd-plan-cta-soon:disabled:hover {
+  transform: none;
+}
 
 @media (max-width: 640px) {
+  .lnd-plans-grid { grid-template-columns: 1fr; }
   .lnd-root { --lnd-nav-h: 62px; }
   .lnd-section { padding-block: 54px; }
   .lnd-h2 { font-size: 28px; }
@@ -3990,6 +4125,18 @@
    apenas que o conteúdo interno acompanhe o alinhamento ao centro. */
 .lnd-hero-centered .lnd-hero-title {
   text-align: center;
+  /* Cada `.lnd-line-inner` é um bloco que QUEBRA dentro de si quando não
+     cabe na largura. Sem equilíbrio, a quebra sozinha deixava a primeira
+     linha com quatro palavras e as seguintes com uma ("planeja," /
+     "publica e" / "lê os resultados do seu" / "Instagram."). `balance`
+     distribui as palavras entre as linhas do próprio bloco — mesmo
+     recurso já usado em `.lnd-solucao-note .lnd-h2`, uma tela acima.
+     `pretty` fica no bloco de trás: onde `balance` não é suportado, ele
+     ao menos evita a última linha órfã. */
+  text-wrap: pretty;
+}
+.lnd-hero-centered .lnd-hero-title .lnd-line-inner {
+  text-wrap: balance;
 }
 .lnd-hero-centered .lnd-hero-kicker {
   margin-inline: auto;
@@ -4086,7 +4233,7 @@
   line-height: 1.5;
 }
 .lnd-a-time {
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 11.5px;
   color: var(--lnd-ink-3);
   white-space: nowrap;
@@ -4218,7 +4365,7 @@
   gap: 8px;
 }
 .lnd-reco-items span {
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 12.5px;
   font-weight: 600;
   color: var(--lnd-ink);
@@ -4248,7 +4395,7 @@
 .lnd-idea-tag {
   align-self: flex-start;
   margin-top: auto;
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -4266,7 +4413,7 @@
   background: var(--lnd-ai-soft);
   border-radius: 8px;
   padding: 3px 8px;
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-weight: 700;
   font-size: 11.5px;
 }
@@ -4345,7 +4492,7 @@
 }
 .lnd-tier-xp b {
   display: block;
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 19px;
   font-weight: 700;
   color: var(--lnd-purple);
@@ -4534,7 +4681,7 @@
   align-self: flex-start;
   font-size: 11px;
   font-weight: 700;
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   padding: 4px 9px;
   border-radius: var(--lnd-r-pill);
 }
@@ -4576,7 +4723,7 @@
   height: 100%;
   width: 0;
   border-radius: var(--lnd-r-pill);
-  background: linear-gradient(90deg, #f59e0b, #f97316);
+  background: linear-gradient(90deg, #92400e, #f97316);
   transition: width 1.2s var(--lnd-ease-out);
 }
 
@@ -4633,12 +4780,12 @@
 }
 .lnd-badge-req b {
   color: var(--lnd-ink);
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
 }
 .lnd-badge-status {
   font-size: 11px;
   font-weight: 700;
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   padding: 4px 10px;
   border-radius: var(--lnd-r-pill);
 }
@@ -4686,7 +4833,7 @@
 }
 .lnd-timeline-tab,
 .lnd-hist-tab {
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 13px;
   font-weight: 600;
   color: var(--lnd-ink-2);
@@ -4747,7 +4894,7 @@
 }
 .lnd-tl-val {
   margin-top: 8px;
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 21px;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -4921,7 +5068,7 @@
 }
 .lnd-profile-stat b {
   display: block;
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 19px;
   font-weight: 700;
   color: var(--lnd-ink);
@@ -5001,7 +5148,7 @@
   cursor: default;
 }
 .lnd-pub-heart:hover {
-  color: #ef4444;
+  color: #b91c1c;
   background: rgba(239, 68, 68, 0.1);
   transform: scale(1.08);
 }
@@ -5046,7 +5193,7 @@
   font: inherit;
 }
 .lnd-pub-heart.lnd-on {
-  color: #ef4444;
+  color: #b91c1c;
   background: rgba(239, 68, 68, 0.12);
 }
 .lnd-js .lnd-pub-heart.lnd-on svg {
@@ -5108,9 +5255,9 @@
   color: #fff;
   flex: none;
 }
-.lnd-pub-c-1 { background: linear-gradient(135deg, #f43f8e, #a855f7); }
-.lnd-pub-c-2 { background: linear-gradient(135deg, #3b82f6, #6366f1); }
-.lnd-pub-c-3 { background: linear-gradient(135deg, #f59e0b, #ef4444); }
+.lnd-pub-c-1 { background: linear-gradient(135deg, #be185d, #7e22ce); }
+.lnd-pub-c-2 { background: linear-gradient(135deg, #1d4ed8, #4338ca); }
+.lnd-pub-c-3 { background: linear-gradient(135deg, #92400e, #b91c1c); }
 /* Terceiro comentário fica recolhido até "Ver 3 comentários" */
 .lnd-pub-c-extra {
   display: none;
@@ -5190,7 +5337,7 @@
 }
 .lnd-hist-svg .lnd-axis-txt {
   fill: var(--lnd-ink-3);
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 11px;
 }
 .lnd-hist-svg .lnd-line {
@@ -5201,7 +5348,7 @@
 }
 .lnd-hist-svg .lnd-dot {
   fill: #fff;
-  stroke: #8b5cf6;
+  stroke: #6d28d9;
   stroke-width: 3;
 }
 .lnd-hist-cards {
@@ -5224,7 +5371,7 @@
 .lnd-hist-mini b {
   display: block;
   margin-top: 4px;
-  font-family: "Space Grotesk", monospace;
+  font-family: var(--font-space-grotesk), monospace;
   font-size: 19px;
   font-weight: 700;
   color: var(--lnd-ink);
@@ -5443,7 +5590,7 @@
   --lnd-console-3: #21252e;
   --lnd-console-ink: #eef0f4;
   --lnd-console-ink-2: #a6aebb;
-  --lnd-console-ink-3: #6b7482;
+  --lnd-console-ink-3: #a6aebb;
   --lnd-console-line: rgba(255, 255, 255, 0.08);
   --lnd-console-line-soft: rgba(255, 255, 255, 0.05);
   --lnd-r-console: 12px;
@@ -5663,6 +5810,9 @@
 .lnd-console .lnd-xp-card {
   background: linear-gradient(160deg, #191c23 0%, #14161c 100%);
   border-color: var(--lnd-console-line);
+}
+.lnd-console .lnd-xp-stat span {
+  color: var(--lnd-console-ink-2);
 }
 .lnd-console .lnd-xp-card::before {
   background: radial-gradient(circle, rgba(168, 85, 247, 0.22), transparent 65%);
@@ -5967,7 +6117,7 @@
   right: 8%;
   height: 2px;
   border-radius: 2px;
-  background: linear-gradient(90deg, #f43f8e, #a855f7, #6366f1);
+  background: linear-gradient(90deg, #be185d, #7e22ce, #4338ca);
   transform: scaleX(0);
   transform-origin: left;
   z-index: 0;
@@ -6046,7 +6196,7 @@
   inset: 0;
   border-radius: inherit;
   padding: 1px;
-  background: conic-gradient(from var(--lnd-angle, 0deg), #f43f8e, #a855f7, #6366f1, #3b82f6, #f43f8e);
+  background: conic-gradient(from var(--lnd-angle, 0deg), #be185d, #7e22ce, #4338ca, #1d4ed8, #be185d);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
@@ -6059,7 +6209,7 @@
 }
 @supports not (background: conic-gradient(from var(--lnd-angle), #000, #000)) {
   .lnd-glowbox::before {
-    background: linear-gradient(115deg, #f43f8e, #a855f7, #6366f1);
+    background: linear-gradient(115deg, #be185d, #7e22ce, #4338ca);
   }
 }
 .lnd-plan-badge {
@@ -6164,12 +6314,12 @@
 .lnd-diag-row.lnd-diag-opp {
   border-left-color: var(--lnd-purple);
 }
-.lnd-diag-row.lnd-diag-opp .lnd-diag-track i { background: linear-gradient(90deg, #a855f7, #6366f1); }
+.lnd-diag-row.lnd-diag-opp .lnd-diag-track i { background: linear-gradient(90deg, #7e22ce, #4338ca); }
 .lnd-diag-row.lnd-diag-opp .lnd-diag-cap { color: var(--lnd-purple); background: var(--lnd-ai-soft); }
 .lnd-diag-row.lnd-diag-warn {
   border-left-color: var(--lnd-warn);
 }
-.lnd-diag-row.lnd-diag-warn .lnd-diag-track i { background: linear-gradient(90deg, #f59e0b, #f97316); }
+.lnd-diag-row.lnd-diag-warn .lnd-diag-track i { background: linear-gradient(90deg, #92400e, #f97316); }
 .lnd-diag-row.lnd-diag-warn .lnd-diag-cap { color: var(--lnd-warn); background: var(--lnd-warn-soft); }
 .lnd-diag-row.lnd-diag-weak {
   border-left-color: var(--lnd-danger);
@@ -6450,7 +6600,7 @@
 }
 .lnd-goal-ring .lnd-goal-ring-fill {
   fill: none;
-  stroke: #a855f7;
+  stroke: #7e22ce;
   stroke-width: 9;
   stroke-linecap: round;
   transition: stroke-dashoffset 1.5s var(--lnd-ease-out);
@@ -6488,7 +6638,7 @@
   overflow: hidden;
 }
 .lnd-ach-card.lnd-progress .lnd-ach-progress i {
-  background: linear-gradient(90deg, #f59e0b, #f97316);
+  background: linear-gradient(90deg, #92400e, #f97316);
 }
 .lnd-ach-card.lnd-locked {
   position: relative;
@@ -6636,7 +6786,7 @@
   100% { opacity: 1; transform: scale(1); }
 }
 .lnd-preview-phones .lnd-phone-b .lnd-phone-media {
-  background: linear-gradient(160deg, #1e293b, #4f46e5 65%, #a855f7);
+  background: linear-gradient(160deg, #1e293b, #4f46e5 65%, #7e22ce);
 }
 @media (max-width: 640px) {
   .lnd-preview-phones { min-height: 560px; }
@@ -6657,7 +6807,7 @@
 }
 .lnd-social-card.lnd-s-ig::before,
 .lnd-social-card.lnd-s-instagram::before {
-  background: linear-gradient(90deg, #f43f8e, #a855f7);
+  background: linear-gradient(90deg, #be185d, #7e22ce);
 }
 .lnd-social-card.lnd-s-tk::before,
 .lnd-social-card.lnd-s-tiktok::before {
@@ -6692,7 +6842,7 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #f43f8e;
+  background: #be185d;
   box-shadow: 18px 0 0 rgba(245, 158, 11, 0.85), 36px 0 0 rgba(16, 185, 129, 0.85);
 }
 @media (max-width: 640px) {
@@ -6975,6 +7125,48 @@
   .lnd-pub-social-ic svg {
     animation: none;
   }
+
+  /* ANIMAÇÕES CONTÍNUAS — desligadas em prefers-reduced-motion.
+     ------------------------------------------------------------
+     O bloco acima já desligava várias animações, mas NÃO as que rodam para
+     sempre (`infinite`). Elas são as mais caras: continuam consumindo quadro e
+     bateria enquanto a página está aberta, mesmo parada — justamente no
+     aparelho fraco e na bateria fraca que o usuário pediu para respeitar.
+     Cada seletor abaixo corresponde a uma `animation: ... infinite` real
+     (conferido linha a linha); a animação some e o elemento continua visível
+     no estado final. */
+  .lnd-marquee-track,
+  .lnd-hero-kicker .lnd-pulse,
+  .lnd-float-chip,
+  .lnd-js .lnd-float-chip,
+  .lnd-ai-panel-header p::before,
+  .lnd-dots i,
+  .lnd-copy-box .lnd-cb-text.lnd-copy-loading::before,
+  .lnd-copy-box .lnd-cb-text.lnd-copy-loading::after,
+  .lnd-xp-milestone.lnd-current::before,
+  .lnd-pub-social-ic.lnd-pub-heart svg {
+    animation: none !important;
+  }
+
+  /* A faixa rolante mostra o conteúdo sem movimento: em vez de esconder, ela
+     fica estática mas legível (o `overflow: hidden` do pai já recorta). */
+  .lnd-marquee-track {
+    transform: none;
+  }
+}
+
+/* ---------- CUSTO DE RENDERIZAÇÃO FORA DA TELA ----------
+   `content-visibility: auto` faz o navegador PULAR o layout e a pintura das
+   seções que não estão na tela. É o ganho mais direto numa landing de 24
+   seções: o trabalho de render cai para o que está visível.
+   `contain-intrinsic-size` reserva uma altura estimada para a barra de
+   rolagem não "pular" quando a seção entra. A estimativa é só do espaço
+   reservado — nada visual depende dela, e o layout real substitui assim que a
+   seção aparece.
+   Não se aplica ao Hero (primeira dobra precisa render imediato). */
+.lnd-section:not(:first-of-type) {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 900px;
 }
 
 /* ---------- RESPONSIVO — novos blocos ---------- */
@@ -7427,3 +7619,551 @@
     padding-bottom: calc(20px + env(safe-area-inset-bottom));
   }
 }
+
+/* ============================================================
+   RODADA DE ESTRATÉGIA — HERO COM DEMONSTRAÇÃO + OS 4 MOVIMENTOS
+   ------------------------------------------------------------
+   Origem: leitura da página de referência enviada pelo usuário
+   (`print de referencia/`) e do link anotado no mesmo diretório.
+
+   O que a referência faz e passou a valer aqui:
+   1. A promessa aparece na PRIMEIRA linha, com o produto NOMEADO.
+      Antes, o Hero explicava a categoria ("plataforma de análise e
+      crescimento") e deixava o nome do produto só no logotipo.
+   2. O produto é DEMONSTRADO logo abaixo do CTA — aqui, numa janela
+      com a interface real do app, no lugar de ilustração genérica.
+   3. Os recursos são agrupados por VERBO (criar, publicar, conversar,
+      crescer) em vez de listados em 20 blocos equivalentes: o visitante
+      entende o produto por etapas, não por inventário.
+
+   Nada aqui é cópia: marca, paleta, tipografia, textos e composição
+   continuam do Inst Acessor. Só o ESQUELETO de conversão foi adaptado.
+
+   Nenhuma cor nova: tudo sai dos tokens já declarados no topo deste
+   arquivo (`--lnd-*`).
+
+   ATENÇÃO a dois nomes: as classes desta seção usam o prefixo
+   `lnd-vmove` / `lnd-vmoves` de propósito. `.lnd-move-*` já pertence à
+   seção de Estratégia (bloco de "Plano de ação", ~linha 4125) e
+   reutilizar o nome misturaria duas composições diferentes.
+   ============================================================ */
+
+/* ---------- HERO: pílula dos quatro verbos ---------- */
+.lnd-hero-verbs {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-bottom: 26px;
+  padding: 7px 8px 7px 16px;
+  border-radius: var(--lnd-r-pill);
+  background: var(--lnd-card);
+  border: 1px solid var(--lnd-border);
+  box-shadow: var(--lnd-shadow-xs);
+}
+.lnd-hero-verbs .lnd-verbs-k {
+  font-family: var(--lnd-font-data);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--lnd-ink-3);
+}
+.lnd-hero-verbs .lnd-verbs-list {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.lnd-hero-verbs .lnd-verbs-list span {
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--lnd-purple);
+  background: var(--lnd-grad-soft);
+  border-radius: var(--lnd-r-pill);
+  padding: 5px 12px;
+  white-space: nowrap;
+}
+
+/* ---------- HERO: janela de demonstração ----------
+   Ocupa a largura de leitura do Hero, logo abaixo dos CTAs. Cada painel
+   dela corresponde a uma tela que existe no app; todo número leva o selo
+   "Exemplo" — nada aqui é resultado real de cliente. */
+.lnd-demo-wrap {
+  position: relative;
+  z-index: 1;
+  margin-top: clamp(44px, 6vw, 72px);
+  width: 100%;
+  max-width: 1040px;
+  margin-inline: auto;
+}
+.lnd-demo {
+  border-radius: var(--lnd-r-lg);
+  background: var(--lnd-card);
+  border: 1px solid var(--lnd-border);
+  box-shadow: var(--lnd-shadow-lg);
+  overflow: hidden;
+}
+.lnd-demo-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--lnd-surface);
+  border-bottom: 1px solid var(--lnd-border-soft);
+}
+.lnd-demo-dots {
+  display: inline-flex;
+  gap: 6px;
+  flex: none;
+}
+.lnd-demo-dots i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--lnd-border);
+}
+.lnd-demo-url {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  font-family: var(--lnd-font-data);
+  font-size: 12px;
+  color: var(--lnd-ink-3);
+  background: var(--lnd-card);
+  border: 1px solid var(--lnd-border-soft);
+  border-radius: var(--lnd-r-pill);
+  padding: 5px 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Selo próprio da janela. NÃO reaproveita `.lnd-demo-badge`, que já
+   existe para o rótulo "Demonstração" do Gerador de Copy (linha ~184) e
+   carrega o ponto âmbar + borda tracejada daquele contexto. */
+.lnd-demo-selo {
+  flex: none;
+  font-family: var(--lnd-font-data);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--lnd-ink-3);
+  border: 1px solid var(--lnd-border);
+  border-radius: var(--lnd-r-pill);
+  padding: 4px 10px;
+}
+.lnd-demo-body {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr) 250px;
+  gap: 1px;
+  background: var(--lnd-border-soft);
+}
+.lnd-demo-col {
+  background: var(--lnd-card);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.lnd-demo-col-side {
+  background: var(--lnd-bg);
+}
+.lnd-demo-col-title {
+  font-family: var(--lnd-font-data);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--lnd-ink-3);
+}
+.lnd-demo-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.lnd-demo-nav span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--lnd-ink-2);
+  border-radius: var(--lnd-r-xs);
+  padding: 7px 9px;
+}
+.lnd-demo-nav span i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--lnd-border);
+  flex: none;
+}
+.lnd-demo-nav span.lnd-on {
+  color: var(--lnd-purple);
+  background: var(--lnd-grad-soft);
+}
+.lnd-demo-nav span.lnd-on i {
+  background: var(--lnd-purple);
+}
+.lnd-demo-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.lnd-demo-topline b {
+  font-family: var(--lnd-font-display);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--lnd-ink);
+}
+.lnd-demo-chip {
+  font-family: var(--lnd-font-data);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--lnd-success);
+  background: var(--lnd-success-soft);
+  border-radius: var(--lnd-r-pill);
+  padding: 4px 10px;
+}
+.lnd-demo-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+.lnd-demo-day {
+  border: 1px solid var(--lnd-border-soft);
+  border-radius: var(--lnd-r-sm);
+  padding: 9px 6px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--lnd-card);
+}
+.lnd-demo-day span {
+  font-family: var(--lnd-font-data);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lnd-ink-3);
+}
+.lnd-demo-day b {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--lnd-ink);
+}
+.lnd-demo-day em {
+  font-style: normal;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lnd-purple);
+}
+.lnd-demo-day.lnd-best {
+  border-color: rgba(139, 92, 246, 0.35);
+  background: var(--lnd-grad-soft);
+}
+.lnd-demo-queue {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.lnd-demo-queue div {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--lnd-border-soft);
+  border-radius: var(--lnd-r-sm);
+  padding: 8px 10px;
+}
+.lnd-demo-queue div i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--lnd-info);
+}
+.lnd-demo-queue div.lnd-ok i {
+  background: var(--lnd-success);
+}
+.lnd-demo-queue div.lnd-wait i {
+  background: var(--lnd-warn);
+}
+.lnd-demo-queue div b {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--lnd-ink);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lnd-demo-queue div span {
+  font-family: var(--lnd-font-data);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lnd-ink-3);
+  flex: none;
+}
+.lnd-demo-kpis {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.lnd-demo-kpi {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid var(--lnd-border-soft);
+  border-radius: var(--lnd-r-sm);
+  padding: 9px 11px;
+  background: var(--lnd-card);
+}
+.lnd-demo-kpi span {
+  font-size: 11.5px;
+  color: var(--lnd-ink-2);
+}
+.lnd-demo-kpi b {
+  font-family: var(--lnd-font-data);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--lnd-ink);
+}
+.lnd-demo-note {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--lnd-ink-3);
+  text-align: center;
+}
+.lnd-demo-note svg {
+  flex: none;
+}
+
+@media (max-width: 900px) {
+  .lnd-demo-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* No celular a janela mostra o essencial: a coluna central (calendário
+     e fila) e os números. O menu lateral da janela é decoração de
+     desktop — escondê-lo evita uma lista de 5 itens sem função no toque. */
+  .lnd-demo-col-side:first-child {
+    display: none;
+  }
+}
+@media (max-width: 520px) {
+  .lnd-demo-week {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* ---------- SEÇÃO: CRIE · PUBLIQUE · CONVERSE · CRESÇA ---------- */
+/* Dois cards por linha, não quatro.
+   ------------------------------------------------------------
+   Medido na página de referência (`print de referencia/`): os cards
+   grandes ficam entre 550 e 580px de largura num container de 1120px —
+   duas ou três colunas, nunca quatro. Em quatro colunas cada card cai
+   para ~266px e o texto interno fica espremido, que é exatamente o que
+   esta rodada pede para evitar ("poucos cards grandes e bem
+   apresentados"). Em duas colunas o card vai a ~570px e o bloco interno
+   respira como na referência. */
+.lnd-vmoves {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(20px, 2vw, 28px);
+}
+.lnd-vmove {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  /* Padding e raio proporcionais ao card maior. A referência usa raio de
+     ~24px num card de ~577px (≈4,2% da largura); em ~570px isso dá ~24px,
+     que é o token `--lnd-r-lg` (22px). O `--lnd-r-md` (16px) era o raio de
+     quando o card tinha 266px de largura. */
+  padding: clamp(26px, 2.8vw, 36px) clamp(22px, 2.6vw, 32px) clamp(24px, 2.6vw, 32px);
+  border-radius: var(--lnd-r-lg);
+  border: 1px solid var(--lnd-border);
+  background: var(--lnd-card);
+  box-shadow: var(--lnd-shadow-xs);
+  transition:
+    transform 0.35s var(--lnd-ease-out),
+    box-shadow 0.35s ease,
+    border-color 0.35s ease;
+}
+.lnd-vmove:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--lnd-shadow-md);
+  border-color: rgba(139, 92, 246, 0.28);
+}
+.lnd-vmove-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.lnd-vmove-n {
+  font-family: var(--lnd-font-data);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--lnd-ink-3);
+}
+.lnd-vmove-ic {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--lnd-r-sm);
+  display: grid;
+  place-items: center;
+  background: var(--lnd-grad-soft);
+  color: var(--lnd-purple);
+  flex: none;
+}
+.lnd-vmove-verb {
+  font-family: var(--lnd-font-display);
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  background: var(--lnd-grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.lnd-vmove p {
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--lnd-ink-2);
+  /* Sem teto de linha de propósito. Medi a versão com `max-width: 48ch`
+     (375px) dentro do card de 586px: sobravam 149px de branco à direita e
+     o card parecia pela metade. As frases têm 110–130 caracteres, o que
+     em 14,5px ao longo de ~522px dá exatamente 2 linhas cheias em todos
+     os quatro cards — mais próximo do card da referência, cujo miolo
+     também é preenchido de ponta a ponta. */
+}
+.lnd-vmove-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid var(--lnd-border-soft);
+  padding-top: 14px;
+  margin-top: auto;
+}
+.lnd-vmove-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--lnd-ink);
+}
+.lnd-vmove-list li svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--lnd-purple);
+}
+.lnd-vmove--soon {
+  background: var(--lnd-bg);
+}
+.lnd-vmove-tag {
+  align-self: flex-start;
+  font-family: var(--lnd-font-data);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--lnd-warn);
+  background: var(--lnd-warn-soft);
+  border-radius: var(--lnd-r-pill);
+  padding: 3px 9px;
+}
+
+/* Abaixo de 900px duas colunas dariam ~370px por card — o card ainda
+   funciona, mas o parágrafo e a lista de 3 itens ficam apertados. Uma
+   coluna mantém a leitura confortável até o celular. */
+@media (max-width: 900px) {
+  .lnd-vmoves {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ============================================================
+   SELO — INTEGRAÇÃO VIA API OFICIAL DO INSTAGRAM
+   ------------------------------------------------------------
+   Elemento NOVO e ISOLADO. Não altera nenhuma regra existente: reaproveita
+   apenas as variáveis de tema já definidas no topo (`--lnd-*`), então segue a
+   identidade visual do Inst Acessor e muda junto se o tema mudar.
+   `pointer-events:none` porque é informativo — não deve capturar cliques nem
+   atrapalhar os CTAs do herói.
+   ============================================================ */
+.lnd-hero-apibadge {
+  position: absolute;
+  left: clamp(14px, 3vw, 40px);
+  bottom: clamp(14px, 3vw, 34px);
+  z-index: 3;
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--lnd-border);
+  background: color-mix(in srgb, var(--lnd-card) 82%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: var(--lnd-ink-2);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  white-space: nowrap;
+  max-width: calc(100vw - 28px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lnd-hero-apibadge svg {
+  color: var(--lnd-purple);
+  flex: none;
+}
+
+/* No celular o selo ocupa a largura disponível, centralizado, porque o rodapé
+   do herói fica estreito e um selo alinhado à esquerda competiria com o texto. */
+@media (max-width: 640px) {
+  .lnd-hero-apibadge {
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 12px;
+    font-size: 11px;
+    padding: 6px 11px;
+  }
+}
+
+/* Console surfaces use light text tokens; light sections keep dark AA tokens. */
+.lnd-console {
+  --lnd-purple: #c4b5fd;
+  --lnd-magenta: #f9a8d4;
+  --lnd-success: #6ee7b7;
+  --lnd-danger: #fca5a5;
+  --lnd-warn: #fcd34d;
+  --lnd-grad: linear-gradient(115deg, #f9a8d4, #c4b5fd, #a5b4fc);
+}
+.lnd-console .lnd-rc-top > span:first-child { color: var(--lnd-console-ink-2); }
+#badges { background: #f7f8fa; }

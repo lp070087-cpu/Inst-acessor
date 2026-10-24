@@ -1,3 +1,4 @@
+import { withSessionApi } from "@/lib/auth/session-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -17,7 +18,7 @@ export const dynamic = "force-dynamic";
  * PATCH /api/copy?id=...&favorite=1 — alterna favorito
  * DELETE /api/copy?id=... — exclui
  */
-export async function GET() {
+async function GETHandler() {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -38,7 +39,7 @@ export async function GET() {
   }
 }
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -78,7 +79,7 @@ export async function POST(request: Request) {
   }
 }
 
-export async function PATCH(request: Request) {
+async function PATCHHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -98,7 +99,7 @@ export async function PATCH(request: Request) {
   }
 }
 
-export async function DELETE(request: Request) {
+async function DELETEHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -115,3 +116,8 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "Erro ao excluir copy." }, { status: 500 });
   }
 }
+
+export const GET = withSessionApi(GETHandler);
+export const POST = withSessionApi(POSTHandler);
+export const PATCH = withSessionApi(PATCHHandler);
+export const DELETE = withSessionApi(DELETEHandler);

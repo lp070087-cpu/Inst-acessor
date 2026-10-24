@@ -1,3 +1,4 @@
+import { withSessionApi } from "@/lib/auth/session-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -40,7 +41,7 @@ export const dynamic = "force-dynamic";
  *   NUNCA retorna o token; apenas dados não sensíveis.
  */
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   let session;
   try {
     session = await requireSession();
@@ -201,3 +202,5 @@ async function markReconnectNeeded(userId: string) {
     /* best-effort */
   }
 }
+
+export const POST = withSessionApi(POSTHandler);

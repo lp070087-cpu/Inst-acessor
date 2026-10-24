@@ -85,11 +85,11 @@ export function parseAsaasWebhook(payload: unknown): ParsedAsaasEvent | null {
   }
 
   const amountCents = numToCents(payment?.value ?? subscription?.value ?? null);
-  const paidAt = str(payment?.paidDate ?? null);
+  const paidAt = str(payment?.paymentDate ?? payment?.clientPaymentDate ?? payment?.confirmedDate ?? payment?.paidDate ?? null);
 
   return {
     event: event as AsaasKnownEvent,
-    eventId: `${event}:${eventId}`,
+    eventId: str(raw.id) ?? `${event}:${eventId}`,
     externalCustomerId,
     externalSubscriptionId,
     externalPaymentId,

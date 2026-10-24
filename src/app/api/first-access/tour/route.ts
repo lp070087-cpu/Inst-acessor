@@ -1,3 +1,4 @@
+import { withSessionApi } from "@/lib/auth/session-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -14,7 +15,7 @@ const tourRateLimiter = createRateLimiter({ windowMs: 60_000, max: 20 });
  * Registra a conclusão ou o pulo do tour guiado (owner-checked).
  * O tour NÃO é reexibido automaticamente nos próximos logins.
  */
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   if (!tourRateLimiter.check(clientIp(request))) {
     return NextResponse.json(
       { ok: false, error: "Muitas tentativas. Aguarde um instante e tente novamente." },
@@ -33,3 +34,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Não foi possível registrar o tour." }, { status: 500 });
   }
 }
+
+export const POST = withSessionApi(POSTHandler);

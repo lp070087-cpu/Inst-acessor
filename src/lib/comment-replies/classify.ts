@@ -113,6 +113,10 @@ export async function classifyComment(
       return { category: heuristicCategory(clean), reviewTrigger: null, source: "REGRA_FALLBACK" };
     }
 
+    // SEM MEDIÇÃO AQUI (intencional): esta chamada roda DENTRO do fluxo de
+    // resposta a comentário que já é medido como `auto_reply` pelo medidor
+    // externo (`src/lib/comment-replies/engine.ts`). Envolver isto de novo
+    // contaria DUAS VEZES a mesma ação do usuário.
     const raw = await provider.complete({
       system: [
         "Você classifica comentários de Instagram para um sistema de respostas.",

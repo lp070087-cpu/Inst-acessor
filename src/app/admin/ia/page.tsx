@@ -3,6 +3,7 @@ import { Cpu } from "lucide-react";
 
 import { requireAdminSession } from "@/lib/auth/guard";
 import { getAIAdminStatus } from "@/lib/admin/ai-config";
+import { OPENAI_MODELS, GEMINI_MODELS } from "@/lib/ai/settings-keys";
 import { AdminAIClient } from "@/components/admin/admin-ai-client";
 
 export const metadata: Metadata = {
@@ -37,6 +38,12 @@ export default async function AdminIaPage() {
           activeProvider: status.activeProvider,
           openai: status.openai,
           gemini: status.gemini,
+        }}
+        // Listas vêm da FONTE ÚNICA (`@/lib/ai/settings-keys`) — o dropdown
+        // nunca volta a divergir da allow-list que a API valida.
+        models={{
+          openai: [...OPENAI_MODELS],
+          gemini: [...GEMINI_MODELS],
         }}
       />
     </div>

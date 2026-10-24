@@ -44,7 +44,7 @@ export default withAuth(
           return true;
         }
         // Requer autenticação para o app
-        return !!token;
+        return !!token?.id && !token.revoked;
       },
     },
   }
@@ -69,7 +69,6 @@ export const config = {
     "/perfil/:path*",
     "/configuracoes/:path*",
     "/sobre/:path*",
-    "/p/:path*",
     "/publishing/:path*",
     "/growth/:path*",
     "/automacoes/:path*",

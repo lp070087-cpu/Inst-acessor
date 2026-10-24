@@ -20,6 +20,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { PageHeader } from "@/components/layout/page-header";
 
 export const metadata: Metadata = {
   title: "Sobre o Inst Acessor",
@@ -69,15 +70,11 @@ const resources = [
 export default function SobrePage() {
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-1">
-        <h1 className="font-display text-[26px] font-bold text-ink">
-          Sobre o Inst Acessor
-        </h1>
-        <p className="text-[13.5px] text-ink-soft">
-          Dados, inteligência e planejamento reunidos para apoiar sua estratégia
-          de crescimento.
-        </p>
-      </div>
+      <PageHeader
+        title="Sobre o Inst Acessor"
+        description="Dados, inteligência e planejamento reunidos para apoiar sua estratégia de crescimento."
+      />
+
 
       <Card className="overflow-hidden">
         <CardContent className="relative p-6 sm:p-8">
@@ -102,6 +99,27 @@ export default function SobrePage() {
               </p>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Selo + explicação discreta da integração. Texto informativo e
+          verificável: a conexão usa a API oficial do Instagram
+          (`graph.instagram.com`, escopos `instagram_business_*`). NÃO afirma
+          certificação, parceria comercial nem endosso da Meta — nada disso
+          seria verdade. */}
+      <Card>
+        <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:gap-4">
+          <div className="inline-flex w-fit shrink-0 items-center gap-2 rounded-full border border-border-soft bg-surface px-3 py-1.5 text-[12px] font-semibold text-ink-soft">
+            <Instagram size={14} className="text-purple flex-none" />
+            API oficial do Instagram
+          </div>
+          <p className="text-[13px] leading-6 text-ink-soft">
+            A conexão com o Instagram é feita pela API oficial da Meta, com login
+            seguro e permissões concedidas por você. O Inst Acessor não pede sua
+            senha e não publica nada sem a sua autorização. Alguns recursos
+            dependem da liberação de permissões avançadas pela Meta e podem
+            aparecer como pendentes até essa aprovação.
+          </p>
         </CardContent>
       </Card>
 
@@ -224,6 +242,46 @@ export default function SobrePage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Dois cards lado a lado — mesma largura, mesmo alinhamento, mesmo
+          espaçamento. Empilham no celular (grid-cols-1). Sem promessa de
+          crescimento garantido: descrevem propósito e funcionamento. */}
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 md:items-stretch">
+        <Card className="h-full">
+          <CardHeader>
+            <div className="mb-1 flex items-center gap-2 text-purple">
+              <Target size={18} />
+            </div>
+            <CardTitle>Nossa proposta</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-[13.5px] leading-6 text-ink-soft">
+              Ajudar você a organizar sua estratégia de crescimento digital com
+              dados, inteligência artificial, planejamento, criação de conteúdo e
+              automações autorizadas. O Inst Acessor reúne o que importa em um só
+              lugar, para que cada decisão nasça de informação real — não de
+              suposição.
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="h-full">
+          <CardHeader>
+            <div className="mb-1 flex items-center gap-2 text-purple">
+              <TrendingUp size={18} />
+            </div>
+            <CardTitle>Como funciona</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-[13.5px] leading-6 text-ink-soft">
+              Você conecta suas redes sociais; o Inst Acessor analisa os dados
+              disponíveis e devolve recomendações. A partir daí, planeja
+              conteúdos e executa as ações manualmente ou por integrações
+              autorizadas — sempre no seu controle.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

@@ -6,7 +6,7 @@
  *
  * Fluxo oficial (apenas quando há conexão + mídia pública):
  *   1) Iniciar post:   POST https://open.tiktokapis.com/v2/post/publish/video/init/
- *      - post_info.title, privacy_level=PUBLIC_TO_EVERYONE
+ *      - post_info.title, privacidade e interações escolhidas pelo usuário
  *      - source_info.source=PULL_FROM_URL, video_url (URL pública)
  *      - Authorization: Bearer <access_token>
  *      → retorna publish_id
@@ -34,8 +34,9 @@ import type {
   PublishCancelResult,
 } from "../types";
 import { publishHttp, PublishHttpError } from "../http";
-import { buildTikTokPostBody, extractMediaRefs, isPublicMediaUrl, mapTikTokStatus } from "../media";
+import { buildTikTokPostBody, extractMediaRefs, isPublicMediaUrl, readTikTokFetchStatus } from "../media";
 import { resolvePublishConnection, type ConnectionResolution } from "../connection";
+import { hasTikTokPublishScope, isVerifiedTikTokMediaUrl, queryTikTokCreatorInfo, tiktokContentBinding, tiktokPublishingIssue } from "@/lib/integrations/tiktok/creator-info";
 
 const TIKTOK_API_BASE = "https://open.tiktokapis.com/v2";
 
@@ -129,11 +130,13 @@ function classifyHttpError(err: PublishHttpError): PublishResult {
 }
 
 async function publishTikTok(payload: PublishPayload, userId: string): Promise<PublishResult> {
+  if (process.env.TIKTOK_PUBLISHING_ENABLED !== "true") return notConfigured("Publicação TikTok desativada neste ambiente.");
   // 1) Fail-closed: conexão ativa + token.
   const connection = await resolvePublishConnection(userId, "tiktok");
   if (!connection.ok) return connectionToCode(connection);
 
   const { accessToken, externalAccountId } = connection;
+  if (!hasTikTokPublishScope(connection.scopes)) return { ok: false, errorCode: "AUTH", errorMessage: "Conecte o TikTok com a permissão de publicação." };
 
   // 2) Valida mídia pública (regra de honestidade).
   const refs = extractMediaRefs(payload);
@@ -166,10 +169,18 @@ async function publishTikTok(payload: PublishPayload, userId: string): Promise<P
     };
   }
 
-  // 3) Monta o corpo oficial e inicia o post.
-  const body = buildTikTokPostBody(buildCaptionText(payload), primaryPublic);
+  if (!isVerifiedTikTokMediaUrl(primaryPublic, process.env.TIKTOK_VERIFIED_MEDIA_ORIGINS ?? "")) {
+    return { ok: false, errorCode: "VALIDATION", errorMessage: "A origem da mídia ainda não foi confirmada para envio ao TikTok." };
+  }
 
   try {
+    // Refresh creator capabilities immediately before init; never silently alter
+    // privacy/interaction choices captured in the user's scheduling snapshot.
+    const creator = await queryTikTokCreatorInfo(accessToken, externalAccountId);
+    const issue = tiktokPublishingIssue(payload.tiktokOptions, creator, tiktokContentBinding(payload.caption, payload.hashtags ?? "", primaryPublic));
+    if (issue || !payload.tiktokOptions) return { ok: false, errorCode: "VALIDATION", errorMessage: issue ?? "Revise as opções TikTok." };
+    if (buildCaptionText(payload).length > 2200) return { ok: false, errorCode: "VALIDATION", errorMessage: "Reduza legenda e hashtags para até 2.200 caracteres antes de publicar no TikTok." };
+    const body = buildTikTokPostBody(buildCaptionText(payload), primaryPublic, payload.tiktokOptions, payload.coverTimeMs);
     const init = await publishHttp<{
       data?: { publish_id?: string };
       error?: { code?: string | number; message?: string };
@@ -183,7 +194,7 @@ async function publishTikTok(payload: PublishPayload, userId: string): Promise<P
     });
 
     const publishId = init?.data?.publish_id;
-    if (!publishId) {
+    if (init.error?.code !== "ok" || !publishId) {
       throw new PublishHttpError("O TikTok não retornou publish_id.", 0, false);
     }
 
@@ -236,7 +247,7 @@ async function pollTikTokStatus(
 ): Promise<"LIVE" | "PROCESSING" | "ERROR"> {
   for (let i = 0; i < MAX_STATUS_POLLS; i++) {
     const result = await publishHttp<{
-      data?: { state?: string; publish_id?: string };
+      data?: { status?: string; publish_id?: string };
       error?: { code?: string | number; message?: string };
     }>(TIKTOK_CONTENT_POSTING_ENDPOINTS.getStatus, {
       method: "POST",
@@ -247,9 +258,8 @@ async function pollTikTokStatus(
       body: JSON.stringify({ publish_id: publishId }),
     });
 
-    const state = result?.data?.state ?? "";
-    if (state === "PUBLISH_COMPLETE" || state === "PUBLISHED") return "LIVE";
-    if (state === "FAILED") return "ERROR";
+    const state = readTikTokFetchStatus(result);
+    if (state === "LIVE" || state === "ERROR") return state;
     // PROCESSING_UPLOAD / PROCESSING_DOWNLOAD / desconhecido → espera.
     if (i < MAX_STATUS_POLLS - 1) {
       await new Promise((resolve) => setTimeout(resolve, STATUS_POLL_DELAY_MS));
@@ -280,7 +290,7 @@ async function getTikTokStatus(
 
   try {
     const result = await publishHttp<{
-      data?: { state?: string; publish_id?: string };
+      data?: { status?: string; publish_id?: string };
       error?: { code?: string | number; message?: string };
     }>(TIKTOK_CONTENT_POSTING_ENDPOINTS.getStatus, {
       method: "POST",
@@ -291,8 +301,7 @@ async function getTikTokStatus(
       body: JSON.stringify({ publish_id: query.externalId }),
     });
 
-    const state = result?.data?.state;
-    const status = mapTikTokStatus(state);
+    const status = readTikTokFetchStatus(result);
     return { ok: status === "LIVE", status, externalId: result?.data?.publish_id ?? query.externalId };
   } catch (err) {
     if (err instanceof PublishHttpError && (err.status === 401 || err.status === 403)) {
@@ -307,6 +316,9 @@ export const tiktokAdapter: PublishingAdapter = {
 
   validate(payload: PublishPayload) {
     const errors: string[] = [];
+    if (buildCaptionText(payload).length > 2200) errors.push("Legenda e hashtags excedem 2.200 caracteres para o TikTok.");
+    const optionsIssue = tiktokPublishingIssue(payload.tiktokOptions, undefined, tiktokContentBinding(payload.caption, payload.hashtags ?? "", payload.mediaUrl ?? ""));
+    if (optionsIssue) errors.push(optionsIssue);
     if (!payload.contentId) errors.push("contentId ausente");
     if (!payload.format) errors.push("formato ausente");
     if (!payload.caption || payload.caption.trim().length === 0)

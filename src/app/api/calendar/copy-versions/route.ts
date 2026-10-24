@@ -1,3 +1,4 @@
+import { withPremiumApi } from "@/lib/auth/premium-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -16,7 +17,7 @@ export const dynamic = "force-dynamic";
  * Nunca sobrescreve: cada edição vira uma nova versão (1, 2, 3...).
  * Session-required + owner-checked.
  */
-export async function GET(request: Request) {
+async function GETHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -33,7 +34,7 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -59,3 +60,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Erro ao criar versão." }, { status: 500 });
   }
 }
+
+export const GET = withPremiumApi(GETHandler);
+
+export const POST = withPremiumApi(POSTHandler);

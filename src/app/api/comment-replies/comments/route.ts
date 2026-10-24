@@ -1,3 +1,4 @@
+import { withPremiumApi } from "@/lib/auth/premium-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -16,7 +17,7 @@ export const dynamic = "force-dynamic";
  * Persiste cada comentário analisado em `CommentReplyLog` com status PENDING,
  * que é também o mecanismo de idempotência (um comentário por registro).
  */
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   try {
     const session = await requireSession();
     const body = await request.json();
@@ -101,3 +102,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Não foi possível analisar os comentários." }, { status: 500 });
   }
 }
+
+export const POST = withPremiumApi(POSTHandler);

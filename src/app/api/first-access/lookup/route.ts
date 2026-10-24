@@ -1,3 +1,4 @@
+import { withSessionApi } from "@/lib/auth/session-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -15,7 +16,7 @@ const lookupRateLimiter = createRateLimiter({ windowMs: 60_000, max: 30 });
  * Consulta, para um usuário AUTENTICADO, se o e-mail tem acesso liberado.
  * Usado pela tela de boas-vindas pós-verificação.
  */
-export async function GET(request: Request) {
+async function GETHandler(request: Request) {
   const session = await requireSession();
   if (!lookupRateLimiter.check(session.user.id)) {
     return NextResponse.json({ error: "Muitas tentativas." }, { status: 429 });
@@ -32,3 +33,5 @@ export async function GET(request: Request) {
     grant: result.grant,
   });
 }
+
+export const GET = withSessionApi(GETHandler);

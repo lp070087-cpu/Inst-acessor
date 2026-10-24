@@ -10,6 +10,7 @@ import {
   createRateLimiter,
   clientIp,
   firstAccessEmailRateLimiter,
+  dbRateLimiter,
 } from "@/lib/publishing/rate-limit";
 import { FIRST_ACCESS_TOKEN_TTL_MINUTES } from "@/lib/first-access/core";
 import { normalizeEmail } from "@/lib/first-access";
@@ -33,6 +34,9 @@ const firstAccessRateLimiter = createRateLimiter({ windowMs: 60_000, max: 5 });
  *     exibido ao usuário. NUNCA é logado.
  */
 export async function POST(request: Request) {
+  if (!(await dbRateLimiter.check(`first-access:${clientIp(request)}`, { windowMs: 60_000, max: 5 }))) {
+    return NextResponse.json({ error: "Muitas tentativas. Tente novamente em instantes." }, { status: 429 });
+  }
   if (!firstAccessRateLimiter.check(clientIp(request))) {
     return NextResponse.json(
       { error: "Muitas tentativas. Aguarde um instante e tente novamente." },
@@ -55,6 +59,9 @@ export async function POST(request: Request) {
   // Rate limit PER-EMAIL (além do por-IP acima) — anti-flood de tokens para um
   // mesmo endereço. Usa o e-mail NORMALIZADO para não contornar com variações.
   const normalizedInput = normalizeEmail(parsed.data.email);
+  if (normalizedInput && !(await dbRateLimiter.check(`first-access-email:${normalizedInput}`, { windowMs: 60_000, max: 3 }))) {
+    return NextResponse.json({ ok: true, message: EMAIL_NOT_ELIGIBLE_MESSAGE });
+  }
   if (
     normalizedInput &&
     !firstAccessEmailRateLimiter.check(`fa:${normalizedInput}`)

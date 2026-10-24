@@ -15,6 +15,7 @@ import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Tabs } from "@/components/ui/tabs";
+import { FIELD_CLASS_FILLED, SELECT_CLASS_FILLED } from "@/lib/ui/field";
 import { cn } from "@/lib/utils";
 
 const PLATFORMS = [
@@ -187,8 +188,7 @@ export function CopyGenerator({ aiConfigured, initialSaved }: CopyGeneratorProps
     }
   }
 
-  const inputCls =
-    "h-11 rounded-[12px] border border-border bg-bg-ice px-3.5 text-[14px] text-ink placeholder:text-ink-muted focus:border-purple/50 focus:ring-2 focus:ring-purple/20 focus:outline-none transition-shadow";
+  const inputCls = FIELD_CLASS_FILLED;
 
   return (
     <div className="flex flex-col gap-5">
@@ -248,7 +248,11 @@ export function CopyGenerator({ aiConfigured, initialSaved }: CopyGeneratorProps
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">
                 <label className="text-[12.5px] font-semibold text-ink-soft">Tom</label>
-                <select value={tone} onChange={(e) => setTone(e.target.value)} className={inputCls}>
+                <select
+                  value={tone}
+                  onChange={(e) => setTone(e.target.value)}
+                  className={SELECT_CLASS_FILLED}
+                >
                   {TONES.map((t) => (
                     <option key={t.id} value={t.id}>
                       {t.label}
@@ -258,7 +262,11 @@ export function CopyGenerator({ aiConfigured, initialSaved }: CopyGeneratorProps
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-[12.5px] font-semibold text-ink-soft">Tamanho</label>
-                <select value={size} onChange={(e) => setSize(e.target.value)} className={inputCls}>
+                <select
+                  value={size}
+                  onChange={(e) => setSize(e.target.value)}
+                  className={SELECT_CLASS_FILLED}
+                >
                   {SIZES.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.label}

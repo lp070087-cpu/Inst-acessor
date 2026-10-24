@@ -1,6 +1,9 @@
 ﻿import { aiConfigured } from "@/lib/ai";
 import { getAIProfile } from "@/lib/ai/services/profile";
 import { prisma } from "@/lib/db";
+import { resolvePremiumAccess } from "@/lib/access/premium";
+import { claimCommentReply } from "./delivery-claim";
+import { recordUsage } from "@/lib/billing/usage/meter";
 import { classifyComment } from "./classify";
 import { analyzeEmptyReason, type AnalyzeEmptyReason } from "./empty-reason";
 import { canAutoSend, REVIEW_REASON_LABEL } from "./safety";
@@ -359,6 +362,21 @@ export async function analyzeMedia(
     }
   }
 
+  // DEDUPLICAÇÃO DA LEVA — caso "10 comentários dizendo 'linda'".
+  // Rodava faltando: `markRepetitions` existia mas nunca era chamado, então
+  // comentários iguais na MESMA leva recebiam a MESMA sugestão (cada geração só
+  // conhecia as respostas de outras levas, não as irmãs). Aqui, depois de gerar
+  // todas, as repetidas são reescritas uma única vez com a IA.
+  let repetitionsFixed = 0;
+  if (items.length > 1 && ctx.aiAvailable) {
+    try {
+      repetitionsFixed = await resolveBatchRepetitions(userId, items, ctx, opts.persist ?? true);
+    } catch (err) {
+      // Best-effort: nunca derruba a análise por não conseguir variar.
+      console.error("[comment-replies] falha ao resolver repetições", err);
+    }
+  }
+
   // Discriminador — a decisão mora em `analyzeEmptyReason`, um núcleo puro
   // provado por execução (outputs/bench-empty.mjs). Aqui só medimos os fatos.
   const emptyReason: AnalyzeEmptyReason = analyzeEmptyReason({
@@ -582,6 +600,10 @@ export async function sendApprovedReply(
   finalReply: string,
   origin: "MANUAL" | "AUTO" = "MANUAL"
 ): Promise<{ ok: boolean; error?: string; code?: string; replyId?: string }> {
+  const owner = await prisma.user.findUnique({ where: { id: userId }, select: { status: true } });
+  if (!owner || owner.status !== "ACTIVE" || !(await resolvePremiumAccess(userId)).hasAccess) {
+    return { ok: false, error: "Conta sem autorização ativa.", code: "access" };
+  }
   const log = await findLogById(userId, logId);
 
   if (!log) return { ok: false, error: "Registro não encontrado.", code: "not_found" };
@@ -627,6 +649,8 @@ export async function sendApprovedReply(
     return { ok: false, error: info?.message ?? "Sem conexão com o Instagram.", code: info?.code ?? "no_connection" };
   }
 
+  if (!(await claimCommentReply(userId, logId))) return { ok: false, error: "Resposta em envio, aguardando conferência ou limitada.", code: "processing" };
+
   try {
     const { externalReplyId } = await replyToComment(log.commentId, text, credentials);
 
@@ -639,6 +663,17 @@ export async function sendApprovedReply(
       sourceRule: origin,
     });
 
+    // MEDIÇÃO de `auto_reply` — registrada APÓS o envio REAL confirmado pela
+    // Meta. A idempotência do envio é do `CommentReplyLog` (um `commentId`
+    // nunca é respondido duas vezes, ver bloco acima), então aqui NÃO passamos
+    // chave de idempotência: `recordUsage` nunca lança e uma falha de medição
+    // não pode derrubar uma resposta que já foi entregue.
+    await recordUsage({
+      userId,
+      feature: "auto_reply",
+      origin: origin === "AUTO" ? "comment-auto" : "comment-manual",
+    });
+
     return { ok: true, replyId: externalReplyId };
   } catch (err) {
     const info =
@@ -646,7 +681,7 @@ export async function sendApprovedReply(
         ? err
         : new CommentCapabilityError("api", "Não foi possível publicar a resposta.");
 
-    await updateLog(userId, logId, { status: "ERROR", errorCode: info.code });
+    await updateLog(userId, logId, { status: "ERROR", errorCode: "reconciliation_required" });
 
     // Pausa conforme a natureza do erro — sem laço infinito de tentativas.
     const pause = pauseForError(info.code);
@@ -743,11 +778,19 @@ export async function runAutomation(
 }
 
 /**
- * Detecta repetição nas sugestões de uma mesma leva e regenera as duplicadas.
- * É o tratamento do caso "10 comentários dizendo 'linda'".
+ * Detecta repetição nas sugestões de uma leva.
+ *
+ * CASO REAL: "10 comentários dizendo 'linda'". A geração roda UMA vez por
+ * comentário e cada chamada só conhece as respostas de OUTRAS levas
+ * (`recentReplies`, já enviadas) — não as sugestões irmãs desta. Sem checar
+ * contra a própria leva, o modelo pode devolver a MESMA resposta para todos.
+ *
+ * Compara cada sugestão contra (a) as anteriores desta leva e (b) as respostas
+ * recentemente usadas — para não sugerir algo idêntico ao que já foi enviado.
+ * É puro (nenhum I/O) e a decisão de corrigir mora em `resolveBatchRepetitions`.
  */
-export function markRepetitions(replies: string[]): boolean[] {
-  const seen: string[] = [];
+export function markRepetitions(replies: string[], against: string[] = []): boolean[] {
+  const seen: string[] = [...against];
   const flags: boolean[] = [];
   for (const reply of replies) {
     const duplicated = seen.some((prev) => isTooSimilar(prev, reply));
@@ -755,6 +798,75 @@ export function markRepetitions(replies: string[]): boolean[] {
     seen.push(reply);
   }
   return flags;
+}
+
+/**
+ * Resolve as repetições de uma leva: reescreve as duplicadas com a IA, uma
+ * única vez, acumulando as respostas já usadas como contexto para que cada
+ * regeneração fuja de todas as anteriores.
+ *
+ * Falha de IA aqui é BEST-EFFORT: a sugestão repetida permanece como está
+ * (ainda revisável pelo humano) — nunca descartamos uma sugestão válida por não
+ * conseguir variá-la. Retorna quantas foram corrigidas de fato.
+ */
+async function resolveBatchRepetitions<T extends { comment: EligibleComment; generatedReply: string | null; logId: string | null }>(
+  userId: string,
+  items: T[],
+  ctx: CommentAnalysisContext,
+  persist: boolean
+): Promise<number> {
+  const replies = items.map((it) => it.generatedReply ?? "");
+  const flags = markRepetitions(replies, ctx.recentReplies);
+  const seen: string[] = [...ctx.recentReplies];
+  let fixed = 0;
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    if (!flags[i] || !item.generatedReply) continue;
+
+    const media = ctx.media;
+    // Reusa a MESMA decisão de estilo/instruções do comentário original
+    // (perfil especial, categoria, exemplos) — só pede uma variação nova.
+    const regenerated = await generateReply({
+      decision: {
+        kind: "AI",
+        source: "IA",
+        instructions: ["Gere uma resposta DIFERENTE das já usadas para este mesmo comentário."],
+        styleExamples: [],
+        emojiOnly: false,
+        emojiFallback: null,
+        matchedId: null,
+        reason: "variação por repetição detectada",
+        forceReview: false,
+        reviewReason: null,
+      },
+      commentText: item.comment.text,
+      commenterUsername: item.comment.username,
+      mediaCaption: media?.caption ?? null,
+      mediaType: media?.mediaType ?? "IMAGE",
+      aiProfile: ctx.aiProfile,
+      profileNiche: ctx.profileNiche,
+      profileObjective: ctx.profileObjective,
+      recentReplies: seen.slice(-10),
+    });
+
+    if (regenerated.ok && regenerated.reply) {
+      item.generatedReply = regenerated.reply;
+      fixed++;
+      if (persist && item.logId) {
+        try {
+          await updateLog(userId, item.logId, { generatedReply: regenerated.reply });
+        } catch (err) {
+          // Persistir a variação é desejável, não crítico: o item já foi
+          // corrigido em memória para o retorno da análise.
+          console.error("[comment-replies] falha ao gravar variação", err);
+        }
+      }
+    }
+    seen.push(item.generatedReply);
+  }
+
+  return fixed;
 }
 
 

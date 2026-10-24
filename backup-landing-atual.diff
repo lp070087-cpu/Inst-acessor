@@ -1,0 +1,1169 @@
+diff --git a/src/app/landing.css b/src/app/landing.css
+index c341a28..c93905d 100644
+--- a/src/app/landing.css
++++ b/src/app/landing.css
+@@ -153,8 +153,19 @@
+   box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.15);
+ }
+ .lnd-section-head {
++  /* 760px: idêntico ao bloco de título da referência, medido no print
++     (duas linhas de H2 centradas ocupando 745px e 376px). */
+   max-width: 760px;
+-  margin-bottom: clamp(34px, 5vw, 52px);
++  /* Respiro DEPOIS do título, não antes do conteúdo.
++     ------------------------------------------------------------
++     Medido na referência: do fim do H2 até o topo dos cards vão ~122px
++     (99px até a pílula do título do card, que avança sobre a borda). O
++     Inst Acessor dava 52px — o título e os cards ficavam colados, e a
++     seção parecia apertada apesar de todo o resto estar na mesma escala.
++     A referência concentra o respiro aqui, entre cabeçalho e conteúdo, em
++     vez de só no padding da seção. 68px é o meio-termo: encurta a
++     distância sem transformar cada seção numa rolagem longa. */
++  margin-bottom: clamp(40px, 5.6vw, 68px);
+ }
+ .lnd-section-head.lnd-center {
+   margin-inline: auto;
+@@ -3990,6 +4001,18 @@
+    apenas que o conteúdo interno acompanhe o alinhamento ao centro. */
+ .lnd-hero-centered .lnd-hero-title {
+   text-align: center;
++  /* Cada `.lnd-line-inner` é um bloco que QUEBRA dentro de si quando não
++     cabe na largura. Sem equilíbrio, a quebra sozinha deixava a primeira
++     linha com quatro palavras e as seguintes com uma ("planeja," /
++     "publica e" / "lê os resultados do seu" / "Instagram."). `balance`
++     distribui as palavras entre as linhas do próprio bloco — mesmo
++     recurso já usado em `.lnd-solucao-note .lnd-h2`, uma tela acima.
++     `pretty` fica no bloco de trás: onde `balance` não é suportado, ele
++     ao menos evita a última linha órfã. */
++  text-wrap: pretty;
++}
++.lnd-hero-centered .lnd-hero-title .lnd-line-inner {
++  text-wrap: balance;
+ }
+ .lnd-hero-centered .lnd-hero-kicker {
+   margin-inline: auto;
+@@ -6975,6 +6998,48 @@
+   .lnd-pub-social-ic svg {
+     animation: none;
+   }
++
++  /* ANIMAÇÕES CONTÍNUAS — desligadas em prefers-reduced-motion.
++     ------------------------------------------------------------
++     O bloco acima já desligava várias animações, mas NÃO as que rodam para
++     sempre (`infinite`). Elas são as mais caras: continuam consumindo quadro e
++     bateria enquanto a página está aberta, mesmo parada — justamente no
++     aparelho fraco e na bateria fraca que o usuário pediu para respeitar.
++     Cada seletor abaixo corresponde a uma `animation: ... infinite` real
++     (conferido linha a linha); a animação some e o elemento continua visível
++     no estado final. */
++  .lnd-marquee-track,
++  .lnd-hero-kicker .lnd-pulse,
++  .lnd-float-chip,
++  .lnd-js .lnd-float-chip,
++  .lnd-ai-panel-header p::before,
++  .lnd-dots i,
++  .lnd-copy-box .lnd-cb-text.lnd-copy-loading::before,
++  .lnd-copy-box .lnd-cb-text.lnd-copy-loading::after,
++  .lnd-xp-milestone.lnd-current::before,
++  .lnd-pub-social-ic.lnd-pub-heart svg {
++    animation: none !important;
++  }
++
++  /* A faixa rolante mostra o conteúdo sem movimento: em vez de esconder, ela
++     fica estática mas legível (o `overflow: hidden` do pai já recorta). */
++  .lnd-marquee-track {
++    transform: none;
++  }
++}
++
++/* ---------- CUSTO DE RENDERIZAÇÃO FORA DA TELA ----------
++   `content-visibility: auto` faz o navegador PULAR o layout e a pintura das
++   seções que não estão na tela. É o ganho mais direto numa landing de 24
++   seções: o trabalho de render cai para o que está visível.
++   `contain-intrinsic-size` reserva uma altura estimada para a barra de
++   rolagem não "pular" quando a seção entra. A estimativa é só do espaço
++   reservado — nada visual depende dela, e o layout real substitui assim que a
++   seção aparece.
++   Não se aplica ao Hero (primeira dobra precisa render imediato). */
++.lnd-section:not(:first-of-type) {
++  content-visibility: auto;
++  contain-intrinsic-size: auto 900px;
+ }
+ 
+ /* ---------- RESPONSIVO — novos blocos ---------- */
+@@ -7427,3 +7492,488 @@
+     padding-bottom: calc(20px + env(safe-area-inset-bottom));
+   }
+ }
++
++/* ============================================================
++   RODADA DE ESTRATÉGIA — HERO COM DEMONSTRAÇÃO + OS 4 MOVIMENTOS
++   ------------------------------------------------------------
++   Origem: leitura da página de referência enviada pelo usuário
++   (`print de referencia/`) e do link anotado no mesmo diretório.
++
++   O que a referência faz e passou a valer aqui:
++   1. A promessa aparece na PRIMEIRA linha, com o produto NOMEADO.
++      Antes, o Hero explicava a categoria ("plataforma de análise e
++      crescimento") e deixava o nome do produto só no logotipo.
++   2. O produto é DEMONSTRADO logo abaixo do CTA — aqui, numa janela
++      com a interface real do app, no lugar de ilustração genérica.
++   3. Os recursos são agrupados por VERBO (criar, publicar, conversar,
++      crescer) em vez de listados em 20 blocos equivalentes: o visitante
++      entende o produto por etapas, não por inventário.
++
++   Nada aqui é cópia: marca, paleta, tipografia, textos e composição
++   continuam do Inst Acessor. Só o ESQUELETO de conversão foi adaptado.
++
++   Nenhuma cor nova: tudo sai dos tokens já declarados no topo deste
++   arquivo (`--lnd-*`).
++
++   ATENÇÃO a dois nomes: as classes desta seção usam o prefixo
++   `lnd-vmove` / `lnd-vmoves` de propósito. `.lnd-move-*` já pertence à
++   seção de Estratégia (bloco de "Plano de ação", ~linha 4125) e
++   reutilizar o nome misturaria duas composições diferentes.
++   ============================================================ */
++
++/* ---------- HERO: pílula dos quatro verbos ---------- */
++.lnd-hero-verbs {
++  display: inline-flex;
++  align-items: center;
++  gap: 10px;
++  flex-wrap: wrap;
++  justify-content: center;
++  margin-bottom: 26px;
++  padding: 7px 8px 7px 16px;
++  border-radius: var(--lnd-r-pill);
++  background: var(--lnd-card);
++  border: 1px solid var(--lnd-border);
++  box-shadow: var(--lnd-shadow-xs);
++}
++.lnd-hero-verbs .lnd-verbs-k {
++  font-family: var(--lnd-font-data);
++  font-size: 10.5px;
++  font-weight: 700;
++  letter-spacing: 0.16em;
++  text-transform: uppercase;
++  color: var(--lnd-ink-3);
++}
++.lnd-hero-verbs .lnd-verbs-list {
++  display: inline-flex;
++  align-items: center;
++  gap: 4px;
++  flex-wrap: wrap;
++}
++.lnd-hero-verbs .lnd-verbs-list span {
++  font-size: 12.5px;
++  font-weight: 700;
++  letter-spacing: 0.04em;
++  text-transform: uppercase;
++  color: var(--lnd-purple);
++  background: var(--lnd-grad-soft);
++  border-radius: var(--lnd-r-pill);
++  padding: 5px 12px;
++  white-space: nowrap;
++}
++
++/* ---------- HERO: janela de demonstração ----------
++   Ocupa a largura de leitura do Hero, logo abaixo dos CTAs. Cada painel
++   dela corresponde a uma tela que existe no app; todo número leva o selo
++   "Exemplo" — nada aqui é resultado real de cliente. */
++.lnd-demo-wrap {
++  position: relative;
++  z-index: 1;
++  margin-top: clamp(44px, 6vw, 72px);
++  width: 100%;
++  max-width: 1040px;
++  margin-inline: auto;
++}
++.lnd-demo {
++  border-radius: var(--lnd-r-lg);
++  background: var(--lnd-card);
++  border: 1px solid var(--lnd-border);
++  box-shadow: var(--lnd-shadow-lg);
++  overflow: hidden;
++}
++.lnd-demo-bar {
++  display: flex;
++  align-items: center;
++  gap: 12px;
++  padding: 12px 16px;
++  background: var(--lnd-surface);
++  border-bottom: 1px solid var(--lnd-border-soft);
++}
++.lnd-demo-dots {
++  display: inline-flex;
++  gap: 6px;
++  flex: none;
++}
++.lnd-demo-dots i {
++  width: 9px;
++  height: 9px;
++  border-radius: 50%;
++  background: var(--lnd-border);
++}
++.lnd-demo-url {
++  flex: 1;
++  min-width: 0;
++  text-align: center;
++  font-family: var(--lnd-font-data);
++  font-size: 12px;
++  color: var(--lnd-ink-3);
++  background: var(--lnd-card);
++  border: 1px solid var(--lnd-border-soft);
++  border-radius: var(--lnd-r-pill);
++  padding: 5px 14px;
++  overflow: hidden;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++/* Selo próprio da janela. NÃO reaproveita `.lnd-demo-badge`, que já
++   existe para o rótulo "Demonstração" do Gerador de Copy (linha ~184) e
++   carrega o ponto âmbar + borda tracejada daquele contexto. */
++.lnd-demo-selo {
++  flex: none;
++  font-family: var(--lnd-font-data);
++  font-size: 10px;
++  font-weight: 700;
++  letter-spacing: 0.12em;
++  text-transform: uppercase;
++  color: var(--lnd-ink-3);
++  border: 1px solid var(--lnd-border);
++  border-radius: var(--lnd-r-pill);
++  padding: 4px 10px;
++}
++.lnd-demo-body {
++  display: grid;
++  grid-template-columns: 190px minmax(0, 1fr) 250px;
++  gap: 1px;
++  background: var(--lnd-border-soft);
++}
++.lnd-demo-col {
++  background: var(--lnd-card);
++  padding: 16px;
++  display: flex;
++  flex-direction: column;
++  gap: 12px;
++  min-width: 0;
++}
++.lnd-demo-col-side {
++  background: var(--lnd-bg);
++}
++.lnd-demo-col-title {
++  font-family: var(--lnd-font-data);
++  font-size: 10px;
++  font-weight: 700;
++  letter-spacing: 0.14em;
++  text-transform: uppercase;
++  color: var(--lnd-ink-3);
++}
++.lnd-demo-nav {
++  display: flex;
++  flex-direction: column;
++  gap: 2px;
++}
++.lnd-demo-nav span {
++  display: flex;
++  align-items: center;
++  gap: 8px;
++  font-size: 12.5px;
++  font-weight: 600;
++  color: var(--lnd-ink-2);
++  border-radius: var(--lnd-r-xs);
++  padding: 7px 9px;
++}
++.lnd-demo-nav span i {
++  width: 6px;
++  height: 6px;
++  border-radius: 50%;
++  background: var(--lnd-border);
++  flex: none;
++}
++.lnd-demo-nav span.lnd-on {
++  color: var(--lnd-purple);
++  background: var(--lnd-grad-soft);
++}
++.lnd-demo-nav span.lnd-on i {
++  background: var(--lnd-purple);
++}
++.lnd-demo-topline {
++  display: flex;
++  align-items: center;
++  justify-content: space-between;
++  gap: 12px;
++  flex-wrap: wrap;
++}
++.lnd-demo-topline b {
++  font-family: var(--lnd-font-display);
++  font-size: 15px;
++  font-weight: 700;
++  color: var(--lnd-ink);
++}
++.lnd-demo-chip {
++  font-family: var(--lnd-font-data);
++  font-size: 10.5px;
++  font-weight: 700;
++  letter-spacing: 0.08em;
++  color: var(--lnd-success);
++  background: var(--lnd-success-soft);
++  border-radius: var(--lnd-r-pill);
++  padding: 4px 10px;
++}
++.lnd-demo-week {
++  display: grid;
++  grid-template-columns: repeat(7, minmax(0, 1fr));
++  gap: 6px;
++}
++.lnd-demo-day {
++  border: 1px solid var(--lnd-border-soft);
++  border-radius: var(--lnd-r-sm);
++  padding: 9px 6px;
++  text-align: center;
++  display: flex;
++  flex-direction: column;
++  gap: 4px;
++  background: var(--lnd-card);
++}
++.lnd-demo-day span {
++  font-family: var(--lnd-font-data);
++  font-size: 10px;
++  font-weight: 700;
++  letter-spacing: 0.08em;
++  text-transform: uppercase;
++  color: var(--lnd-ink-3);
++}
++.lnd-demo-day b {
++  font-size: 11.5px;
++  font-weight: 700;
++  color: var(--lnd-ink);
++}
++.lnd-demo-day em {
++  font-style: normal;
++  font-size: 9.5px;
++  font-weight: 700;
++  letter-spacing: 0.06em;
++  text-transform: uppercase;
++  color: var(--lnd-purple);
++}
++.lnd-demo-day.lnd-best {
++  border-color: rgba(139, 92, 246, 0.35);
++  background: var(--lnd-grad-soft);
++}
++.lnd-demo-queue {
++  display: flex;
++  flex-direction: column;
++  gap: 6px;
++}
++.lnd-demo-queue div {
++  display: flex;
++  align-items: center;
++  gap: 9px;
++  border: 1px solid var(--lnd-border-soft);
++  border-radius: var(--lnd-r-sm);
++  padding: 8px 10px;
++}
++.lnd-demo-queue div i {
++  width: 6px;
++  height: 6px;
++  border-radius: 50%;
++  flex: none;
++  background: var(--lnd-info);
++}
++.lnd-demo-queue div.lnd-ok i {
++  background: var(--lnd-success);
++}
++.lnd-demo-queue div.lnd-wait i {
++  background: var(--lnd-warn);
++}
++.lnd-demo-queue div b {
++  font-size: 12.5px;
++  font-weight: 600;
++  color: var(--lnd-ink);
++  flex: 1;
++  min-width: 0;
++  overflow: hidden;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++.lnd-demo-queue div span {
++  font-family: var(--lnd-font-data);
++  font-size: 10.5px;
++  font-weight: 700;
++  letter-spacing: 0.06em;
++  text-transform: uppercase;
++  color: var(--lnd-ink-3);
++  flex: none;
++}
++.lnd-demo-kpis {
++  display: flex;
++  flex-direction: column;
++  gap: 8px;
++}
++.lnd-demo-kpi {
++  display: flex;
++  align-items: baseline;
++  justify-content: space-between;
++  gap: 10px;
++  border: 1px solid var(--lnd-border-soft);
++  border-radius: var(--lnd-r-sm);
++  padding: 9px 11px;
++  background: var(--lnd-card);
++}
++.lnd-demo-kpi span {
++  font-size: 11.5px;
++  color: var(--lnd-ink-2);
++}
++.lnd-demo-kpi b {
++  font-family: var(--lnd-font-data);
++  font-size: 14px;
++  font-weight: 700;
++  color: var(--lnd-ink);
++}
++.lnd-demo-note {
++  margin-top: 14px;
++  display: flex;
++  align-items: center;
++  justify-content: center;
++  gap: 8px;
++  font-size: 12.5px;
++  color: var(--lnd-ink-3);
++  text-align: center;
++}
++.lnd-demo-note svg {
++  flex: none;
++}
++
++@media (max-width: 900px) {
++  .lnd-demo-body {
++    grid-template-columns: minmax(0, 1fr);
++  }
++  /* No celular a janela mostra o essencial: a coluna central (calendário
++     e fila) e os números. O menu lateral da janela é decoração de
++     desktop — escondê-lo evita uma lista de 5 itens sem função no toque. */
++  .lnd-demo-col-side:first-child {
++    display: none;
++  }
++}
++@media (max-width: 520px) {
++  .lnd-demo-week {
++    grid-template-columns: repeat(4, minmax(0, 1fr));
++  }
++}
++
++/* ---------- SEÇÃO: CRIE · PUBLIQUE · CONVERSE · CRESÇA ---------- */
++/* Dois cards por linha, não quatro.
++   ------------------------------------------------------------
++   Medido na página de referência (`print de referencia/`): os cards
++   grandes ficam entre 550 e 580px de largura num container de 1120px —
++   duas ou três colunas, nunca quatro. Em quatro colunas cada card cai
++   para ~266px e o texto interno fica espremido, que é exatamente o que
++   esta rodada pede para evitar ("poucos cards grandes e bem
++   apresentados"). Em duas colunas o card vai a ~570px e o bloco interno
++   respira como na referência. */
++.lnd-vmoves {
++  display: grid;
++  grid-template-columns: repeat(2, minmax(0, 1fr));
++  gap: clamp(20px, 2vw, 28px);
++}
++.lnd-vmove {
++  display: flex;
++  flex-direction: column;
++  gap: 14px;
++  /* Padding e raio proporcionais ao card maior. A referência usa raio de
++     ~24px num card de ~577px (≈4,2% da largura); em ~570px isso dá ~24px,
++     que é o token `--lnd-r-lg` (22px). O `--lnd-r-md` (16px) era o raio de
++     quando o card tinha 266px de largura. */
++  padding: clamp(26px, 2.8vw, 36px) clamp(22px, 2.6vw, 32px) clamp(24px, 2.6vw, 32px);
++  border-radius: var(--lnd-r-lg);
++  border: 1px solid var(--lnd-border);
++  background: var(--lnd-card);
++  box-shadow: var(--lnd-shadow-xs);
++  transition:
++    transform 0.35s var(--lnd-ease-out),
++    box-shadow 0.35s ease,
++    border-color 0.35s ease;
++}
++.lnd-vmove:hover {
++  transform: translateY(-4px);
++  box-shadow: var(--lnd-shadow-md);
++  border-color: rgba(139, 92, 246, 0.28);
++}
++.lnd-vmove-top {
++  display: flex;
++  align-items: center;
++  gap: 12px;
++}
++.lnd-vmove-n {
++  font-family: var(--lnd-font-data);
++  font-size: 11.5px;
++  font-weight: 700;
++  letter-spacing: 0.08em;
++  color: var(--lnd-ink-3);
++}
++.lnd-vmove-ic {
++  width: 40px;
++  height: 40px;
++  border-radius: var(--lnd-r-sm);
++  display: grid;
++  place-items: center;
++  background: var(--lnd-grad-soft);
++  color: var(--lnd-purple);
++  flex: none;
++}
++.lnd-vmove-verb {
++  font-family: var(--lnd-font-display);
++  font-size: 20px;
++  font-weight: 800;
++  letter-spacing: 0.01em;
++  text-transform: uppercase;
++  background: var(--lnd-grad);
++  -webkit-background-clip: text;
++  background-clip: text;
++  color: transparent;
++}
++.lnd-vmove p {
++  font-size: 14.5px;
++  line-height: 1.6;
++  color: var(--lnd-ink-2);
++  /* Sem teto de linha de propósito. Medi a versão com `max-width: 48ch`
++     (375px) dentro do card de 586px: sobravam 149px de branco à direita e
++     o card parecia pela metade. As frases têm 110–130 caracteres, o que
++     em 14,5px ao longo de ~522px dá exatamente 2 linhas cheias em todos
++     os quatro cards — mais próximo do card da referência, cujo miolo
++     também é preenchido de ponta a ponta. */
++}
++.lnd-vmove-list {
++  list-style: none;
++  margin: 0;
++  padding: 0;
++  display: flex;
++  flex-direction: column;
++  gap: 8px;
++  border-top: 1px solid var(--lnd-border-soft);
++  padding-top: 14px;
++  margin-top: auto;
++}
++.lnd-vmove-list li {
++  display: flex;
++  align-items: flex-start;
++  gap: 8px;
++  font-size: 13.5px;
++  font-weight: 600;
++  color: var(--lnd-ink);
++}
++.lnd-vmove-list li svg {
++  flex: none;
++  margin-top: 2px;
++  color: var(--lnd-purple);
++}
++.lnd-vmove--soon {
++  background: var(--lnd-bg);
++}
++.lnd-vmove-tag {
++  align-self: flex-start;
++  font-family: var(--lnd-font-data);
++  font-size: 9.5px;
++  font-weight: 700;
++  letter-spacing: 0.1em;
++  text-transform: uppercase;
++  color: var(--lnd-warn);
++  background: var(--lnd-warn-soft);
++  border-radius: var(--lnd-r-pill);
++  padding: 3px 9px;
++}
++
++/* Abaixo de 900px duas colunas dariam ~370px por card — o card ainda
++   funciona, mas o parágrafo e a lista de 3 itens ficam apertados. Uma
++   coluna mantém a leitura confortável até o celular. */
++@media (max-width: 900px) {
++  .lnd-vmoves {
++    grid-template-columns: minmax(0, 1fr);
++  }
++}
+diff --git a/src/app/page.tsx b/src/app/page.tsx
+index 51ec754..7638206 100644
+--- a/src/app/page.tsx
++++ b/src/app/page.tsx
+@@ -7,20 +7,14 @@ import {
+   Nav,
+   Hero,
+   Marquee,
++  Movimentos,
+   Problema,
+   Solucao,
+   ComoFunciona,
+   Dashboard,
+ } from "@/components/landing/sections-a";
+ import { IaAcessor, Diagnostico, Estrategia, GeradorCopy } from "@/components/landing/sections-b";
+-import {
+-  Metas,
+-  Xp,
+-  Rank,
+-  Badges,
+-  Perfil,
+-  Historico,
+-} from "@/components/landing/sections-c";
++import { Metas, Xp, Rank, Badges, Perfil, Historico } from "@/components/landing/sections-c";
+ import {
+   Automacoes,
+   RedesSociais,
+@@ -34,41 +28,44 @@ import {
+ /**
+  * Página de venda oficial do Inst Acessor.
+  *
+- * Apresentação comercial portada da apresentação aprovada (`apresentacao/`) e
+- * ampliada com as seções da Fase 10.
+- *
+- * O QUE NÃO ESTÁ MAIS AQUI (removido a pedido — enxugamento da landing):
+- *   • Mentoria             — "Direcionamento de quem entende de dados"
+- *   • PreviewSocial        — "Veja como vai ficar antes de publicar"
+- *   • Timeline             — "Os momentos que marcaram sua evolução"
+- *   • Diferencial          — "Mais do que métricas. Inteligência para agir."
+- *   • CentralPublicacao    — "Publique com organização e segurança"
+- *   • Bloco Antes/Depois   — "Números soltos, sem direção" (dentro de Problema)
++ * ============================================================
++ * ORDEM DESTA PÁGINA — reordenada na rodada de estratégia
++ * ============================================================
++ * A ordem anterior empilhava todos os blocos de recurso primeiro e só
++ * depois explicava o problema, a solução e como funciona. O visitante
++ * atravessava ~15 seções de funcionalidade antes de entender POR QUE o
++ * produto existe. A nova ordem segue o encadeamento de conversão lido da
++ * página de referência enviada pelo usuário (`print de referencia/`):
+  *
+- * Removidas nesta rodada (PARTE 1 do pacote final de ajustes):
+- *   • Conquistas           — "Cada marco vira uma conquista."
+- *   • AnaliseConteudos     — "Veja o que funciona — e repita"
+- * Os componentes continuam EXPORTADOS em `sections-c.tsx` (nada foi apagado
+- * do arquivo), apenas não são mais renderizados na página.
++ *   1. Hero ............... promessa + nome do produto + CTA + interface real
++ *   2. Marquee ............ faixa de capacidades (respiro visual)
++ *   3. Dashboard .......... demonstração: o que o painel entrega
++ *   4. Problema ........... a dor, para criar urgência
++ *   5. Solução ............ o produto como resposta à dor
++ *   6. Movimentos ......... CRIE · PUBLIQUE · CONVERSE · CRESÇA (o mapa)
++ *   7. ComoFunciona ....... do zero à estratégia em 4 passos
++ *   8. Camadas de produto . IA, diagnóstico, estratégia, calendário, ideias,
++ *                           copy, XP, rank, hábitos, perfil, histórico
++ *   9. Confiança .......... redes, automações, segurança
++ *  10. Planos ............. oferta
++ *  11. Faq ................ objeções, logo após o preço
++ *  12. CtaFinal ........... fechamento
+  *
+- * O Dashboard (bloco de métricas) foi REMOVIDO POR ENGANO no mesmo
+- * enxugamento e VOLTOU nesta rodada como 2ª seção — é a seção de fundo
+- * escuro com o gráfico de evolução de alcance. A implementação é a
+- * ORIGINAL (recuperada do histórico), de volta ao seu lugar em
+- * `sections-a.tsx`.
+- *
+- * As FUNCIONALIDADES correspondentes continuam intactas no aplicativo
+- * (dashboard, preview social, publicação, rank, conquistas…). Apenas a
+- * divulgação delas na página de venda foi retirada.
++ * O QUE NÃO ESTÁ MAIS RENDERIZADO (componentes seguem EXPORTADOS, nada foi
++ * apagado dos arquivos):
++ *   • Conquistas, AnaliseConteudos (sections-c), Score, Nichos, Calendario,
++ *     Ideias (sections-b). As TELAS correspondentes continuam intactas no
++ *     aplicativo; saiu apenas a divulgação na página de venda, porque a
++ *     versão enxuta ficou mais fácil de ler — que é o pedido desta rodada.
+  *
+  * Preserva a identidade visual aprovada: paleta, gradientes, tipografia,
+- * animações e estilo premium. Dados simulados sempre rotulados.
++ * animações e estilo premium. Dados numéricos sempre rotulados como exemplo.
+  */
+ 
+ export const metadata: Metadata = {
+   title: "Inst Acessor — Inteligência para o crescimento do seu Instagram",
+   description:
+-    "Transforme dados do Instagram em decisões de crescimento. IA, estratégia, metas e XP — tudo em um só lugar.",
++    "Planeje, publique e acompanhe o Instagram em um só lugar. IA, calendário inteligente, central de publicação, análise de desempenho e score — com os dados reais do seu perfil.",
+ };
+ 
+ /**
+@@ -95,63 +92,52 @@ export default async function HomePage() {
+ 
+       <Nav />
+ 
++      {/* 1 — HERO: promessa, nome do produto, CTA e a janela com a
++          interface real logo abaixo (componente DemoApp, dentro do Hero). */}
+       <Hero />
+ 
+-      {/* Faixa animada de capacidades (Marquee) — fica entre o fim do Hero
+-          e o início da 2ª seção, conforme a apresentação aprovada
+-          (`apresentacao/index.html`: "Marquee de capacidades" logo após o
+-          Hero e antes da seção seguinte). */}
++      {/* 2 — Faixa animada de capacidades: respiro entre o Hero e o
++          conteúdo, conforme a apresentação aprovada. */}
+       <Marquee />
+ 
+-      {/* ============================================================
+-          2ª SEÇÃO — DASHBOARD INTELIGENTE (fundo escuro).
+-          É a seção escura com o GRÁFICO de evolução de alcance.
+-          Voltou nesta rodada: tinha sido removida por engano junto
+-          com o enxugamento. Posição conforme a apresentação aprovada
+-          (`apresentacao/_parts/04-dashboard.html`).
+-          ============================================================ */}
++      {/* 3 — DEMONSTRAÇÃO: a seção escura com o gráfico de evolução de
++          alcance. Vem logo depois do Hero porque é o que prova que o
++          produto entrega análise — a promessa feita uma tela acima. */}
+       <Dashboard />
+ 
+-      {/* Diagnóstico */}
+-      <Diagnostico />
+-
+-      {/* Gerador de Copy */}
+-      <GeradorCopy />
+-
+-      {/* XP */}
+-      <Xp />
+-
+-      {/* Rank */}
+-      <Rank />
+-
+-      <Badges />
+-
+-      <RedesSociais />
+-
++      {/* 4 e 5 — a dor e a resposta. Antes vinham muito depois de uma
++          sequência longa de recursos; agora chegam enquanto a atenção
++          ainda está no topo da página. */}
+       <Problema />
+-
+       <Solucao />
+ 
++      {/* 6 — O PRODUTO EM QUATRO VERBOS: o mapa da página inteira. */}
++      <Movimentos />
++
++      {/* 7 — Como funciona, do zero à estratégia. */}
+       <ComoFunciona />
+ 
++      {/* 8 — Camadas de produto, detalhando o que os verbos entregam. */}
+       <IaAcessor />
+-
++      <Diagnostico />
+       <Estrategia />
+-
++      <GeradorCopy />
++      <Xp />
++      <Rank />
++      <Badges />
+       <Metas />
+-
+       <Perfil />
+-
+       <Historico />
+ 
++      {/* 9 — Confiança: onde os dados ficam, o que é automatizado e o que
++          NÃO é feito sem autorização. */}
++      <RedesSociais />
+       <Automacoes />
+-
+       <Seguranca />
+ 
++      {/* 10, 11 e 12 — oferta, objeções e fechamento. */}
+       <Planos />
+-
+       <Faq />
+-
+       <CtaFinal />
+ 
+       <Footer />
+diff --git a/src/components/landing/sections-a.tsx b/src/components/landing/sections-a.tsx
+index add5096..e37b081 100644
+--- a/src/components/landing/sections-a.tsx
++++ b/src/components/landing/sections-a.tsx
+@@ -1,3 +1,4 @@
++import type { ReactNode } from "react";
+ import {
+   ArrowRight,
+   TrendingDown,
+@@ -9,6 +10,12 @@ import {
+   AlertTriangle,
+   ArrowUpRight,
+   ArrowDownRight,
++  Info,
++  CheckCircle2,
++  PenLine,
++  Send,
++  MessagesSquare,
++  TrendingUp,
+ } from "lucide-react";
+ 
+ /* ============================================================
+@@ -87,19 +94,152 @@ export function Nav() {
+   );
+ }
+ 
++/* ============================================================
++   HERO + DEMONSTRAÇÃO DA INTERFACE
++   ------------------------------------------------------------
++   Reescrito na rodada de estratégia (leitura da referência em
++   `print de referencia/`). O que mudou e por quê:
++
++   1. A promessa agora NOMEIA o produto na primeira linha. Antes o
++      título falava da categoria ("transforme dados em decisões") e o
++      nome do Inst Acessor só aparecia no logotipo — quem chegasse de
++      anúncio precisava deduzir o que estava sendo vendido.
++   2. O subtítulo caiu de duas linhas para uma: o que o produto ENTREGA.
++   3. A prova de que o produto existe virou a própria interface. Ela
++      aparece logo abaixo do CTA (`DemoApp`), no lugar de uma faixa de
++      avatares com iniciais — que sugeria usuários que não existem.
++      A frase de posicionamento (para quem é) continua, sem os avatares.
++   4. A pílula CRIE · PUBLIQUE · CONVERSE · CRESÇA antecipa os quatro
++      verbos que organizam a página inteira.
++
++   O Hero continua em UMA coluna centralizada (`lnd-hero-centered`): a
++   janela de demonstração fica dentro do fluxo, abaixo do texto, e não
++   como uma segunda coluna de grid.
++   ============================================================ */
++
++const VERBOS = ["Crie", "Publique", "Converse", "Cresça"];
++
++/** Rótulo único usado em TODO número da janela de demonstração. */
++function DemoTag({ children }: { children: ReactNode }) {
++  return <span className="lnd-vmove-tag">{children}</span>;
++}
++
++const DEMO_NAV = ["Dashboard", "IA Acessor", "Preview Social", "Calendário", "Publicação"];
++const DEMO_SEMANA: { d: string; f: string; best?: boolean }[] = [
++  { d: "Seg", f: "Reel" },
++  { d: "Ter", f: "Story", best: true },
++  { d: "Qua", f: "Carrossel" },
++  { d: "Qui", f: "Reel" },
++  { d: "Sex", f: "Carrossel" },
++  { d: "Sáb", f: "Story" },
++  { d: "Dom", f: "—" },
++];
++const DEMO_FILA = [
++  { t: "Reel · 3 erros que travam o alcance", s: "Agendado", k: "lnd-wait" },
++  { t: "Story · Bastidor do processo", s: "Publicado", k: "lnd-ok" },
++  { t: "Carrossel · 5 hábitos de quem cresce", s: "Rascunho", k: "" },
++  { t: "Reel · Melhor horário do seu perfil", s: "Agendado", k: "lnd-wait" },
++];
++
+ /**
+- * Hero da landing — sem o mockup de dashboard do lado direito.
++ * Janela com a interface REAL do Inst Acessor.
+  *
+- * O card grande de métricas (12.840 seguidores, engajamento, gráfico de
+- * alcance, anel de score 84/100 e os chips de score/alcance) foi REMOVIDO
+- * nesta rodada. Sem ele, o Hero não faz mais sentido como grid de 2 colunas:
+- * virou UMA coluna centralizada (`lnd-hero-grid lnd-hero-centered`), com o
+- * conteúdo textual (kicker, título, subtítulo, CTAs e a faixa de confiança)
+- * centralizado e com largura de leitura confortável.
++ * Não é um mockup decorativo: cada painel corresponde a uma tela que
++ * existe no app (Calendário com a semana, Central de Publicação com a
++ * fila e seus estados, e os números do painel).
+  *
+- * A seção escura com o GRÁFICO de evolução de alcance NÃO é isto — aquela
+- * é o componente `Dashboard`, que fica logo abaixo do Hero.
++ * Os números são ILUSTRATIVOS e vêm com o selo "Exemplo" — a página não
++ * afirma resultado de nenhum cliente, métrica ou crescimento.
+  */
++export function DemoApp() {
++  return (
++    <div className="lnd-demo-wrap lnd-reveal" data-dir="scale">
++      <div className="lnd-demo" role="img" aria-label="Interface do Inst Acessor: calendário da semana, fila de publicações e painel de números — dados de exemplo">
++        <div className="lnd-demo-bar">
++          <span className="lnd-demo-dots" aria-hidden="true">
++            <i />
++            <i />
++            <i />
++          </span>
++          <span className="lnd-demo-url">instacessor.app/dashboard</span>
++          <span className="lnd-demo-selo">Interface real · dados de exemplo</span>
++        </div>
++
++        <div className="lnd-demo-body">
++          {/* Coluna 1 — menu do app */}
++          <div className="lnd-demo-col lnd-demo-col-side">
++            <span className="lnd-demo-col-title">Seu painel</span>
++            <div className="lnd-demo-nav">
++              {DEMO_NAV.map((n, i) => (
++                <span className={i === 0 ? "lnd-on" : undefined} key={n}>
++                  <i aria-hidden="true" />
++                  {n}
++                </span>
++              ))}
++            </div>
++          </div>
++
++          {/* Coluna 2 — Calendário + Central de Publicação */}
++          <div className="lnd-demo-col">
++            <div className="lnd-demo-topline">
++              <b>Calendário da semana</b>
++              <span className="lnd-demo-chip">Recomendado pela IA</span>
++            </div>
++            <div className="lnd-demo-week">
++              {DEMO_SEMANA.map((d) => (
++                <div className={`lnd-demo-day${d.best ? " lnd-best" : ""}`} key={d.d}>
++                  <span>{d.d}</span>
++                  <b>{d.f}</b>
++                  {d.best ? <em>Melhor</em> : null}
++                </div>
++              ))}
++            </div>
++
++            <span className="lnd-demo-col-title" style={{ marginTop: 6 }}>
++              Central de Publicação
++            </span>
++            <div className="lnd-demo-queue">
++              {DEMO_FILA.map((f) => (
++                <div className={f.k || undefined} key={f.t}>
++                  <i aria-hidden="true" />
++                  <b>{f.t}</b>
++                  <span>{f.s}</span>
++                </div>
++              ))}
++            </div>
++          </div>
++
++          {/* Coluna 3 — números (todos com selo Exemplo) */}
++          <div className="lnd-demo-col lnd-demo-col-side">
++            <span className="lnd-demo-col-title">Painel</span>
++            <div className="lnd-demo-kpis">
++              <div className="lnd-demo-kpi">
++                <span>Seguidores</span>
++                <b>12.840</b>
++              </div>
++              <div className="lnd-demo-kpi">
++                <span>Alcance · 30 dias</span>
++                <b>184.200</b>
++              </div>
++              <div className="lnd-demo-kpi">
++                <span>Pilares com oportunidade</span>
++                <b>3</b>
++              </div>
++            </div>
++            <DemoTag>Valores de exemplo</DemoTag>
++          </div>
++        </div>
++      </div>
++
++      <p className="lnd-demo-note">
++        <Info size={14} aria-hidden="true" />
++        Os números acima são de exemplo. Conectado o seu perfil, cada painel passa a mostrar os
++        dados reais da sua conta.
++      </p>
++    </div>
++  );
++}
++
+ export function Hero() {
+   return (
+     <section className="lnd-hero" id="hero">
+@@ -111,23 +251,27 @@ export function Hero() {
+       </div>
+       <div className="lnd-container lnd-hero-grid lnd-hero-centered">
+         <div className="lnd-hero-copy">
+-          <div className="lnd-hero-kicker lnd-reveal">
+-            <span className="lnd-pulse" aria-hidden="true" />
+-            Plataforma inteligente de análise e crescimento para Instagram
++          <div className="lnd-hero-verbs lnd-reveal">
++            <span className="lnd-verbs-k">O que você faz aqui</span>
++            <span className="lnd-verbs-list">
++              {VERBOS.map((v) => (
++                <span key={v}>{v}</span>
++              ))}
++            </span>
+           </div>
+           <h1 className="lnd-hero-title lnd-reveal" data-delay="1">
+             <span className="lnd-line">
+-              <span className="lnd-line-inner">Transforme dados do Instagram em</span>
++              <span className="lnd-line-inner">O Inst Acessor planeja, publica e</span>
+             </span>
+             <span className="lnd-line">
+               <span className="lnd-line-inner">
+-                <span className="lnd-grad">decisões de crescimento.</span>
++                <span className="lnd-grad">lê os resultados do seu Instagram.</span>
+               </span>
+             </span>
+           </h1>
+           <p className="lnd-hero-sub lnd-reveal" data-delay="2">
+-            O Inst Acessor analisa seu perfil, acompanha sua evolução e transforma métricas em
+-            estratégias práticas para ajudar você a crescer de forma inteligente.
++            Conecte o perfil profissional, receba o diagnóstico, crie o conteúdo com a IA e
++            publique — e veja no painel o que realmente funcionou.
+           </p>
+           <div className="lnd-hero-ctas lnd-reveal" data-delay="3">
+             <a className="lnd-btn lnd-btn-primary lnd-btn-lg" href="/cadastro">
+@@ -139,18 +283,127 @@ export function Hero() {
+             </a>
+           </div>
+           <div className="lnd-hero-trust lnd-reveal" data-delay="4">
+-            <div className="lnd-avatars" aria-hidden="true">
+-              <span>M</span>
+-              <span>L</span>
+-              <span>J</span>
+-              <span>R</span>
+-            </div>
+             <p>
+-              <b>Pensado para criadores e marcas</b> que querem entender e acelerar o próprio
+-              crescimento.
++              <b>Para criadores, marcas e social medias</b> que querem parar de postar no escuro —
++              com o Instagram conectado numa conta profissional.
+             </p>
+           </div>
+         </div>
++
++        <DemoApp />
++      </div>
++    </section>
++  );
++}
++
++/* ============================================================
++   OS QUATRO MOVIMENTOS — CRIE · PUBLIQUE · CONVERSE · CRESÇA
++   ------------------------------------------------------------
++   Por que esta seção existe: a landing tinha 26 blocos, cada um
++   apresentando UMA tela, todos com o mesmo peso visual. Quem chegava de
++   anúncio via um inventário de recursos, não um produto. Aqui os módulos
++   aparecem agrupados por verbo, na ordem em que o trabalho acontece de
++   verdade (criar → publicar → conversar → medir).
++
++   Cada módulo listado ABAIXO existe no app e está na navegação
++   (`src/lib/navigation.ts`). Nada é aspiracional.
++
++   "Converse" fica marcado como EM PREPARAÇÃO de propósito: as respostas a
++   comentários têm tela, regras e limites no app, mas a execução externa
++   ainda não está validada. Vender isso como pronto seria promessa falsa —
++   então o card diz exatamente o que está disponível hoje.
++   ============================================================ */
++
++type Movimento = {
++  n: string;
++  verbo: string;
++  ic: typeof PenLine;
++  frase: string;
++  itens: string[];
++  soon?: string;
++};
++
++const MOVIMENTOS: Movimento[] = [
++  {
++    n: "01",
++    verbo: "Crie",
++    ic: PenLine,
++    frase:
++      "Saia da página em branco. A IA escreve com o contexto do seu perfil e do seu nicho — nunca com fórmula pronta.",
++    itens: ["IA Acessor", "Central de Ideias", "Preview Social"],
++  },
++  {
++    n: "02",
++    verbo: "Publique",
++    ic: Send,
++    frase:
++      "Planeje a semana, deixe a fila organizada e publique no Instagram pelo próprio Inst Acessor, com status visível em cada etapa.",
++    itens: ["Calendário Inteligente", "Calendário", "Central de Publicação"],
++  },
++  {
++    n: "03",
++    verbo: "Converse",
++    ic: MessagesSquare,
++    frase:
++      "A IA lê os comentários dos seus posts e sugere a resposta no seu tom. Você aprova — nada é enviado sem a sua autorização.",
++    itens: ["Respostas Inteligentes"],
++    soon: "Execução automática em preparação",
++  },
++  {
++    n: "04",
++    verbo: "Cresça",
++    ic: TrendingUp,
++    frase:
++      "Veja o que funcionou, onde está travando e o próximo passo — com números derivados dos seus dados, nunca estimados.",
++    itens: ["Análise de Desempenho", "Rank", "Score Inteligente", "Perfil de Inteligência"],
++  },
++];
++
++export function Movimentos() {
++  return (
++    <section className="lnd-section" id="movimentos">
++      <div className="lnd-container">
++        <div className="lnd-section-head lnd-center lnd-reveal">
++          <span className="lnd-eyebrow">O produto em quatro verbos</span>
++          <h2 className="lnd-h2">
++            Não é um gerador de legenda.{" "}
++            <span className="lnd-grad">É o ciclo inteiro do seu conteúdo.</span>
++          </h2>
++          <p className="lnd-lead">
++            Quatro etapas, um só lugar: criar, publicar, conversar e crescer — cada uma com as
++            ferramentas que você já encontra dentro do aplicativo.
++          </p>
++        </div>
++
++        <div className="lnd-vmoves">
++          {MOVIMENTOS.map((m, i) => (
++            <div
++              className={`lnd-vmove${m.soon ? " lnd-vmove--soon" : ""} lnd-reveal`}
++              data-delay={String(i + 1)}
++              key={m.verbo}
++            >
++              <div className="lnd-vmove-top">
++                <span className="lnd-vmove-ic" aria-hidden="true">
++                  <m.ic size={20} />
++                </span>
++                <div>
++                  <span className="lnd-vmove-n">{m.n}</span>
++                  <div className="lnd-vmove-verb">{m.verbo}</div>
++                </div>
++              </div>
++              <p>{m.frase}</p>
++              <ul className="lnd-vmove-list">
++                {m.itens.map((it) => (
++                  <li key={it}>
++                    <CheckCircle2 size={15} aria-hidden="true" />
++                    {it}
++                  </li>
++                ))}
++              </ul>
++              {m.soon ? <span className="lnd-vmove-tag">{m.soon}</span> : null}
++            </div>
++          ))}
++        </div>
+       </div>
+     </section>
+   );
+diff --git a/src/components/landing/sections-d.tsx b/src/components/landing/sections-d.tsx
+index 9b05206..6f5a3ec 100644
+--- a/src/components/landing/sections-d.tsx
++++ b/src/components/landing/sections-d.tsx
+@@ -118,18 +118,29 @@ export function Automacoes() {
+   );
+ }
+ 
++/**
++ * As duas redes NÃO estão no mesmo estágio, e a página não deve sugerir que
++ * estão. O Instagram é o caminho validado de ponta a ponta (conexão, métricas
++ * e publicação em produção). O TikTok ainda está em integração — por isso
++ * carrega o mesmo selo "Em preparação" já usado em Automações, em vez de um
++ * checkmark verde idêntico ao do Instagram.
++ */
+ const SOCIAL_CARDS = [
+   {
+     platform: "instagram",
+     name: "Instagram",
+     desc: "Análise completa do perfil, agendamento e publicação direta.",
+     feats: ["Métricas e score", "Calendário e agendamento", "Publicação com confirmação"],
++    status: "ready" as const,
++    statusLabel: "Disponível",
+   },
+   {
+     platform: "tiktok",
+     name: "TikTok",
+     desc: "Acompanhe vídeos, seguidores e engajamento em um só painel.",
+     feats: ["Métricas de vídeos", "Sync de perfil", "Gestão de conexão"],
++    status: "soon" as const,
++    statusLabel: "Em preparação",
+   },
+ ];
+ 
+@@ -155,7 +166,10 @@ export function RedesSociais() {
+                   {s.platform === "instagram" ? <Instagram size={26} /> : <Music2 size={26} />}
+                 </span>
+                 <div>
+-                  <h3>{s.name}</h3>
++                  <h3>
++                    {s.name}
++                    <span className={`lnd-status-pill lnd-${s.status}`}>{s.statusLabel}</span>
++                  </h3>
+                   <span>{s.desc}</span>
+                 </div>
+               </div>

@@ -31,6 +31,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Tabs } from "@/components/ui/tabs";
 import { Modal } from "@/components/ui/modal";
 import { SectionCard } from "@/components/ui/section-card";
+import { FIELD_CLASS_FILLED, SELECT_CLASS_FILLED } from "@/lib/ui/field";
 import { cn } from "@/lib/utils";
 
 /**
@@ -48,7 +49,13 @@ function ContentThumb({ content }: { content: ContentItem }) {
           <video src={url} className="w-full h-full object-cover" muted playsInline />
         ) : (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={url} alt="" className="w-full h-full object-cover" />
+          <img
+            src={url}
+            alt=""
+            className="w-full h-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
         )
       ) : (
         <ImageIcon size={15} className="text-ink-muted" />
@@ -98,9 +105,27 @@ interface WeeklySuggestion {
   basedOn: string;
 }
 
+interface WeeklyDay {
+  weekday: number;
+  label: string;
+  dateIso: string;
+  suggestedFormat: string;
+  recommended: boolean;
+  recommendedReason: string;
+  frequency: string;
+  status: "VAGO" | "OCUPADO";
+  plannedTitles: string[];
+  suggestion: WeeklySuggestion | null;
+  basedOn: string;
+}
+
 interface WeeklyData {
   rationale: string;
   suggestions: WeeklySuggestion[];
+  days: WeeklyDay[];
+  recommendedDay: number | null;
+  recommendedPeriod: string | null;
+  measuredFrequencyPerWeek: number | null;
   goals: { id: string; title: string; category: string }[];
   experiments: { id: string; hypothesis: string; status: string }[];
   contextAvailable: {
@@ -179,6 +204,7 @@ interface CopyVersion {
 }
 
 interface CalendarInitialData {
+  renderedAt: string;
   contents: ContentItem[];
   weekly: WeeklyData;
   ideas: IdeaData[];
@@ -269,7 +295,15 @@ export function CalendarClient({ initial }: CalendarClientProps) {
   const { toast } = useToast();
   const [contents, setContents] = React.useState<ContentItem[]>(initial.contents);
   const [view, setView] = React.useState<"month" | "week" | "list">("month");
-  const [anchor, setAnchor] = React.useState<Date>(new Date());
+  // Shared initial calendar day prevents server/client clocks and time zones
+  // from producing different markup. Local day is applied after hydration.
+  const initialDay = React.useMemo(() => {
+    const stamp = new Date(initial.renderedAt);
+    return new Date(stamp.getUTCFullYear(), stamp.getUTCMonth(), stamp.getUTCDate());
+  }, [initial.renderedAt]);
+  const [anchor, setAnchor] = React.useState<Date>(initialDay);
+  const [todayDate, setTodayDate] = React.useState<Date>(initialDay);
+  React.useEffect(() => { const local = new Date(); setAnchor(local); setTodayDate(local); }, []);
   const [loading, setLoading] = React.useState(false);
 
   // Filtros
@@ -595,7 +629,7 @@ export function CalendarClient({ initial }: CalendarClientProps) {
           >
             <ChevronRight size={17} />
           </button>
-          <span className="text-[14px] font-display font-bold text-ink capitalize ml-2 w-36 text-right">
+          <span className="text-[14px] font-display font-bold text-ink capitalize ml-1 min-w-0 flex-1 sm:w-36 text-right">
             {anchorLabel}
           </span>
         </div>
@@ -604,6 +638,7 @@ export function CalendarClient({ initial }: CalendarClientProps) {
       {/* Filtros */}
       <div className="flex flex-wrap items-center gap-2.5">
         <select
+          aria-label="Filtrar por plataforma"
           value={fPlatform}
           onChange={(e) => setFPlatform(e.target.value)}
           className="px-3 py-2 rounded-pill bg-card border border-border-soft text-[13px] font-semibold text-ink focus:outline-none focus:ring-2 focus:ring-purple/30 cursor-pointer"
@@ -613,6 +648,7 @@ export function CalendarClient({ initial }: CalendarClientProps) {
           <option value="tiktok">TikTok</option>
         </select>
         <select
+          aria-label="Filtrar por formato"
           value={fFormat}
           onChange={(e) => setFFormat(e.target.value)}
           className="px-3 py-2 rounded-pill bg-card border border-border-soft text-[13px] font-semibold text-ink focus:outline-none focus:ring-2 focus:ring-purple/30 cursor-pointer"
@@ -623,6 +659,7 @@ export function CalendarClient({ initial }: CalendarClientProps) {
           ))}
         </select>
         <select
+          aria-label="Filtrar por status"
           value={fStatus}
           onChange={(e) => setFStatus(e.target.value)}
           className="px-3 py-2 rounded-pill bg-card border border-border-soft text-[13px] font-semibold text-ink focus:outline-none focus:ring-2 focus:ring-purple/30 cursor-pointer"
@@ -633,6 +670,7 @@ export function CalendarClient({ initial }: CalendarClientProps) {
           ))}
         </select>
         <select
+          aria-label="Filtrar por meta"
           value={fGoal}
           onChange={(e) => setFGoal(e.target.value)}
           className="px-3 py-2 rounded-pill bg-card border border-border-soft text-[13px] font-semibold text-ink focus:outline-none focus:ring-2 focus:ring-purple/30 cursor-pointer"
@@ -643,6 +681,7 @@ export function CalendarClient({ initial }: CalendarClientProps) {
           ))}
         </select>
         <select
+          aria-label="Filtrar por objetivo"
           value={fObjective}
           onChange={(e) => setFObjective(e.target.value)}
           className="px-3 py-2 rounded-pill bg-card border border-border-soft text-[13px] font-semibold text-ink focus:outline-none focus:ring-2 focus:ring-purple/30 cursor-pointer"
@@ -653,6 +692,7 @@ export function CalendarClient({ initial }: CalendarClientProps) {
           ))}
         </select>
         <select
+          aria-label="Filtrar por experimento"
           value={fExperiment}
           onChange={(e) => setFExperiment(e.target.value)}
           className="px-3 py-2 rounded-pill bg-card border border-border-soft text-[13px] font-semibold text-ink focus:outline-none focus:ring-2 focus:ring-purple/30 cursor-pointer"
@@ -663,6 +703,7 @@ export function CalendarClient({ initial }: CalendarClientProps) {
           ))}
         </select>
         <select
+          aria-label="Filtrar por período"
           value={fPeriod}
           onChange={(e) => setFPeriod(e.target.value)}
           className="px-3 py-2 rounded-pill bg-card border border-border-soft text-[13px] font-semibold text-ink focus:outline-none focus:ring-2 focus:ring-purple/30 cursor-pointer"
@@ -701,7 +742,7 @@ export function CalendarClient({ initial }: CalendarClientProps) {
             // grade ganha uma largura mínima legível e ROLA dentro do próprio
             // card (padrão de calendário em mobile), em vez de espremer as
             // células ou empurrar a página inteira para os lados.
-            <div className="overflow-x-auto -mx-1 px-1">
+            <div className="overflow-x-auto -mx-1 px-1" tabIndex={0} role="region" aria-label="Calendário mensal com rolagem horizontal">
             <div className="grid grid-cols-7 gap-1.5 bg-card border border-border-soft rounded-lg shadow-xs p-2 sm:p-3 min-w-[520px]">
               {["D", "S", "T", "Q", "Q", "S", "S"].map((d, i) => (
                 <div key={i} className="text-center text-[11px] font-bold uppercase tracking-wider text-ink-muted py-1">
@@ -711,7 +752,7 @@ export function CalendarClient({ initial }: CalendarClientProps) {
               {monthGrid.map((cell, i) => {
                 const key = dayKey(cell.date);
                 const items = byDay.get(key) ?? [];
-                const today = key === dayKey(new Date());
+                const today = key === dayKey(todayDate);
                 return (
                   <div
                     key={i}
@@ -721,7 +762,7 @@ export function CalendarClient({ initial }: CalendarClientProps) {
                       // `min-width:auto` por padrão — um título longo vazava da
                       // célula em vez de ser truncado, empurrando a página.
                       "min-h-[86px] min-w-0 overflow-hidden rounded-md border p-1.5 flex flex-col gap-1",
-                      cell.inMonth ? "bg-bg" : "bg-transparent opacity-40",
+                      cell.inMonth ? "bg-bg" : "bg-transparent",
                       today && "ring-2 ring-purple/40"
                     )}
                   >
@@ -841,7 +882,7 @@ export function CalendarClient({ initial }: CalendarClientProps) {
       )}
 
       {/* Plano semanal */}
-      <WeeklyPlanCard weekly={weekly} />
+      <WeeklyPlanCard weekly={weekly} onChanged={refresh} />
 
       {/* Modal de criação */}
       <CreateContentModal
@@ -882,11 +923,12 @@ export function CalendarClient({ initial }: CalendarClientProps) {
 // Plano semanal
 // ------------------------------------------------------------
 
-function WeeklyPlanCard({ weekly }: { weekly: WeeklyData }) {
+function WeeklyPlanCard({ weekly, onChanged }: { weekly: WeeklyData; onChanged: () => Promise<void> }) {
   const { toast } = useToast();
-  const [mode, setMode] = React.useState<"padrao" | "ai">("padrao");
   const [data, setData] = React.useState<WeeklyData>(weekly);
   const [loading, setLoading] = React.useState(false);
+  const [applying, setApplying] = React.useState<number | null>(null);
+  const [createdDays, setCreatedDays] = React.useState<Record<number, boolean>>({});
 
   const ctx = data.contextAvailable;
   const hasContext = ctx.profile || ctx.hasSnapshots;
@@ -901,7 +943,6 @@ function WeeklyPlanCard({ weekly }: { weekly: WeeklyData }) {
         return;
       }
       setData(d);
-      setMode("ai");
     } catch {
       toast("Não foi possível gerar o plano com IA.", "error");
     } finally {
@@ -909,13 +950,43 @@ function WeeklyPlanCard({ weekly }: { weekly: WeeklyData }) {
     }
   }
 
+  // Aceita a sugestão do dia: o SERVIDOR recalcula o plano e persiste em
+  // PlannedContent com dedup (clicar de novo não duplica). Depois recarrega o
+  // calendário para o novo item aparecer na grade.
+  async function acceptDay(weekday: number) {
+    setApplying(weekday);
+    try {
+      const res = await fetch("/api/calendar/weekly-plan/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ weekday }),
+      });
+      const d = await res.json();
+      if (!res.ok || !d.ok) {
+        toast(d.error ?? "Não foi possível aplicar a sugestão.", "error");
+        return;
+      }
+      if (d.alreadyExisted) {
+        toast("Este dia já foi planejado nesta semana — nada foi duplicado.");
+      } else {
+        toast("Conteúdo criado a partir do plano semanal.");
+      }
+      setCreatedDays((p) => ({ ...p, [weekday]: true }));
+      await onChanged();
+    } catch {
+      toast("Não foi possível aplicar a sugestão.", "error");
+    } finally {
+      setApplying(null);
+    }
+  }
+
   return (
     <SectionCard
       title="Plano semanal assistido"
-      description="Personalizado com seu perfil, metas e experimentos — nunca um template genérico."
+      description="Sete dias, cada um com o estado real da semana e uma recomendação honesta. Personalizado com seu perfil, metas e experimentos — nunca um template genérico."
       action={
         <div className="flex gap-2">
-          <Button size="xs" variant="ghost" onClick={() => { setData(weekly); setMode("padrao"); }}>
+          <Button size="xs" variant="ghost" onClick={() => setData(weekly)}>
             Padrão
           </Button>
           <Button size="xs" onClick={loadAi} disabled={loading}>
@@ -925,55 +996,142 @@ function WeeklyPlanCard({ weekly }: { weekly: WeeklyData }) {
         </div>
       }
     >
-      {!hasContext ? (
-        <div className="py-2">
-          <Badge tone="warning" dot>DADO INSUFICIENTE</Badge>
-          <p className="text-[13px] text-ink-soft mt-3 leading-relaxed">
-            Para um plano personalizado, preencha o nicho no perfil e/ou conecte uma conta
-            (Instagram ou TikTok) para ter snapshots reais. Nenhum dado é inventado.
-          </p>
+      <div className="flex flex-col gap-4">
+        {/* Recomendações automáticas — só aparecem com o número real; sem dado,
+            dizem exatamente isso (nunca um "melhor horário" de mercado). */}
+        <div className="flex flex-wrap gap-2">
+          <Badge tone={data.recommendedDay != null ? "brand" : "neutral"} dot>
+            {data.recommendedDay != null
+              ? `Melhor dia: ${data.days.find((d) => d.weekday === data.recommendedDay)?.label ?? ""}`
+              : "Melhor dia: sem dados suficientes"}
+          </Badge>
+          <Badge tone={data.recommendedPeriod ? "brand" : "neutral"} dot>
+            {data.recommendedPeriod ? `Melhor horário: ${data.recommendedPeriod}` : "Melhor horário: sem dados suficientes"}
+          </Badge>
+          <Badge tone={data.measuredFrequencyPerWeek != null ? "brand" : "neutral"} dot>
+            {data.measuredFrequencyPerWeek != null
+              ? `Frequência medida: ${data.measuredFrequencyPerWeek}/semana`
+              : "Frequência: sem dados suficientes"}
+          </Badge>
         </div>
-      ) : (
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap gap-2">
-            <Badge tone={ctx.profile ? "success" : "neutral"} dot>Perfil {ctx.profile ? "preenchido" : "incompleto"}</Badge>
-            <Badge tone={ctx.instagramConnected ? "success" : "neutral"} dot>Instagram {ctx.instagramConnected ? "conectado" : "não conectado"}</Badge>
-            <Badge tone={ctx.tiktokConnected ? "success" : "neutral"} dot>TikTok {ctx.tiktokConnected ? "conectado" : "não conectado"}</Badge>
-            <Badge tone={ctx.hasActiveGoals ? "success" : "neutral"} dot>{ctx.hasActiveGoals ? "Metas ativas" : "Sem metas ativas"}</Badge>
-            <Badge tone={ctx.hasActiveExperiments ? "success" : "neutral"} dot>{ctx.hasActiveExperiments ? "Experimentos ativos" : "Sem experimentos ativos"}</Badge>
-          </div>
 
-          {data.suggestions.length > 0 ? (
-            <div className="flex flex-col gap-2">
-              {data.suggestions.map((s, i) => (
-                <div key={i} className="rounded-md border border-border-soft bg-bg p-3.5">
-                  <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <span className="text-[14px] font-semibold text-ink">{s.title}</span>
-                    <div className="flex gap-2">
-                      <Badge size="xs" tone="brand">{PLATFORM_LABEL[s.platform] ?? s.platform}</Badge>
-                      <Badge size="xs" tone="neutral">{FORMAT_LABEL[s.format] ?? s.format}</Badge>
-                    </div>
-                  </div>
-                  <p className="text-[12.5px] text-ink-soft mt-1.5 leading-relaxed">{s.basedOn}</p>
+        <div className="flex flex-wrap gap-2">
+          <Badge tone={ctx.profile ? "success" : "neutral"} dot>Perfil {ctx.profile ? "preenchido" : "incompleto"}</Badge>
+          <Badge tone={ctx.instagramConnected ? "success" : "neutral"} dot>Instagram {ctx.instagramConnected ? "conectado" : "não conectado"}</Badge>
+          <Badge tone={ctx.tiktokConnected ? "success" : "neutral"} dot>TikTok {ctx.tiktokConnected ? "conectado" : "não conectado"}</Badge>
+          <Badge tone={ctx.hasActiveGoals ? "success" : "neutral"} dot>{ctx.hasActiveGoals ? "Metas ativas" : "Sem metas ativas"}</Badge>
+          <Badge tone={ctx.hasActiveExperiments ? "success" : "neutral"} dot>{ctx.hasActiveExperiments ? "Experimentos ativos" : "Sem experimentos ativos"}</Badge>
+        </div>
+
+        {/* Os SETE dias — sempre presentes. Cada card mostra tipo sugerido,
+            frequência, dia recomendado, estado e a ação de criar. */}
+        <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+          {data.days.map((day) => {
+            const alreadyCreated = createdDays[day.weekday];
+            const occupied = day.status === "OCUPADO" || alreadyCreated;
+            return (
+              <div
+                key={day.weekday}
+                className={cn(
+                  "rounded-[12px] border p-3 flex flex-col gap-1.5 min-w-0",
+                  day.recommended
+                    ? "border-purple/40 bg-ai-soft shadow-xs"
+                    : occupied
+                      ? "border-border-soft bg-bg"
+                      : "border-dashed border-border bg-card"
+                )}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[13.5px] font-display font-bold text-ink">{day.label}</span>
+                  {day.recommended ? (
+                    <Badge size="xs" tone="brand">Recomendado</Badge>
+                  ) : occupied ? (
+                    <Badge size="xs" tone="success">Planejado</Badge>
+                  ) : (
+                    <Badge size="xs" tone="neutral">Vago</Badge>
+                  )}
                 </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-[13px] text-ink-soft">
-              {mode === "ai" ? "A IA não produziu sugestões — contexto ainda insuficiente." : "Sem sugestões no momento."}
-            </p>
-          )}
 
-          <details className="mt-1">
-            <summary className="text-[12.5px] font-semibold text-purple hover:text-indigo cursor-pointer">
-              Ver racional completo (transparência)
-            </summary>
-            <pre className="mt-2 text-[11.5px] text-ink-soft whitespace-pre-wrap font-mono leading-relaxed bg-bg border border-border-soft rounded-md p-3 max-h-64 overflow-auto">
-              {data.rationale}
-            </pre>
-          </details>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <Badge size="xs" tone="neutral">{FORMAT_LABEL[day.suggestedFormat] ?? day.suggestedFormat}</Badge>
+                  <span className="text-[11px] text-ink-muted">{day.frequency}</span>
+                </div>
+
+                <p className="text-[11.5px] text-ink-soft leading-snug">{day.recommendedReason}</p>
+
+                {/* Estado real: o que já está agendado neste dia nesta semana. */}
+                {day.plannedTitles.length > 0 && (
+                  <div className="flex flex-col gap-1 mt-0.5">
+                    {day.plannedTitles.slice(0, 3).map((t, i) => (
+                      <span key={i} className="text-[11px] text-purple font-medium truncate">• {t}</span>
+                    ))}
+                  </div>
+                )}
+
+                <div className="mt-auto pt-1.5">
+                  {day.suggestion && !occupied ? (
+                    <Button
+                      size="xs"
+                      variant="ghost"
+                      onClick={() => acceptDay(day.weekday)}
+                      disabled={applying === day.weekday}
+                    >
+                      {applying === day.weekday ? (
+                        <Loader2 size={13} className="animate-spin" />
+                      ) : (
+                        <Plus size={13} />
+                      )}
+                      Criar no calendário
+                    </Button>
+                  ) : alreadyCreated ? (
+                    <span className="text-[11.5px] text-ink-muted">Conteúdo criado — veja a grade acima.</span>
+                  ) : (
+                    <span className="text-[11.5px] text-ink-muted">Este dia já tem conteúdo planejado.</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
-      )}
+
+        {!hasContext && (
+          <div className="rounded-md bg-warn-soft border border-warn/20 px-3 py-2.5">
+            <Badge tone="warning" dot>DADO INSUFICIENTE</Badge>
+            <p className="text-[12.5px] text-ink-soft mt-2 leading-relaxed">
+              Para recomendações personalizadas, preencha o nicho no perfil e/ou conecte uma
+              conta (Instagram ou TikTok) para ter snapshots reais. Os dias vagos continuam
+              listados, mas nenhum padrão é inventado.
+            </p>
+          </div>
+        )}
+
+        {data.suggestions.length > 0 && (
+          <div className="flex flex-col gap-2">
+            <span className="text-[12.5px] font-semibold text-ink-soft">Sugestões do plano</span>
+            {data.suggestions.map((s, i) => (
+              <div key={i} className="rounded-md border border-border-soft bg-bg p-3.5">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <span className="text-[14px] font-semibold text-ink">{s.title}</span>
+                  <div className="flex gap-2">
+                    <Badge size="xs" tone="brand">{PLATFORM_LABEL[s.platform] ?? s.platform}</Badge>
+                    <Badge size="xs" tone="neutral">{FORMAT_LABEL[s.format] ?? s.format}</Badge>
+                  </div>
+                </div>
+                <p className="text-[12.5px] text-ink-soft mt-1.5 leading-relaxed">{s.basedOn}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <details className="mt-1">
+          <summary className="text-[12.5px] font-semibold text-purple hover:text-indigo cursor-pointer">
+            Ver racional completo (transparência)
+          </summary>
+          <pre className="mt-2 text-[11.5px] text-ink-soft whitespace-pre-wrap font-mono leading-relaxed bg-bg border border-border-soft rounded-md p-3 max-h-64 overflow-auto">
+            {data.rationale}
+          </pre>
+        </details>
+      </div>
     </SectionCard>
   );
 }
@@ -1066,7 +1224,7 @@ function CreateContentModal({ open, onClose, onSave, ideas, goals, experiments, 
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Ex.: Reel de antes/depois"
-            className="px-3.5 py-2.5 rounded-[10px] bg-bg border border-border-soft text-[14px] text-ink focus:outline-none focus:ring-2 focus:ring-purple/30"
+            className={FIELD_CLASS_FILLED}
           />
         </label>
 
@@ -1084,7 +1242,7 @@ function CreateContentModal({ open, onClose, onSave, ideas, goals, experiments, 
                 setPlatform(e.target.value);
                 setDraftId("");
               }}
-              className="px-3.5 py-2.5 rounded-[10px] bg-bg border border-border-soft text-[14px] text-ink focus:outline-none focus:ring-2 focus:ring-purple/30 cursor-pointer"
+              className={SELECT_CLASS_FILLED}
             >
               <option value="instagram">Instagram</option>
               <option value="tiktok">TikTok</option>
@@ -1092,7 +1250,7 @@ function CreateContentModal({ open, onClose, onSave, ideas, goals, experiments, 
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-[12.5px] font-semibold text-ink">Formato</span>
-            <select value={format} onChange={(e) => setFormat(e.target.value)} className="px-3.5 py-2.5 rounded-[10px] bg-bg border border-border-soft text-[14px] text-ink focus:outline-none focus:ring-2 focus:ring-purple/30 cursor-pointer">
+            <select value={format} onChange={(e) => setFormat(e.target.value)} className={SELECT_CLASS_FILLED}>
               {Object.entries(FORMAT_LABEL).map(([k, v]) => (
                 <option key={k} value={k}>{v}</option>
               ))}
@@ -1106,7 +1264,7 @@ function CreateContentModal({ open, onClose, onSave, ideas, goals, experiments, 
             value={theme}
             onChange={(e) => setTheme(e.target.value)}
             placeholder="Ex.: autoridade, bastidores, venda"
-            className="px-3.5 py-2.5 rounded-[10px] bg-bg border border-border-soft text-[14px] text-ink focus:outline-none focus:ring-2 focus:ring-purple/30"
+            className={FIELD_CLASS_FILLED}
           />
         </label>
 
@@ -1116,7 +1274,7 @@ function CreateContentModal({ open, onClose, onSave, ideas, goals, experiments, 
             value={objective}
             onChange={(e) => setObjective(e.target.value)}
             placeholder="Ex.: alcance, engajamento, autoridade, venda"
-            className="px-3.5 py-2.5 rounded-[10px] bg-bg border border-border-soft text-[14px] text-ink focus:outline-none focus:ring-2 focus:ring-purple/30"
+            className={FIELD_CLASS_FILLED}
           />
         </label>
 
@@ -1126,7 +1284,7 @@ function CreateContentModal({ open, onClose, onSave, ideas, goals, experiments, 
             type="datetime-local"
             value={scheduledAt}
             onChange={(e) => setScheduledAt(e.target.value)}
-            className="px-3.5 py-2.5 rounded-[10px] bg-bg border border-border-soft text-[14px] text-ink focus:outline-none focus:ring-2 focus:ring-purple/30"
+            className={FIELD_CLASS_FILLED}
           />
           <span className="text-[11px] text-ink-soft">É apenas o planejamento interno — nunca publica automaticamente.</span>
         </label>
@@ -1134,7 +1292,7 @@ function CreateContentModal({ open, onClose, onSave, ideas, goals, experiments, 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="flex flex-col gap-1">
             <span className="text-[12.5px] font-semibold text-ink">Associar ideia</span>
-            <select value={ideaId} onChange={(e) => setIdeaId(e.target.value)} className="px-3.5 py-2.5 rounded-[10px] bg-bg border border-border-soft text-[14px] text-ink focus:outline-none focus:ring-2 focus:ring-purple/30 cursor-pointer">
+            <select value={ideaId} onChange={(e) => setIdeaId(e.target.value)} className={SELECT_CLASS_FILLED}>
               <option value="">Nenhuma</option>
               {ideas.filter((i) => i.status !== "PRODUZIDA").map((i) => (
                 <option key={i.id} value={i.id}>{i.title}</option>
@@ -1143,7 +1301,7 @@ function CreateContentModal({ open, onClose, onSave, ideas, goals, experiments, 
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-[12.5px] font-semibold text-ink">Associar copy</span>
-            <select value={copyId} onChange={(e) => setCopyId(e.target.value)} className="px-3.5 py-2.5 rounded-[10px] bg-bg border border-border-soft text-[14px] text-ink focus:outline-none focus:ring-2 focus:ring-purple/30 cursor-pointer">
+            <select value={copyId} onChange={(e) => setCopyId(e.target.value)} className={SELECT_CLASS_FILLED}>
               <option value="">Nenhuma</option>
               {copies.map((c) => (
                 <option key={c.id} value={c.id}>{c.content.slice(0, 40)}…</option>
@@ -1154,7 +1312,7 @@ function CreateContentModal({ open, onClose, onSave, ideas, goals, experiments, 
 
         <label className="flex flex-col gap-1">
           <span className="text-[12.5px] font-semibold text-ink">Associar meta (Fase 5)</span>
-          <select value={goalId} onChange={(e) => setGoalId(e.target.value)} className="px-3.5 py-2.5 rounded-[10px] bg-bg border border-border-soft text-[14px] text-ink focus:outline-none focus:ring-2 focus:ring-purple/30 cursor-pointer">
+          <select value={goalId} onChange={(e) => setGoalId(e.target.value)} className={SELECT_CLASS_FILLED}>
             <option value="">Nenhuma</option>
             {goals.filter((g) => g.status === "ATIVA").map((g) => (
               <option key={g.id} value={g.id}>{g.title}</option>
@@ -1180,7 +1338,7 @@ function CreateContentModal({ open, onClose, onSave, ideas, goals, experiments, 
                 if (d.format && d.format in FORMAT_LABEL) setFormat(d.format);
               }
             }}
-            className="px-3.5 py-2.5 rounded-[10px] bg-bg border border-border-soft text-[14px] text-ink focus:outline-none focus:ring-2 focus:ring-purple/30 cursor-pointer"
+            className={SELECT_CLASS_FILLED}
           >
             <option value="">Nenhum</option>
             {drafts
@@ -1210,7 +1368,7 @@ function CreateContentModal({ open, onClose, onSave, ideas, goals, experiments, 
             onChange={(e) => setNotes(e.target.value)}
             rows={2}
             placeholder="Detalhes de produção, referências..."
-            className="px-3.5 py-2.5 rounded-[10px] bg-bg border border-border-soft text-[14px] text-ink focus:outline-none focus:ring-2 focus:ring-purple/30 resize-none"
+            className={FIELD_CLASS_FILLED + " resize-none"}
           />
         </label>
 
@@ -1245,7 +1403,13 @@ function CreateContentModal({ open, onClose, onSave, ideas, goals, experiments, 
                 <video src={selectedDraft.mediaUrl} className="w-full h-full object-cover" muted playsInline />
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={selectedDraft.mediaUrl} alt="Mídia do rascunho" className="w-full h-full object-cover" />
+                <img
+                  src={selectedDraft.mediaUrl}
+                  alt="Mídia do rascunho"
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                  decoding="async"
+                />
               )
             ) : (
               <div className="flex flex-col items-center gap-2 text-ink-muted px-4 text-center">
@@ -1766,7 +1930,7 @@ function ContentDetailModal({
                 onChange={(e) => onUpdate(content.id, { hypothesis: e.target.value })}
                 rows={2}
                 placeholder="O que este conteúdo testa?"
-                className="px-3.5 py-2.5 rounded-[10px] bg-bg border border-border-soft text-[14px] text-ink focus:outline-none focus:ring-2 focus:ring-purple/30 resize-none"
+                className={FIELD_CLASS_FILLED + " resize-none"}
               />
             </label>
             <label className="flex flex-col gap-1">
@@ -1776,7 +1940,7 @@ function ContentDetailModal({
                 onChange={(e) => onUpdate(content.id, { notes: e.target.value })}
                 rows={3}
                 placeholder="Detalhes de produção, referências..."
-                className="px-3.5 py-2.5 rounded-[10px] bg-bg border border-border-soft text-[14px] text-ink focus:outline-none focus:ring-2 focus:ring-purple/30 resize-none"
+                className={FIELD_CLASS_FILLED + " resize-none"}
               />
             </label>
             <label className="flex flex-col gap-1">
@@ -1791,7 +1955,7 @@ function ContentDetailModal({
                     ...(val ? { status: content.status === "RASCUNHO" ? "AGENDADO" : content.status } : {}),
                   });
                 }}
-                className="px-3.5 py-2.5 rounded-[10px] bg-bg border border-border-soft text-[14px] text-ink focus:outline-none focus:ring-2 focus:ring-purple/30"
+                className={FIELD_CLASS_FILLED}
               />
               <span className="text-[11px] text-ink-soft">Agendamento interno apenas.</span>
             </label>
@@ -1838,13 +2002,13 @@ function ContentDetailModal({
                 onChange={(e) => setVersionText(e.target.value)}
                 rows={3}
                 placeholder="Nova versão da copy (nunca sobrescreve as anteriores)"
-                className="px-3.5 py-2.5 rounded-[10px] bg-bg border border-border-soft text-[14px] text-ink focus:outline-none focus:ring-2 focus:ring-purple/30 resize-none"
+                className={FIELD_CLASS_FILLED + " resize-none"}
               />
               <input
                 value={versionNote}
                 onChange={(e) => setVersionNote(e.target.value)}
                 placeholder="Nota da versão (opcional)"
-                className="px-3.5 py-2.5 rounded-[10px] bg-bg border border-border-soft text-[14px] text-ink focus:outline-none focus:ring-2 focus:ring-purple/30"
+                className={FIELD_CLASS_FILLED}
               />
               <Button size="sm" variant="ghost" onClick={saveVersion} disabled={!versionText.trim()}>
                 <Save size={15} /> Salvar versão
@@ -1865,7 +2029,7 @@ function ContentDetailModal({
                 <select
                   value={previewMediaType}
                   onChange={(e) => setPreviewMediaType(e.target.value)}
-                  className="px-3.5 py-2.5 rounded-[10px] bg-bg border border-border-soft text-[14px] text-ink focus:outline-none focus:ring-2 focus:ring-purple/30 cursor-pointer"
+                  className={SELECT_CLASS_FILLED}
                 >
                   <option value="reel">Reel / Vídeo</option>
                   <option value="post">Post / Imagem</option>
@@ -1889,7 +2053,7 @@ function ContentDetailModal({
                 onChange={(e) => setPreviewCaption(e.target.value)}
                 rows={4}
                 placeholder="Legenda do conteúdo..."
-                className="px-3.5 py-2.5 rounded-[10px] bg-bg border border-border-soft text-[14px] text-ink focus:outline-none focus:ring-2 focus:ring-purple/30 resize-none"
+                className={FIELD_CLASS_FILLED + " resize-none"}
               />
             </label>
             <label className="flex flex-col gap-1">
@@ -1898,7 +2062,7 @@ function ContentDetailModal({
                 value={previewHashtags}
                 onChange={(e) => setPreviewHashtags(e.target.value)}
                 placeholder="#exemplo #conteudo"
-                className="px-3.5 py-2.5 rounded-[10px] bg-bg border border-border-soft text-[14px] text-ink focus:outline-none focus:ring-2 focus:ring-purple/30"
+                className={FIELD_CLASS_FILLED}
               />
             </label>
             <div className="flex justify-end">

@@ -1,4 +1,7 @@
 import { prisma } from "@/lib/db";
+import { head } from "@vercel/blob";
+import { ownedBlobPath, mediaSignatureMatches, UPLOAD_CONTENT_TYPES } from "@/lib/media/upload-policy";
+import { readPublicMediaPrefix } from "@/lib/publishing/media-reachability";
 
 /**
  * BIBLIOTECA DE MÍDIA — camada de dados
@@ -236,30 +239,20 @@ export async function registerMediaAsset(
 
   // A pasta canônica do usuário no Blob. `pathname` do Blob é
   // `inst-acessor/<userId>/...` (ver `onBeforeGenerateToken`).
-  const expectedPrefix = `inst-acessor/${userId}/`;
-  const pathname = input.pathname?.trim() ?? null;
-
-  if (pathname && !pathname.startsWith(expectedPrefix)) {
-    throw new Error("Arquivo não pertence à sua pasta no armazenamento.");
+  const pathname = ownedBlobPath(url, userId, input.pathname?.trim());
+  if (!pathname) throw new Error("URL de mídia inválida ou arquivo não pertence à sua pasta.");
+  // Metadata comes from the authorized store, never from client MIME/size.
+  const metadata = await head(url, { abortSignal: AbortSignal.timeout(15000) });
+  const mimeType = metadata.contentType.split(";")[0].trim().toLowerCase();
+  if (metadata.url !== url || metadata.pathname !== pathname ||
+    !UPLOAD_CONTENT_TYPES.includes(mimeType) || metadata.size <= 0 || metadata.size > 500 * 1024 * 1024) {
+    throw new Error("Mídia inválida: origem, tipo ou tamanho não permitido.");
   }
+  const prefix = await readPublicMediaPrefix(url);
+  if (!prefix || !mediaSignatureMatches(prefix, mimeType)) throw new Error("Mídia inválida: conteúdo incompatível com o tipo declarado.");
 
-  // A URL do Blob contém o pathname. Se o cliente não mandou `pathname`,
-  // extraímos da URL e aplicamos a MESMA checagem — o filtro não pode depender
-  // de o cliente ter sido honesto.
-  if (!pathname) {
-    try {
-      const parsed = new URL(url);
-      const fromUrl = parsed.pathname.replace(/^\/+/, "");
-      if (!fromUrl.startsWith(expectedPrefix)) {
-        throw new Error("Arquivo não pertence à sua pasta no armazenamento.");
-      }
-    } catch (err) {
-      if (err instanceof Error && err.message.includes("não pertence")) throw err;
-      throw new Error("URL de mídia inválida.");
-    }
-  }
-
-  const mimeType = input.mimeType?.trim() || null;
+  const existing = await mediaDb.findFirst({ where: { userId, url } });
+  if (existing) return toView(existing);
 
   const created = await mediaDb.create({
     data: {
@@ -269,7 +262,7 @@ export async function registerMediaAsset(
       // O tipo é DERIVADO do mime no servidor — o cliente não decide se é vídeo.
       type: typeFromMime(mimeType),
       mimeType,
-      size: typeof input.size === "number" && Number.isFinite(input.size) ? Math.trunc(input.size) : null,
+      size: metadata.size,
       originalName: input.originalName?.trim().slice(0, 300) || null,
     },
   });
@@ -305,6 +298,9 @@ export async function deleteMediaAsset(
   if (!asset) return { ok: false, reason: "not_found" };
 
   const url = asset.url;
+  if (!ownedBlobPath(url, userId, asset.pathname)) {
+    throw new Error("URL de mídia inválida; exclusão requer conferência do arquivo histórico.");
+  }
 
   // Quantos rascunhos ainda apontam para este arquivo. Só RASCUNHOS são
   // checados porque é a única tabela que guarda a URL da mídia; conteúdos

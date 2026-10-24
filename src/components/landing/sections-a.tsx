@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import {
   ArrowRight,
   TrendingDown,
@@ -9,6 +10,12 @@ import {
   AlertTriangle,
   ArrowUpRight,
   ArrowDownRight,
+  Info,
+  CheckCircle2,
+  PenLine,
+  Send,
+  MessagesSquare,
+  TrendingUp,
 } from "lucide-react";
 
 /* ============================================================
@@ -27,6 +34,9 @@ export function LogoMark() {
   );
 }
 
+// Âncoras do menu — versão APROVADA da abertura. Não alterar sem pedido do
+// usuário: esta é a navegação que aparece na referência 04 e que foi mantida
+// como abertura oficial da página de venda.
 const NAV_LINKS = [
   { href: "#como-funciona", label: "Como funciona" },
   { href: "#dashboard", label: "Funcionalidades" },
@@ -87,19 +97,152 @@ export function Nav() {
   );
 }
 
+/* ============================================================
+   HERO + DEMONSTRAÇÃO DA INTERFACE
+   ------------------------------------------------------------
+   Reescrito na rodada de estratégia (leitura da referência em
+   `print de referencia/`). O que mudou e por quê:
+
+   1. A promessa agora NOMEIA o produto na primeira linha. Antes o
+      título falava da categoria ("transforme dados em decisões") e o
+      nome do Inst Acessor só aparecia no logotipo — quem chegasse de
+      anúncio precisava deduzir o que estava sendo vendido.
+   2. O subtítulo caiu de duas linhas para uma: o que o produto ENTREGA.
+   3. A prova de que o produto existe virou a própria interface. Ela
+      aparece logo abaixo do CTA (`DemoApp`), no lugar de uma faixa de
+      avatares com iniciais — que sugeria usuários que não existem.
+      A frase de posicionamento (para quem é) continua, sem os avatares.
+   4. A pílula CRIE · PUBLIQUE · CONVERSE · CRESÇA antecipa os quatro
+      verbos que organizam a página inteira.
+
+   O Hero continua em UMA coluna centralizada (`lnd-hero-centered`): a
+   janela de demonstração fica dentro do fluxo, abaixo do texto, e não
+   como uma segunda coluna de grid.
+   ============================================================ */
+
+const VERBOS = ["Crie", "Publique", "Converse", "Cresça"];
+
+/** Rótulo único usado em TODO número da janela de demonstração. */
+function DemoTag({ children }: { children: ReactNode }) {
+  return <span className="lnd-vmove-tag">{children}</span>;
+}
+
+const DEMO_NAV = ["Dashboard", "IA Acessor", "Preview Social", "Calendário", "Publicação"];
+const DEMO_SEMANA: { d: string; f: string; best?: boolean }[] = [
+  { d: "Seg", f: "Reel" },
+  { d: "Ter", f: "Story", best: true },
+  { d: "Qua", f: "Carrossel" },
+  { d: "Qui", f: "Reel" },
+  { d: "Sex", f: "Carrossel" },
+  { d: "Sáb", f: "Story" },
+  { d: "Dom", f: "—" },
+];
+const DEMO_FILA = [
+  { t: "Reel · 3 erros que travam o alcance", s: "Agendado", k: "lnd-wait" },
+  { t: "Story · Bastidor do processo", s: "Publicado", k: "lnd-ok" },
+  { t: "Carrossel · 5 hábitos de quem cresce", s: "Rascunho", k: "" },
+  { t: "Reel · Melhor horário do seu perfil", s: "Agendado", k: "lnd-wait" },
+];
+
 /**
- * Hero da landing — sem o mockup de dashboard do lado direito.
+ * Janela com a interface REAL do Inst Acessor.
  *
- * O card grande de métricas (12.840 seguidores, engajamento, gráfico de
- * alcance, anel de score 84/100 e os chips de score/alcance) foi REMOVIDO
- * nesta rodada. Sem ele, o Hero não faz mais sentido como grid de 2 colunas:
- * virou UMA coluna centralizada (`lnd-hero-grid lnd-hero-centered`), com o
- * conteúdo textual (kicker, título, subtítulo, CTAs e a faixa de confiança)
- * centralizado e com largura de leitura confortável.
+ * Não é um mockup decorativo: cada painel corresponde a uma tela que
+ * existe no app (Calendário com a semana, Central de Publicação com a
+ * fila e seus estados, e os números do painel).
  *
- * A seção escura com o GRÁFICO de evolução de alcance NÃO é isto — aquela
- * é o componente `Dashboard`, que fica logo abaixo do Hero.
+ * Os números são ILUSTRATIVOS e vêm com o selo "Exemplo" — a página não
+ * afirma resultado de nenhum cliente, métrica ou crescimento.
  */
+export function DemoApp() {
+  return (
+    <div className="lnd-demo-wrap lnd-reveal" data-dir="scale">
+      <div className="lnd-demo" role="img" aria-label="Interface do Inst Acessor: calendário da semana, fila de publicações e painel de números — dados de exemplo">
+        <div className="lnd-demo-bar">
+          <span className="lnd-demo-dots" aria-hidden="true">
+            <i />
+            <i />
+            <i />
+          </span>
+          <span className="lnd-demo-url">instacessor.app/dashboard</span>
+          <span className="lnd-demo-selo">Interface real · dados de exemplo</span>
+        </div>
+
+        <div className="lnd-demo-body">
+          {/* Coluna 1 — menu do app */}
+          <div className="lnd-demo-col lnd-demo-col-side">
+            <span className="lnd-demo-col-title">Seu painel</span>
+            <div className="lnd-demo-nav">
+              {DEMO_NAV.map((n, i) => (
+                <span className={i === 0 ? "lnd-on" : undefined} key={n}>
+                  <i aria-hidden="true" />
+                  {n}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Coluna 2 — Calendário + Central de Publicação */}
+          <div className="lnd-demo-col">
+            <div className="lnd-demo-topline">
+              <b>Calendário da semana</b>
+              <span className="lnd-demo-chip">Recomendado pela IA</span>
+            </div>
+            <div className="lnd-demo-week">
+              {DEMO_SEMANA.map((d) => (
+                <div className={`lnd-demo-day${d.best ? " lnd-best" : ""}`} key={d.d}>
+                  <span>{d.d}</span>
+                  <b>{d.f}</b>
+                  {d.best ? <em>Melhor</em> : null}
+                </div>
+              ))}
+            </div>
+
+            <span className="lnd-demo-col-title" style={{ marginTop: 6 }}>
+              Central de Publicação
+            </span>
+            <div className="lnd-demo-queue">
+              {DEMO_FILA.map((f) => (
+                <div className={f.k || undefined} key={f.t}>
+                  <i aria-hidden="true" />
+                  <b>{f.t}</b>
+                  <span>{f.s}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Coluna 3 — números (todos com selo Exemplo) */}
+          <div className="lnd-demo-col lnd-demo-col-side">
+            <span className="lnd-demo-col-title">Painel</span>
+            <div className="lnd-demo-kpis">
+              <div className="lnd-demo-kpi">
+                <span>Seguidores</span>
+                <b>12.840</b>
+              </div>
+              <div className="lnd-demo-kpi">
+                <span>Alcance · 30 dias</span>
+                <b>184.200</b>
+              </div>
+              <div className="lnd-demo-kpi">
+                <span>Pilares com oportunidade</span>
+                <b>3</b>
+              </div>
+            </div>
+            <DemoTag>Valores de exemplo</DemoTag>
+          </div>
+        </div>
+      </div>
+
+      <p className="lnd-demo-note">
+        <Info size={14} aria-hidden="true" />
+        Os números acima são de exemplo. Conectado o seu perfil, cada painel passa a mostrar os
+        dados reais da sua conta.
+      </p>
+    </div>
+  );
+}
+
 export function Hero() {
   return (
     <section className="lnd-hero" id="hero">
@@ -108,6 +251,21 @@ export function Hero() {
         <div className="lnd-orb lnd-orb-1" />
         <div className="lnd-orb lnd-orb-2" />
         <div className="lnd-orb lnd-orb-3" />
+      </div>
+      {/* SELO — "Integração via API oficial do Instagram".
+          Texto INFORMATIVO e verificável: o app fala com
+          `https://graph.instagram.com` usando os escopos oficiais
+          `instagram_business_*`. NÃO afirma certificação, parceria ou
+          endosso da Meta — nenhuma dessas alegações é verdadeira.
+          Elemento NOVO: não altera nenhum estilo existente (o `.lnd-hero` já
+          é `position:relative`, então o selo se posiciona sem tocar no CSS). */}
+      <div className="lnd-hero-apibadge">
+        <svg viewBox="0 0 24 24" aria-hidden="true" width="15" height="15">
+          <rect x="2.5" y="2.5" width="19" height="19" rx="5.2" fill="none" stroke="currentColor" strokeWidth="1.8" />
+          <circle cx="12" cy="12" r="4.4" fill="none" stroke="currentColor" strokeWidth="1.8" />
+          <circle cx="17.4" cy="6.6" r="1.25" fill="currentColor" />
+        </svg>
+        <span>Integração via API oficial do Instagram</span>
       </div>
       <div className="lnd-container lnd-hero-grid lnd-hero-centered">
         <div className="lnd-hero-copy">
@@ -150,6 +308,119 @@ export function Hero() {
               crescimento.
             </p>
           </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ============================================================
+   OS QUATRO MOVIMENTOS — CRIE · PUBLIQUE · CONVERSE · CRESÇA
+   ------------------------------------------------------------
+   Por que esta seção existe: a landing tinha 26 blocos, cada um
+   apresentando UMA tela, todos com o mesmo peso visual. Quem chegava de
+   anúncio via um inventário de recursos, não um produto. Aqui os módulos
+   aparecem agrupados por verbo, na ordem em que o trabalho acontece de
+   verdade (criar → publicar → conversar → medir).
+
+   Cada módulo listado ABAIXO existe no app e está na navegação
+   (`src/lib/navigation.ts`). Nada é aspiracional.
+
+   "Converse" fica marcado como EM PREPARAÇÃO de propósito: as respostas a
+   comentários têm tela, regras e limites no app, mas a execução externa
+   ainda não está validada. Vender isso como pronto seria promessa falsa —
+   então o card diz exatamente o que está disponível hoje.
+   ============================================================ */
+
+type Movimento = {
+  n: string;
+  verbo: string;
+  ic: typeof PenLine;
+  frase: string;
+  itens: string[];
+  soon?: string;
+};
+
+const MOVIMENTOS: Movimento[] = [
+  {
+    n: "01",
+    verbo: "Crie",
+    ic: PenLine,
+    frase:
+      "Saia da página em branco. A IA escreve com o contexto do seu perfil e do seu nicho — nunca com fórmula pronta.",
+    itens: ["IA Acessor", "Central de Ideias", "Preview Social"],
+  },
+  {
+    n: "02",
+    verbo: "Publique",
+    ic: Send,
+    frase:
+      "Planeje a semana, deixe a fila organizada e publique no Instagram pelo próprio Inst Acessor, com status visível em cada etapa.",
+    itens: ["Calendário Inteligente", "Calendário", "Central de Publicação"],
+  },
+  {
+    n: "03",
+    verbo: "Converse",
+    ic: MessagesSquare,
+    frase:
+      "A IA lê os comentários dos seus posts e sugere a resposta no seu tom. Você aprova — nada é enviado sem a sua autorização.",
+    itens: ["Respostas Inteligentes"],
+    soon: "Execução automática em preparação",
+  },
+  {
+    n: "04",
+    verbo: "Cresça",
+    ic: TrendingUp,
+    frase:
+      "Veja o que funcionou, onde está travando e o próximo passo — com números derivados dos seus dados, nunca estimados.",
+    itens: ["Análise de Desempenho", "Rank", "Score Inteligente", "Perfil de Inteligência"],
+  },
+];
+
+export function Movimentos() {
+  return (
+    <section className="lnd-section" id="movimentos">
+      <div className="lnd-container">
+        <div className="lnd-section-head lnd-center lnd-reveal">
+          <span className="lnd-eyebrow">O produto em quatro verbos</span>
+          <h2 className="lnd-h2">
+            Não é um gerador de legenda.{" "}
+            <span className="lnd-grad">É o ciclo inteiro do seu conteúdo.</span>
+          </h2>
+          <p className="lnd-lead">
+            Quatro etapas, um só lugar: criar, publicar, conversar e crescer — cada uma com as
+            ferramentas que você já encontra dentro do aplicativo.
+          </p>
+        </div>
+
+        <div className="lnd-vmoves">
+          {MOVIMENTOS.map((m, i) => (
+            <div
+              className={`lnd-vmove${m.soon ? " lnd-vmove--soon" : ""} lnd-reveal`}
+              data-delay={String(i + 1)}
+              key={m.verbo}
+            >
+              <div className="lnd-vmove-top">
+                <span className="lnd-vmove-ic" aria-hidden="true">
+                  <m.ic size={20} />
+                </span>
+                <div>
+                  <span className="lnd-vmove-n">{m.n}</span>
+                  <div className="lnd-vmove-verb">{m.verbo}</div>
+                </div>
+              </div>
+              <p>{m.frase}</p>
+              <ul className="lnd-vmove-list">
+                {m.itens.map((it) => (
+                  <li key={it}>
+                    <CheckCircle2 size={15} aria-hidden="true" />
+                    {it}
+                  </li>
+                ))}
+              </ul>
+              {m.soon ? <span className="lnd-vmove-tag">{m.soon}</span> : null}
+            </div>
+          ))}
         </div>
       </div>
     </section>

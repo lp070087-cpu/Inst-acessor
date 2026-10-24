@@ -1,0 +1,52 @@
+import assert from 'node:assert/strict';
+const url = new URL(process.env.DATABASE_URL);
+assert.equal(url.hostname, '127.0.0.1'); assert.equal(url.port, process.env.AUDIT_DATABASE_PORT); assert.equal(url.pathname, '/inst_acessor_audit');
+const { prisma } = await import('../src/lib/db.ts');
+const { reconcilePublication } = await import('../src/lib/publishing/reconciliation.ts');
+const { tiktokAdapter } = await import('../src/lib/publishing/adapters/index.ts');
+const { markProcessing } = await import('../src/lib/publishing/queue.ts');
+let checks = 0;
+const check = (value, label) => { assert.ok(value, label); checks++; console.log(`ok ${label}`); };
+const admin = await prisma.user.create({ data: { email: 'admin@audit.invalid', passwordHash: 'synthetic', emailVerified: new Date() } });
+const owner = await prisma.user.create({ data: { email: 'owner@audit.invalid', passwordHash: 'synthetic', emailVerified: new Date() } });
+async function fixture() {
+  const content = await prisma.plannedContent.create({ data: { userId: owner.id, title: 'Synthetic reconciliation', platform: 'tiktok' } });
+  return prisma.publishQueue.create({ data: { userId: owner.id, contentId: content.id, platform: 'tiktok', format: 'video', status: 'FALHOU', errorCode: 'RECONCILIATION_REQUIRED' } });
+}
+const original = { getStatus: tiktokAdapter.getStatus, publish: tiktokAdapter.publish };
+let reads = 0, sends = 0;
+const publishId = 'v_pub_file~v2-1.123456789';
+tiktokAdapter.getStatus = async () => { reads++; return { ok: true, status: 'LIVE', externalId: publishId }; };
+tiktokAdapter.publish = async () => { sends++; throw new Error('Never publish in reconciliation'); };
+try {
+  const item = await fixture();
+  const input = { actorId: admin.id, queueId: item.id, externalId: publishId, reviewedContent: true };
+  check((await reconcilePublication({ ...input, actorId: owner.id })).code === 'FORBIDDEN', 'Non-admin rejected');
+  check(reads === 0, 'Unauthorized request makes no provider read');
+  check((await reconcilePublication({ ...input, reviewedContent: false })).code === 'INVALID', 'Explicit human correspondence review required');
+  check((await reconcilePublication({ ...input, externalId: 'https://evil.invalid/id' })).code === 'INVALID', 'URLs cannot become remote IDs');
+  await prisma.user.update({ where: { id: admin.id }, data: { status: 'SUSPENDED' } });
+  check((await reconcilePublication(input)).code === 'FORBIDDEN', 'Suspended administrator rejected');
+  await prisma.user.update({ where: { id: admin.id }, data: { status: 'ACTIVE' } });
+  tiktokAdapter.getStatus = async () => ({ ok: true, status: 'LIVE', externalId: 'different-post' });
+  check((await reconcilePublication(input)).code === 'UNCONFIRMED', 'Mismatched remote identity rejected');
+  tiktokAdapter.getStatus = async () => ({ ok: false, status: 'PROCESSING' });
+  check((await reconcilePublication(input)).code === 'UNCONFIRMED', 'Processing is not proof of publication');
+  check(!await markProcessing(owner.id, item.id), 'Unconfirmed item stays quarantined');
+  tiktokAdapter.getStatus = async () => ({ ok: true, status: 'LIVE', externalId: publishId });
+  const results = await Promise.all(Array.from({ length: 8 }, () => reconcilePublication(input)));
+  check(results.filter(x => x.ok).length === 1, 'Eight concurrent resolutions commit once');
+  check(await prisma.publishLog.count({ where: { queueId: item.id, operation: 'reconcile' } }) === 1, 'Single durable audit record');
+  check((await prisma.plannedContent.findUnique({ where: { id: item.contentId } })).status === 'PUBLICADO', 'Content and queue consistent');
+  check(await prisma.usageEvent.count({ where: { idempotencyKey: `pub:${publishId}` } }) === 1, 'TikTok processing ID with tilde and dot is accepted and measured once');
+  check((await reconcilePublication(input)).code === 'CONFLICT', 'Already resolved replay rejected');
+  check(sends === 0, 'Reconciliation never invokes publish');
+  const broken = await fixture();
+  tiktokAdapter.getStatus = async (query) => ({ ok: true, status: 'LIVE', externalId: query.externalId });
+  await prisma.$executeRawUnsafe(`CREATE FUNCTION audit_fail_reconcile() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.operation = 'reconcile' THEN RAISE EXCEPTION 'synthetic log failure'; END IF; RETURN NEW; END $$`);
+  await prisma.$executeRawUnsafe('CREATE TRIGGER audit_fail_reconcile BEFORE INSERT ON "PublishLog" FOR EACH ROW EXECUTE FUNCTION audit_fail_reconcile()');
+  await assert.rejects(reconcilePublication({ ...input, queueId: broken.id, externalId: 'another-post' })); checks++;
+  check((await prisma.publishQueue.findUnique({ where: { id: broken.id } })).errorCode === 'RECONCILIATION_REQUIRED', 'Audit failure rolls back queue');
+  check((await prisma.plannedContent.findUnique({ where: { id: broken.contentId } })).status !== 'PUBLICADO', 'Audit failure rolls back content');
+  console.log(`${checks} publishing reconciliation assertions passed`);
+} finally { Object.assign(tiktokAdapter, original); await prisma.$disconnect(); }

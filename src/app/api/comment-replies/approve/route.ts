@@ -1,3 +1,4 @@
+import { withPremiumApi } from "@/lib/auth/premium-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -19,7 +20,7 @@ export const dynamic = "force-dynamic";
  *  • `sendApprovedReply` é idempotente — aprovar duas vezes o mesmo comentário
  *    não produz uma segunda resposta no Instagram.
  */
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   try {
     const session = await requireSession();
     const body = await request.json();
@@ -58,3 +59,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Não foi possível enviar a resposta." }, { status: 500 });
   }
 }
+
+export const POST = withPremiumApi(POSTHandler);

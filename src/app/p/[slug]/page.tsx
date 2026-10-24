@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
@@ -23,13 +24,13 @@ import { PublicProfileView } from "@/components/gamification/public-profile-view
 export const dynamic = "force-dynamic";
 
 interface RouteParams {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }
 
 export async function generateMetadata({
   params,
 }: RouteParams): Promise<Metadata> {
-  const payload = await loadPublicProfile(params.slug);
+  const payload = await loadPublicProfile((await params).slug);
   if (!payload) {
     return {
       title: "Perfil não encontrado",
@@ -58,7 +59,7 @@ export async function generateMetadata({
 }
 
 export default async function PublicProfilePage({ params }: RouteParams) {
-  const payload = await loadPublicProfile(params.slug);
+  const payload = await loadPublicProfile((await params).slug);
   if (!payload) notFound();
 
   return (
@@ -79,12 +80,12 @@ export default async function PublicProfilePage({ params }: RouteParams) {
         {/* CTA opcional — convida quem chegou pelo link a conhecer o produto,
             sem parecer propaganda dentro do perfil de outra pessoa. */}
         <div className="mt-8 text-center">
-          <a
+          <Link
             href="/"
             className="inline-flex items-center gap-2 text-[13px] font-semibold text-purple hover:underline"
           >
             Conheça o Inst Acessor — inteligência para crescer no Instagram
-          </a>
+          </Link>
         </div>
       </div>
     </main>

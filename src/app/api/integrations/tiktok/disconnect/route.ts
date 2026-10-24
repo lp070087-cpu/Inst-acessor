@@ -1,3 +1,4 @@
+import { withSessionApi } from "@/lib/auth/session-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -13,7 +14,7 @@ export const dynamic = "force-dynamic";
  * - NÃO apaga histórico de métricas (regra de produto).
  * - Só altera a conexão do próprio usuário (userId da sessão).
  */
-export async function POST() {
+async function POSTHandler() {
   let session;
   try {
     session = await requireSession();
@@ -54,3 +55,5 @@ export async function POST() {
     );
   }
 }
+
+export const POST = withSessionApi(POSTHandler);

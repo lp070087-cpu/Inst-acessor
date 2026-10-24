@@ -152,9 +152,13 @@ export default async function AdminHomePage() {
             return (
               <div
                 key={p}
-                className="flex items-center justify-between rounded-[11px] border border-border-soft bg-surface/50 px-4 py-3"
+                // `flex-wrap` + `min-w-0`: os 3 selos + a máscara da chave não
+                // cabem numa linha só em 320–360px — sem quebra, estouravam o
+                // card. A máscara é `font-data` (largura fixa), então ela desce
+                // para a linha de baixo quando falta espaço.
+                className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5 rounded-[11px] border border-border-soft bg-surface/50 px-4 py-3"
               >
-                <div className="flex items-center gap-2.5">
+                <div className="flex min-w-0 flex-wrap items-center gap-2.5">
                   <span
                     className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11.5px] font-medium ${
                       st.configured

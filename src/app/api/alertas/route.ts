@@ -1,3 +1,4 @@
+import { withSessionApi } from "@/lib/auth/session-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -10,7 +11,7 @@ export const dynamic = "force-dynamic";
  * GET /api/alertas?platform=instagram|tiktok
  * Retorna alertas determinísticos derivados de dados reais.
  */
-export async function GET(request: Request) {
+async function GETHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -33,3 +34,5 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Não foi possível gerar alertas." }, { status: 500 });
   }
 }
+
+export const GET = withSessionApi(GETHandler);

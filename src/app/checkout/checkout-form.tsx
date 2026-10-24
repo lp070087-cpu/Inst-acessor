@@ -261,6 +261,22 @@ export function CheckoutForm({
       });
       const data = await res.json();
 
+      // SEM VAGA (409): a vaga esgotou entre esta tela e o clique — ou as vendas
+      // fecharam. O SERVIDOR recusou (nada foi cobrado). Recarregamos a página
+      // para a tela mostrar a LISTA DE ESPERA em vez do formulário de pagamento.
+      if (res.status === 409 && data?.reason === "capacity") {
+        setNotice({
+          kind: "warn",
+          text:
+            data?.message ??
+            "As vagas foram preenchidas. Entre na lista de espera para ser avisado.",
+        });
+        toast("Sem vagas no momento — veja a lista de espera.");
+        // Recarrega para exibir o formulário de lista de espera (estado do servidor).
+        window.location.reload();
+        return;
+      }
+
       if (data?.status === "INTEGRATION_NOT_CONFIGURED") {
         // Estado controlado — nenhuma cobrança foi feita.
         setNotice({

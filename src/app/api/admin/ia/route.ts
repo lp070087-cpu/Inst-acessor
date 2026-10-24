@@ -1,3 +1,4 @@
+import { withAdminApi } from "@/lib/auth/admin-api";
 import { NextResponse } from "next/server";
 
 import { requireAdminSession } from "@/lib/auth/guard";
@@ -42,7 +43,7 @@ function encryptionReady(): boolean {
  * - Chave NUNCA é devolvida no response — apenas status mascarado.
  * - Valores sensíveis gravados encriptados (AES-256-GCM).
  */
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   // Autorização ADMIN no servidor.
   await requireAdminSession();
 
@@ -113,3 +114,5 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export const POST = withAdminApi(POSTHandler);

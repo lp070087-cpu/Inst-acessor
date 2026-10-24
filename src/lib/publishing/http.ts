@@ -62,10 +62,13 @@ export async function publishHttp<T>(
   options: PublishHttpOptions = {}
 ): Promise<T> {
   const { method = "GET", headers = {}, body, timeoutMs = PUBLISH_TIMEOUT_MS } = options;
+  // A POST may succeed remotely even when its response is lost. Never retry it
+  // at the HTTP layer; the queue must reconcile an uncertain result.
+  const maxRetries = ["GET", "HEAD"].includes(method.toUpperCase()) ? PUBLISH_MAX_RETRIES : 0;
 
   let lastError: unknown;
 
-  for (let attempt = 0; attempt <= PUBLISH_MAX_RETRIES; attempt++) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
     if (attempt > 0) await delay(RETRY_BASE_DELAY_MS * 2 ** (attempt - 1));
 
     try {
@@ -89,7 +92,7 @@ export async function publishHttp<T>(
         const retryable = isRetryableStatus(res.status);
         const message = safeErrorText(data, res.status);
         const metaCode = safeErrorCode(data);
-        if (retryable && attempt < PUBLISH_MAX_RETRIES) {
+        if (retryable && attempt < maxRetries) {
           lastError = new PublishHttpError(message, res.status, true, metaCode);
           continue;
         }
@@ -102,7 +105,7 @@ export async function publishHttp<T>(
 
       // Timeout/rede → retryável.
       const transient = isAbort(error) || error instanceof TypeError;
-      if (transient && attempt < PUBLISH_MAX_RETRIES) {
+      if (transient && attempt < maxRetries) {
         lastError = new PublishHttpError(
           "Falha de rede ao contactar a plataforma. Tente novamente.",
           0,
@@ -115,7 +118,7 @@ export async function publishHttp<T>(
       throw new PublishHttpError(
         "Falha de rede ao contactar a plataforma. Tente novamente.",
         0,
-        false,
+        true,
         isAbort(error) ? "TIMEOUT" : "NETWORK"
       );
     }

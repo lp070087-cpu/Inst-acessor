@@ -1,3 +1,4 @@
+import { withPremiumApi } from "@/lib/auth/premium-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -16,7 +17,7 @@ export const dynamic = "force-dynamic";
  * sanitizado, e aqui reforçamos com sanitizeMessage.
  */
 
-export async function GET(request: Request) {
+async function GETHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -82,3 +83,5 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Não foi possível carregar o histórico." }, { status: 500 });
   }
 }
+
+export const GET = withPremiumApi(GETHandler);

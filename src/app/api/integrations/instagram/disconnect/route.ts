@@ -1,3 +1,4 @@
+import { withSessionApi } from "@/lib/auth/session-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -16,7 +17,7 @@ const APP_BASE = process.env.AUTH_URL || "http://localhost:3000";
  * - NÃO apaga histórico de métricas (regra de produto).
  * - Só altera a conexão do próprio usuário (userId da sessão).
  */
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   let session;
   try {
     session = await requireSession();
@@ -58,3 +59,5 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export const POST = withSessionApi(POSTHandler);

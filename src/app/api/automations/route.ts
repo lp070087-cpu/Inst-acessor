@@ -1,36 +1,33 @@
+import { withSessionApi } from "@/lib/auth/session-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
 import { pub } from "@/lib/publishing/db";
-import { automationRateLimiter } from "@/lib/publishing/rate-limit";
-import { z } from "zod";
 
 export const dynamic = "force-dynamic";
 
 /**
- * FASE 7 — FUNDAÇÃO DE AUTOMAÇÕES (Parte 14)
- * ===========================================
- * GET  /api/automations — lista regras do usuário
- * POST /api/automations — cria/atualiza uma regra (Comentário→DM futuro)
- * DELETE /api/automations?id=... — remove uma regra
+ * API DE AUTOMAÇÕES — SUPERADA (ponte)
+ * ====================================
+ * Esta API manipulava as regras LEGADAS (`AutomationRule`), que guardavam
+ * palavras-chave mas NUNCA eram avaliadas por ninguém: o usuário configurava uma
+ * palavra e nada acontecia. O motor REAL (Comentário → Direct) vive em
+ * `CommentDirectRule`, avaliado por `evaluateComment` a partir do webhook de
+ * comentários e gerenciado em `POST/PATCH/DELETE /api/comment-direct/rules`.
  *
- * NENHUMA chamada real de DM, NENHUM disparo real por palavra-chave.
- * Apenas estrutura preparada: regra + avaliação registrada quando um evento
- * chegar via webhook (que também ainda não dispara ação externa).
+ * Para não recriar o defeito (regras que não disparam), o POST NÃO cria mais
+ * regras legadas: responde 410 apontando o caminho correto. GET (leitura) e
+ * DELETE (limpeza do histórico) continuam funcionando — as linhas existentes
+ * são PRESERVADAS e podem ser removidas pelo dono.
+ *
+ * GET    /api/automations          — lista as regras legadas (somente leitura)
+ * POST   /api/automations          — 410: use /api/comment-direct/rules
+ * DELETE /api/automations?id=...   — remove uma regra legada do usuário
  *
  * Session-required + owner-check.
  */
 
-const ruleSchema = z.object({
-  name: z.string().min(2, "Nome é obrigatório").max(80),
-  trigger: z.string().min(2, "Gatilho é obrigatório"),
-  platform: z.enum(["instagram", "tiktok"]).default("instagram"),
-  keywords: z.array(z.string().max(40)).max(20).default([]),
-  action: z.enum(["dm"]).default("dm"),
-  enabled: z.boolean().default(false),
-});
-
-export async function GET(request: Request) {
+async function GETHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -69,44 +66,23 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
-  try {
-    const session = await requireSession();
-    const userId = session.user.id;
-
-    if (!automationRateLimiter.check(userId)) {
-      return NextResponse.json({ error: "Muitas solicitações. Aguarde um momento." }, { status: 429 });
-    }
-
-    const body = await request.json();
-    const parsed = ruleSchema.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues[0]?.message ?? "Dados inválidos" },
-        { status: 400 }
-      );
-    }
-
-    const created = await pub.automationRule.create({
-      data: {
-        userId,
-        name: parsed.data.name,
-        trigger: parsed.data.trigger,
-        platform: parsed.data.platform,
-        keywords: parsed.data.keywords,
-        action: parsed.data.action,
-        enabled: parsed.data.enabled,
-      },
-    });
-
-    return NextResponse.json({ ok: true, rule: created });
-  } catch (err) {
-    console.error("[automations] erro ao criar", err);
-    return NextResponse.json({ error: "Não foi possível criar a regra." }, { status: 500 });
-  }
+/**
+ * A criação de regra legada foi ENCERRADA: uma regra que ninguém avalia é uma
+ * promessa falsa ao usuário. Redireciona para o motor real.
+ */
+async function POSTHandler() {
+  return NextResponse.json(
+    {
+      error:
+        "A criação de regras nesta tela foi descontinuada. Crie a regra em Respostas Inteligentes → Automações (endpoint /api/comment-direct/rules), que é o motor que realmente envia a mensagem privada.",
+      code: "SUPERSEDED",
+      use: "/api/comment-direct/rules",
+    },
+    { status: 410 }
+  );
 }
 
-export async function DELETE(request: Request) {
+async function DELETEHandler(request: Request) {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -129,3 +105,9 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "Não foi possível excluir a regra." }, { status: 500 });
   }
 }
+
+export const GET = withSessionApi(GETHandler);
+
+export const POST = withSessionApi(POSTHandler);
+
+export const DELETE = withSessionApi(DELETEHandler);

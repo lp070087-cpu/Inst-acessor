@@ -1,0 +1,16 @@
+# Preserve the audited SQL bytes across Windows/Linux checkouts.
+# The migration manifest hashes exact bytes; do not normalize historical SQL.
+bench/fixtures/neon-approved-eleven.prisma text eol=lf
+prisma/migrations/20260901000000_baseline_historico/migration.sql text eol=lf
+prisma/migrations/20260912130000_admin_billing_primeiro_acesso/migration.sql text eol=crlf
+prisma/migrations/20260915120000_instagram_media_produto_comentarios/migration.sql text eol=crlf
+prisma/migrations/20261005120000_biblioteca_de_midia/migration.sql text eol=crlf
+prisma/migrations/20261005121000_rascunho_enquadramento/migration.sql text eol=crlf
+prisma/migrations/20261008120000_comentario_direct_e_central_dm/migration.sql text eol=crlf
+prisma/migrations/20261008130000_lista_de_espera/migration.sql text eol=crlf
+prisma/migrations/20261008140000_medicao_de_franquia/migration.sql text eol=crlf
+prisma/migrations/20261017190000_alinhamento_historico/migration.sql text eol=lf
+prisma/migrations/20261018190000_social_webhook_inbox/migration.sql text eol=lf
+prisma/migrations/20261018200000_publication_snapshots/migration.sql text eol=lf
+
+prisma/migrations/20261020190000_launch_waitlist/migration.sql text eol=lf

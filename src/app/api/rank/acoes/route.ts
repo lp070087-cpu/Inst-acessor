@@ -1,3 +1,4 @@
+import { withSessionApi } from "@/lib/auth/session-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -10,7 +11,7 @@ export const dynamic = "force-dynamic";
  * Protegido por sessão. Somente dados do usuário autenticado.
  * Retorna também o catálogo de fontes (para a UI explicar cada ação).
  */
-export async function GET() {
+async function GETHandler() {
   try {
     const session = await requireSession();
     const userId = session.user.id;
@@ -37,3 +38,5 @@ export async function GET() {
     );
   }
 }
+
+export const GET = withSessionApi(GETHandler);

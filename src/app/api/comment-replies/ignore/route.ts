@@ -1,3 +1,4 @@
+import { withPremiumApi } from "@/lib/auth/premium-api";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/guard";
@@ -13,7 +14,7 @@ export const dynamic = "force-dynamic";
  * que impede que a automação volte a sugerir resposta para o mesmo comentário
  * (a idempotência depende de o registro existir, não de ser apagado).
  */
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   try {
     const session = await requireSession();
     const body = await request.json();
@@ -45,3 +46,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Não foi possível ignorar o comentário." }, { status: 500 });
   }
 }
+
+export const POST = withPremiumApi(POSTHandler);

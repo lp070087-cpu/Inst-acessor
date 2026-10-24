@@ -1,0 +1,11 @@
+{
+  "preparedAt": "2026-10-20T16:07:58.314Z",
+  "migration": "20261020190000_launch_waitlist",
+  "predecessorManifest": "docs/neon-preview-migration-manifest.json",
+  "sha256": "C67A2EA99C12D951CF87D569C52E845DBCFF8EA8313303E825DE81280B0FD0F2",
+  "schemaSha256": "46E2E325A06EBFEE21F6757CD141CB3877CE3E4E59B8CDDAFA199A6ACD87FBF5",
+  "remoteAuthorization": "NOT_GRANTED_FOR_THIS_ADDITION",
+  "remoteExecution": "NOT_EXECUTED",
+  "localIntegration": "PREPARED_NOT_EXECUTED",
+  "historicalMigrationsChanged": false
+}

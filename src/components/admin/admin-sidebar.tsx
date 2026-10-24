@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, CreditCard, Plug, Cpu, Webhook, Menu, X, ShieldCheck, LogOut, Tag } from "lucide-react";
+import { LayoutDashboard, Users, CreditCard, Plug, Cpu, Webhook, Menu, X, ShieldCheck, LogOut, Tag, UserCheck, Layers, Wallet } from "lucide-react";
 import { signOut } from "next-auth/react";
 import type { Session } from "next-auth";
 
@@ -57,10 +57,22 @@ const adminNav: AdminNavItem[] = [
     description: "Promoção de lançamento e countdown",
   },
   {
+    label: "Lista de espera",
+    href: "/admin/lista-de-espera",
+    icon: UserCheck,
+    description: "Capacidade de vagas e lista de espera",
+  },
+  {
     label: "Webhooks",
     href: "/admin/webhooks",
     icon: Webhook,
     description: "Status dos endpoints de notificação",
+  },
+  {
+    label: "Pré-lançamento",
+    href: "/admin/pre-lancamento",
+    icon: Users,
+    description: "Inscrições e avisos de abertura",
   },
 ];
 

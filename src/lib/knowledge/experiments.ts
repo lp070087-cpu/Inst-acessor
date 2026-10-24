@@ -76,12 +76,38 @@ export async function listExperiments(userId: string): Promise<ExperimentDto[]> 
     orderBy: { updatedAt: "desc" },
     take: 50,
   });
-  const out: ExperimentDto[] = [];
-  for (const row of rows) {
-    const dto = await enrich(row as unknown as ExperimentDto);
-    if (dto) out.push(dto);
+  if (rows.length === 0) return [];
+
+  // LOTE em vez de N+1: a versão anterior chamava `enrich` (2 consultas) uma vez
+  // por experimento, em SEQUÊNCIA — até 100 consultas para listar 50. Aqui são
+  // 2 consultas no total, com `in`, e o agrupamento acontece em memória.
+  const ids = (rows as unknown as { id: string }[]).map((r) => r.id);
+  const [variants, observations] = await Promise.all([
+    kb.variant.findMany({ where: { experimentId: { in: ids } } }),
+    kb.observation.findMany({ where: { experimentId: { in: ids } } }),
+  ]);
+
+  const variantsByExp = new Map<string, ExperimentVariantData[]>();
+  for (const v of variants as unknown as (ExperimentVariantData & { experimentId: string })[]) {
+    const arr = variantsByExp.get(v.experimentId) ?? [];
+    arr.push(toVariant(v));
+    variantsByExp.set(v.experimentId, arr);
   }
-  return out;
+  const obsByExp = new Map<string, ExperimentObservationData[]>();
+  for (const o of observations as unknown as (ExperimentObservationData & { experimentId: string })[]) {
+    const arr = obsByExp.get(o.experimentId) ?? [];
+    arr.push(toObservation(o));
+    obsByExp.set(o.experimentId, arr);
+  }
+
+  return rows.map((row) => {
+    const r = row as unknown as ExperimentDto;
+    return {
+      ...r,
+      variants: variantsByExp.get(r.id) ?? [],
+      observations: obsByExp.get(r.id) ?? [],
+    };
+  });
 }
 
 export async function getExperiment(userId: string, id: string): Promise<ExperimentDto | null> {
