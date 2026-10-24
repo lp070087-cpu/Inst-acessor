@@ -6,5 +6,11 @@
       "audit/finalizacao-inst-acessor": false,
       "claude/charming-feynman-wjik0j": false
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/launch-emails",
+      "schedule": "17 12 * * *"
+    }
+  ]
 }

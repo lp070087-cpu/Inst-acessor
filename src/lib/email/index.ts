@@ -316,3 +316,67 @@ export async function sendPasswordResetEmail(data: { to: string; resetUrl: strin
   return dispatch(provider, { to: data.to, subject: "Recupere seu acesso ao Inst Acessor", html, sensitiveLink: true,
     text: `Foi solicitada uma redefinição de senha no Inst Acessor. Link pessoal, de uso único, válido por ${data.expiresInMinutes} minutos:\n${data.resetUrl}\nSe não foi você, ignore esta mensagem. Sua senha não foi alterada.` });
 }
+
+/** Resend outcome contract for idempotent outbox delivery. */
+export type TransactionalEmailResult =
+  | { status: "SENT"; providerId: string }
+  | { status: "NOT_CONFIGURED" }
+  /** The provider definitively refused the request (or it never left): nothing was sent. */
+  | { status: "REJECTED"; httpStatus: number }
+  /** The message may have been accepted: never retry automatically. */
+  | { status: "UNCERTAIN"; reason: "TIMEOUT" | "NETWORK" | "HTTP_STATUS" | "INVALID_RESPONSE" };
+
+// Resend documents these as refusals of the request itself; no message is queued.
+const RESEND_DEFINITE_REJECTIONS = new Set([400, 401, 403, 404, 405, 422, 429]);
+
+/** Sender must be explicit: transactional outbox never inherits the legacy sender fallback. */
+export function isTransactionalEmailConfigured(): boolean {
+  return readProvider() === "resend" && Boolean(readResendApiKey()) && Boolean(process.env.EMAIL_FROM?.trim());
+}
+
+/**
+ * Generic idempotent send through Resend. Never throws and never logs recipient,
+ * content, links or keys. Any outcome after the request may have reached the
+ * provider, other than a documented refusal, is reported as UNCERTAIN.
+ */
+export async function sendTransactionalEmail(input: {
+  to: string; subject: string; html: string; text: string; idempotencyKey: string;
+}): Promise<TransactionalEmailResult> {
+  if (!isTransactionalEmailConfigured()) return { status: "NOT_CONFIGURED" };
+  if (!/^[\x21-\x7e]{1,256}$/.test(input.idempotencyKey) || !/^[^\s@<>,;]+@[^\s@<>,;]+$/.test(input.to) ||
+    !input.subject || !input.html || !input.text) return { status: "REJECTED", httpStatus: 0 };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), RESEND_TIMEOUT_MS);
+  try {
+    const res = await fetch(RESEND_URL, {
+      method: "POST",
+      redirect: "error",
+      headers: {
+        Authorization: `Bearer ${readResendApiKey()}`,
+        "Content-Type": "application/json",
+        "Idempotency-Key": input.idempotencyKey,
+      },
+      body: JSON.stringify({
+        from: process.env.EMAIL_FROM!.trim(), to: [input.to], subject: input.subject, html: input.html, text: input.text,
+      }),
+      signal: controller.signal,
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      console.error(`[email] envio transacional não aceito (Resend) http=${res.status}`);
+      return RESEND_DEFINITE_REJECTIONS.has(res.status)
+        ? { status: "REJECTED", httpStatus: res.status }
+        : { status: "UNCERTAIN", reason: "HTTP_STATUS" };
+    }
+    const body: unknown = await res.json().catch(() => null);
+    const id = body && typeof body === "object" ? (body as { id?: unknown }).id : undefined;
+    if (typeof id !== "string" || !/^[a-zA-Z0-9_.:~-]{1,200}$/.test(id)) return { status: "UNCERTAIN", reason: "INVALID_RESPONSE" };
+    return { status: "SENT", providerId: id };
+  } catch (err) {
+    const timeout = controller.signal.aborted || (err instanceof Error && err.name === "AbortError");
+    console.error(`[email] envio transacional sem confirmação (Resend): ${timeout ? "timeout" : "falha de conexão"}`);
+    return { status: "UNCERTAIN", reason: timeout ? "TIMEOUT" : "NETWORK" };
+  } finally {
+    clearTimeout(timer);
+  }
+}
