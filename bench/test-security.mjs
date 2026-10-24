@@ -41,6 +41,19 @@ check(official.eventId === 'evt_synthetic_provider_id');
 check(official.paidAt === '2026-10-17');
 check(!isSameOriginMutation(new Request('http://127.0.0.1:3107/api/admin/users', { method: 'POST', headers: { origin: 'https://untrusted.invalid' } })));
 check(isSameOriginMutation(new Request('http://127.0.0.1:3107/api/admin/users', { method: 'POST', headers: { origin: 'http://127.0.0.1:3107' } })));
+{
+  // AUTH_URL no domínio técnico não pode bloquear o site oficial (www ou raiz).
+  const previous = process.env.AUTH_URL;
+  process.env.AUTH_URL = 'https://inst-acessor.vercel.app';
+  try {
+    check(isSameOriginMutation(new Request('https://www.unitrixapp.com.br/api/onboarding', { method: 'PUT', headers: { origin: 'https://www.unitrixapp.com.br' } })));
+    check(isSameOriginMutation(new Request('https://www.unitrixapp.com.br/api/onboarding', { method: 'PUT', headers: { origin: 'https://unitrixapp.com.br' } })));
+    check(isSameOriginMutation(new Request('https://www.unitrixapp.com.br/api/onboarding', { method: 'PUT', headers: { origin: 'https://inst-acessor.vercel.app' } })));
+    check(!isSameOriginMutation(new Request('https://www.unitrixapp.com.br/api/onboarding', { method: 'PUT', headers: { origin: 'https://unitrixapp.com.br.evil.invalid' } })));
+  } finally {
+    if (previous === undefined) delete process.env.AUTH_URL; else process.env.AUTH_URL = previous;
+  }
+}
 const handlers = {};
 runInNewContext(readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8'), {
   self: { location: { origin: 'https://local.audit.invalid' }, addEventListener: (name, handler) => { handlers[name] = handler; } }, URL,
