@@ -9,6 +9,7 @@ import { sendAccessReleasedEmail } from "@/lib/email";
 import { getAppBaseUrl } from "@/lib/config/site";
 import type { ParsedAsaasEvent } from "./webhook";
 import { sanitizeAsaasPayload } from "./client";
+import { ASAAS_REVOKING_EVENTS, CHECKOUT_SESSION_REF_PREFIX } from "./types";
 import { acceptableChargeAmounts } from "@/lib/billing/promo";
 import { getPromoConfig } from "@/lib/billing/promo-db";
 import { assessGrantCapacity } from "@/lib/billing/capacity-db";
@@ -216,9 +217,9 @@ async function dispatch(parsed: ParsedAsaasEvent): Promise<ApplyOutcome> {
       if (grant) return "duplicate_payment";
       const revoked = await bll.billingEvent.findFirst({ where: {
         provider: "asaas", processed: true,
-        type: { in: ["PAYMENT_REFUNDED", "PAYMENT_CHARGEBACK_REQUESTED", "PAYMENT_CHARGEBACK_DISPUTE"] },
+        type: { in: [...ASAAS_REVOKING_EVENTS] },
         OR: [
-          { eventId: { in: ["PAYMENT_REFUNDED", "PAYMENT_CHARGEBACK_REQUESTED", "PAYMENT_CHARGEBACK_DISPUTE"].map((type) => `${type}:${parsed.externalPaymentId}`) } },
+          { eventId: { in: ASAAS_REVOKING_EVENTS.map((type) => `${type}:${parsed.externalPaymentId}`) } },
           { payload: { path: ["payment", "id"], equals: parsed.externalPaymentId } },
         ],
       } });
@@ -319,10 +320,25 @@ async function applyOrderPayment(
 ): Promise<ApplyOutcome> {
   // ---- Validações (regras 14/15/16 + P17/P21) ----
   if (parsed.amountCents === null) return "ignored";
-  if (parsed.amountCents !== order.expectedAmountCents) return "ignored";
 
   const plan = await getPlanById(order.planId ?? order.planSlug);
   if (!plan || plan.slug !== order.planSlug) return "ignored";
+
+  // Valor: a 1ª cobrança precisa ser EXATAMENTE o valor travado na ordem. Numa
+  // RENOVAÇÃO recorrente (ordem já paga, outro pagamento) também vale o preço
+  // CHEIO do catálogo: a pré-venda acaba (mensal após 3 cobranças, anual após o
+  // 1º ano) e a assinatura passa a ser cobrada pelo valor cheio. Antes, essa
+  // cobrança legítima era descartada como divergência e o assinante que pagou
+  // perdia o acesso. Qualquer outro valor continua recusado.
+  const isRenewalCharge =
+    order.status === "PAID" &&
+    plan.type === "RECURRING" &&
+    Boolean(parsed.externalPaymentId) &&
+    order.externalPaymentId !== parsed.externalPaymentId;
+  const acceptedAmounts = isRenewalCharge
+    ? [order.expectedAmountCents, plan.priceCents]
+    : [order.expectedAmountCents];
+  if (!acceptedAmounts.includes(parsed.amountCents)) return "ignored";
 
   // AQUI ESTAVA O DEFEITO DA PRÉ-VENDA (P17/P21).
   // Antes: `if (plan.priceCents !== order.expectedAmountCents) return "ignored"`.
@@ -414,6 +430,29 @@ async function applyOrderPayment(
     expiresAt,
   });
 
+  // Vincula o customer criado pelo checkout hospedado ao User — SOMENTE quando
+  // a ordem nasceu de uma SESSÃO autenticada desse mesmo User (marcador
+  // durável na `externalReference`, gerada no servidor). Um anônimo que digita
+  // o e-mail de outra pessoa com os próprios dados NUNCA grava o customer dele
+  // na conta da vítima. Roda DEPOIS do commit, isolado: uma falha aqui não
+  // pode desfazer o pagamento/acesso já gravados.
+  const sessionUserId = buyer.userId;
+  const customerId = parsed.externalCustomerId;
+  if (
+    sessionUserId &&
+    customerId &&
+    order.userId === sessionUserId &&
+    order.externalReference.startsWith(`${CHECKOUT_SESSION_REF_PREFIX}${sessionUserId}:`)
+  ) {
+    afterDatabaseCommit(async () => {
+      try {
+        await linkAsaasCustomer(sessionUserId, customerId);
+      } catch {
+        console.error("[asaas-events] não foi possível vincular o customer Asaas (best-effort)");
+      }
+    });
+  }
+
   return "applied";
 }
 
@@ -497,10 +536,11 @@ async function applyRecurringCharge(input: {
     }
   }
 
-  // Payment da nova cobrança (com User apenas — FK obrigatória).
+  // Payment da nova cobrança (com User apenas — FK obrigatória). Valor
+  // REALMENTE cobrado (já validado: travado na ordem ou preço cheio).
   await upsertPaidPayment({
     parsed,
-    amountCents: order.expectedAmountCents,
+    amountCents: parsed.amountCents ?? order.expectedAmountCents,
     userId: buyer.userId,
     planId: plan.id,
     subscriptionId,
@@ -568,8 +608,11 @@ async function applySubscriptionRenewalOnly(
   // pré-venda também precisa valer — quem assinou no valor promocional é cobrado
   // assim pelo Asaas, e recusar essa cobrança apagaria o acesso de quem pagou.
   // Mesmo conjunto fechado do checkout (cheio + promocional vigente).
+  // Valor travado na assinatura OU, em plano recorrente, o preço CHEIO do
+  // catálogo (fim da pré-venda) — mesma regra da renovação com ordem.
   if (sub.amountCents != null && sub.amountCents > 0
-    ? parsed.amountCents !== sub.amountCents
+    ? parsed.amountCents !== sub.amountCents &&
+      !(plan.type === "RECURRING" && parsed.amountCents === plan.priceCents)
     : !(await isChargeAmountLegitimate(plan.slug, plan.priceCents, parsed.amountCents))) {
     return "ignored";
   }
@@ -665,7 +708,8 @@ async function applyOrderLifecycle(
 
     case "PAYMENT_REFUNDED":
     case "PAYMENT_CHARGEBACK_REQUESTED":
-    case "PAYMENT_CHARGEBACK_DISPUTE": {
+    case "PAYMENT_CHARGEBACK_DISPUTE":
+    case "PAYMENT_RECEIVED_IN_CASH_UNDONE": {
       await revokeAccessForRefund(order, parsed);
       await bll.checkoutOrder.update({
         where: { id: order.id },
@@ -747,9 +791,61 @@ async function applyOrderLifecycle(
       return "applied";
     }
 
+    case "PAYMENT_REPROVED_BY_RISK_ANALYSIS":
+    case "PAYMENT_CREDIT_CARD_CAPTURE_REFUSED": {
+      // Cartão recusado / reprovado na análise de risco: NUNCA libera acesso.
+      // Ordem ainda não paga → FAILED (não é reaproveitada por um novo clique;
+      // um PAYMENT_CONFIRMED posterior da MESMA ordem ainda é aceito). Ordem já
+      // paga (recusa numa renovação) → o período pago permanece.
+      if (order.status !== "PENDING") return "noop";
+      await bll.checkoutOrder.update({
+        where: { id: order.id },
+        data: {
+          status: "FAILED",
+          audit: { step: "payment_refused", at: new Date().toISOString(), event: parsed.event },
+        },
+      });
+      return "applied";
+    }
+
+    case "CHECKOUT_CANCELED":
+    case "CHECKOUT_EXPIRED": {
+      // Checkout hospedado morto: a ordem PENDING deixa de ser reaproveitável
+      // (o próximo clique cria um checkout novo). Ordem paga não é tocada.
+      if (order.status !== "PENDING") return "noop";
+      await bll.checkoutOrder.update({
+        where: { id: order.id },
+        data: {
+          status: parsed.event === "CHECKOUT_EXPIRED" ? "EXPIRED" : "CANCELED",
+          audit: { step: "checkout_closed", at: new Date().toISOString(), event: parsed.event },
+        },
+      });
+      return "applied";
+    }
+
     default:
       return "noop";
   }
+}
+
+/**
+ * Grava `User.asaasCustomerId` a partir do customer da cobrança confirmada.
+ * Só preenche quando o User ainda não tem vínculo e nenhum outro User usa este
+ * customer (coluna @unique) — nunca sobrescreve um vínculo existente.
+ */
+async function linkAsaasCustomer(userId: string, customerId: string | null): Promise<void> {
+  if (!customerId || !/^cus_[A-Za-z0-9]{1,64}$/.test(customerId)) return;
+  const user = (await bll.user.findUnique({
+    where: { id: userId },
+    select: { asaasCustomerId: true },
+  })) as unknown as { asaasCustomerId: string | null } | null;
+  if (!user || user.asaasCustomerId) return;
+  const holder = (await bll.user.findUnique({
+    where: { asaasCustomerId: customerId },
+    select: { id: true },
+  })) as unknown as { id: string } | null;
+  if (holder) return;
+  await bll.user.update({ where: { id: userId }, data: { asaasCustomerId: customerId } });
 }
 
 // ---------------------------------------------------------------
@@ -766,7 +862,7 @@ async function applySubscriptionLifecycleOnly(
   // revogar o grant. Sem este ramo, o evento caía no `default` → `noop`: o Asaas
   // devolvia o dinheiro e o acesso local permanecia liberado até o fim do
   // período — silenciosamente.
-  if (["PAYMENT_REFUNDED", "PAYMENT_CHARGEBACK_REQUESTED", "PAYMENT_CHARGEBACK_DISPUTE"].includes(parsed.event)) {
+  if ((ASAAS_REVOKING_EVENTS as readonly string[]).includes(parsed.event)) {
     return revokeRefundWithoutOrder(parsed);
   }
 

@@ -253,6 +253,50 @@ export const ASAAS_SUBSCRIPTION_EVENTS = [
 ] as const;
 export type AsaasSubscriptionEvent = (typeof ASAAS_SUBSCRIPTION_EVENTS)[number];
 
+/**
+ * Prefixo da `externalReference` de checkouts criados por SESSÃO autenticada:
+ * `instacessor:checkout-session:<userId>:<uuid>`. Gerado só no servidor e
+ * imutável na ordem — é o marcador durável de que a identidade foi provada
+ * (usado para vincular `User.asaasCustomerId` com segurança).
+ */
+export const CHECKOUT_SESSION_REF_PREFIX = "instacessor:checkout-session:";
+
+/** Eventos que revogam o acesso da cobrança (estorno/chargeback/recebimento desfeito). */
+export const ASAAS_REVOKING_EVENTS = [
+  "PAYMENT_REFUNDED",
+  "PAYMENT_CHARGEBACK_REQUESTED",
+  "PAYMENT_CHARGEBACK_DISPUTE",
+  "PAYMENT_RECEIVED_IN_CASH_UNDONE",
+] as const;
+
+/** Recusas definitivas da cobrança (cartão/antifraude): nunca liberam acesso. */
+export const ASAAS_PAYMENT_REFUSED_EVENTS = [
+  "PAYMENT_REPROVED_BY_RISK_ANALYSIS",
+  "PAYMENT_CREDIT_CARD_CAPTURE_REFUSED",
+] as const;
+
+/** Eventos oficiais que nunca liberam acesso (auditoria; recusas → ordem FAILED; CHECKOUT_CANCELED/EXPIRED → ordem pendente encerrada). */
+export const ASAAS_ACK_ONLY_EVENTS = [
+  ...ASAAS_PAYMENT_REFUSED_EVENTS,
+  "PAYMENT_AWAITING_RISK_ANALYSIS",
+  "PAYMENT_APPROVED_BY_RISK_ANALYSIS",
+  "PAYMENT_AUTHORIZED",
+  "PAYMENT_UPDATED",
+  "PAYMENT_ANTICIPATED",
+  "PAYMENT_RESTORED",
+  "PAYMENT_PARTIALLY_REFUNDED",
+  "PAYMENT_REFUND_IN_PROGRESS",
+  "PAYMENT_REFUND_DENIED",
+  "PAYMENT_AWAITING_CHARGEBACK_REVERSAL",
+  "PAYMENT_DUNNING_REQUESTED",
+  "PAYMENT_DUNNING_RECEIVED",
+  "PAYMENT_BANK_SLIP_VIEWED",
+  "PAYMENT_CHECKOUT_VIEWED",
+  "CHECKOUT_CREATED",
+  "CHECKOUT_CANCELED",
+  "CHECKOUT_EXPIRED",
+] as const;
+
 // Eventos de pagamento (documentados como "os mesmos de Payment" na doc do
 // Asaas — mas a instrução do projeto manda NÃƒO extrapolar sem confirmação).
 // Aqui definimos apenas os que usamos de forma conservadora e registramos
@@ -269,10 +313,19 @@ export const ASAAS_KNOWN_EVENTS = [
   "PAYMENT_REFUNDED",
   "PAYMENT_CHARGEBACK_REQUESTED",
   "PAYMENT_CHARGEBACK_DISPUTE",
+  // Desfazer um recebimento em dinheiro equivale a estorno daquela cobrança.
+  "PAYMENT_RECEIVED_IN_CASH_UNDONE",
   // Conclusão do Checkout (confirmado na doc oficial). NÃƒO libera acesso por
   // conta própria: a liberação continua vindo de PAYMENT_CONFIRMED/
   // PAYMENT_RECEIVED. Serve para reconciliar o status do CheckoutOrder.
   "CHECKOUT_PAID",
+  // Eventos oficiais do Asaas que NÃO liberam nem revogam acesso, mas que a
+  // conta envia quando a fila de webhook assina "todos os eventos de cobrança".
+  // Antes ficavam fora da lista → a rota respondia 400 → o Asaas reenviava e,
+  // após falhas consecutivas, PAUSAVA a fila inteira (inclusive os
+  // PAYMENT_CONFIRMED seguintes). Agora são reconhecidos e registrados como
+  // no-op auditável (200). Recusa de cartão/antifraude marca a ordem FAILED.
+  ...ASAAS_ACK_ONLY_EVENTS,
 ] as const;
 export type AsaasKnownEvent = (typeof ASAAS_KNOWN_EVENTS)[number];
 

@@ -256,11 +256,27 @@ export interface ReservationOrderInput {
   billingInterval: string | null;
   externalReference: string;
   audit: Record<string, unknown>;
+  /**
+   * Idempotência do checkout (duplo clique / requisições simultâneas). Quando
+   * informado, uma ordem PENDING recente do MESMO comprador, plano e valor, com
+   * a MESMA impressão digital (HMAC dos dados do comprador, em
+   * `audit.checkoutFingerprint`), é REAPROVEITADA em vez de criar outra ordem e
+   * outra cobrança no Asaas. Só vale para ordens que já têm checkout externo ou
+   * que ainda estão sendo criadas (`inFlightMs`).
+   */
+  reuse?: { fingerprint: string; windowMs: number; inFlightMs: number } | null;
 }
 
 export type ReservationResult =
-  | { ok: true; order: Record<string, unknown> }
+  | { ok: true; order: Record<string, unknown>; reused?: boolean }
   | { ok: false; decision: CapacityDecision };
+
+/** Lê a impressão digital do checkout gravada na trilha de auditoria. */
+export function checkoutFingerprintOf(audit: unknown): string | null {
+  if (!audit || typeof audit !== "object" || Array.isArray(audit)) return null;
+  const value = (audit as Record<string, unknown>).checkoutFingerprint;
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
 
 /**
  * Tenta reservar uma vaga E criar a `CheckoutOrder` PENDING numa única
@@ -304,6 +320,31 @@ export async function attemptCheckoutReservation(
           // Serializa reservas concorrentes com um lock TRANSACIONAL. O lock é
           // liberado automaticamente no commit/rollback — nenhum estado vaza.
           await t.$executeRaw`SELECT pg_advisory_xact_lock(${ADVISORY_LOCK_KEY_1}::integer, ${ADVISORY_LOCK_KEY_2}::integer)`;
+
+          // 0) Idempotência: reaproveita a ordem PENDING do mesmo checkout
+          //    (mesmo comprador/plano/valor/dados), dentro do MESMO lock — dois
+          //    cliques simultâneos nunca criam duas ordens/duas cobranças.
+          if (input.reuse) {
+            const nowMs = Date.now();
+            const candidates = (await t.checkoutOrder.findMany({
+              where: {
+                email: input.email,
+                planSlug: input.planSlug,
+                expectedAmountCents: input.expectedAmountCents,
+                status: "PENDING",
+                createdAt: { gt: new Date(nowMs - input.reuse.windowMs) },
+              },
+              orderBy: { createdAt: "desc" },
+              take: 10,
+            })) as unknown as Array<Record<string, unknown>>;
+            const match = candidates.find((o) => {
+              if (checkoutFingerprintOf(o.audit) !== input.reuse!.fingerprint) return false;
+              if (typeof o.externalCheckoutId === "string" && o.externalCheckoutId) return true;
+              const created = o.createdAt instanceof Date ? o.createdAt.getTime() : 0;
+              return nowMs - created < input.reuse!.inFlightMs;
+            });
+            if (match) return { ok: true, order: match, reused: true } satisfies ReservationResult;
+          }
 
           // 1) Configuração (dentro da transação = snapshot consistente).
           const row = await t.systemSetting.findUnique({ where: { key: CAPACITY_SETTING_KEY } });

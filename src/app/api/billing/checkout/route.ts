@@ -56,6 +56,8 @@ export async function POST(request: Request) {
   let userEmail = "";
   let userName: string | null = null;
   let userId: string | null = null;
+  // Só a SESSÃO prova a identidade: apenas nela o customer Asaas salvo é reutilizado.
+  let authenticated = false;
 
   // Dados do comprador (somente fluxo anônimo). Normalizados pelo schema.
   let buyer:
@@ -73,6 +75,7 @@ export async function POST(request: Request) {
     userId = session.user.id;
     userEmail = session.user.email;
     userName = session.user.name ?? null;
+    authenticated = true;
   } else {
     const normalized = normalizeEmail(parsed.data.email ?? "");
     if (!normalized) {
@@ -135,6 +138,7 @@ export async function POST(request: Request) {
     name: userName,
     planId: plan.id,
     userId,
+    reuseStoredCustomer: authenticated,
     buyer,
   });
 
@@ -152,6 +156,22 @@ export async function POST(request: Request) {
         checkoutUrl: null,
         capacity: result.capacity ?? null,
         canJoinWaitlist: true,
+      },
+      { status: 409 }
+    );
+  }
+
+  // DUPLO CLIQUE: o mesmo checkout ainda está sendo criado. Nada novo foi
+  // cobrado; o cliente tenta de novo em instantes e recebe a MESMA URL.
+  if (!result.ok && result.reason === "in_progress") {
+    return NextResponse.json(
+      {
+        ok: false,
+        status: result.status,
+        reason: "in_progress",
+        message: result.message,
+        error: result.message,
+        checkoutUrl: null,
       },
       { status: 409 }
     );
