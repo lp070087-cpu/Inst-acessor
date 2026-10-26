@@ -8,12 +8,11 @@ import { LaunchWaitlist } from "@/components/landing/launch-waitlist";
 import {
   Nav,
   Hero,
-  Marquee,
   Movimentos,
   Dashboard,
 } from "@/components/landing/sections-a";
 import { Diagnostico, GeradorCopy } from "@/components/landing/sections-b";
-import { Xp, Rank, Badges, AnaliseConteudos, PreviewSocial } from "@/components/landing/sections-c";
+import { AnaliseConteudos, PreviewSocial } from "@/components/landing/sections-c";
 import {
   RedesSociais,
   Planos,
@@ -96,24 +95,20 @@ export default async function HomePage() {
 
       <Nav />
 
+      {/* JORNADA DE VENDA (out/2026): o que é → como funciona → demonstração
+          real → onde funciona → planos → lista de espera → dúvidas → CTA.
+          Saíram da página XP, Rank e Badges (gamificação: três telas que não
+          ajudam a decidir a assinatura; o progresso segue citado em "Cresça")
+          e a faixa Marquee (repetia os nomes dos recursos). Os componentes
+          continuam exportados; nada foi apagado do app. */}
       <Hero />
-      <Marquee />
-
-      {/* ===== NÚCLEO — ordem EXATA da pasta de referência (01 → 10) =====
-          Estas 10 são o CORPO da página. Nenhuma seção antiga é
-          renderizada entre elas. Os componentes removidos continuam
-          exportados nos arquivos (funções do app intactas) — só não
-          aparecem mais na apresentação de venda. */}
-      <Dashboard />          {/* 01 */}
-      <Diagnostico />        {/* 02 */}
-      <GeradorCopy />        {/* 03 */}
-      <Movimentos />         {/* 04 — "O produto em quatro verbos" */}
-      <Xp />                 {/* 05 */}
-      <Rank />               {/* 06 */}
-      <Badges />             {/* 07 */}
-      <AnaliseConteudos />   {/* 08 */}
-      <PreviewSocial />      {/* 09 */}
-      <RedesSociais />       {/* 10 */}
+      <Movimentos />         {/* como funciona — os 4 passos */}
+      <Dashboard />          {/* demonstração: números */}
+      <PreviewSocial />      {/* demonstração: prévia e recorte */}
+      <GeradorCopy />
+      <Diagnostico />
+      <AnaliseConteudos />
+      <RedesSociais />       {/* o que está ativo × o que depende das plataformas */}
 
       {/* ===== FECHAMENTO COMERCIAL — só o necessário ===== */}
       <Planos />

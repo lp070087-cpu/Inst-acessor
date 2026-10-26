@@ -8332,3 +8332,78 @@
   .lnd-waitlist-section .lnd-waitlist-done { animation: none; }
   .lnd-waitlist-section .lnd-waitlist-plan-option:hover { transform: none; }
 }
+
+/* ============================================================
+   OTIMIZAÇÃO COMERCIAL (out/2026) — fatos do hero, aviso de lote,
+   equivalência mensal e acabamento dos planos.
+   ============================================================ */
+.lnd-hero-facts {
+  list-style: none;
+  margin: 34px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px 22px;
+  color: var(--lnd-ink-2);
+  font-size: 14px;
+}
+.lnd-hero-facts li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.lnd-hero-facts svg {
+  color: var(--lnd-success);
+  flex: none;
+}
+.lnd-plans-closed {
+  max-width: 760px;
+  margin: 0 auto 28px;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-radius: 16px;
+  background: #111318;
+  color: #fff;
+  font-size: 15px;
+  line-height: 1.5;
+  box-shadow: var(--lnd-shadow-sm);
+}
+.lnd-plans-closed p {
+  margin: 0;
+}
+.lnd-plans-closed .lnd-pulse {
+  flex: none;
+}
+.lnd-plans-grid {
+  align-items: stretch;
+}
+.lnd-plan-card .lnd-plan-feats {
+  flex: 1;
+}
+.lnd-plan-card .lnd-btn {
+  min-height: 48px;
+}
+.lnd-plan-card.lnd-featured {
+  border-color: rgba(109, 40, 217, 0.35);
+}
+@media (max-width: 640px) {
+  .lnd-hero-facts {
+    flex-direction: column;
+    align-items: flex-start;
+    width: fit-content;
+    margin-inline: auto;
+    font-size: 13.5px;
+  }
+  .lnd-plans-closed {
+    font-size: 14px;
+    align-items: flex-start;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lnd-plans-closed .lnd-pulse {
+    animation: none;
+  }
+}

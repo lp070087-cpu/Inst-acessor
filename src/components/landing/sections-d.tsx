@@ -9,6 +9,7 @@ import {
 } from "@/lib/billing/plans/display";
 import { quotaForPlan } from "@/lib/billing/plans/limits";
 import { getPlanPromoDisplay } from "@/lib/billing/promo-db";
+import { evaluateCapacity } from "@/lib/billing/capacity-db";
 import { PromoCountdown } from "@/components/billing/promo-countdown";
 import { WaitlistPlanLink } from "./launch-waitlist";
 import {
@@ -133,15 +134,15 @@ const SOCIAL_CARDS = [
   {
     platform: "instagram",
     name: "Instagram",
-    desc: "Análise completa do perfil, agendamento e publicação direta.",
-    feats: ["Métricas e score", "Calendário e agendamento", "Publicação com confirmação"],
-    status: "ready" as const,
-    statusLabel: "Disponível",
+    desc: "Conexão pela API oficial. Métricas e publicação direta são liberadas conforme a homologação da Meta.",
+    feats: ["Métricas e score do perfil", "Calendário e fila de publicação", "Publicação só com sua confirmação"],
+    status: "soon" as const,
+    statusLabel: "Homologação Meta",
   },
   {
     platform: "tiktok",
     name: "TikTok",
-    desc: "Acompanhe vídeos, seguidores e engajamento em um só painel.",
+    desc: "Vídeos, seguidores e engajamento no mesmo painel, após a homologação do TikTok.",
     feats: ["Métricas de vídeos", "Sync de perfil", "Gestão de conexão"],
     status: "soon" as const,
     statusLabel: "Em preparação",
@@ -226,12 +227,13 @@ export function RedesSociais() {
     <section className="lnd-section">
       <div className="lnd-container">
         <div className="lnd-section-head lnd-center lnd-reveal">
-          <span className="lnd-eyebrow">Redes sociais</span>
+          <span className="lnd-eyebrow">Integrações</span>
           <h2 className="lnd-h2">
-            Conecte suas redes <span className="lnd-grad">e centralize tudo</span>
+            O que já funciona <span className="lnd-grad">e o que depende das plataformas</span>
           </h2>
           <p className="lnd-lead">
-            Vincule seus perfis profissionais para liberar métricas, estratégias e automações.
+            Calendário, IA, Preview Social e biblioteca de mídia funcionam desde o primeiro acesso.
+            Métricas e publicação direta dependem da homologação de cada rede.
           </p>
         </div>
 
@@ -351,23 +353,40 @@ export async function Planos() {
   // fosse a configuração real do admin.
   const promo = await getPlanPromoDisplay();
 
+  // VENDA ABERTA? — mesma decisão de capacidade que o checkout aplica no
+  // servidor. Com o lote fechado pelo admin, o botão principal leva à lista de
+  // espera em vez de mandar o visitante a um checkout que vai recusar a compra.
+  // Falha de leitura mantém os dois caminhos (o checkout continua decidindo).
+  const sales = await evaluateCapacity(null)
+    .then(({ decision }) => ({ open: decision.allowed, message: decision.message }))
+    .catch(() => ({ open: true, message: "" }));
+
   return (
     <section className="lnd-section" id="planos">
       <div className="lnd-container">
         <div className="lnd-section-head lnd-center lnd-reveal">
           <span className="lnd-eyebrow">Planos</span>
           <h2 className="lnd-h2">
-            Invista no seu crescimento, <span className="lnd-grad">sem exagero</span>
+            Escolha seu plano <span className="lnd-grad">e comece</span>
           </h2>
           <p className="lnd-lead">
-            Planos simples e acessíveis. Cancele quando quiser — o valor é todo seu.
+            Todos os planos incluem o app completo. Muda só o período e a franquia de uso.
           </p>
         </div>
+
+        {!sales.open && (
+          <div className="lnd-plans-closed lnd-reveal" role="status">
+            <span className="lnd-pulse" aria-hidden="true" />
+            <p>{sales.message || "As vendas deste lote estão encerradas. Entre na lista de espera e avisaremos quando abrir."}</p>
+          </div>
+        )}
 
         <div className="lnd-plans-grid">
           {plans.map((p, i) => {
             const shortName = planShortName(p);
-            const featured = p.badge === "MAIS_ESCOLHIDO";
+            // Destaque com justificativa verificável: o anual tem o menor custo
+            // por mês. Nenhum selo de popularidade sem dado de vendas.
+            const featured = p.badge === "MELHOR_CUSTO_BENEFICIO";
             const isPreview = !p.active;
             const isPremium = p.slug === "elite" || p.slug === "master";
             const quota = quotaForPlan(p.slug);
@@ -382,17 +401,17 @@ export async function Planos() {
               const lines: string[] = [];
               // IA por dia + por ciclo
               if (quota.aiPerDay == null && quota.aiPerCycle == null) {
-                lines.push("Gerações IA: ilimitado");
+                lines.push("Gerações de IA: ilimitado");
               } else {
                 const dia = quota.aiPerDay == null ? "ilimitado/dia" : `${quota.aiPerDay}/dia`;
                 const ciclo = quota.aiPerCycle == null ? "ilimitado/ciclo" : `${quota.aiPerCycle}/ciclo`;
-                lines.push(`Gerações IA: ${dia} · ${ciclo}`);
+                lines.push(`Gerações de IA: ${dia} · ${ciclo}`);
               }
-              lines.push(`Respostas: ${fmt(quota.autoRepliesPerCycle)}/ciclo`);
-              lines.push(`Publicações: ${fmt(quota.publicationsPerCycle)}/ciclo`);
-              lines.push(`Análises: ${fmt(quota.profileAnalysisPerCycle)}/ciclo`);
-              lines.push(`Automações: ${fmt(quota.activeAutomationRules)} ativas`);
-              lines.push(`Contas: ${fmt(quota.connectedAccounts)} conectada${quota.connectedAccounts === 1 ? "" : "s"}`);
+              lines.push(`Respostas por ciclo: ${fmt(quota.autoRepliesPerCycle)}`);
+              lines.push(`Publicações por ciclo: ${fmt(quota.publicationsPerCycle)}`);
+              lines.push(`Análises de perfil por ciclo: ${fmt(quota.profileAnalysisPerCycle)}`);
+              lines.push(`Automações ativas: ${fmt(quota.activeAutomationRules)}`);
+              lines.push(`Contas conectadas: ${fmt(quota.connectedAccounts)}`);
               return lines;
             })();
 
@@ -409,7 +428,7 @@ export async function Planos() {
 
             return (
               <div className={cardClass} data-delay={String(i + 1)} key={p.slug}>
-                {featured && <span className="lnd-plan-badge">Mais escolhido</span>}
+                {featured && <span className="lnd-plan-badge">Melhor custo-benefício</span>}
                 {isPreview && !featured && <span className="lnd-plan-badge lnd-plan-badge-soon">Em breve</span>}
 
                 <span className="lnd-plan-name">{shortName}</span>
@@ -469,16 +488,16 @@ export async function Planos() {
                   >
                     Em breve
                   </button>
-                ) : (
+                ) : sales.open ? (
                   <a
                     className={`lnd-btn lnd-btn-block ${featured ? "lnd-btn-primary" : "lnd-btn-ghost"} lnd-plan-cta`}
                     href={`/checkout?plano=${encodeURIComponent(p.slug)}`}
                   >
-                    Assinar {shortName.toLowerCase()}
+                    Assinar o {shortName.toLowerCase()}
                     <ArrowRight />
                   </a>
-                )}
-                <WaitlistPlanLink slug={p.slug} label={shortName} />
+                ) : null}
+                <WaitlistPlanLink slug={p.slug} label={shortName} primary={!sales.open && featured} />
               </div>
             );
           })}
@@ -500,28 +519,24 @@ export async function Planos() {
 
 const FAQ_ITEMS = [
   {
-    q: "Preciso ter um perfil profissional do Instagram?",
-    a: "Sim. Para conectar o Instagram e liberar métricas, é necessário um perfil profissional (Business ou Creator). O app te orienta na troca, se necessário.",
+    q: "O que já funciona hoje e o que depende da Meta ou do TikTok?",
+    a: "Calendário, IA Acessor, gerador de copy, Preview Social com recorte de imagens e biblioteca de mídia funcionam desde o primeiro acesso. Métricas do perfil e publicação direta dependem da homologação de cada plataforma e são liberadas assim que aprovadas.",
   },
   {
-    q: "O Inst Acessor publica conteúdo na minha conta sem pedir?",
-    a: "Não. Nada é publicado ou enviado sem a sua autorização explícita. A publicação programada só acontece quando você confirma e, se a integração externa ainda não estiver ativa, o item fica agendado com status transparente.",
+    q: "Preciso de um perfil profissional do Instagram?",
+    a: "Para conectar o Instagram, sim: Business ou Creator. O app orienta a troca, se necessário.",
   },
   {
-    q: "Meus dados e os das minhas redes ficam seguros?",
-    a: "Sim. As conexões são protegidas com criptografia, os tokens de acesso nunca são exibidos e a área administrativa exige autorização de servidor. Você mantém o controle o tempo todo.",
+    q: "O Inst Acessor publica algo sem a minha permissão?",
+    a: "Não. Nada é publicado ou respondido sem a sua confirmação, e cada item da fila mostra o status real.",
   },
   {
-    q: "Posso cancelar a assinatura quando quiser?",
-    a: "Pode. Os planos são flexíveis (semanal, mensal ou anual) e o cancelamento é simples. No plano anual, o valor já é o melhor custo-benefício.",
+    q: "Como funciona o pagamento e o cancelamento?",
+    a: "O pagamento é processado pelo Asaas. O semanal é um pagamento único de 7 dias, sem renovação. Mensal e anual renovam automaticamente e você pode cancelar a renovação quando quiser em Minha Assinatura.",
   },
   {
-    q: "Como a IA gera as recomendações?",
-    a: "A IA trabalha a partir dos dados do seu perfil conectado e de boas práticas consolidadas. Ela traduz métricas em ações concretas — nunca inventa resultados.",
-  },
-  {
-    q: "Funciona para o meu nicho?",
-    a: "Sim. O Inst Acessor calibra recomendações para diferentes mercados, de moda e lifestyle a finanças e educação. A estratégia é ajustada à sua realidade.",
+    q: "Meus dados ficam seguros?",
+    a: "Sim. As conexões usam o fluxo oficial de autorização, os tokens ficam criptografados e você pode desconectar suas redes a qualquer momento.",
   },
 ];
 
@@ -530,9 +545,9 @@ export function Faq() {
     <section className="lnd-section" id="faq">
       <div className="lnd-container">
         <div className="lnd-section-head lnd-center lnd-reveal">
-          <span className="lnd-eyebrow">FAQ</span>
+          <span className="lnd-eyebrow">Dúvidas</span>
           <h2 className="lnd-h2">
-            Perguntas <span className="lnd-grad">frequentes</span>
+            Antes de <span className="lnd-grad">assinar</span>
           </h2>
         </div>
 
@@ -567,24 +582,21 @@ export function CtaFinal() {
       </div>
       <div className="lnd-container lnd-inner">
         <div className="lnd-reveal" data-dir="scale">
-          <span className="lnd-eyebrow">Comece hoje</span>
+          <span className="lnd-eyebrow">Pronto para começar</span>
           <h2>
-            Seu Instagram pode crescer com <span className="lnd-grad">mais inteligência</span>
+            Menos improviso, <span className="lnd-grad">mais constância no Instagram</span>
           </h2>
-          <p>
-            Conecte seu perfil, receba seu diagnóstico e dê o primeiro passo de uma estratégia
-            guiada por dados.
-          </p>
+          <p>Escolha o plano que cabe na sua rotina e organize seu conteúdo em um só lugar.</p>
           <div className="lnd-ctas">
-            <a className="lnd-btn lnd-btn-primary lnd-btn-lg" href="/cadastro">
-              Começar agora
+            <a className="lnd-btn lnd-btn-primary lnd-btn-lg" href="#planos">
+              Escolher meu plano
               <ArrowRight />
             </a>
-            <a className="lnd-btn lnd-btn-ghost lnd-btn-lg" href="#planos">
-              Ver planos
+            <a className="lnd-btn lnd-btn-ghost lnd-btn-lg" href="#lista-de-espera">
+              Entrar na lista de espera
             </a>
           </div>
-          <p className="lnd-cta-note">Sem cartão para começar · Cancele quando quiser</p>
+          <p className="lnd-cta-note">Pagamento pelo Asaas · Semanal sem renovação · Cancele a renovação quando quiser</p>
         </div>
       </div>
     </section>
@@ -592,9 +604,9 @@ export function CtaFinal() {
 }
 
 const FOOTER_LINKS = [
-  { t: "Produto", links: [["Funcionalidades", "#dashboard"], ["Planos", "#planos"], ["FAQ", "#faq"]] },
+  { t: "Produto", links: [["Como funciona", "#como-funciona"], ["Planos", "#planos"], ["Lista de espera", "#lista-de-espera"], ["Dúvidas", "#faq"]] },
   { t: "Plataforma", links: [["Entrar", "/login?from=landing"], ["Criar conta", "/cadastro"]] },
-  { t: "Legal", links: [["Segurança", "#seguranca"], ["Termos de uso", "/termos"], ["Privacidade", "/privacidade"], ["Exclusão de dados", "/data-deletion"]] },
+  { t: "Legal", links: [["Termos de uso", "/termos"], ["Privacidade", "/privacidade"], ["Exclusão de dados", "/data-deletion"]] },
 ];
 
 export function Footer() {

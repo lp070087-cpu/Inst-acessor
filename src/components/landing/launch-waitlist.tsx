@@ -33,8 +33,8 @@ function scrollBehavior(): ScrollBehavior {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
 }
 
-export function WaitlistPlanLink({ slug, label }: { slug: string; label: string }) {
-  return <a href="#lista-de-espera" className="lnd-btn lnd-btn-block lnd-btn-ghost lnd-waitlist-plan" aria-label={`Entrar na lista de espera — ${label}`} onClick={event => {
+export function WaitlistPlanLink({ slug, label, primary = false }: { slug: string; label: string; primary?: boolean }) {
+  return <a href="#lista-de-espera" className={`lnd-btn lnd-btn-block ${primary ? "lnd-btn-primary" : "lnd-btn-ghost"} lnd-waitlist-plan`} aria-label={`Entrar na lista de espera — ${label}`} onClick={event => {
     event.preventDefault(); window.dispatchEvent(new CustomEvent(PLAN_EVENT, { detail: slug }));
     document.getElementById("lista-de-espera")?.scrollIntoView({ behavior: scrollBehavior() });
     document.getElementById("waitlist-name")?.focus({ preventScroll: true });

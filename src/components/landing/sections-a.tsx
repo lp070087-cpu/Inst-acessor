@@ -39,11 +39,9 @@ export function LogoMark() {
 // como abertura oficial da página de venda.
 const NAV_LINKS = [
   { href: "#como-funciona", label: "Como funciona" },
-  { href: "#dashboard", label: "Funcionalidades" },
-  { href: "#ia", label: "Inteligência" },
-  { href: "#estrategia", label: "Estratégia" },
-  { href: "#seguranca", label: "Segurança" },
+  { href: "#dashboard", label: "Recursos" },
   { href: "#planos", label: "Planos" },
+  { href: "#faq", label: "Dúvidas" },
 ];
 
 export function Nav() {
@@ -79,8 +77,8 @@ export function Nav() {
           <a className="lnd-btn lnd-btn-ghost lnd-btn-sm" href="/login?from=landing">
             Entrar
           </a>
-          <a className="lnd-btn lnd-btn-primary lnd-btn-sm" href="/cadastro">
-            Criar conta
+          <a className="lnd-btn lnd-btn-primary lnd-btn-sm" href="#planos">
+            Ver planos
             <ArrowRight />
           </a>
           <button className="lnd-nav-burger" aria-label="Abrir menu">
@@ -271,43 +269,37 @@ export function Hero() {
         <div className="lnd-hero-copy">
           <div className="lnd-hero-kicker lnd-reveal">
             <span className="lnd-pulse" aria-hidden="true" />
-            Plataforma inteligente de análise e crescimento para Instagram
+            Para criadores e marcas no Instagram
           </div>
           <h1 className="lnd-hero-title lnd-reveal" data-delay="1">
             <span className="lnd-line">
-              <span className="lnd-line-inner">Transforme dados do Instagram em</span>
+              <span className="lnd-line-inner">Planeje, crie e acompanhe</span>
             </span>
             <span className="lnd-line">
               <span className="lnd-line-inner">
-                <span className="lnd-grad">decisões de crescimento.</span>
+                <span className="lnd-grad">seu Instagram em um só lugar.</span>
               </span>
             </span>
           </h1>
           <p className="lnd-hero-sub lnd-reveal" data-delay="2">
-            O Inst Acessor analisa seu perfil, acompanha sua evolução e transforma métricas em
-            estratégias práticas para ajudar você a crescer de forma inteligente.
+            Calendário, IA no tom da sua marca, prévia real do post e leitura das métricas do
+            seu perfil — para decidir o que postar sem adivinhação.
           </p>
           <div className="lnd-hero-ctas lnd-reveal" data-delay="3">
-            <a className="lnd-btn lnd-btn-primary lnd-btn-lg" href="/cadastro">
-              Começar agora
+            <a className="lnd-btn lnd-btn-primary lnd-btn-lg" href="#planos">
+              Ver planos
               <ArrowRight />
             </a>
             <a className="lnd-btn lnd-btn-ghost lnd-btn-lg" href="#como-funciona">
-              Conhecer a plataforma
+              Como funciona
             </a>
           </div>
-          <div className="lnd-hero-trust lnd-reveal" data-delay="4">
-            <div className="lnd-avatars" aria-hidden="true">
-              <span>M</span>
-              <span>L</span>
-              <span>J</span>
-              <span>R</span>
-            </div>
-            <p>
-              <b>Pensado para criadores e marcas</b> que querem entender e acelerar o próprio
-              crescimento.
-            </p>
-          </div>
+          {/* Fatos verificáveis — sem avatares ou depoimentos inventados. */}
+          <ul className="lnd-hero-facts lnd-reveal" data-delay="4">
+            <li><CheckCircle2 size={15} aria-hidden="true" /> Nada é publicado sem a sua confirmação</li>
+            <li><CheckCircle2 size={15} aria-hidden="true" /> Pagamento seguro pelo Asaas</li>
+            <li><CheckCircle2 size={15} aria-hidden="true" /> Cancele a renovação quando quiser</li>
+          </ul>
         </div>
       </div>
     </section>
@@ -346,24 +338,22 @@ const MOVIMENTOS: Movimento[] = [
     n: "01",
     verbo: "Crie",
     ic: PenLine,
-    frase:
-      "Saia da página em branco. A IA escreve com o contexto do seu perfil e do seu nicho — nunca com fórmula pronta.",
+    frase: "Ideias e legendas escritas com o contexto do seu perfil — e a prévia exata do post antes de publicar.",
     itens: ["IA Acessor", "Central de Ideias", "Preview Social"],
   },
   {
     n: "02",
     verbo: "Publique",
     ic: Send,
-    frase:
-      "Planeje a semana, deixe a fila organizada e publique no Instagram pelo próprio Inst Acessor, com status visível em cada etapa.",
-    itens: ["Calendário Inteligente", "Calendário", "Central de Publicação"],
+    frase: "Organize a semana no calendário e acompanhe o status de cada post na fila de publicação.",
+    itens: ["Calendário Inteligente", "Central de Publicação"],
+    soon: "Publicação direta: liberada após a homologação da Meta",
   },
   {
     n: "03",
     verbo: "Converse",
     ic: MessagesSquare,
-    frase:
-      "A IA lê os comentários dos seus posts e sugere a resposta no seu tom. Você aprova — nada é enviado sem a sua autorização.",
+    frase: "Sugestões de resposta aos comentários no seu tom. Você aprova — nada é enviado sem autorização.",
     itens: ["Respostas Inteligentes"],
     soon: "Execução automática em preparação",
   },
@@ -371,26 +361,21 @@ const MOVIMENTOS: Movimento[] = [
     n: "04",
     verbo: "Cresça",
     ic: TrendingUp,
-    frase:
-      "Veja o que funcionou, onde está travando e o próximo passo — com números derivados dos seus dados, nunca estimados.",
-    itens: ["Análise de Desempenho", "Rank", "Score Inteligente", "Perfil de Inteligência"],
+    frase: "Veja o que funcionou e o próximo passo, com números do seu perfil — e acompanhe sua evolução com XP e rank.",
+    itens: ["Análise de Desempenho", "Score Inteligente", "XP, rank e conquistas"],
   },
 ];
 
 export function Movimentos() {
   return (
-    <section className="lnd-section" id="movimentos">
+    <section className="lnd-section" id="como-funciona">
       <div className="lnd-container">
         <div className="lnd-section-head lnd-center lnd-reveal">
-          <span className="lnd-eyebrow">O produto em quatro verbos</span>
+          <span className="lnd-eyebrow">Como funciona</span>
           <h2 className="lnd-h2">
-            Não é um gerador de legenda.{" "}
-            <span className="lnd-grad">É o ciclo inteiro do seu conteúdo.</span>
+            Do rascunho ao resultado, <span className="lnd-grad">em quatro passos.</span>
           </h2>
-          <p className="lnd-lead">
-            Quatro etapas, um só lugar: criar, publicar, conversar e crescer — cada uma com as
-            ferramentas que você já encontra dentro do aplicativo.
-          </p>
+          <p className="lnd-lead">Tudo o que sua rotina de conteúdo precisa, dentro do mesmo app.</p>
         </div>
 
         <div className="lnd-vmoves">
