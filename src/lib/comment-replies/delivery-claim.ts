@@ -1,7 +1,11 @@
 import { prisma, withDatabaseTransaction } from "@/lib/db";
 import { loadLimitState, checkLimits } from "./limits";
 
-export async function claimCommentReply(userId: string, logId: string): Promise<boolean> {
+export async function claimCommentReply(
+  userId: string,
+  logId: string,
+  origin: "MANUAL" | "AUTO" = "AUTO"
+): Promise<boolean> {
   return withDatabaseTransaction(async () => {
     await prisma.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`reply:${userId}`}, 0))`;
     const state = await loadLimitState(userId, 0);
@@ -15,7 +19,7 @@ export async function claimCommentReply(userId: string, logId: string): Promise<
     state.sentLastDay = await prisma.commentReplyLog.count({ where: since(new Date(now - 24 * 60 * 60_000)) });
     const reserved = await prisma.commentReplyLog.findFirst({ where: { userId, ...pending }, orderBy: { approvedAt: "desc" } });
     if (reserved?.approvedAt && (!state.lastSent || reserved.approvedAt > state.lastSent)) state.lastSent = reserved.approvedAt;
-    if (!checkLimits(state).allowed) return false;
+    if (!checkLimits(state, { origin }).allowed) return false;
     const result = await prisma.commentReplyLog.updateMany({ where: {
       id: logId, userId, status: { in: ["PENDING", "APPROVED", "ERROR"] },
       OR: [{ errorCode: null }, { errorCode: { not: "reconciliation_required" } }],

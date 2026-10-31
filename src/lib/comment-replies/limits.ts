@@ -106,16 +106,25 @@ export async function loadLimitState(userId: string, sentThisRun = 0): Promise<L
  * Decide se MAIS UMA resposta pode ser enviada agora.
  * Fail-closed: qualquer estado incerto bloqueia.
  */
-export function checkLimits(state: LimitState): LimitCheck {
+export function checkLimits(
+  state: LimitState,
+  opts: { origin?: "MANUAL" | "AUTO" } = {}
+): LimitCheck {
   const { rule } = state;
+  // `enabled` é o interruptor da AUTOMAÇÃO ("Desligada, o sistema apenas
+  // sugere — nada é enviado sem sua aprovação"). Antes ele também bloqueava a
+  // aprovação HUMANA: com a regra padrão (enabled=false), aprovar uma sugestão
+  // devolvia "A automação está desativada." e nada era respondido.
+  // Pausa, limites por hora/dia e intervalo continuam valendo para os dois.
+  const manual = opts.origin === "MANUAL";
 
   if (rule.paused) {
     return { allowed: false, reason: "Respostas Inteligentes estão pausadas.", retryLater: true };
   }
-  if (!rule.enabled) {
+  if (!manual && !rule.enabled) {
     return { allowed: false, reason: "A automação está desativada." };
   }
-  if (state.sentThisRun >= rule.maxRepliesPerRun) {
+  if (!manual && state.sentThisRun >= rule.maxRepliesPerRun) {
     return {
       allowed: false,
       reason: `Limite de ${rule.maxRepliesPerRun} respostas por execução atingido.`,

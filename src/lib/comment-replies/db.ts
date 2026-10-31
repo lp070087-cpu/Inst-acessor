@@ -412,6 +412,27 @@ export async function updateLog(
   return (await client().commentReplyLog.findFirst({ where: { id, userId } })) as ReplyLogRow | null;
 }
 
+/**
+ * Libera uma reserva de envio (`PROCESSING`) quando a Meta RECUSOU a resposta.
+ *
+ * Diferente de `reconciliation_required` (desfecho incerto: timeout/rede), aqui
+ * a resposta comprovadamente não foi publicada. O registro vira `ERROR` com o
+ * código real (`capability`, `not_connected`, `media_not_found`, ...), sai da
+ * contagem de limites e pode ser aprovado de novo depois que a causa for
+ * resolvida (ex.: permissão liberada pela Meta, conta reconectada).
+ */
+export async function releaseRejectedClaim(
+  userId: string,
+  id: string,
+  errorCode: string
+): Promise<boolean> {
+  const result = await client().commentReplyLog.updateMany({
+    where: { id, userId, status: "PROCESSING" },
+    data: { status: "ERROR", errorCode },
+  });
+  return result.count === 1;
+}
+
 export interface HistoryFilter {
   status?: ReplyStatus | "ALL";
   mediaId?: string;

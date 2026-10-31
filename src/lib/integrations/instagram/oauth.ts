@@ -95,9 +95,14 @@ export function buildAuthUrl(state: string): string {
 interface CodeExchangeResponse {
   access_token?: string;
   user_id?: string | number;
-  /** Versões recentes devolvem `permissions`; versões antigas, `scope`. */
-  permissions?: string;
+  /**
+   * Versões recentes devolvem `permissions` (string separada por vírgula OU
+   * lista); versões antigas, `scope`.
+   */
+  permissions?: string | string[];
   scope?: string;
+  /** A documentação mostra a resposta embrulhada em `data[]`. */
+  data?: CodeExchangeResponse[];
   token_type?: string;
   expires_in?: number;
   error_message?: string;
@@ -140,6 +145,12 @@ export async function exchangeCodeForToken(code: string): Promise<InstagramToken
     );
   }
 
+  // A documentação oficial mostra `{ data: [{ access_token, user_id, permissions }] }`;
+  // a API real costuma devolver o objeto direto. Aceitamos as duas formas.
+  if (!short.access_token && Array.isArray(short.data) && short.data.length > 0) {
+    short = { ...short.data[0], error_message: short.error_message, error_type: short.error_type };
+  }
+
   const shortToken = typeof short.access_token === "string" ? short.access_token : "";
   if (!shortToken) {
     const detail =
@@ -150,8 +161,15 @@ export async function exchangeCodeForToken(code: string): Promise<InstagramToken
   }
 
   // Scopes efetivamente concedidos (permissions é o nome atual).
+  // Quando a Meta devolve `permissions` como LISTA, antes ela era ignorada e
+  // gravávamos os scopes PEDIDOS (não os concedidos) — a checagem de permissão
+  // de Direct/comentários passava a mentir.
+  const permissionsList = Array.isArray(short.permissions)
+    ? short.permissions.filter((p): p is string => typeof p === "string" && p.trim().length > 0).join(",")
+    : "";
   const granted =
     (typeof short.permissions === "string" && short.permissions) ||
+    permissionsList ||
     (typeof short.scope === "string" && short.scope) ||
     getInstagramScopes();
 

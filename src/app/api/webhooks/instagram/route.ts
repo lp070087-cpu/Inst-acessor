@@ -580,12 +580,37 @@ async function resolveTarget(
     };
   }
 
-  const mediaRow = await prisma.instagramMedia.findUnique({
+  let mediaRow = await prisma.instagramMedia.findUnique({
     where: { igMediaId: comment.igMediaId },
     select: { id: true, userId: true, profile: { select: { username: true } } },
   });
 
-  if (!mediaRow) return null;
+  if (!mediaRow) {
+    // Publicação ainda não sincronizada (o caso MAIS comum: post novo recebe
+    // os primeiros comentários antes de qualquer sync). Antes o evento era
+    // descartado e a resposta inteligente nunca aparecia.
+    //
+    // Só registramos a publicação quando a CONTA do evento (`entry.id`) é de
+    // um usuário real com perfil sincronizado — a linha guarda apenas o que a
+    // Meta mandou (id e tipo de produto); o sync completa o resto pelo mesmo
+    // `igMediaId` (upsert). Sem âncora de conta, continua descartado.
+    if (!anchor?.profileId) return null;
+    try {
+      mediaRow = await prisma.instagramMedia.upsert({
+        where: { igMediaId: comment.igMediaId },
+        create: {
+          profileId: anchor.profileId,
+          userId: anchor.userId,
+          igMediaId: comment.igMediaId,
+          mediaProductType: comment.mediaProductType,
+        },
+        update: {},
+        select: { id: true, userId: true, profile: { select: { username: true } } },
+      });
+    } catch {
+      return null;
+    }
+  }
 
   if (anchor && anchor.userId !== mediaRow.userId) {
     console.warn(
@@ -614,6 +639,8 @@ async function findByAccountId(
   socialConnectionId: string;
   ownUsername: string | null;
   ownAccountId: string | null;
+  /** Perfil sincronizado da conta (necessário para registrar publicação nova). */
+  profileId: string | null;
 } | null> {
   const connection = await prisma.socialConnection.findFirst({
     where: {
@@ -625,7 +652,7 @@ async function findByAccountId(
       userId: true,
       username: true,
       externalAccountId: true,
-      igProfiles: { select: { username: true, igAccountId: true } },
+      igProfiles: { select: { id: true, username: true, igAccountId: true } },
     },
   });
 
@@ -638,6 +665,7 @@ async function findByAccountId(
     // O identificador da própria conta: comparado com `from.id` do autor para
     // reconhecer comentário nosso com certeza.
     ownAccountId: connection.igProfiles?.igAccountId ?? connection.externalAccountId ?? null,
+    profileId: connection.igProfiles?.id ?? null,
   };
 }
 

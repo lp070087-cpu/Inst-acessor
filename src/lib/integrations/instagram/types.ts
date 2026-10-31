@@ -5,7 +5,15 @@
  */
 
 export interface InstagramAccountInfo {
+  /** `me.id` — identificador do nó `me` (escopo do app). Mantido como estava. */
   id: string;
+  /**
+   * `me.user_id` — ID da CONTA PROFISSIONAL do Instagram (IG_ID). É o valor que
+   * a Meta envia em `entry.id` dos webhooks (comments/messages), no
+   * `recipient.id` das mensagens e no `from.id` de mensagens/conversas da
+   * própria conta. `undefined` quando a API não informar.
+   */
+  igUserId?: string;
   username: string;
   name?: string;
   accountType: string;

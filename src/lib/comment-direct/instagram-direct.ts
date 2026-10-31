@@ -70,6 +70,19 @@ export interface DirectCredentials {
   accessToken: string;
   /** Escopos concedidos como a Meta os devolveu (persistidos no OAuth). */
   scopes: string | null;
+  /**
+   * Todos os identificadores conhecidos da PRÓPRIA conta (IG_ID do perfil e o
+   * `me.id` da conexão). Usados para reconhecer "mensagem nossa" e para achar o
+   * CONTATO entre os participantes de uma conversa. Opcional para manter
+   * compatível quem monta credenciais à mão.
+   */
+  ownAccountIds?: string[];
+}
+
+/** Identificadores da própria conta (sem vazios/duplicados). */
+function ownIdsOf(credentials: DirectCredentials): string[] {
+  const ids = [...(credentials.ownAccountIds ?? []), credentials.igUserId ?? ""];
+  return Array.from(new Set(ids.filter((id) => id.length > 0)));
 }
 
 /**
@@ -112,6 +125,9 @@ export async function loadDirectCredentials(userId: string): Promise<DirectCrede
     igUserId: connection.igProfiles?.igAccountId ?? connection.externalAccountId ?? null,
     accessToken,
     scopes: connection.scopes,
+    ownAccountIds: [connection.igProfiles?.igAccountId, connection.externalAccountId].filter(
+      (id): id is string => typeof id === "string" && id.length > 0
+    ),
   };
 }
 
@@ -364,10 +380,18 @@ export async function listConversations(
       );
     }
 
+    // `participants` traz OS DOIS lados (a própria conta e o contato), sem
+    // ordem garantida. Antes pegávamos sempre o primeiro — e a conversa podia
+    // ficar com a PRÓPRIA conta como "contato" (resposta manual ia para nós
+    // mesmos e a reutilização de conversa pelo webhook não casava).
+    const ownIds = ownIdsOf(credentials);
     return (data.data ?? [])
       .filter((c) => typeof c.id === "string" && c.id.length > 0)
       .map((c) => {
-        const participant = c.participants?.data?.[0];
+        const people = c.participants?.data ?? [];
+        const participant =
+          people.find((p) => typeof p.id === "string" && !ownIds.includes(p.id)) ??
+          (people.length === 1 ? people[0] : undefined);
         const last = c.messages?.data?.[0];
         return {
           igConversationId: c.id as string,
@@ -426,12 +450,14 @@ export async function listMessages(
       );
     }
 
-    const ownId = credentials.igUserId;
+    // `from.id` da própria conta é o IG_ID; conexões antigas só guardavam o
+    // `me.id`. Comparamos com todos os IDs conhecidos da conta.
+    const ownIds = ownIdsOf(credentials);
     return (data.data ?? [])
       .filter((m) => typeof m.id === "string" && m.id.length > 0)
       .map((m) => {
         const fromId = m.from?.id ?? null;
-        const fromUs = ownId != null && fromId === ownId;
+        const fromUs = fromId != null && ownIds.includes(fromId);
         const direction: InstagramMessage["direction"] =
           fromId == null ? "UNKNOWN" : fromUs ? "OUTBOUND" : "INBOUND";
         const attachment = m.attachments?.data?.[0];

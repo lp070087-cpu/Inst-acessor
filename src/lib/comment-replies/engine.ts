@@ -18,6 +18,7 @@ import {
   listSpecialProfiles,
   listTemplates,
   recentSentReplies,
+  releaseRejectedClaim,
   updateLog,
   updateRule,
   upsertLog,
@@ -619,7 +620,7 @@ export async function sendApprovedReply(
 
   // ---- LIMITES (reavaliados no momento do envio) ----
   const state = await loadLimitState(userId, 0);
-  const limits = checkLimits(state);
+  const limits = checkLimits(state, { origin });
   if (!limits.allowed) {
     return { ok: false, error: limits.reason ?? "Envio bloqueado pelos limites.", code: "limit" };
   }
@@ -649,7 +650,7 @@ export async function sendApprovedReply(
     return { ok: false, error: info?.message ?? "Sem conexão com o Instagram.", code: info?.code ?? "no_connection" };
   }
 
-  if (!(await claimCommentReply(userId, logId))) return { ok: false, error: "Resposta em envio, aguardando conferência ou limitada.", code: "processing" };
+  if (!(await claimCommentReply(userId, logId, origin))) return { ok: false, error: "Resposta em envio, aguardando conferência ou limitada.", code: "processing" };
 
   try {
     const { externalReplyId } = await replyToComment(log.commentId, text, credentials);
@@ -681,7 +682,17 @@ export async function sendApprovedReply(
         ? err
         : new CommentCapabilityError("api", "Não foi possível publicar a resposta.");
 
-    await updateLog(userId, logId, { status: "ERROR", errorCode: "reconciliation_required" });
+    if (info.rejected) {
+      // A Meta RECUSOU: nada foi publicado. Antes todo erro virava
+      // `reconciliation_required`, o que (a) travava o comentário para sempre
+      // ("Resposta em envio, aguardando conferência") mesmo depois de a causa
+      // ser resolvida e (b) consumia o limite por hora/dia por 24h.
+      await releaseRejectedClaim(userId, logId, info.code);
+    } else {
+      // Desfecho incerto (timeout/rede/resposta sem id): pode ter publicado.
+      // Fica reservado para conferência — nunca reenviamos às cegas.
+      await updateLog(userId, logId, { status: "ERROR", errorCode: "reconciliation_required" });
+    }
 
     // Pausa conforme a natureza do erro — sem laço infinito de tentativas.
     const pause = pauseForError(info.code);

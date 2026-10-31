@@ -5,6 +5,7 @@ import {
   exchangeCodeForToken,
   getInstagramAccountInfo,
   encryptAccessToken,
+  subscribeInstagramWebhooks,
   InstagramApiError,
   IntegrationConfigError,
   type InstagramAccountInfo,
@@ -219,12 +220,18 @@ export async function GET(request: Request) {
         create: {
           userId,
           socialConnectionId: connection.id,
-          igAccountId: account.id,
+          // IG_ID (`me.user_id`): é o identificador que a Meta manda em
+          // `entry.id` dos webhooks. Antes gravávamos `me.id` (escopo do app),
+          // e nenhum webhook de mensagem casava com a conta.
+          igAccountId: account.igUserId ?? account.id,
           username: account.username,
           name: account.name ?? null,
           profilePictureUrl: account.profilePictureUrl ?? null,
         },
         update: {
+          // Trocar de conta reaproveita a mesma linha: o ID precisa acompanhar
+          // a conta NOVA (antes ficava o da conta antiga).
+          igAccountId: account.igUserId ?? account.id,
           username: account.username,
           name: account.name ?? null,
           profilePictureUrl: account.profilePictureUrl ?? null,
@@ -233,6 +240,20 @@ export async function GET(request: Request) {
     } catch (profileErr) {
       // Não invalida a conexão: o perfil é recriado na próxima sincronização.
       console.error("[instagram-callback] falha ao persistir perfil", profileErr);
+    }
+
+    // Habilita a entrega de webhooks (comments/messages) desta conta para o
+    // app. Sem isso a Meta não envia comentário novo nenhum ao callback.
+    // Best-effort: falha só vai para o log, a conexão continua válida.
+    const subscription = await subscribeInstagramWebhooks(tokenData.accessToken, tokenData.scopes);
+    if (subscription.ok) {
+      console.info(
+        `[instagram-callback] webhooks assinados (${subscription.fields.join(",")}) para user=${userId}`
+      );
+    } else {
+      console.warn(
+        `[instagram-callback] webhooks NÃO assinados para user=${userId} (${subscription.code ?? "erro"})`
+      );
     }
 
     console.info(

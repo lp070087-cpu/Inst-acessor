@@ -60,6 +60,13 @@ export class CommentCapabilityError extends Error {
   metaCode?: string;
   /** Motivo REAL devolvido pela Meta (nunca contém o token). */
   metaMessage?: string;
+  /**
+   * `true` quando a Meta RESPONDEU recusando a operação (erro HTTP/`error`):
+   * a resposta comprovadamente NÃO foi publicada e pode ser tentada de novo.
+   * Ausente/false = desfecho incerto (timeout, rede, resposta ilegível) — aí
+   * o envio exige conferência antes de nova tentativa.
+   */
+  rejected?: boolean;
   constructor(
     code: CommentCapabilityCode,
     message: string,
@@ -610,17 +617,32 @@ export async function replyToComment(
       throw new CommentCapabilityError("api", "Resposta inválida do Instagram.");
     }
 
-    if (!res.ok || data.error || !data.id) {
+    if (!res.ok || data.error) {
       const metaCode = data.error?.code != null ? String(data.error.code) : String(res.status);
       const code = capabilityFromMeta(metaCode);
       const metaMessage = data.error?.message
         ? String(data.error.message)
         : "Não foi possível publicar a resposta.";
-      throw new CommentCapabilityError(
+      const rejection = new CommentCapabilityError(
         code,
         capabilityMessage(code),
         metaCode,
         metaMessage
+      );
+      // A Meta respondeu com erro: a resposta NÃO foi publicada.
+      rejection.rejected = true;
+      throw rejection;
+    }
+
+    if (!data.id) {
+      // HTTP 200 sem `id` e sem `error`: não dá para afirmar que NÃO publicou.
+      // Antes isto virava `capability` (o status "200" caía na tabela como
+      // código de permissão da Meta) e pausava a automação à toa.
+      throw new CommentCapabilityError(
+        "api",
+        capabilityMessage("api"),
+        undefined,
+        "O Instagram não confirmou a resposta (sem id)."
       );
     }
 

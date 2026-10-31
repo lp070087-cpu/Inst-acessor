@@ -23,14 +23,25 @@ import type {
 
 /** Nó `me` do Instagram Business Login. */
 interface InstagramMeNode {
-  /** ID no escopo do app (usado para identificar a conta do usuário). */
-  user_id?: string;
-  /** ID do usuário do Instagram (usado nos endpoints de mídia/insights). */
+  /** ID do nó `me` no escopo do app (usado nos caminhos já existentes). */
   id?: string;
+  /**
+   * ID da conta profissional do Instagram (IG_ID). É ESTE valor que chega em
+   * `entry.id` dos webhooks e em `from.id`/`recipient.id` das mensagens.
+   * A API pode devolvê-lo como número.
+   */
+  user_id?: string | number;
   username?: string;
   name?: string;
   account_type?: string;
   profile_picture_url?: string;
+}
+
+/** Normaliza um identificador externo (string ou número) — vazio vira undefined. */
+function readExternalId(value: unknown): string | undefined {
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return undefined;
 }
 
 /**
@@ -45,10 +56,14 @@ interface InstagramMeNode {
 export async function getInstagramAccountInfo(
   accessToken: string
 ): Promise<InstagramAccountInfo> {
-  const me = await graphGet<InstagramMeNode>(
+  const raw = await graphGet<InstagramMeNode & { data?: InstagramMeNode[] }>(
     "me?fields=id,user_id,username,name,account_type,profile_picture_url",
     accessToken
   );
+  // A documentação da Meta mostra o nó `me` às vezes embrulhado em `data[]`;
+  // a API real devolve o objeto direto. Aceitamos as duas formas.
+  const me: InstagramMeNode =
+    Array.isArray(raw.data) && raw.data.length > 0 && !raw.id ? raw.data[0] : raw;
 
   if (!me.id) {
     throw new InstagramApiError(
@@ -59,6 +74,7 @@ export async function getInstagramAccountInfo(
 
   return {
     id: me.id,
+    igUserId: readExternalId(me.user_id),
     username: me.username ?? "",
     name: me.name,
     accountType: normalizeAccountType(me.account_type),

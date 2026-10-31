@@ -65,7 +65,8 @@ export async function syncInstagram(userId: string): Promise<SyncResult> {
       create: {
         userId,
         socialConnectionId: connection.id,
-        igAccountId: data.account.id,
+        // IG_ID (`me.user_id`) — o mesmo `entry.id` dos webhooks.
+        igAccountId: data.account.igUserId ?? data.account.id,
         username: data.profile.username ?? data.account.username,
         name: data.profile.name ?? null,
         followersCount: data.profile.followersCount ?? null,
@@ -84,6 +85,21 @@ export async function syncInstagram(userId: string): Promise<SyncResult> {
         biography: data.profile.biography ?? null,
       },
     });
+
+    // Conexões antigas guardaram `me.id` em `igAccountId`, que não casa com o
+    // `entry.id` dos webhooks. Corrige na sincronização, sem derrubar o sync
+    // se outro registro já usar o mesmo ID (unique).
+    const webhookAccountId = data.account.igUserId ?? data.account.id;
+    if (profile.igAccountId !== webhookAccountId) {
+      try {
+        await prisma.instagramProfile.update({
+          where: { id: profile.id },
+          data: { igAccountId: webhookAccountId },
+        });
+      } catch {
+        console.warn("[instagram-sync] não foi possível atualizar o identificador da conta do perfil");
+      }
+    }
 
     // ---- Salva snapshot temporal ----
     const snapshot = await prisma.instagramSnapshot.create({

@@ -56,6 +56,8 @@ export interface IgWebhookComment {
   igCommentId: string;
   /** ID EXTERNO da publicação comentada. `null` em eventos sem mídia (ex.: live). */
   igMediaId: string | null;
+  /** `value.media.media_product_type` (FEED/REELS/...), quando a Meta informar. */
+  mediaProductType: string | null;
   /** ID do comentário respondido, quando este evento é uma resposta. */
   parentId: string | null;
   text: string | null;
@@ -134,6 +136,14 @@ function readMediaId(value: Record<string, unknown>): string | null {
   return readId(value.media_id);
 }
 
+/** `value.media.media_product_type`, quando a Meta enviar. */
+function readMediaProductType(value: Record<string, unknown>): string | null {
+  const media = value.media;
+  if (!isRecord(media)) return null;
+  const raw = media.media_product_type;
+  return typeof raw === "string" && raw.trim() ? raw.trim().toUpperCase() : null;
+}
+
 /**
  * Converte o instante do evento em `Date`.
  * A Meta usa epoch em SEGUNDOS; valores já em milissegundos e strings ISO são
@@ -205,6 +215,7 @@ export function parseInstagramCommentWebhook(payload: unknown): ParsedWebhookCom
         accountId,
         igCommentId,
         igMediaId: readMediaId(value),
+        mediaProductType: readMediaProductType(value),
         parentId: readId(value.parent_id),
         text: readText(value.text),
         username: readUsername(value),

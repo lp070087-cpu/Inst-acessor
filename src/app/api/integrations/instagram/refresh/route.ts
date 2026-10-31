@@ -7,6 +7,7 @@ import { decryptToken, encryptToken } from "@/lib/crypto";
 import {
   getInstagramAccountInfo,
   refreshLongLivedToken,
+  subscribeInstagramWebhooks,
   InstagramApiError,
   IntegrationConfigError,
 } from "@/lib/integrations/instagram";
@@ -134,9 +135,27 @@ async function POSTHandler(request: Request) {
       },
     });
 
+    // IG_ID do webhook no perfil + (re)assinatura dos webhooks da conta.
+    // Conexões feitas antes desta correção nunca assinaram `comments`/`messages`;
+    // "Atualizar conexão" passa a consertar isso sem exigir reconectar.
+    // Best-effort: nada aqui derruba a renovação.
+    try {
+      await prisma.instagramProfile.updateMany({
+        where: { userId, socialConnectionId: connection.id },
+        data: { igAccountId: account.igUserId ?? account.id },
+      });
+    } catch {
+      console.warn("[instagram-refresh] identificador da conta não atualizado no perfil");
+    }
+    const subscription = await subscribeInstagramWebhooks(currentToken, connection.scopes);
+    if (!subscription.ok) {
+      console.warn(`[instagram-refresh] webhooks não assinados (${subscription.code ?? "erro"})`);
+    }
+
     return NextResponse.json({
       ok: true,
       renewed,
+      webhooks: { subscribed: subscription.ok, fields: subscription.fields },
       account: {
         username: account.username,
         accountType: account.accountType,

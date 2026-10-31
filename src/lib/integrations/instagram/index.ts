@@ -48,3 +48,8 @@ export {
   normalizeAccountType,
 } from "./metrics";
 export { syncInstagram, INSTAGRAM_COOLDOWN_MS } from "./sync";
+export {
+  subscribeInstagramWebhooks,
+  webhookFieldsForScopes,
+  type WebhookSubscriptionResult,
+} from "./webhook-subscription";
