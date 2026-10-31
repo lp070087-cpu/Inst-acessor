@@ -656,12 +656,33 @@ export function LandingClient() {
     // ------------------------------------------------------------
     // FAQ acordeão
     // ------------------------------------------------------------
+    // Botão real (Enter/Espaço nativos) + aria-expanded sincronizado com a
+    // classe `lnd-open`. Setas ↑/↓, Home e End movem o foco entre perguntas.
     const onFaq = (e: Event) => {
       const q = (e.target as HTMLElement).closest<HTMLElement>(".lnd-faq-q");
       if (!q) return;
-      q.closest<HTMLElement>(".lnd-faq-item")?.classList.toggle("lnd-open");
+      const item = q.closest<HTMLElement>(".lnd-faq-item");
+      if (!item) return;
+      const open = item.classList.toggle("lnd-open");
+      q.setAttribute("aria-expanded", String(open));
     };
     root.addEventListener("click", onFaq);
+    const onFaqKey = (e: KeyboardEvent) => {
+      const q = (e.target as HTMLElement).closest<HTMLElement>(".lnd-faq-q");
+      if (!q || !["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;
+      const list = q.closest<HTMLElement>("[data-faq]");
+      if (!list) return;
+      const qs = Array.from(list.querySelectorAll<HTMLElement>(".lnd-faq-q"));
+      const i = qs.indexOf(q);
+      const next =
+        e.key === "Home" ? 0
+        : e.key === "End" ? qs.length - 1
+        : e.key === "ArrowDown" ? (i + 1) % qs.length
+        : (i - 1 + qs.length) % qs.length;
+      e.preventDefault();
+      qs[next]?.focus();
+    };
+    root.addEventListener("keydown", onFaqKey);
 
     // ------------------------------------------------------------
     // Spotlight
@@ -697,6 +718,7 @@ export function LandingClient() {
       root.removeEventListener("click", onTabs);
       root.removeEventListener("click", onCopyActions);
       root.removeEventListener("click", onFaq);
+      root.removeEventListener("keydown", onFaqKey);
       root.removeEventListener("click", onAiQ);
       root.removeEventListener("click", onPubSocial);
       root.removeEventListener("pointerdown", onPreviewTap);

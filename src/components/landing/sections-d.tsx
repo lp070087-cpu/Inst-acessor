@@ -517,55 +517,104 @@ export async function Planos() {
   );
 }
 
+/* Dúvidas frequentes — só afirmações verificáveis no produto atual.
+   Nada de datas de abertura, nem promessa de automação que depende da
+   aprovação do app pela Meta. */
 const FAQ_ITEMS = [
   {
-    q: "O que já funciona hoje e o que depende da Meta ou do TikTok?",
-    a: "Calendário, IA Acessor, gerador de copy, Preview Social com recorte de imagens e biblioteca de mídia funcionam desde o primeiro acesso. Métricas do perfil e publicação direta dependem da homologação de cada plataforma e são liberadas assim que aprovadas.",
+    q: "Como funciona o Inst Acessor?",
+    a: [
+      "É um painel web para planejar, criar e acompanhar o seu Instagram em um só lugar: calendário, IA no tom da sua marca, Preview Social, biblioteca de mídia e leitura das métricas do perfil.",
+      "Nada é publicado ou respondido sem a sua confirmação.",
+    ],
   },
   {
-    q: "Preciso de um perfil profissional do Instagram?",
-    a: "Para conectar o Instagram, sim: Business ou Creator. O app orienta a troca, se necessário.",
+    q: "Preciso conectar uma conta profissional do Instagram?",
+    a: [
+      "Para conectar o Instagram, sim: a conta precisa ser profissional (Business ou Creator). O app orienta a troca, se necessário.",
+      "Calendário, IA, Preview Social e biblioteca de mídia funcionam mesmo antes da conexão. Métricas do perfil dependem da conta conectada.",
+    ],
   },
   {
-    q: "O Inst Acessor publica algo sem a minha permissão?",
-    a: "Não. Nada é publicado ou respondido sem a sua confirmação, e cada item da fila mostra o status real.",
+    q: "Posso preparar conteúdos antes de publicar?",
+    a: [
+      "Sim. No Preview Social você vê como o post vai ficar, ajusta o recorte da imagem e salva como rascunho. Os conteúdos ficam organizados no calendário e na biblioteca de mídia.",
+    ],
   },
   {
-    q: "Como funciona o pagamento e o cancelamento?",
-    a: "O pagamento é processado pelo Asaas. O semanal é um pagamento único de 7 dias, sem renovação. Mensal e anual renovam automaticamente e você pode cancelar a renovação quando quiser em Minha Assinatura.",
+    q: "Como funcionam as Respostas Inteligentes?",
+    a: [
+      "A IA sugere respostas para os comentários e você revisa e aprova cada uma antes de qualquer envio.",
+      "O envio pelo Instagram depende da aprovação do aplicativo pela Meta; até lá, as sugestões ficam disponíveis para você usar.",
+    ],
   },
   {
-    q: "Meus dados ficam seguros?",
-    a: "Sim. As conexões usam o fluxo oficial de autorização, os tokens ficam criptografados e você pode desconectar suas redes a qualquer momento.",
+    q: "Posso usar no celular?",
+    a: [
+      "Sim. O Inst Acessor é um aplicativo web responsivo: funciona no navegador do celular, do tablet e do computador, e pode ser adicionado à tela inicial do celular como app.",
+    ],
+  },
+  {
+    q: "Quando os planos estarão disponíveis?",
+    a: [
+      "As vendas abrem e fecham por lotes. Quando um lote está fechado, entre na lista de espera e avisaremos assim que um novo lote abrir.",
+    ],
+  },
+  {
+    q: "Como funciona o cancelamento?",
+    a: [
+      "O pagamento é processado pelo Asaas. O plano semanal é um pagamento único de 7 dias, sem renovação automática.",
+      "Os planos mensal e anual renovam automaticamente, e você pode cancelar a renovação a qualquer momento em Minha Assinatura.",
+    ],
   },
 ];
 
 export function Faq() {
   return (
-    <section className="lnd-section" id="faq">
+    <section className="lnd-section" id="faq" aria-labelledby="faq-title">
       <div className="lnd-container">
         <div className="lnd-section-head lnd-center lnd-reveal">
           <span className="lnd-eyebrow">Dúvidas</span>
-          <h2 className="lnd-h2">
+          <h2 className="lnd-h2" id="faq-title">
             Antes de <span className="lnd-grad">assinar</span>
           </h2>
         </div>
 
-        <div className="lnd-faq-list">
-          {FAQ_ITEMS.map((f, i) => (
-            <div className="lnd-faq-item lnd-reveal" data-delay={String((i % 3) + 1)} key={f.q}>
-              <button className="lnd-faq-q" type="button">
-                <span className="lnd-faq-num" aria-hidden="true">
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                <span className="lnd-faq-txt">{f.q}</span>
-                <ChevronDown className="lnd-faq-chev" size={20} />
-              </button>
-              <div className="lnd-faq-a">
-                <p>{f.a}</p>
+        {/* Acordeão: cada pergunta é um <button> real (Enter/Espaço nativos)
+            com aria-expanded/aria-controls; a resposta é uma região rotulada
+            pela pergunta. O estado é alternado em landing-client.tsx, que
+            também cuida das setas ↑/↓, Home e End entre as perguntas. */}
+        <div className="lnd-faq-list" data-faq>
+          {FAQ_ITEMS.map((f, i) => {
+            const qId = `faq-q-${i + 1}`;
+            const aId = `faq-a-${i + 1}`;
+            return (
+              <div className="lnd-faq-item lnd-reveal" data-delay={String((i % 3) + 1)} key={f.q}>
+                <h3 className="lnd-faq-h">
+                  <button
+                    className="lnd-faq-q"
+                    type="button"
+                    id={qId}
+                    aria-expanded="false"
+                    aria-controls={aId}
+                  >
+                    <span className="lnd-faq-num" aria-hidden="true">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <span className="lnd-faq-txt">{f.q}</span>
+                    <ChevronDown className="lnd-faq-chev" size={20} aria-hidden="true" />
+                  </button>
+                </h3>
+                <div className="lnd-faq-a" id={aId} role="region" aria-labelledby={qId}>
+                  <div className="lnd-faq-a-inner">
+                    {f.a.map((para) => (
+                      <p key={para}>{para}</p>
+                    ))}
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>

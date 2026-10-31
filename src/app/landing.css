@@ -50,6 +50,20 @@
   --lnd-nav-h: 72px;
   --lnd-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --lnd-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* Escala de consistência visual (skill unitrix-visual-consistency).
+     Tokens NOVOS — nenhum valor acima foi alterado. */
+  --lnd-space-1: 4px;
+  --lnd-space-2: 8px;
+  --lnd-space-3: 12px;
+  --lnd-space-4: 16px;
+  --lnd-space-5: 24px;
+  --lnd-space-6: 32px;
+  --lnd-space-7: 48px;
+  --lnd-space-8: 64px;
+  --lnd-touch: 44px;
+  --lnd-dur-fast: 0.2s;
+  --lnd-dur-base: 0.35s;
+  --lnd-dur-reveal: 0.8s;
 
   --lnd-font-display: var(--font-sora), var(--font-plus-jakarta), system-ui, sans-serif;
   --lnd-font-body: var(--font-plus-jakarta), system-ui, -apple-system, sans-serif;
@@ -8405,5 +8419,239 @@
 @media (prefers-reduced-motion: reduce) {
   .lnd-plans-closed .lnd-pulse {
     animation: none;
+  }
+}
+
+/* ============================================================
+   ALINHAMENTO ESTRUTURAL (out/2026) — cards "deslocados à direita"
+   ------------------------------------------------------------
+   Causa raiz: grades que viram uma coluna com `1fr` (= minmax(auto, 1fr)).
+   O mínimo `auto` da trilha é o min-content dos filhos; quando um filho
+   tem conteúdo que não quebra (cabeçalho do contador com `nowrap`, linha do
+   ranking com rank+thumb+stats+delta, phone de 300px), a trilha fica MAIS
+   LARGA que o container. O card começa no gutter esquerdo e transborda à
+   direita — o `overflow-x:hidden` do root só esconde a sobra, e o card
+   parece empurrado para a direita.
+   Correção: itens de grade com `min-width:0` (o mínimo automático da trilha
+   passa a ser 0) e conteúdo interno que encolhe/quebra. Sem margens
+   negativas, sem offsets por resolução.
+   ============================================================ */
+.lnd-plans-grid > *,
+.lnd-content-grid > *,
+.lnd-content-ranking > *,
+.lnd-preview-wrap > *,
+.lnd-preview-list > *,
+.lnd-social-grid > *,
+.lnd-vmoves > *,
+.lnd-kpi-grid > *,
+.lnd-compare-grid > *,
+.lnd-faq-list > * {
+  min-width: 0;
+}
+
+/* `min-width:0` não basta quando o filho tem largura definida (o phone de
+   300px): a contribuição mínima volta a ser o min-content. Nas grades que
+   empilham, a trilha única é explicitamente minmax(0, 1fr). */
+@media (max-width: 900px) {
+  .lnd-content-grid,
+  .lnd-preview-wrap {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 640px) {
+  .lnd-plans-grid,
+  .lnd-social-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Contador dentro do card de plano: o cabeçalho (lote + "ENCERRA EM:")
+   pode quebrar em vez de impor largura mínima ao card. */
+.lnd-plan-card .lnd-countdown-head {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+
+/* Planos no tablet (641–1080px): 3 cards em 2 colunas deixavam o último
+   preso à esquerda. O card órfão ocupa a linha e centraliza com a MESMA
+   largura de uma coluna. */
+@media (min-width: 641px) and (max-width: 1080px) {
+  .lnd-plans-grid {
+    column-gap: 18px;
+  }
+  .lnd-plans-grid > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+    justify-self: center;
+    width: calc(50% - 9px);
+  }
+}
+
+/* Ranking de conteúdos: o texto encolhe e quebra dentro do card. */
+.lnd-content-item .lnd-ci-body {
+  min-width: 0;
+}
+.lnd-content-item .lnd-ci-body b,
+.lnd-content-item .lnd-ci-body span {
+  overflow-wrap: anywhere;
+}
+.lnd-content-item .lnd-ci-stats,
+.lnd-content-item .lnd-ci-delta {
+  flex: none;
+}
+/* Até 480px a linha única não cabe: números descem para uma 2ª linha. */
+@media (max-width: 480px) {
+  .lnd-content-item {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "rank thumb body body"
+      "rank thumb stats delta";
+    align-items: center;
+    column-gap: 12px;
+    row-gap: 6px;
+    padding: 14px;
+  }
+  .lnd-content-item .lnd-ci-rank { grid-area: rank; width: auto; min-width: 28px; font-size: 20px; }
+  .lnd-content-item .lnd-ci-thumb { grid-area: thumb; width: 48px; height: 48px; }
+  .lnd-content-item .lnd-ci-body { grid-area: body; }
+  .lnd-content-item .lnd-ci-stats { grid-area: stats; text-align: left; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+  .lnd-content-item .lnd-ci-stats b { display: inline; }
+  .lnd-content-item .lnd-ci-delta { grid-area: delta; justify-self: end; }
+}
+
+/* Deslocamentos laterais de hover não podem "grudar" no toque (no celular
+   :hover persiste após o tap e o card ficava 5px à direita). */
+@media (hover: none) {
+  .lnd-content-item:hover,
+  .lnd-ai-chip:hover,
+  .lnd-alert-item:hover,
+  .lnd-footer-col a:hover {
+    transform: none;
+  }
+}
+
+/* Reveals laterais (data-dir left/right) em telas estreitas entram na
+   vertical: um card a ±34px do eixo, numa coluna de 288–400px, encostava
+   na borda e cortava durante a entrada. A posição final é a mesma (0). */
+@media (max-width: 900px) {
+  .lnd-js .lnd-reveal[data-dir="left"]:not(.lnd-in),
+  .lnd-js .lnd-reveal[data-dir="right"]:not(.lnd-in) {
+    transform: translateY(30px);
+  }
+}
+
+/* ---------- SELO "Integração via API oficial do Instagram" ----------
+   Antes: line-height:1 + overflow:hidden + nowrap/ellipsis → pílula fina
+   (29px) com descendentes (ç, g) raspando a borda e risco de reticências
+   em 320px. Agora: altura mínima de toque visual, texto pode quebrar,
+   ícone alinhado ao centro óptico e centralização estrutural no mobile
+   (left/right + margin auto, sem translateX). */
+.lnd-hero-apibadge {
+  gap: 8px;
+  min-height: 34px;
+  padding: 8px 14px 8px 12px;
+  font-size: 12.5px;
+  line-height: 1.35;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  max-width: min(calc(100% - 32px), 380px);
+  color: var(--lnd-ink);
+  background: color-mix(in srgb, var(--lnd-card) 90%, transparent);
+  box-shadow: var(--lnd-shadow-xs);
+}
+.lnd-hero-apibadge svg {
+  width: 16px;
+  height: 16px;
+  align-self: center;
+}
+.lnd-hero-apibadge span {
+  min-width: 0;
+  text-align: left;
+}
+@media (max-width: 640px) {
+  .lnd-hero-apibadge {
+    left: 16px;
+    right: 16px;
+    width: fit-content;
+    margin-inline: auto;
+    transform: none;
+    bottom: 14px;
+    font-size: 12px;
+    padding: 8px 14px 8px 12px;
+  }
+}
+
+/* ---------- FAQ — acordeão acessível ----------
+   Altura animada com grid-template-rows (0fr → 1fr): sem teto fixo de
+   max-height que cortava respostas longas em 320px. Fechado = invisível
+   para leitor de tela e fora da ordem de tabulação (visibility). Sem JS o
+   conteúdo fica aberto (progressive enhancement). */
+.lnd-faq-q {
+  min-height: 56px;
+  line-height: 1.4;
+  border-radius: inherit;
+  transition: background-color var(--lnd-dur-fast) ease;
+}
+@media (hover: hover) {
+  .lnd-faq-q:hover {
+    background: var(--lnd-surface);
+  }
+}
+.lnd-faq-q:focus-visible {
+  outline: 2px solid var(--lnd-purple);
+  outline-offset: -2px;
+}
+.lnd-faq-txt {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.lnd-faq-a {
+  display: grid;
+  grid-template-rows: 1fr;
+  max-height: none;
+  overflow: visible;
+}
+.lnd-faq-a-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+.lnd-faq-a p {
+  line-height: 1.65;
+  font-size: 14.5px;
+}
+.lnd-faq-a p:not(:last-child) {
+  padding-bottom: 10px;
+}
+.lnd-faq-h {
+  margin: 0;
+  font: inherit;
+  letter-spacing: normal;
+}
+.lnd-js .lnd-faq-a {
+  grid-template-rows: 0fr;
+  visibility: hidden;
+  transition:
+    grid-template-rows var(--lnd-dur-base) var(--lnd-ease-out),
+    visibility 0s linear var(--lnd-dur-base);
+}
+.lnd-js .lnd-faq-item.lnd-open .lnd-faq-a {
+  grid-template-rows: 1fr;
+  visibility: visible;
+  max-height: none;
+  transition:
+    grid-template-rows var(--lnd-dur-base) var(--lnd-ease-out),
+    visibility 0s linear 0s;
+}
+@media (max-width: 480px) {
+  .lnd-faq-q { padding: 16px; gap: 12px; font-size: 14.5px; }
+  .lnd-faq-a p { padding: 0 16px 16px; }
+  .lnd-faq-a p:not(:last-child) { padding-bottom: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lnd-js .lnd-faq-a,
+  .lnd-js .lnd-faq-item.lnd-open .lnd-faq-a,
+  .lnd-faq-q .lnd-faq-chev {
+    transition: none;
   }
 }
