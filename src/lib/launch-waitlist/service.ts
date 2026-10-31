@@ -87,19 +87,31 @@ export async function unsubscribeLaunchSubscriber(token: string): Promise<boolea
   });
 }
 
-/** Prepare only; intentionally no transport, scheduler, or transition to READY. */
-export async function prepareLaunchCampaign(input: { key: string; channel: "EMAIL" | "WHATSAPP" }) {
+export type LaunchCampaignKind = "LAUNCH" | "NEWS";
+export type LaunchCampaignContent = { saleUrl?: string; subject?: string; body?: string; ctaUrl?: string };
+
+/**
+ * Prepare only: snapshots eligible recipients into HELD rows. Never sends and never
+ * moves rows to READY; delivery requires the separate typed confirmation in
+ * campaigns.ts (confirmLaunchCampaignSend). Campaign content (not personal data)
+ * travels encrypted in each row's privatePayload because LaunchCampaign has no
+ * content column; the first preparation of a key wins and replays never re-enroll.
+ */
+export async function prepareLaunchCampaign(input: { key: string; channel: "EMAIL" | "WHATSAPP"; kind?: LaunchCampaignKind; content?: LaunchCampaignContent }) {
+  const kind: LaunchCampaignKind = input.kind ?? "LAUNCH";
+  const payload = input.content ? encryptToken(JSON.stringify({ v: 1, kind, ...input.content })) : null;
   return withDatabaseTransaction(async () => {
     await lock(`campaign:${input.key}`);
     const existing = await prisma.launchCampaign.findUnique({ where: { key: input.key } });
     if (existing) {
-      if (existing.channel !== input.channel) throw new Error("CAMPAIGN_CONFLICT");
+      const sample = await prisma.launchNotification.findFirst({ where: { campaignId: existing.id }, select: { kind: true } });
+      if (existing.channel !== input.channel || (sample && sample.kind !== kind)) throw new Error("CAMPAIGN_CONFLICT");
       return { campaignId: existing.id, queued: await prisma.launchNotification.count({ where: { campaignId: existing.id } }) };
     }
-    const campaign = await prisma.launchCampaign.create({ data: input });
+    const campaign = await prisma.launchCampaign.create({ data: { key: input.key, channel: input.channel } });
     // One statement snapshots eligibility; repeating the campaign key does not enroll new people.
-    await prisma.$executeRaw`INSERT INTO "LaunchNotification" ("id", "idempotencyKey", "subscriberId", "campaignId", "kind", "channel", "status", "updatedAt")
-      SELECT gen_random_uuid()::text, ${`campaign:${campaign.id}:`} || "id", "id", ${campaign.id}, 'LAUNCH', ${input.channel}, 'HELD', NOW()
+    await prisma.$executeRaw`INSERT INTO "LaunchNotification" ("id", "idempotencyKey", "subscriberId", "campaignId", "kind", "channel", "status", "privatePayload", "updatedAt")
+      SELECT gen_random_uuid()::text, ${`campaign:${campaign.id}:`} || "id", "id", ${campaign.id}, ${kind}, ${input.channel}, 'HELD', CAST(${payload} AS TEXT), NOW()
       FROM "LaunchSubscriber" WHERE "status" = 'VERIFIED'
       AND ((${input.channel} = 'EMAIL' AND "emailConsent" = true) OR (${input.channel} = 'WHATSAPP' AND "whatsappConsent" = true))
       ON CONFLICT ("idempotencyKey") DO NOTHING`;

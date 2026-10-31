@@ -20,7 +20,7 @@ let checks = 0;
 function check(condition, name) { assert.ok(condition, name); checks++; console.log(`ok ${name}`); }
 const input = {
   name: 'Pessoa Ficticia', email: 'launch@audit.invalid', whatsapp: '+5511999999999', planSlug: 'mensal',
-  emailConsent: true, whatsappConsent: false, source: 'landing-plan', website: '',
+  emailConsent: true, whatsappConsent: false, source: 'landing-plan', privacyAccepted: true, website: '',
 };
 const valid = value => launchSignupSchema.safeParse(value).success;
 check(valid(input), 'The current public form contract is accepted');
@@ -31,7 +31,10 @@ check(launchSignupSchema.parse({ ...input, name: '  Pessoa  ', email: ' UPPER@AU
 for (const whatsapp of ['11999999999', 'https://wa.me/5511999999999', '+0123456789', '+123', '+1234567890123456']) {
   check(!valid({ ...input, whatsapp }), 'Non-E164 WhatsApp refused');
 }
-check(!valid({ ...input, emailConsent: false, whatsappConsent: false }), 'At least one affirmative channel consent required');
+check(valid({ ...input, emailConsent: false, whatsappConsent: false }), 'Marketing channel consents are optional');
+check(!valid({ ...input, privacyAccepted: false }), 'Privacy policy acceptance required');
+check(!valid({ ...input, privacyAccepted: undefined }), 'Missing privacy policy acceptance refused');
+check(!valid({ ...input, privacyAccepted: 'true' }), 'String privacy acceptance is not silently accepted');
 check(valid({ ...input, emailConsent: false, whatsappConsent: true }), 'WhatsApp consent is independent from email marketing consent');
 check(!valid({ ...input, emailConsent: 'true' }), 'String consent is not silently accepted');
 check(!valid({ ...input, role: 'ADMIN' }), 'Unknown privilege-bearing fields refused');

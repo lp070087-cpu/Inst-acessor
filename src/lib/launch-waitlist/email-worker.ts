@@ -12,8 +12,9 @@ import { renderLaunchMessage } from "./templates";
  * TRANSACTIONAL LAUNCH EMAIL WORKER
  * =================================
  * Delivers ONLY channel EMAIL + kind VERIFY/WELCOME without a campaign.
- * LAUNCH campaigns (owner confirmation) and WHATSAPP (approved Meta templates)
- * are never selected, promoted or claimed here: they stay HELD.
+ * Campaign rows (NEWS/LAUNCH, any channel) and WHATSAPP are never selected,
+ * promoted or claimed here: they belong to campaign-worker.ts, which only
+ * touches campaigns an admin explicitly confirmed (status SENDING).
  *
  * Double-send protection: claimLaunchNotification is a single-winner lease and
  * the notification idempotencyKey is sent as Resend's Idempotency-Key. Any
@@ -47,7 +48,7 @@ async function prepare(notificationId: string): Promise<Prepared> {
   if (!row || row.status !== "PROCESSING" || row.channel !== "EMAIL" || row.campaignId || !["VERIFY", "WELCOME"].includes(row.kind)) return { error: "STALE" };
   const subscriber = row.subscriber;
   const origin = getOfficialSiteUrl();
-  let confirmationUrl: string | undefined, unsubscribeUrl: string;
+  let confirmationUrl: string | undefined, unsubscribeUrl: string, preferencesUrl: string;
   try {
     if (row.kind === "VERIFY") {
       if (!row.privatePayload) return { error: "PAYLOAD_UNAVAILABLE" };
@@ -57,18 +58,18 @@ async function prepare(notificationId: string): Promise<Prepared> {
       // A superseded verification token must never be delivered.
       if (subscriber.verificationHash !== launchTokenHash(token)) return { error: "STALE" };
       if (subscriber.unsubscribeHash !== launchTokenHash(unsubscribeToken)) return { error: "PAYLOAD_UNAVAILABLE" };
-      ({ confirmationUrl, unsubscribeUrl } = buildLaunchPrivateLinks(origin, token, unsubscribeToken));
+      ({ confirmationUrl, unsubscribeUrl, preferencesUrl } = buildLaunchPrivateLinks(origin, token, unsubscribeToken));
     } else {
       const unsubscribeToken = decryptToken(subscriber.unsubscribeSecret);
       if (subscriber.unsubscribeHash !== launchTokenHash(unsubscribeToken)) return { error: "PAYLOAD_UNAVAILABLE" };
       // Same validated builder; the confirmation link is discarded because WELCOME has none.
-      ({ unsubscribeUrl } = buildLaunchPrivateLinks(origin, unsubscribeToken, unsubscribeToken));
+      ({ unsubscribeUrl, preferencesUrl } = buildLaunchPrivateLinks(origin, unsubscribeToken, unsubscribeToken));
     }
   } catch {
     return { error: "PAYLOAD_UNAVAILABLE" };
   }
   try {
-    const message = renderLaunchMessage({ kind: row.kind as "VERIFY" | "WELCOME", name: subscriber.name, planSlug: subscriber.planSlug, unsubscribeUrl, confirmationUrl });
+    const message = renderLaunchMessage({ kind: row.kind as "VERIFY" | "WELCOME", name: subscriber.name, planSlug: subscriber.planSlug, unsubscribeUrl, preferencesUrl, confirmationUrl });
     return { to: subscriber.email, ...message, idempotencyKey: row.idempotencyKey };
   } catch {
     return { error: "RENDER_FAILED" };

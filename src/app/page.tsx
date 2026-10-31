@@ -4,7 +4,7 @@ import "./landing.css";
 import "@/components/landing/launch-waitlist.css";
 
 import { LandingClient } from "@/components/landing/landing-client";
-import { LaunchWaitlist } from "@/components/landing/launch-waitlist";
+import { WaitlistModal } from "@/components/landing/waitlist-modal";
 import {
   Nav,
   Hero,
@@ -96,7 +96,7 @@ export default async function HomePage() {
       <Nav />
 
       {/* JORNADA DE VENDA (out/2026): o que é → como funciona → demonstração
-          real → onde funciona → planos → lista de espera → dúvidas → CTA.
+          real → onde funciona → planos → dúvidas → CTA (lista de espera em modal).
           Saíram da página XP, Rank e Badges (gamificação: três telas que não
           ajudam a decidir a assinatura; o progresso segue citado em "Cresça")
           e a faixa Marquee (repetia os nomes dos recursos). Os componentes
@@ -112,11 +112,14 @@ export default async function HomePage() {
 
       {/* ===== FECHAMENTO COMERCIAL — só o necessário ===== */}
       <Planos />
-      <LaunchWaitlist />
       <Faq />
       <CtaFinal />
 
       <Footer />
+
+      {/* Lista de espera: não é mais seção da página. Modal (desktop) /
+          gaveta (mobile) aberto por qualquer CTA "#lista-de-espera". */}
+      <WaitlistModal />
     </main>
   );
 }

@@ -10,8 +10,11 @@ export const launchSignupSchema = z.object({
   emailConsent: z.boolean(),
   whatsappConsent: z.boolean(),
   source: z.enum(["landing-plan", "landing"]),
+  // Aceite da Política de Privacidade: obrigatório e separado dos consentimentos
+  // de marketing (ambos opcionais). Serve só de portão — não é persistido.
+  privacyAccepted: z.literal(true),
   website: z.string().max(200).optional().default(""),
-}).strict().refine((input) => input.emailConsent || input.whatsappConsent, { message: "Selecione ao menos um canal." });
+}).strict();
 export type LaunchSignup = z.infer<typeof launchSignupSchema>;
 export const launchTokenSchema = z.object({ token: z.string().regex(/^[a-f0-9]{64}$/) }).strict();
 export const launchCampaignSchema = z.object({ key: z.string().regex(/^[a-zA-Z0-9_-]{3,80}$/), channel: z.enum(["EMAIL", "WHATSAPP"]), confirmQueue: z.literal(true) }).strict();
