@@ -39,7 +39,7 @@ const handler = withAdminApi(async (request: Request) => {
     prisma.launchSubscriber.groupBy({ by: ["source"], _count: { _all: true } }),
     prisma.launchSubscriber.groupBy({ by: ["status"], _count: { _all: true } }),
     prisma.launchSubscriber.count({ where: { emailConsent: true } }), prisma.launchSubscriber.count({ where: { whatsappConsent: true } }),
-    prisma.launchCampaign.findMany({ orderBy: { createdAt: "desc" }, take: 20, select: { id: true, key: true, status: true, createdAt: true, _count: { select: { notifications: true } } } }),
+    prisma.launchCampaign.findMany({ orderBy: { createdAt: "desc" }, take: 20, select: { id: true, key: true, channel: true, status: true, createdAt: true, _count: { select: { notifications: true } } } }),
     prisma.$queryRaw<Array<{ day: string; count: number }>>`SELECT to_char("createdAt", 'YYYY-MM-DD') AS "day", COUNT(*)::integer AS "count"
       FROM "LaunchSubscriber" WHERE "createdAt" >= ${since} AND "createdAt" < ${tomorrow}
       GROUP BY to_char("createdAt", 'YYYY-MM-DD') ORDER BY "day" ASC LIMIT 30`,
@@ -47,6 +47,9 @@ const handler = withAdminApi(async (request: Request) => {
       channel: { in: ["EMAIL", "WHATSAPP"] }, status: { in: ["HELD", "READY", "PROCESSING", "SENT", "UNCERTAIN", "CANCELLED"] },
     }, _count: { _all: true } }),
   ]);
+  // Per-campaign delivery history (status × channel) and kind (NEWS/LAUNCH) for the listed campaigns.
+  const campaignRows = campaigns.length ? await prisma.launchNotification.groupBy({ by: ["campaignId", "kind", "channel", "status"],
+    where: { campaignId: { in: campaigns.map((item) => item.id) } }, _count: { _all: true } }) : [];
   const dailyCounts = new Map(dailyRows.map((row) => [row.day, row.count]));
   const recentDays = Array.from({ length: 30 }, (_, index) => {
     const day = new Date(since.getTime() + index * 86_400_000).toISOString().slice(0, 10);
@@ -56,7 +59,11 @@ const handler = withAdminApi(async (request: Request) => {
     byPlan: plans.map((row) => ({ planSlug: row.planSlug, count: row._count._all })), bySource: sources.map((row) => ({ source: row.source, count: row._count._all })),
     byStatus: statuses.map((row) => ({ status: row.status, count: row._count._all })), emailConsent, whatsappConsent },
     recentDays, notificationCounts: notifications.map((row) => ({ channel: row.channel, status: row.status, count: row._count._all })),
-    campaigns: campaigns.map(({ _count, ...campaign }) => ({ ...campaign, notificationCount: _count.notifications })) });
+    campaigns: campaigns.map(({ _count, ...campaign }) => {
+      const rows = campaignRows.filter((row) => row.campaignId === campaign.id);
+      return { ...campaign, kind: rows[0]?.kind ?? null, notificationCount: _count.notifications,
+        deliveryCounts: rows.map((row) => ({ channel: row.channel, status: row.status, count: row._count._all })) };
+    }) });
 });
 export async function GET(request: Request) {
   try { const response = await handler(request); response.headers.set("Cache-Control", "no-store"); return response; }

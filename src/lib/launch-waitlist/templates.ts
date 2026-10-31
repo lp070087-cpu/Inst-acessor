@@ -12,12 +12,14 @@ function link(value: string) {
 export const NEWS_SUBJECT_MAX = 120;
 export const NEWS_BODY_MAX = 2000;
 /** Removes control characters; subject is single-line, body keeps line breaks. */
+/* eslint-disable no-control-regex */
 export function cleanNewsSubject(value: string) {
-  return value.replace(/[\u0000-\u001f\u007f-\u009f  ]+/g, " ").replace(/\s+/g, " ").trim();
+  return value.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]+/g, " ").replace(/\s+/g, " ").trim();
 }
 export function cleanNewsBody(value: string) {
-  return value.replace(/\r\n?/g, "\n").replace(/[\u0000-\u0009\u000b-\u001f\u007f-\u009f  ]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+  return value.replace(/\r\n?/g, "\n").replace(/[\u0000-\u0009\u000b-\u001f\u007f-\u009f\u2028\u2029]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
 }
+/* eslint-enable no-control-regex */
 
 /** Pure responsive templates. Rendering never performs delivery or opens a sale. */
 export function renderLaunchMessage(input: {
