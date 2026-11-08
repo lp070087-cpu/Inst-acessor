@@ -27,6 +27,7 @@
  */
 
 import { prisma } from "@/lib/db";
+import { INSTAGRAM_GRAPH_VERSION } from "@/lib/integrations/instagram/client";
 import { friendlyMessage, publishError, sanitizeMessage, toPublishError } from "../errors";
 import type {
   PublishingAdapter,
@@ -56,7 +57,8 @@ import { resolvePublishConnection, type ConnectionResolution } from "../connecti
  * `externalAccountId` guardado na conexão é o próprio IG user id devolvido
  * pelo nó `me` — sem Página do Facebook no caminho.
  */
-const GRAPH_VERSION = process.env.INSTAGRAM_GRAPH_VERSION || "v21.0";
+// Versão centralizada em `integrations/instagram/client.ts` (não duplicar o padrão aqui).
+const GRAPH_VERSION = INSTAGRAM_GRAPH_VERSION;
 const GRAPH_BASE = "https://graph.instagram.com";
 
 /** Endpoints OFICIAIS usados na publicação do Instagram. */

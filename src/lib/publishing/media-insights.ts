@@ -187,10 +187,10 @@ export function buildMediaInsights(input: MediaInsightsInput): {
     },
     {
       key: "impressions",
-      label: "Impressões",
+      label: "Visualizações",
       value: impressions,
       source: "insights",
-      hint: "Quantas vezes a publicação foi exibida.",
+      hint: "Quantas vezes a publicação foi vista (métrica views da Meta, que substituiu impressões em 2025).",
       scopeDependent: true,
     },
     {

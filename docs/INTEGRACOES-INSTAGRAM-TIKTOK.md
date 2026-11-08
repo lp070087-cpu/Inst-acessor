@@ -19,7 +19,7 @@ relatórios existentes em `docs/` (ex.: `APP-REVIEW-INSTAGRAM.md`,
 | Renovação | `https://graph.instagram.com/refresh_access_token` |
 | Dados / insights / publicação | `https://graph.instagram.com` |
 
-Versão da Graph API: `process.env.INSTAGRAM_GRAPH_VERSION || "v21.0"`
+Versão da Graph API: `process.env.INSTAGRAM_GRAPH_VERSION || DEFAULT_INSTAGRAM_GRAPH_VERSION` (`"v26.0"`, atualizado em 08/11/2026 — a v21.0 expirou)
 (`src/lib/integrations/instagram/client.ts:22`). **Ação externa:** confirmar no
 painel da Meta a versão mais recente suportada e planejar o bump (a v21 tem
 prazo de validade; aposentadorias de versão da Graph API são anunciadas pela

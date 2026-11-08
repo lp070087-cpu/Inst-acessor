@@ -24,7 +24,13 @@ import { IntegrationConfigError } from "./errors";
  * - Não expõe credenciais.
  */
 
-const GRAPH_VERSION = process.env.INSTAGRAM_GRAPH_VERSION || "v21.0";
+/**
+ * Versão da Graph API do Instagram — ÚNICO lugar com o valor padrão.
+ * v21.0 expirou; v26.0 lançada em 29/07/2026 (changelog Graph API).
+ * Para trocar sem deploy de código, defina `INSTAGRAM_GRAPH_VERSION` na Vercel.
+ */
+export const DEFAULT_INSTAGRAM_GRAPH_VERSION = "v26.0";
+const GRAPH_VERSION = process.env.INSTAGRAM_GRAPH_VERSION || DEFAULT_INSTAGRAM_GRAPH_VERSION;
 
 /** Host da API de dados/insights/publicação do Instagram. */
 export const INSTAGRAM_GRAPH_BASE = "https://graph.instagram.com";

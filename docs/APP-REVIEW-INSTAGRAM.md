@@ -30,22 +30,24 @@ ser sobrescritos por `INSTAGRAM_SCOPES`.
 | `instagram_business_manage_insights` | Métricas de conta e de cada publicação exibidas no Dashboard e nos Insights da publicação | `GET /{ig-user-id}/insights`, `GET /{ig-media-id}/insights` |
 | `instagram_business_manage_comments` | Ler os comentários recebidos e responder publicamente (Respostas Inteligentes) | `GET /{ig-media-id}/comments`, `POST /{ig-comment-id}/replies` |
 | `instagram_business_content_publish` | Publicar o conteúdo que o próprio usuário montou e confirmou na Central de Publicação | `POST /{ig-user-id}/media`, `POST /{ig-user-id}/media_publish`, `GET /{container-id}` |
-| `instagram_business_manage_messages` | **Não usado. Este escopo NÃO deve ser solicitado.** (ver 2.1) | — |
+| `instagram_business_manage_messages` | Direct: Inbox de mensagens e **Comentário → Direct** (mensagem privada a quem comentou), sempre a partir de regra criada e ativada pelo usuário ou de resposta manual na Inbox | `POST /{ig-user-id}/messages`, `GET /{ig-user-id}/conversations`, `GET /{conversation-id}/messages`, webhook `messages` |
 
-### 2.1 Por que `instagram_business_manage_messages` deve ser REMOVIDO do pedido
+### 2.1 `instagram_business_manage_messages` — agora USADO (atualizado em 08/11/2026)
 
-O escopo continua declarado em `INSTAGRAM_DEFAULT_SCOPES`, mas **não existe
-nenhuma chamada** de mensagem direta no código. A varredura por
-`conversations`, `/{ig-user-id}/messages`, `private_replies`, `messaging_*` e
-`recipient` não encontra nenhuma requisição à Graph API.
+A versão anterior deste documento pedia a remoção do escopo porque não havia
+chamada de mensagem no código. Isso mudou: o módulo Direct está ativo.
 
-A Meta recusa permissões sem caso de uso demonstrável. Pedir
-`instagram_business_manage_messages` sem uso é motivo de rejeição **e** amplia
-desnecessariamente o escopo de dados pedidos ao usuário. A recomendação é
-remover a linha de `INSTAGRAM_DEFAULT_SCOPES` antes de submeter. O recurso
-"Comentário → Direct" existe como núcleo puro (`src/lib/comment-direct/`), mas
-está deliberadamente **desligado** e não importado por nenhum módulo — não
-serve como justificativa de escopo.
+- `src/lib/comment-direct/instagram-direct.ts` — envio de *private reply*
+  (`recipient.comment_id`, até 7 dias após o comentário, uma mensagem) e
+  resposta dentro da janela de 24 h (`recipient.id`), leitura de conversas e
+  mensagens.
+- `src/lib/webhooks/instagram-messages.ts` — recebe o webhook `messages`.
+- Fora da janela permitida, a Meta recusa e o app mostra "janela encerrada";
+  não há tentativa de contornar a regra.
+
+Para a submissão: gravar o vídeo mostrando (1) a criação de uma regra
+Comentário → Direct pelo usuário, (2) um comentário de teste e a mensagem
+privada chegando, (3) a resposta manual na Inbox.
 
 ### Produtos da Meta usados
 
@@ -63,7 +65,7 @@ serve como justificativa de escopo.
 O Inst Acessor conecta o perfil profissional do usuário no Instagram e apresenta métricas de
 crescimento em um dashboard:
 
-- **Visão geral** — seguidores, engajamento, alcance, impressões, visitas ao perfil, publicações.
+- **Visão geral** — seguidores, engajamento, alcance, visualizações (`views`), visitas ao perfil, publicações.
 - **Evolução** — histórico 7/30/90 dias a partir de snapshots temporais.
 - **Comparação de períodos** — crescimento semanal e mensal de seguidores.
 - **Score Inteligente** — pontuação derivada apenas de dados reais.
@@ -88,8 +90,9 @@ crescimento em um dashboard:
 - Não segue nem deixa de seguir contas.
 - Não acessa dados de outras contas — toda consulta é filtrada pelo `userId`
   da sessão autenticada.
-- Não envia mensagens diretas (DMs). Nenhuma chamada de mensagem existe no
-  código.
+- Não envia mensagens diretas (DMs) por conta própria: só responde a quem
+  escreveu ou comentou primeiro, conforme regra criada e ativada pelo usuário
+  ou resposta manual na Inbox, dentro das janelas da Meta (24 h / 7 dias).
 - Não define preço, promoção ou mídia sem confirmação explícita do usuário.
 
 ### 3.5 Publicação e comentários — o que o app FAZ
@@ -177,9 +180,12 @@ Crie uma **conta profissional de teste** no Instagram (Business/Creator) para a 
       `src/components/landing/sections-d.tsx`, mas a rota **não existe**.
 - [ ] **Criar `/privacidade`** — mesma situação: linkada, rota inexistente.
 - [ ] **Criar `/data-deletion`** — linkada no rodapé como "Exclusão de dados".
-- [ ] **Remover `instagram_business_manage_messages`** de
-      `INSTAGRAM_DEFAULT_SCOPES` (`src/lib/integrations/instagram/oauth.ts`) —
-      escopo pedido sem nenhuma chamada correspondente.
+- [x] ~~Remover `instagram_business_manage_messages`~~ — **não remover**: o
+      escopo agora é usado pelo Direct (ver 2.1). Justificar com vídeo.
+- [x] Webhooks ativados por conta após o OAuth (`POST /me/subscribed_apps`,
+      `src/lib/integrations/instagram/webhook-subscription.ts`).
+- [ ] App em modo **Live**, **Advanced Access** e **verificação da empresa**
+      (exigidos pela Meta para webhooks de `comments` em contas de terceiros).
 
 **Itens já corretos no código:**
 
@@ -194,8 +200,8 @@ Crie uma **conta profissional de teste** no Instagram (Business/Creator) para a 
 
 **Itens que dependem de configuração no painel da Meta (não do código):**
 
-- [ ] Permissões `basic`, `manage_insights`, `manage_comments` e
-      `content_publish` concedidas/habilitadas no painel.
+- [ ] Permissões `basic`, `manage_insights`, `manage_comments`,
+      `manage_messages` e `content_publish` concedidas/habilitadas no painel.
 - [ ] URL de callback e de webhook cadastradas no painel.
 - [ ] Capturas de tela reais (seção 5).
 - [ ] Conta de teste profissional pronta (seção 6).
@@ -218,6 +224,9 @@ Referência para preencher o formulário de App Review. Host único de dados:
 | `POST /{ig-user-id}/media` | `publishing/instagram/index.ts:63,74` | Confirmar publicação na Central de Publicação |
 | `GET /{container-id}` | `publishing/instagram/index.ts:65` | idem (acompanha o processamento) |
 | `POST /{ig-user-id}/media_publish` | `publishing/instagram/index.ts:64,79` | idem |
+| `POST /me/subscribed_apps` | `integrations/instagram/webhook-subscription.ts` | Conectar a conta (ativa webhooks de comentários e Direct) |
+| `POST /{ig-user-id}/messages` | `comment-direct/instagram-direct.ts` | Regra Comentário → Direct ativada pelo usuário, ou resposta na Inbox |
+| `GET /{ig-user-id}/conversations`, `GET /{conversation-id}/messages` | `comment-direct/instagram-direct.ts` | Abrir a Inbox de Direct |
 | `GET access_token` / `refresh_access_token` | `integrations/instagram/oauth.ts:39,47` | Conectar a conta / renovação de token |
 
 Nenhum token ou secret aparece em URL de retorno, log ou resposta ao cliente

@@ -415,7 +415,10 @@ function toRelativeGraphPath(next: string): string | null {
  */
 const MEDIA_METRICS_CORE_LIST = [
   "reach",
-  "impressions",
+  // `views` substituiu `impressions` (aposentada pela Meta em 21/04/2025 para
+  // mídias criadas a partir de 02/07/2024). Pedir `impressions` derrubava o lote
+  // e forçava o recuo métrica a métrica em toda publicação nova.
+  "views",
   "shares",
   "saved",
   "comments",
@@ -433,14 +436,14 @@ export const MEDIA_METRICS_CORE = MEDIA_METRICS_CORE_LIST.join(",");
  * `developers.facebook.com`). Por isso são pedidas à parte: se a Meta recusar, o
  * prejuízo são as métricas de vídeo — nunca alcance, curtidas ou salvamentos.
  *
- * `plays` NÃO é pedido: foi aposentado pela Meta em favor de `video_views`
- * (era a causa de o lote de vídeo inteiro ser recusado e todas as métricas de
- * vídeo virarem `null`). Continua em `pick("video_views", "plays")` apenas para
- * tolerar uma resposta antiga — não é mais solicitado.
+ * `plays` e `video_views` NÃO são pedidos: a Meta aposentou os dois (2025) e
+ * as reproduções passaram a vir de `views`, no lote principal. Continuam em
+ * `pick("views", "video_views", "plays")` só para tolerar resposta antiga.
  */
 const MEDIA_METRICS_VIDEO_LIST = [
-  "video_views",
-  "video_view_time",
+  // `video_views` e `plays` foram aposentados pela Meta (jan/abr 2025); as
+  // reproduções agora vêm de `views` (lote principal). Tempo assistido:
+  "ig_reels_video_view_total_time",
   "ig_reels_avg_watch_time",
 ] as const;
 
@@ -614,7 +617,10 @@ export async function getMediaMetrics(
     reached: pick("reach", "reached"),
     // `impressions` permanece: a evidência real da Meta a lista como válida no
     // endpoint de MÍDIA (ao contrário do insights de CONTA, onde ela saiu).
-    impressions: pick("impressions"),
+    // Coluna `impressions` (nome congelado no banco) agora guarda `views`, como
+    // já acontece no insights de CONTA. `impressions` só como tolerância a
+    // resposta antiga (mídias anteriores a 02/07/2024).
+    impressions: pick("views", "impressions"),
     shares: pick("shares"),
     // PONTE DE NOME: a Meta devolve `saved`; o produto chama de `saves`.
     // A ordem importa — `saved` é o nome atual e vem primeiro. `saves` fica como
@@ -622,10 +628,11 @@ export async function getMediaMetrics(
     saves: pick("saved", "saves"),
     comments: pick("comments"),
     likes: pick("likes"),
-    // `video_views` primeiro (nome atual); `plays` só como tolerância a resposta
-    // antiga em cache — ele não é mais solicitado à Meta (ver lista de vídeo).
-    video_views: pick("video_views", "plays"),
-    video_view_time: pick("video_view_time", "ig_reels_avg_watch_time"),
+    // `views` é a métrica atual de reproduções; `video_views`/`plays` só como
+    // tolerância a resposta antiga — não são mais solicitados à Meta.
+    video_views: pick("views", "video_views", "plays"),
+    // Tempo TOTAL assistido em ms (a tela descreve assim); média como reserva.
+    video_view_time: pick("ig_reels_video_view_total_time", "video_view_time", "ig_reels_avg_watch_time"),
   };
 }
 
